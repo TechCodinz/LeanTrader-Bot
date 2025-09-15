@@ -1097,11 +1097,24 @@ class UltraTrainer:
         with open(base_path / "metadata.json", 'w') as f:
             json.dump(metadata, f, indent=2, default=str)
         
-        # Update latest model symlink
+        # Update latest model pointer (prefer symlink, fallback to pointer file)
         latest_path = self.models_dir / "latest"
-        if latest_path.exists():
-            latest_path.unlink()
-        latest_path.symlink_to(base_path)
+        try:
+            if latest_path.is_symlink() or latest_path.exists():
+                try:
+                    latest_path.unlink()
+                except IsADirectoryError:
+                    import shutil  # local import to avoid top-level dependency
+                    shutil.rmtree(latest_path)
+            # create directory symlink
+            latest_path.symlink_to(base_path, target_is_directory=True)
+        except Exception:
+            # Fallback: write a simple pointer file latest.txt with absolute path
+            pointer = self.models_dir / "latest.txt"
+            try:
+                pointer.write_text(str(base_path.resolve()))
+            except Exception:
+                pass
         
         return model_id
     
@@ -1111,6 +1124,17 @@ class UltraTrainer:
             model_path = self.models_dir / "latest"
         else:
             model_path = self.models_dir / f"ultra_{model_id}"
+        
+        if not model_path.exists():
+            # Try pointer file fallback
+            try:
+                ptr = self.models_dir / "latest.txt"
+                if ptr.exists():
+                    p = Path(ptr.read_text().strip())
+                    if p.exists():
+                        model_path = p
+            except Exception:
+                pass
         
         if not model_path.exists():
             print(f"Model path not found: {model_path}")
