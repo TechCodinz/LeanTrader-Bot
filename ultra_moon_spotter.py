@@ -31,14 +31,21 @@ class MicroMoonSpotter:
         self.social_trackers = {}
         
         # DEX APIs and endpoints
+        # Allow re-enabling jupiter via env ULTRA_ENABLE_JUPITER=true
         self.dex_endpoints = {
             'pancakeswap': 'https://api.pancakeswap.info/api/v2/tokens',
             'uniswap': 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3',
             'sushiswap': 'https://api.sushi.com/tokens',
             'raydium': 'https://api.raydium.io/v2/main/pairs',
-            # 'jupiter': 'https://price.jup.ag/v4/price',  # disabled due to DNS/SSL in this environment
+            # 'jupiter': 'https://price.jup.ag/v4/price',  # default off due to DNS/SSL in this environment
             'orca': 'https://api.orca.so/allPools'
         }
+        try:
+            import os
+            if os.getenv('ULTRA_ENABLE_JUPITER', 'false').lower() in ('1','true','yes','on'):
+                self.dex_endpoints['jupiter'] = 'https://price.jup.ag/v4/price'
+        except Exception:
+            pass
         
         # Chain scanners
         self.chain_scanners = {
