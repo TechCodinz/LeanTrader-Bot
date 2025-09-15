@@ -9,6 +9,7 @@ import json
 import hashlib
 import time
 from typing import Dict, List, Any, Optional, Tuple
+import os
 from datetime import datetime, timedelta
 from collections import deque, defaultdict
 import aiohttp
@@ -948,8 +949,18 @@ class TelegramSignalIntegration:
                 # Determine if premium signal
                 is_premium = signal.get('confidence', 0) > 0.8 or signal.get('vip', False)
                 
-                # Send to Telegram
-                await self.bot.send_signal(signal, is_premium)
+                # Send to Telegram; if broadcast requested, send both free and premium
+                if signal.get('broadcast', False):
+                    try:
+                        await self.bot.send_signal(signal, is_premium=False)
+                    except Exception:
+                        pass
+                    try:
+                        await self.bot.send_signal(signal, is_premium=True)
+                    except Exception:
+                        pass
+                else:
+                    await self.bot.send_signal(signal, is_premium)
                 
                 # Rate limiting
                 await asyncio.sleep(1)
@@ -982,10 +993,12 @@ async def integrate_telegram_signals(pipeline, bot_token: str, channel_id: str):
     """Integrate Telegram signals into main pipeline."""
     
     # Create integration
+    vip_env = os.getenv('TELEGRAM_VIP_CHAT_ID')
+    vip_channel = vip_env if vip_env else channel_id + "_vip"
     telegram = TelegramSignalIntegration(
         bot_token=bot_token,
         channel_id=channel_id,
-        vip_channel_id=channel_id + "_vip"  # Separate VIP channel
+        vip_channel_id=vip_channel  # Separate VIP channel
     )
     
     # Add to pipeline
@@ -1013,8 +1026,17 @@ async def integrate_telegram_signals(pipeline, bot_token: str, channel_id: str):
                 'ai_score': analysis.get('god_mode', {}).get('god_score', 0) * 10,
                 'risk_level': 'medium',
                 'leverage': '1x',
-                'risk_percent': 2
+                'risk_percent': 2,
+                # Broadcast to both free and premium
+                'broadcast': True
             }
+            # Attach quick chart data for premium view if available
+            try:
+                df_chart = pipeline.market_data.fetch_ohlcv(analysis['symbol'], '5m', 200)
+                if df_chart is not None and not df_chart.empty:
+                    signal_data['chart_data'] = df_chart.set_index('timestamp')
+            except Exception:
+                pass
             
             # Add to Telegram queue
             await telegram.add_signal(signal_data)
