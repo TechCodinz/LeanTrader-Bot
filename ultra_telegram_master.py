@@ -14,8 +14,20 @@ from collections import deque, defaultdict
 import aiohttp
 from telegram import (
     Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup,
-    ParseMode, InputMediaPhoto
+    InputMediaPhoto
 )
+try:
+    # python-telegram-bot v20+
+    from telegram.constants import ParseMode
+except Exception:  # pragma: no cover - compatibility fallback
+    try:
+        # older versions
+        from telegram import ParseMode  # type: ignore
+    except Exception:  # ultimate fallback: minimal shim
+        class ParseMode:  # type: ignore
+            MARKDOWN = "Markdown"
+            MARKDOWN_V2 = "MarkdownV2"
+            HTML = "HTML"
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, filters, ContextTypes
@@ -904,9 +916,17 @@ Use code ULTRA50 for 50% off first month!
     
     async def run(self):
         """Run the bot."""
-        await self.application.initialize()
-        await self.application.start()
-        await self.application.updater.start_polling()
+        try:
+            # Preferred single-call in newer PTB versions
+            await self.application.run_polling()
+        except Exception:
+            # Compatibility: manual start if run_polling not available
+            await self.application.initialize()
+            await self.application.start()
+            # Some versions expose updater for polling
+            updater = getattr(self.application, "updater", None)
+            if updater is not None and hasattr(updater, "start_polling"):
+                await updater.start_polling()
 
 
 class TelegramSignalIntegration:
