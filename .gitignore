@@ -16,3 +16,6 @@ tools/*_out.txt
 *.pkl
 flake_report.txt
 pytest_report.txt
+# Python cache
+__pycache__/
+*.py[cod]
