@@ -610,6 +610,7 @@ class TelegramBot:
         
         # Commands
         self.application.add_handler(CommandHandler("start", self.cmd_start))
+        self.application.add_handler(CommandHandler("panic", self.cmd_panic))
         self.application.add_handler(CommandHandler("premium", self.cmd_premium))
         self.application.add_handler(CommandHandler("stats", self.cmd_stats))
         self.application.add_handler(CommandHandler("active", self.cmd_active))
@@ -857,6 +858,18 @@ The most advanced AI-powered trading signal system ever created!
         """
         
         await update.message.reply_text(welcome)
+
+    async def cmd_panic(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Emergency kill switch: sets ENABLE_LIVE=false and ALLOW_LIVE=false in process env and notes to chat."""
+        try:
+            os.environ["ENABLE_LIVE"] = "false"
+            os.environ["ALLOW_LIVE"] = "false"
+        except Exception:
+            pass
+        try:
+            await update.message.reply_text("🛑 Panic engaged: live trading disabled for this process.")
+        except Exception:
+            pass
     
     async def cmd_premium(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /premium command."""
