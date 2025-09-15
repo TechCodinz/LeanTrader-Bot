@@ -152,8 +152,9 @@ class UltraMLPipeline:
                     continue
                 
                 # Train model
+                # Train directly from DataFrame
                 results = self.trainer.train_full_system(
-                    data_path=None,  # Will use df directly
+                    data_path=df,
                     symbol=symbol,
                     task='classification'
                 )
@@ -185,11 +186,13 @@ class UltraMLPipeline:
                 # Extract features
                 if self.feature_engine:
                     features_df = self.feature_engine.extract_features(df)
-                    
+                    if features_df is None or features_df.empty:
+                        continue
                     # Get ML predictions
                     if self.trainer and self.trainer.ensemble_model:
                         prediction = self.trainer.predict(df)
-                        analysis['signals'][tf] = prediction
+                        if isinstance(prediction, dict):
+                            analysis['signals'][tf] = prediction
                 
                 # Pattern memory recall
                 if SYSTEM_MODULES_AVAILABLE:
@@ -337,7 +340,7 @@ class UltraMLPipeline:
             buy_score = 0
             sell_score = 0
         
-        # Determine action
+        # Determine action (guard missing keys)
         threshold = self.config['confidence_threshold']
         if buy_score > threshold and buy_score > sell_score:
             action = 'BUY'
@@ -347,7 +350,7 @@ class UltraMLPipeline:
             action = 'HOLD'
         
         # Update analysis
-        analysis['confidence'] = weighted_confidence
+        analysis['confidence'] = float(weighted_confidence or 0.0)
         analysis['action'] = action
         analysis['buy_score'] = buy_score
         analysis['sell_score'] = sell_score

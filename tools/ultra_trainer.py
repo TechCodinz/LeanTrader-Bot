@@ -97,6 +97,12 @@ class UltraFeatureEngine:
         
     def extract_features(self, df: pd.DataFrame, include_advanced: bool = True) -> pd.DataFrame:
         """Extract comprehensive feature set from OHLCV data."""
+        if df is None or df.empty:
+            return pd.DataFrame()
+        # Ensure required columns exist
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            if col not in df.columns:
+                df[col] = 0.0
         features = pd.DataFrame(index=df.index)
         
         # Basic price features
@@ -201,7 +207,7 @@ class UltraFeatureEngine:
                 for lag in [1, 2, 3, 5, 10]:
                     features[f'{col}_lag_{lag}'] = features[col].shift(lag)
         
-        # Rolling statistics
+        # Rolling statistics (guard if missing)
         for col in ['returns_1', 'volume']:
             if col in df.columns or col in features.columns:
                 source = features[col] if col in features.columns else df[col]
@@ -210,7 +216,7 @@ class UltraFeatureEngine:
                 features[f'{col}_roll_min_10'] = source.rolling(10).min()
                 features[f'{col}_roll_max_10'] = source.rolling(10).max()
         
-        # Drop NaN values from feature calculation
+        # Drop/Fill NaN values from feature calculation
         features = features.fillna(method='ffill').fillna(0)
         
         return features
@@ -954,14 +960,17 @@ class UltraTrainer:
         self.rl_agent = None
         self.performance_tracker = {}
         
-    def train_full_system(self, data_path: str, 
+    def train_full_system(self, data_path: str = None, 
                           symbol: str = None,
                           task: str = 'classification') -> Dict[str, Any]:
         """Train complete ultra-advanced trading system."""
         print("🚀 Starting Ultra Training System...")
         
         # Load and prepare data
-        df = self._load_data(data_path)
+        if isinstance(data_path, pd.DataFrame):
+            df = data_path.copy()
+        else:
+            df = self._load_data(data_path) if data_path is not None else None
         if df is None or len(df) < 100:
             return {'error': 'Insufficient data'}
         
