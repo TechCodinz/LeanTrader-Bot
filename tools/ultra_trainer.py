@@ -129,8 +129,9 @@ class UltraFeatureEngine:
             features[f'ema_{period}'] = df['close'].ewm(span=period, adjust=False).mean()
             features[f'distance_sma_{period}'] = (df['close'] - features[f'sma_{period}']) / features[f'sma_{period}']
         
-        # Volatility features
-        features['volatility_20'] = df['returns_1'].rolling(20).std()
+        # Volatility features (use computed returns_1 from features)
+        base_ret = features['returns_1'] if 'returns_1' in features.columns else df['close'].pct_change()
+        features['volatility_20'] = base_ret.rolling(20).std()
         features['volatility_ratio'] = features['volatility_20'] / features['volatility_20'].rolling(50).mean()
         
         # ATR (Average True Range)
