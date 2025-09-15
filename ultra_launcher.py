@@ -66,10 +66,18 @@ class UltraLauncher:
         default_config = {
             'mode': 'live',  # 'live', 'paper', 'backtest'
             'symbols': [
-                # crypto majors
+                # crypto majors (concise)
                 'BTC/USDT','ETH/USDT','SOL/USDT','BNB/USDT','XRP/USDT','DOGE/USDT','LINK/USDT','AVAX/USDT','MATIC/USDT','TON/USDT',
-                # metals/forex (forex master may add more later)
-                'XAUUSD','XAGUSD','EURUSD','GBPUSD','USDJPY','USOIL'
+                # metals
+                'XAUUSD','XAGUSD','XPTUSD','XPDUSD',
+                # commodities
+                'USOIL','UKOIL','NATGAS',
+                # forex majors
+                'EURUSD','GBPUSD','USDJPY','USDCHF','USDCAD','AUDUSD','NZDUSD',
+                # forex minors
+                'EURGBP','EURJPY','GBPJPY','AUDJPY','NZDJPY','EURAUD','GBPAUD','EURCAD','AUDCAD','CADJPY','CHFJPY','EURNZD','GBPCAD','EURCHF',
+                # select exotics
+                'USDTRY','USDZAR','USDMXN','USDNOK','USDSEK','USDCNH'
             ],
             'timeframes': ['1m', '5m', '15m', '1h'],
             'exchange': 'binance',

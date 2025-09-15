@@ -764,7 +764,8 @@ class UltraForexMaster:
         self.instruments = {
             'metals': ['XAUUSD', 'XAGUSD', 'XPTUSD', 'XPDUSD'],
             'forex_majors': ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD'],
-            'forex_minors': ['EURGBP', 'EURJPY', 'GBPJPY', 'AUDJPY', 'NZDJPY', 'EURAUD', 'GBPAUD'],
+            'forex_minors': ['EURGBP', 'EURJPY', 'GBPJPY', 'AUDJPY', 'NZDJPY', 'EURAUD', 'GBPAUD', 'EURCAD', 'AUDCAD', 'CADJPY', 'CHFJPY', 'EURNZD', 'GBPCAD', 'EURCHF'],
+            'exotics': ['USDTRY','USDZAR','USDMXN','USDNOK','USDSEK','USDCNH'],
             'commodities': ['USOIL', 'UKOIL', 'NATGAS']
         }
         
