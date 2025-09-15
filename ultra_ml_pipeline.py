@@ -185,14 +185,20 @@ class UltraMLPipeline:
                 
                 # Extract features
                 if self.feature_engine:
-                    features_df = self.feature_engine.extract_features(df)
+                    try:
+                        features_df = self.feature_engine.extract_features(df)
+                    except Exception:
+                        features_df = pd.DataFrame()
                     if features_df is None or features_df.empty:
                         continue
                     # Get ML predictions
                     if self.trainer and self.trainer.ensemble_model:
-                        prediction = self.trainer.predict(df)
-                        if isinstance(prediction, dict):
-                            analysis['signals'][tf] = prediction
+                        try:
+                            prediction = self.trainer.predict(df)
+                            if isinstance(prediction, dict):
+                                analysis['signals'][tf] = prediction
+                        except Exception:
+                            pass
                 
                 # Pattern memory recall
                 if SYSTEM_MODULES_AVAILABLE:
@@ -460,7 +466,7 @@ class UltraMLPipeline:
         try:
             symbol = analysis['symbol']
             action = analysis['action']
-            confidence = analysis['confidence']
+            confidence = float(analysis.get('confidence', 0.0))
             
             # Check position limits
             if len(self.active_positions) >= self.config['max_positions']:
