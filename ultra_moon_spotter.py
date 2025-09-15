@@ -831,6 +831,19 @@ class UltraMoonSystem:
                     print(f"   Potential: {gem['potential_multiplier']:.0f}x")
                     print(f"   Moon Score: {gem['moon_score']:.1f}")
                     
+                    # Telegram: concise gem alert (safe, env-gated)
+                    try:
+                        from tg_utils import send_text as _tg_send
+                        if _tg_send:
+                            chain = gem.get('chain', '?')
+                            dex = gem.get('dex', '?')
+                            _tg_send(
+                                f"💎 MoonSpotter: {gem.get('symbol','?')} | ${gem.get('price',0):.10f} | score {gem.get('moon_score',0):.1f}\n"
+                                f"chain={chain} dex={dex} potential≈{gem.get('potential_multiplier',0):.0f}x"
+                            )
+                    except Exception:
+                        pass
+
                     # Add to tracking
                     self.dashboard.track_gem(gem)
                     
@@ -841,8 +854,24 @@ class UltraMoonSystem:
                         
                         if result['success']:
                             print(f"   ✅ SNIPED! TX: {result['tx_hash'][:10]}...")
+                            try:
+                                from tg_utils import send_text as _tg_send
+                                if _tg_send:
+                                    _tg_send(
+                                        f"✅ Sniped {gem.get('symbol','?')} | tx={result.get('tx_hash','')[:12]}... | gas={result.get('gas_used')}"
+                                    )
+                            except Exception:
+                                pass
                         else:
                             print(f"   ❌ Snipe failed: {result.get('error')}")
+                            try:
+                                from tg_utils import send_text as _tg_send
+                                if _tg_send:
+                                    _tg_send(
+                                        f"❌ Snipe failed {gem.get('symbol','?')}: {result.get('error','unknown')}"
+                                    )
+                            except Exception:
+                                pass
                 
                 # Update tracked gems
                 await self.dashboard.update_prices()
@@ -860,6 +889,18 @@ class UltraMoonSystem:
                     print(f"\n🚀 TOP GAINERS:")
                     for gainer in dashboard_data['top_gainers'][:5]:
                         print(f"   {gainer['info']['symbol']}: {gainer['current_multiplier']:.2f}x")
+                try:
+                    # Periodic compact status to Telegram (every loop)
+                    from tg_utils import send_text as _tg_send
+                    if _tg_send and dashboard_data:
+                        _tg_send(
+                            "🌙 MoonSpotter status: "
+                            f"tracking={dashboard_data.get('tracking_count',0)} "
+                            f"moons={dashboard_data.get('total_moons',0)} "
+                            f"avg×={dashboard_data.get('average_multiplier',0):.2f}"
+                        )
+                except Exception:
+                    pass
                 
                 # Wait before next scan
                 await asyncio.sleep(60)  # Scan every minute
