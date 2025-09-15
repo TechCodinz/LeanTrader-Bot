@@ -1002,8 +1002,8 @@ async def integrate_telegram_signals(pipeline, bot_token: str, channel_id: str):
             # Prepare signal data
             signal_data = {
                 'symbol': analysis['symbol'],
-                'action': analysis['signal']['action'],
-                'confidence': analysis['signal']['confidence'],
+                'action': (analysis.get('signal', {}) or {}).get('action') or analysis.get('action', 'HOLD'),
+                'confidence': float((analysis.get('signal', {}) or {}).get('confidence', analysis.get('confidence', 0.0)) or 0.0),
                 'entry_price': result['trade'].get('entry_price'),
                 'stop_loss': result['trade'].get('stop_loss'),
                 'tp1': result['trade'].get('tp1'),

@@ -835,6 +835,9 @@ class UltraForexMaster:
             'mtf_analysis': mtf_analysis,
             'patterns': patterns,
             'signal': signal,
+            # compatibility for downstream publishers expecting top-level fields
+            'action': signal.get('action', 'HOLD'),
+            'confidence': float(signal.get('confidence', 0.0)),
             'key_levels': mtf_analysis['key_levels']
         }
     
