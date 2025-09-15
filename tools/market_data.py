@@ -334,8 +334,6 @@ does not perform any live trading.
 For ultra-advanced features, import market_data_ultra.py alongside this module.
 """
 
-from __future__ import annotations
-
 import csv
 import time
 from pathlib import Path
