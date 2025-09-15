@@ -108,7 +108,10 @@ class UltraMLPipeline:
     def _default_config(self) -> Dict[str, Any]:
         """Default configuration for ultra pipeline."""
         return {
-            'symbols': ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'],
+            'symbols': [
+                'BTC/USDT','ETH/USDT','SOL/USDT','BNB/USDT','XRP/USDT','DOGE/USDT','LINK/USDT','AVAX/USDT','MATIC/USDT','TON/USDT',
+                'XAUUSD','XAGUSD','EURUSD','GBPUSD','USDJPY','USOIL'
+            ],
             'timeframes': ['1m', '5m', '15m', '1h'],
             'max_positions': 5,
             'risk_per_trade': 0.02,

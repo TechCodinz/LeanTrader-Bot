@@ -65,7 +65,12 @@ class UltraLauncher:
         """Load configuration from file or use defaults."""
         default_config = {
             'mode': 'live',  # 'live', 'paper', 'backtest'
-            'symbols': ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'],
+            'symbols': [
+                # crypto majors
+                'BTC/USDT','ETH/USDT','SOL/USDT','BNB/USDT','XRP/USDT','DOGE/USDT','LINK/USDT','AVAX/USDT','MATIC/USDT','TON/USDT',
+                # metals/forex (forex master may add more later)
+                'XAUUSD','XAGUSD','EURUSD','GBPUSD','USDJPY','USOIL'
+            ],
             'timeframes': ['1m', '5m', '15m', '1h'],
             'exchange': 'binance',
             'max_positions': 5,
