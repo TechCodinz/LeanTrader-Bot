@@ -36,7 +36,7 @@ class MicroMoonSpotter:
             'uniswap': 'https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3',
             'sushiswap': 'https://api.sushi.com/tokens',
             'raydium': 'https://api.raydium.io/v2/main/pairs',
-            'jupiter': 'https://price.jup.ag/v4/price',
+            # 'jupiter': 'https://price.jup.ag/v4/price',  # disabled due to DNS/SSL in this environment
             'orca': 'https://api.orca.so/allPools'
         }
         
