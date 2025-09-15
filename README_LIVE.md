@@ -1,5 +1,7 @@
 # Live deployment checklist (paper -> testnet -> live)
 
+Quantum runtime connectivity: see README_QUANTUM.md
+
 Follow these steps before enabling live trading. Do them in order and run paper/testnet for a minimum of 2-4 weeks of data collection.
 
 1) Paper-mode validation

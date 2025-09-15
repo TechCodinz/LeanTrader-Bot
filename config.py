@@ -1,8 +1,19 @@
-# config.py — compatibility wrapper
-import os
-from settings import settings  # the file we created earlier
+"""
+config.py — compatibility wrapper and environment config.
 
-# Re-export as variables (or keep your previous names if you had them)
+Loads .env (if present) and exposes commonly used settings, plus
+IBM Quantum configuration with sensible defaults.
+"""
+
+import os
+from dotenv import load_dotenv
+from settings import settings  # existing settings object
+
+# Load .env file if present
+load_dotenv()
+
+
+# Re-export key settings for backwards compatibility
 TRADING_MODE = settings.trading_mode
 CRYPTO_TESTNET = settings.crypto_testnet
 PYTHONUNBUFFERED = settings.python_unbuffered
@@ -21,9 +32,10 @@ MT5_LOGIN = settings.mt5_login
 MT5_PASSWORD = settings.mt5_password
 MT5_SERVER = settings.mt5_server
 
-# ---- Quantum integration flags ----
+
+# ---- Small helpers for other flags ----
 def _env_bool(name: str, default: bool) -> bool:
-    raw = os.getenv(name, None)
+    raw = os.getenv(name)
     if raw is None:
         return bool(default)
     val = str(raw).strip().lower()
@@ -32,22 +44,36 @@ def _env_bool(name: str, default: bool) -> bool:
 
 def _env_int(name: str, default: int) -> int:
     try:
-        return int(os.getenv(name, str(default)).strip())
+        return int(str(os.getenv(name, str(default))).strip())
     except Exception:
         return int(default)
 
 
 def _env_float(name: str, default: float) -> float:
     try:
-        return float(os.getenv(name, str(default)).strip())
+        return float(str(os.getenv(name, str(default))).strip())
     except Exception:
-    return float(default)
+        return float(default)
 
 
-Q_ENABLE_QUANTUM: bool = _env_bool("Q_ENABLE_QUANTUM", False)
-Q_USE_RUNTIME: bool = _env_bool("Q_USE_RUNTIME", True)
-IBM_QUANTUM_API_KEY: str = os.getenv("IBM_QUANTUM_API_KEY", "").strip()
-IBM_MIN_QUBITS: int = _env_int("IBM_MIN_QUBITS", 127)
+# ---- IBM Quantum config (dotenv aware) ----
+# Per requirements: use os.getenv with defaults and simple boolean parsing
+Q_ENABLE_QUANTUM = os.getenv("Q_ENABLE_QUANTUM", "false").lower() == "true"
+Q_USE_RUNTIME = os.getenv("Q_USE_RUNTIME", "false").lower() == "true"
+IBM_QUANTUM_API_KEY = os.getenv("IBM_QUANTUM_API_KEY")
+IBM_QUANTUM_INSTANCE = os.getenv("IBM_QUANTUM_INSTANCE", "default")
+IBM_QUANTUM_REGION = os.getenv("IBM_QUANTUM_REGION", "us-east")
+IBM_MIN_QUBITS = int(os.getenv("IBM_MIN_QUBITS", "127"))
+
+IBM_QUANTUM_CONFIG = {
+    "enabled": Q_ENABLE_QUANTUM,
+    "use_runtime": Q_USE_RUNTIME,
+    "api_key": IBM_QUANTUM_API_KEY,
+    "instance": IBM_QUANTUM_INSTANCE,
+    "region": IBM_QUANTUM_REGION,
+    "min_qubits": IBM_MIN_QUBITS,
+}
+
 
 # ---- Risk guard flags ----
 RISK_MAX_LOSS_PER_SYMBOL: float = _env_float("RISK_MAX_LOSS_PER_SYMBOL", 0.02)
@@ -64,6 +90,7 @@ FEATURE_DEX_GUARDS: bool = _env_bool("FEATURE_DEX_GUARDS", False)
 FEATURE_MOON_RADAR: bool = _env_bool("FEATURE_MOON_RADAR", False)
 FEATURE_IDEAS_SLACK: bool = _env_bool("FEATURE_IDEAS_SLACK", False)
 
+
 # Optional: also re-export the settings object for new code
 __all__ = [
     "settings",
@@ -79,10 +106,15 @@ __all__ = [
     "MT5_LOGIN",
     "MT5_PASSWORD",
     "MT5_SERVER",
+    # Quantum config
     "Q_ENABLE_QUANTUM",
     "Q_USE_RUNTIME",
     "IBM_QUANTUM_API_KEY",
+    "IBM_QUANTUM_INSTANCE",
+    "IBM_QUANTUM_REGION",
     "IBM_MIN_QUBITS",
+    "IBM_QUANTUM_CONFIG",
+    # Risk + features
     "RISK_MAX_LOSS_PER_SYMBOL",
     "RISK_MAX_DAILY_LOSS",
     "RISK_MAX_ACCOUNT_DD",
@@ -95,3 +127,4 @@ __all__ = [
     "FEATURE_MOON_RADAR",
     "FEATURE_IDEAS_SLACK",
 ]
+

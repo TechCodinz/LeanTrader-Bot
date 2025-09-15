@@ -24,5 +24,18 @@
     "*test.py"
   ],
   "python.testing.pytestEnabled": false,
-  "python.testing.unittestEnabled": true
+  "python.testing.unittestEnabled": true,
+  "cursorpyright.analysis.diagnosticMode": "openFilesOnly",
+  "cursorpyright.analysis.exclude": [
+    "_incoming/**",
+    "leantrader/**",
+    "tools/**",
+    "runtime/**",
+    "tests/**",
+    ".venv/**"
+  ],
+  "cursorpyright.analysis.extraPaths": [
+    "src"
+  ],
+  "cursorpyright.analysis.typeCheckingMode": "off"
 }

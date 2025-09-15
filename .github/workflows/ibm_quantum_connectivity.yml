@@ -1,0 +1,44 @@
+name: IBM Quantum Connectivity
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "15 1 * * *"  # 01:15 UTC daily
+
+jobs:
+  connectivity:
+    # Run only if repo variable Q_ENABLE_QUANTUM is set to 'true'
+    if: ${{ vars.Q_ENABLE_QUANTUM == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install click python-dotenv qiskit qiskit-ibm-runtime
+
+      - name: Test IBM Quantum runtime connectivity
+        env:
+          IBM_QUANTUM_API_KEY: ${{ secrets.IBM_QUANTUM_API_KEY }}
+          IBM_QUANTUM_INSTANCE: ${{ vars.IBM_QUANTUM_INSTANCE }}
+          IBM_QUANTUM_REGION: ${{ vars.IBM_QUANTUM_REGION }}
+          Q_ENABLE_QUANTUM: ${{ vars.Q_ENABLE_QUANTUM }}
+        run: |
+          set -e
+          echo "Running connectivity check..."
+          python cli/test_ibm_runtime.py > ibm_connectivity.json
+          cat ibm_connectivity.json
+
+      - name: Upload connectivity result
+        uses: actions/upload-artifact@v4
+        with:
+          name: ibm_quantum_connectivity
+          path: ibm_connectivity.json
+

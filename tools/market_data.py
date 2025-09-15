@@ -330,6 +330,8 @@ def save_training_data(symbol: str, timeframe: str = '5m', days: int = 30) -> st
 This module provides safe, opt-in helpers to fetch historical OHLCV and
 persist to CSV under `runtime/data/`. It is intentionally conservative and
 does not perform any live trading.
+
+For ultra-advanced features, import market_data_ultra.py alongside this module.
 """
 
 from __future__ import annotations
@@ -506,3 +508,73 @@ def load_csv(exchange_id: str, symbol: str, timeframe: str = "1m") -> List[List[
             except Exception:
                 continue
     return out
+
+
+# ==================== Ultra Features Integration ====================
+
+def get_ultra_market_data(exchange_id: str = "binance", **kwargs):
+    """Get an instance of UltraMarketData for advanced features.
+    
+    This function provides easy access to ultra-advanced market data features
+    including technical indicators, ML predictions, news sentiment, and on-chain data.
+    
+    Args:
+        exchange_id: Exchange to use (default: binance)
+        **kwargs: Additional arguments for UltraMarketData initialization
+        
+    Returns:
+        UltraMarketData instance with all advanced features
+    
+    Example:
+        >>> ultra = get_ultra_market_data("binance")
+        >>> df = ultra.fetch_ohlcv_ultra("BTC/USDT", timeframe="1h")
+        >>> sentiment = ultra.fetch_news_sentiment("BTC")
+    """
+    try:
+        from .market_data_ultra import UltraMarketData
+        return UltraMarketData(exchange_id, **kwargs)
+    except ImportError:
+        try:
+            from market_data_ultra import UltraMarketData
+            return UltraMarketData(exchange_id, **kwargs)
+        except ImportError:
+            print("Warning: Ultra features not available. Install required dependencies:")
+            print("  pip install pandas numpy scikit-learn transformers beautifulsoup4")
+            return None
+
+
+# ==================== Main Execution ====================
+
+if __name__ == "__main__":
+    print("Market Data Module - Basic and Ultra Features")
+    print("=" * 60)
+
+    # Test basic functionality
+    print("\nTesting basic fetch_ohlcv...")
+    try:
+        data = fetch_ohlcv("binance", "BTC/USDT", "1h", limit=5)
+        if data:
+            print(f"Fetched {len(data)} candles")
+            print(f"Latest: {data[-1]}")
+        else:
+            print("No data fetched")
+    except Exception as e:
+        print(f"Basic fetch error: {e}")
+
+    # Test ultra features if available
+    print("\nTesting ultra features...")
+    ultra = get_ultra_market_data("binance")
+    if ultra:
+        try:
+            df = ultra.fetch_ohlcv_ultra("BTC/USDT", "1h", limit=100)
+            if not df.empty:
+                print(f"Ultra data shape: {df.shape}")
+                print(
+                    f"Available indicators: {[col for col in df.columns if col not in ['open', 'high', 'low', 'close', 'volume']][:10]}")
+        except Exception as e:
+            print(f"Ultra fetch error: {e}")
+    else:
+        print("Ultra features not available")
+
+    print("\n" + "=" * 60)
+    print("Market Data Module loaded successfully!")
