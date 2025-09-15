@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 """Ultra Advanced Market Data Management System.
 
@@ -5,7 +6,6 @@ This module provides a unified interface for OHLCV data management with
 advanced caching, streaming, and multi-timeframe analysis capabilities.
 """
 
-from __future__ import annotations
 
 import json
 import time
@@ -334,7 +334,6 @@ does not perform any live trading.
 For ultra-advanced features, import market_data_ultra.py alongside this module.
 """
 
-from __future__ import annotations
 
 import csv
 import time
