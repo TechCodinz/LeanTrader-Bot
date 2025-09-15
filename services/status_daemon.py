@@ -32,7 +32,20 @@ def main() -> int:
     while True:
         try:
             txt = tail_text(LOG_PATH, TAIL_LINES)
-            notif.note("📡 Status update (paper mode):\n``" + "`\n" + txt + "\n```")
+            # Build message with optional training summary
+            msg = "📡 Status update (paper mode):\n``" + "`\n" + txt + "\n```"
+            try:
+                day = time.strftime("%Y%m%d")
+                p = Path("runtime/training_daily/") / f"{day}.json"
+                if p.exists():
+                    import json as _json
+                    js = _json.loads(p.read_text())
+                    results = js.get("results", [])
+                    ok = sum(1 for r in results if isinstance(r, dict) and "ensemble" in r)
+                    msg += f"\n🧠 Training: {ok}/{len(results)} models today"
+            except Exception:
+                pass
+            notif.note(msg)
         except Exception as e:
             print(f"[status_daemon] send error: {e}")
         time.sleep(max(10, PERIOD_SEC))
