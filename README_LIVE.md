@@ -1,3 +1,46 @@
+## Telegram Free & VIP Channels
+
+You can broadcast to two channels:
+
+- Free channel (announcements, basic signals)
+- VIP channel (premium signals, trade reports)
+
+Setup:
+
+1) Create two Telegram channels (public or private). Add your bot as an admin.
+2) Grab chat IDs (look like `-1001234567890`). You can use a helper bot like `@RawDataBot` or your own logging.
+3) Place these in your `.env` or environment:
+
+```
+TELEGRAM_BOT_TOKEN=xxxx:yyyy
+TELEGRAM_FREE_CHAT_ID=-100...
+TELEGRAM_VIP_CHAT_ID=-100...
+```
+
+Test sending:
+
+```
+python runtime/tg_broadcast.py --msg "Hello Free" --to free
+python runtime/tg_broadcast.py --msg "Hello VIP" --to vip
+python runtime/tg_broadcast.py --demo-trade --to vip
+```
+
+In code, call:
+
+```
+from integrations.telegram_bot import send_signal, send_trade_report
+
+send_signal("Hello world", vip=False)
+send_trade_report({
+  "symbol": "BTC/USDT", "side": "BUY", "entry": "market",
+  "sl": "-1.5%", "tp": ["+1%","+2%","+3%"], "rr": "1:2", "confidence": 0.72
+}, vip=True)
+```
+
+Notes:
+
+- Retries are applied on 429/5xx. Errors are logged without crashing your bot.
+- Values can come from `.env` or `config.py` fallbacks.
 # Live deployment checklist (paper -> testnet -> live)
 
 Quantum runtime connectivity: see README_QUANTUM.md

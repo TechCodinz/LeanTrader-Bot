@@ -97,6 +97,12 @@ class UltraFeatureEngine:
         
     def extract_features(self, df: pd.DataFrame, include_advanced: bool = True) -> pd.DataFrame:
         """Extract comprehensive feature set from OHLCV data."""
+        if df is None or df.empty:
+            return pd.DataFrame()
+        # Ensure required columns exist
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            if col not in df.columns:
+                df[col] = 0.0
         features = pd.DataFrame(index=df.index)
         
         # Basic price features
@@ -123,8 +129,9 @@ class UltraFeatureEngine:
             features[f'ema_{period}'] = df['close'].ewm(span=period, adjust=False).mean()
             features[f'distance_sma_{period}'] = (df['close'] - features[f'sma_{period}']) / features[f'sma_{period}']
         
-        # Volatility features
-        features['volatility_20'] = df['returns_1'].rolling(20).std()
+        # Volatility features (use computed returns_1 from features)
+        base_ret = features['returns_1'] if 'returns_1' in features.columns else df['close'].pct_change()
+        features['volatility_20'] = base_ret.rolling(20).std()
         features['volatility_ratio'] = features['volatility_20'] / features['volatility_20'].rolling(50).mean()
         
         # ATR (Average True Range)
@@ -201,7 +208,7 @@ class UltraFeatureEngine:
                 for lag in [1, 2, 3, 5, 10]:
                     features[f'{col}_lag_{lag}'] = features[col].shift(lag)
         
-        # Rolling statistics
+        # Rolling statistics (guard if missing)
         for col in ['returns_1', 'volume']:
             if col in df.columns or col in features.columns:
                 source = features[col] if col in features.columns else df[col]
@@ -210,7 +217,7 @@ class UltraFeatureEngine:
                 features[f'{col}_roll_min_10'] = source.rolling(10).min()
                 features[f'{col}_roll_max_10'] = source.rolling(10).max()
         
-        # Drop NaN values from feature calculation
+        # Drop/Fill NaN values from feature calculation
         features = features.fillna(method='ffill').fillna(0)
         
         return features
@@ -542,11 +549,57 @@ class UltraEnsembleModel:
         
         for name, model in self.models.items():
             if hasattr(model, 'predict_proba') and self.task == 'classification':
-                train_preds.append(model.predict_proba(X_train)[:, 1])
-                val_preds.append(model.predict_proba(X_val)[:, 1])
+                try:
+                    proba_tr = model.predict_proba(X_train)
+                except Exception:
+                    proba_tr = None
+                try:
+                    proba_va = model.predict_proba(X_val)
+                except Exception:
+                    proba_va = None
+
+                def _pos_proba(m, P):
+                    try:
+                        if P is None:
+                            return np.zeros(X_train.shape[0])
+                        if P.ndim == 1:
+                            return P
+                        # Prefer probability of class '1' when available
+                        if hasattr(m, 'classes_'):
+                            try:
+                                classes = list(getattr(m, 'classes_', []))
+                                if 1 in classes and P.shape[1] > classes.index(1):
+                                    return P[:, classes.index(1)]
+                            except Exception:
+                                pass
+                        # If only one column, fallback to that column (single-class training)
+                        if P.shape[1] == 1:
+                            return P[:, 0]
+                        # Fallback: use last column
+                        return P[:, -1]
+                    except Exception:
+                        return np.zeros(P.shape[0] if P is not None and P.ndim >= 1 else X_train.shape[0])
+
+                tr = _pos_proba(model, proba_tr)
+                va = _pos_proba(model, proba_va)
+                # Ensure shapes match
+                try:
+                    tr = np.asarray(tr).reshape(-1)
+                    va = np.asarray(va).reshape(-1)
+                except Exception:
+                    tr = np.zeros(X_train.shape[0])
+                    va = np.zeros(X_val.shape[0])
+                train_preds.append(tr)
+                val_preds.append(va)
             else:
-                train_preds.append(model.predict(X_train))
-                val_preds.append(model.predict(X_val))
+                try:
+                    train_preds.append(model.predict(X_train))
+                except Exception:
+                    train_preds.append(np.zeros(X_train.shape[0]))
+                try:
+                    val_preds.append(model.predict(X_val))
+                except Exception:
+                    val_preds.append(np.zeros(X_val.shape[0]))
         
         # Stack predictions
         X_train_meta = np.column_stack(train_preds)
@@ -613,7 +666,41 @@ class UltraEnsembleModel:
         for name, model in self.models.items():
             if self.weights[name] > 0 and hasattr(model, 'predict_proba'):
                 try:
-                    proba = model.predict_proba(X)
+                    raw = model.predict_proba(X)
+                    # ensure Nx2 shape
+                    def _to_two_cols(m, P: np.ndarray) -> np.ndarray:
+                        try:
+                            P = np.asarray(P)
+                            if P.ndim == 1:
+                                p1 = np.clip(P, 0.0, 1.0)
+                                p0 = np.clip(1.0 - p1, 0.0, 1.0)
+                                return np.column_stack([p0, p1])
+                            if P.shape[1] == 2:
+                                return P
+                            if P.shape[1] == 1:
+                                # Decide which class the single column refers to
+                                if hasattr(m, 'classes_') and len(getattr(m, 'classes_', [])) == 1:
+                                    cls = list(getattr(m, 'classes_', []))[0]
+                                    if cls == 1:
+                                        p1 = np.clip(P[:, 0], 0.0, 1.0)
+                                        p0 = np.clip(1.0 - p1, 0.0, 1.0)
+                                        return np.column_stack([p0, p1])
+                                    else:
+                                        p0 = np.clip(P[:, 0], 0.0, 1.0)
+                                        p1 = np.clip(1.0 - p0, 0.0, 1.0)
+                                        return np.column_stack([p0, p1])
+                                # Fallback: assume column is positive class
+                                p1 = np.clip(P[:, 0], 0.0, 1.0)
+                                p0 = np.clip(1.0 - p1, 0.0, 1.0)
+                                return np.column_stack([p0, p1])
+                            # Multi-class: treat last column as positive, rest as negative mass
+                            p1 = np.clip(P[:, -1], 0.0, 1.0)
+                            p0 = np.clip(1.0 - p1, 0.0, 1.0)
+                            return np.column_stack([p0, p1])
+                        except Exception:
+                            # Worst case: zeros
+                            return np.zeros((len(X), 2))
+                    proba = _to_two_cols(model, raw)
                     probas.append(proba * self.weights[name])
                 except:
                     continue
@@ -621,7 +708,15 @@ class UltraEnsembleModel:
         if not probas:
             return np.zeros((len(X), 2))
         
-        return np.sum(probas, axis=0)
+        summed = np.sum(probas, axis=0)
+        # Normalize row-wise to sum to 1 when possible
+        try:
+            row_sum = summed.sum(axis=1, keepdims=True)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                norm = np.where(row_sum > 0, summed / row_sum, summed)
+            return norm
+        except Exception:
+            return summed
     
     def online_update(self, X: pd.DataFrame, y: np.ndarray):
         """Update models with new data (online learning)."""
@@ -954,14 +1049,17 @@ class UltraTrainer:
         self.rl_agent = None
         self.performance_tracker = {}
         
-    def train_full_system(self, data_path: str, 
+    def train_full_system(self, data_path: str = None, 
                           symbol: str = None,
                           task: str = 'classification') -> Dict[str, Any]:
         """Train complete ultra-advanced trading system."""
         print("🚀 Starting Ultra Training System...")
         
         # Load and prepare data
-        df = self._load_data(data_path)
+        if isinstance(data_path, pd.DataFrame):
+            df = data_path.copy()
+        else:
+            df = self._load_data(data_path) if data_path is not None else None
         if df is None or len(df) < 100:
             return {'error': 'Insufficient data'}
         
@@ -1087,11 +1185,24 @@ class UltraTrainer:
         with open(base_path / "metadata.json", 'w') as f:
             json.dump(metadata, f, indent=2, default=str)
         
-        # Update latest model symlink
+        # Update latest model pointer (prefer symlink, fallback to pointer file)
         latest_path = self.models_dir / "latest"
-        if latest_path.exists():
-            latest_path.unlink()
-        latest_path.symlink_to(base_path)
+        try:
+            if latest_path.is_symlink() or latest_path.exists():
+                try:
+                    latest_path.unlink()
+                except IsADirectoryError:
+                    import shutil  # local import to avoid top-level dependency
+                    shutil.rmtree(latest_path)
+            # create directory symlink
+            latest_path.symlink_to(base_path, target_is_directory=True)
+        except Exception:
+            # Fallback: write a simple pointer file latest.txt with absolute path
+            pointer = self.models_dir / "latest.txt"
+            try:
+                pointer.write_text(str(base_path.resolve()))
+            except Exception:
+                pass
         
         return model_id
     
@@ -1101,6 +1212,17 @@ class UltraTrainer:
             model_path = self.models_dir / "latest"
         else:
             model_path = self.models_dir / f"ultra_{model_id}"
+        
+        if not model_path.exists():
+            # Try pointer file fallback
+            try:
+                ptr = self.models_dir / "latest.txt"
+                if ptr.exists():
+                    p = Path(ptr.read_text().strip())
+                    if p.exists():
+                        model_path = p
+            except Exception:
+                pass
         
         if not model_path.exists():
             print(f"Model path not found: {model_path}")

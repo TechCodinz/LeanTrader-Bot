@@ -1,0 +1,15 @@
+[Unit]
+Description=Ultra Prometheus Metrics Exporter
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/ultrabot
+EnvironmentFile=/opt/ultrabot/.env
+ExecStart=/opt/ultrabot/.venv/bin/python /opt/ultrabot/tools/metrics_http.py
+Restart=always
+RestartSec=5
+User=ultrabot
+
+[Install]
+WantedBy=multi-user.target

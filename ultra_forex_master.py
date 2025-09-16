@@ -6,6 +6,8 @@ Masters all market sessions: Asian, London, New York, Sydney
 
 import numpy as np
 import pandas as pd
+import time
+import hashlib
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta, timezone
 from collections import deque, defaultdict
@@ -764,7 +766,8 @@ class UltraForexMaster:
         self.instruments = {
             'metals': ['XAUUSD', 'XAGUSD', 'XPTUSD', 'XPDUSD'],
             'forex_majors': ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'NZDUSD', 'USDCAD'],
-            'forex_minors': ['EURGBP', 'EURJPY', 'GBPJPY', 'AUDJPY', 'NZDJPY', 'EURAUD', 'GBPAUD'],
+            'forex_minors': ['EURGBP', 'EURJPY', 'GBPJPY', 'AUDJPY', 'NZDJPY', 'EURAUD', 'GBPAUD', 'EURCAD', 'AUDCAD', 'CADJPY', 'CHFJPY', 'EURNZD', 'GBPCAD', 'EURCHF'],
+            'exotics': ['USDTRY','USDZAR','USDMXN','USDNOK','USDSEK','USDCNH'],
             'commodities': ['USOIL', 'UKOIL', 'NATGAS']
         }
         
@@ -835,6 +838,9 @@ class UltraForexMaster:
             'mtf_analysis': mtf_analysis,
             'patterns': patterns,
             'signal': signal,
+            # compatibility for downstream publishers expecting top-level fields
+            'action': signal.get('action', 'HOLD'),
+            'confidence': float(signal.get('confidence', 0.0)),
             'key_levels': mtf_analysis['key_levels']
         }
     

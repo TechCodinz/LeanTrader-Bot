@@ -10,3 +10,8 @@
 2025-08-29 01:36:58,332 [INFO] news_harvest: Built clean file with 0 rows -> data\news.csv
 2025-09-09 00:32:55,804 [INFO] news_harvest: Harvested 190 new rows -> data\news_raw.csv
 2025-09-09 00:32:55,878 [INFO] news_harvest: Built clean file with 0 rows -> data\news.csv
+2025-09-15 23:48:02,758 [WARNING] news_harvest: NLTK/VADER unavailable (No module named 'nltk'). Sentiment will be zero.
+2025-09-15 23:48:04,301 [INFO] news_harvest: Harvested 191 new rows -> data/news_raw.csv
+2025-09-15 23:48:04,310 [INFO] news_harvest: Built clean file with 0 rows -> data/news.csv
+2025-09-16 06:09:33,809 [INFO] news_harvest: Harvested 43 new rows -> data/news_raw.csv
+2025-09-16 06:09:33,819 [INFO] news_harvest: Built clean file with 0 rows -> data/news.csv

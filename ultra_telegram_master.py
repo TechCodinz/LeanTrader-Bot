@@ -9,13 +9,26 @@ import json
 import hashlib
 import time
 from typing import Dict, List, Any, Optional, Tuple
+import os
 from datetime import datetime, timedelta
 from collections import deque, defaultdict
 import aiohttp
 from telegram import (
     Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup,
-    ParseMode, InputMediaPhoto
+    InputMediaPhoto
 )
+try:
+    # python-telegram-bot v20+
+    from telegram.constants import ParseMode
+except Exception:  # pragma: no cover - compatibility fallback
+    try:
+        # older versions
+        from telegram import ParseMode  # type: ignore
+    except Exception:  # ultimate fallback: minimal shim
+        class ParseMode:  # type: ignore
+            MARKDOWN = "Markdown"
+            MARKDOWN_V2 = "MarkdownV2"
+            HTML = "HTML"
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, filters, ContextTypes
@@ -597,6 +610,10 @@ class TelegramBot:
         
         # Commands
         self.application.add_handler(CommandHandler("start", self.cmd_start))
+        self.application.add_handler(CommandHandler("panic", self.cmd_panic))
+        self.application.add_handler(CommandHandler("proxy_on", self.cmd_proxy_on))
+        self.application.add_handler(CommandHandler("proxy_off", self.cmd_proxy_off))
+        self.application.add_handler(CommandHandler("collect", self.cmd_collect))
         self.application.add_handler(CommandHandler("premium", self.cmd_premium))
         self.application.add_handler(CommandHandler("stats", self.cmd_stats))
         self.application.add_handler(CommandHandler("active", self.cmd_active))
@@ -844,6 +861,59 @@ The most advanced AI-powered trading signal system ever created!
         """
         
         await update.message.reply_text(welcome)
+
+    async def cmd_panic(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Emergency kill switch: sets ENABLE_LIVE=false and ALLOW_LIVE=false in process env and notes to chat."""
+        try:
+            os.environ["ENABLE_LIVE"] = "false"
+            os.environ["ALLOW_LIVE"] = "false"
+        except Exception:
+            pass
+
+    async def cmd_proxy_on(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Enable HTTP/HTTPS proxy from env PROXY_URL for ccxt routing (process-local)."""
+        try:
+            import os
+            proxy = os.getenv("PROXY_URL")
+            if not proxy:
+                await update.message.reply_text("Set PROXY_URL in env first.")
+                return
+            os.environ["HTTP_PROXY"] = proxy
+            os.environ["HTTPS_PROXY"] = proxy
+            await update.message.reply_text(f"🔌 Proxy enabled: {proxy}")
+        except Exception as e:
+            await update.message.reply_text(f"proxy_on error: {e}")
+
+    async def cmd_proxy_off(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Disable HTTP/HTTPS proxy for this process."""
+        try:
+            import os
+            os.environ.pop("HTTP_PROXY", None)
+            os.environ.pop("HTTPS_PROXY", None)
+            await update.message.reply_text("📴 Proxy disabled.")
+        except Exception as e:
+            await update.message.reply_text(f"proxy_off error: {e}")
+
+    async def cmd_collect(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Trigger a one-off EU collector run (best-effort)."""
+        try:
+            import asyncio as _asyncio
+            import subprocess as _sp
+            import sys as _sys
+            from pathlib import Path as _Path
+            root = _Path(__file__).resolve().parent
+            script = root / "tools" / "eu_collector.py"
+            if not script.exists():
+                # adjust for project layout
+                script = _Path.cwd() / "tools" / "eu_collector.py"
+            _sp.Popen([_sys.executable, str(script)], cwd=str(_Path.cwd()))
+            await update.message.reply_text("📦 Collector triggered.")
+        except Exception as e:
+            await update.message.reply_text(f"collect error: {e}")
+        try:
+            await update.message.reply_text("🛑 Panic engaged: live trading disabled for this process.")
+        except Exception:
+            pass
     
     async def cmd_premium(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /premium command."""
@@ -904,9 +974,17 @@ Use code ULTRA50 for 50% off first month!
     
     async def run(self):
         """Run the bot."""
-        await self.application.initialize()
-        await self.application.start()
-        await self.application.updater.start_polling()
+        try:
+            # Preferred single-call in newer PTB versions
+            await self.application.run_polling()
+        except Exception:
+            # Compatibility: manual start if run_polling not available
+            await self.application.initialize()
+            await self.application.start()
+            # Some versions expose updater for polling
+            updater = getattr(self.application, "updater", None)
+            if updater is not None and hasattr(updater, "start_polling"):
+                await updater.start_polling()
 
 
 class TelegramSignalIntegration:
@@ -928,8 +1006,18 @@ class TelegramSignalIntegration:
                 # Determine if premium signal
                 is_premium = signal.get('confidence', 0) > 0.8 or signal.get('vip', False)
                 
-                # Send to Telegram
-                await self.bot.send_signal(signal, is_premium)
+                # Send to Telegram; if broadcast requested, send both free and premium
+                if signal.get('broadcast', False):
+                    try:
+                        await self.bot.send_signal(signal, is_premium=False)
+                    except Exception:
+                        pass
+                    try:
+                        await self.bot.send_signal(signal, is_premium=True)
+                    except Exception:
+                        pass
+                else:
+                    await self.bot.send_signal(signal, is_premium)
                 
                 # Rate limiting
                 await asyncio.sleep(1)
@@ -962,10 +1050,12 @@ async def integrate_telegram_signals(pipeline, bot_token: str, channel_id: str):
     """Integrate Telegram signals into main pipeline."""
     
     # Create integration
+    vip_env = os.getenv('TELEGRAM_VIP_CHAT_ID')
+    vip_channel = vip_env if vip_env else channel_id + "_vip"
     telegram = TelegramSignalIntegration(
         bot_token=bot_token,
         channel_id=channel_id,
-        vip_channel_id=channel_id + "_vip"  # Separate VIP channel
+        vip_channel_id=vip_channel  # Separate VIP channel
     )
     
     # Add to pipeline
@@ -982,8 +1072,8 @@ async def integrate_telegram_signals(pipeline, bot_token: str, channel_id: str):
             # Prepare signal data
             signal_data = {
                 'symbol': analysis['symbol'],
-                'action': analysis['signal']['action'],
-                'confidence': analysis['signal']['confidence'],
+                'action': (analysis.get('signal', {}) or {}).get('action') or analysis.get('action', 'HOLD'),
+                'confidence': float((analysis.get('signal', {}) or {}).get('confidence', analysis.get('confidence', 0.0)) or 0.0),
                 'entry_price': result['trade'].get('entry_price'),
                 'stop_loss': result['trade'].get('stop_loss'),
                 'tp1': result['trade'].get('tp1'),
@@ -993,8 +1083,17 @@ async def integrate_telegram_signals(pipeline, bot_token: str, channel_id: str):
                 'ai_score': analysis.get('god_mode', {}).get('god_score', 0) * 10,
                 'risk_level': 'medium',
                 'leverage': '1x',
-                'risk_percent': 2
+                'risk_percent': 2,
+                # Broadcast to both free and premium
+                'broadcast': True
             }
+            # Attach quick chart data for premium view if available
+            try:
+                df_chart = pipeline.market_data.fetch_ohlcv(analysis['symbol'], '5m', 200)
+                if df_chart is not None and not df_chart.empty:
+                    signal_data['chart_data'] = df_chart.set_index('timestamp')
+            except Exception:
+                pass
             
             # Add to Telegram queue
             await telegram.add_signal(signal_data)

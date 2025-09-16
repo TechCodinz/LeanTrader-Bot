@@ -108,7 +108,20 @@ class UltraMLPipeline:
     def _default_config(self) -> Dict[str, Any]:
         """Default configuration for ultra pipeline."""
         return {
-            'symbols': ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'],
+            'symbols': [
+                # crypto majors (concise)
+                'BTC/USDT','ETH/USDT','SOL/USDT','BNB/USDT','XRP/USDT','DOGE/USDT','LINK/USDT','AVAX/USDT','MATIC/USDT','TON/USDT',
+                # metals
+                'XAUUSD','XAGUSD','XPTUSD','XPDUSD',
+                # commodities
+                'USOIL','UKOIL','NATGAS',
+                # forex majors
+                'EURUSD','GBPUSD','USDJPY','USDCHF','USDCAD','AUDUSD','NZDUSD',
+                # forex minors
+                'EURGBP','EURJPY','GBPJPY','AUDJPY','NZDJPY','EURAUD','GBPAUD','EURCAD','AUDCAD','CADJPY','CHFJPY','EURNZD','GBPCAD','EURCHF',
+                # select exotics
+                'USDTRY','USDZAR','USDMXN','USDNOK','USDSEK','USDCNH'
+            ],
             'timeframes': ['1m', '5m', '15m', '1h'],
             'max_positions': 5,
             'risk_per_trade': 0.02,
@@ -152,8 +165,9 @@ class UltraMLPipeline:
                     continue
                 
                 # Train model
+                # Train directly from DataFrame
                 results = self.trainer.train_full_system(
-                    data_path=None,  # Will use df directly
+                    data_path=df,
                     symbol=symbol,
                     task='classification'
                 )
@@ -184,12 +198,20 @@ class UltraMLPipeline:
                 
                 # Extract features
                 if self.feature_engine:
-                    features_df = self.feature_engine.extract_features(df)
-                    
+                    try:
+                        features_df = self.feature_engine.extract_features(df)
+                    except Exception:
+                        features_df = pd.DataFrame()
+                    if features_df is None or features_df.empty:
+                        continue
                     # Get ML predictions
                     if self.trainer and self.trainer.ensemble_model:
-                        prediction = self.trainer.predict(df)
-                        analysis['signals'][tf] = prediction
+                        try:
+                            prediction = self.trainer.predict(df)
+                            if isinstance(prediction, dict):
+                                analysis['signals'][tf] = prediction
+                        except Exception:
+                            pass
                 
                 # Pattern memory recall
                 if SYSTEM_MODULES_AVAILABLE:
@@ -337,7 +359,7 @@ class UltraMLPipeline:
             buy_score = 0
             sell_score = 0
         
-        # Determine action
+        # Determine action (guard missing keys)
         threshold = self.config['confidence_threshold']
         if buy_score > threshold and buy_score > sell_score:
             action = 'BUY'
@@ -347,7 +369,7 @@ class UltraMLPipeline:
             action = 'HOLD'
         
         # Update analysis
-        analysis['confidence'] = weighted_confidence
+        analysis['confidence'] = float(weighted_confidence or 0.0)
         analysis['action'] = action
         analysis['buy_score'] = buy_score
         analysis['sell_score'] = sell_score
@@ -457,7 +479,7 @@ class UltraMLPipeline:
         try:
             symbol = analysis['symbol']
             action = analysis['action']
-            confidence = analysis['confidence']
+            confidence = float(analysis.get('confidence', 0.0))
             
             # Check position limits
             if len(self.active_positions) >= self.config['max_positions']:
