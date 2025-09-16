@@ -549,11 +549,57 @@ class UltraEnsembleModel:
         
         for name, model in self.models.items():
             if hasattr(model, 'predict_proba') and self.task == 'classification':
-                train_preds.append(model.predict_proba(X_train)[:, 1])
-                val_preds.append(model.predict_proba(X_val)[:, 1])
+                try:
+                    proba_tr = model.predict_proba(X_train)
+                except Exception:
+                    proba_tr = None
+                try:
+                    proba_va = model.predict_proba(X_val)
+                except Exception:
+                    proba_va = None
+
+                def _pos_proba(m, P):
+                    try:
+                        if P is None:
+                            return np.zeros(X_train.shape[0])
+                        if P.ndim == 1:
+                            return P
+                        # Prefer probability of class '1' when available
+                        if hasattr(m, 'classes_'):
+                            try:
+                                classes = list(getattr(m, 'classes_', []))
+                                if 1 in classes and P.shape[1] > classes.index(1):
+                                    return P[:, classes.index(1)]
+                            except Exception:
+                                pass
+                        # If only one column, fallback to that column (single-class training)
+                        if P.shape[1] == 1:
+                            return P[:, 0]
+                        # Fallback: use last column
+                        return P[:, -1]
+                    except Exception:
+                        return np.zeros(P.shape[0] if P is not None and P.ndim >= 1 else X_train.shape[0])
+
+                tr = _pos_proba(model, proba_tr)
+                va = _pos_proba(model, proba_va)
+                # Ensure shapes match
+                try:
+                    tr = np.asarray(tr).reshape(-1)
+                    va = np.asarray(va).reshape(-1)
+                except Exception:
+                    tr = np.zeros(X_train.shape[0])
+                    va = np.zeros(X_val.shape[0])
+                train_preds.append(tr)
+                val_preds.append(va)
             else:
-                train_preds.append(model.predict(X_train))
-                val_preds.append(model.predict(X_val))
+                try:
+                    train_preds.append(model.predict(X_train))
+                except Exception:
+                    train_preds.append(np.zeros(X_train.shape[0]))
+                try:
+                    val_preds.append(model.predict(X_val))
+                except Exception:
+                    val_preds.append(np.zeros(X_val.shape[0]))
         
         # Stack predictions
         X_train_meta = np.column_stack(train_preds)
@@ -620,7 +666,41 @@ class UltraEnsembleModel:
         for name, model in self.models.items():
             if self.weights[name] > 0 and hasattr(model, 'predict_proba'):
                 try:
-                    proba = model.predict_proba(X)
+                    raw = model.predict_proba(X)
+                    # ensure Nx2 shape
+                    def _to_two_cols(m, P: np.ndarray) -> np.ndarray:
+                        try:
+                            P = np.asarray(P)
+                            if P.ndim == 1:
+                                p1 = np.clip(P, 0.0, 1.0)
+                                p0 = np.clip(1.0 - p1, 0.0, 1.0)
+                                return np.column_stack([p0, p1])
+                            if P.shape[1] == 2:
+                                return P
+                            if P.shape[1] == 1:
+                                # Decide which class the single column refers to
+                                if hasattr(m, 'classes_') and len(getattr(m, 'classes_', [])) == 1:
+                                    cls = list(getattr(m, 'classes_', []))[0]
+                                    if cls == 1:
+                                        p1 = np.clip(P[:, 0], 0.0, 1.0)
+                                        p0 = np.clip(1.0 - p1, 0.0, 1.0)
+                                        return np.column_stack([p0, p1])
+                                    else:
+                                        p0 = np.clip(P[:, 0], 0.0, 1.0)
+                                        p1 = np.clip(1.0 - p0, 0.0, 1.0)
+                                        return np.column_stack([p0, p1])
+                                # Fallback: assume column is positive class
+                                p1 = np.clip(P[:, 0], 0.0, 1.0)
+                                p0 = np.clip(1.0 - p1, 0.0, 1.0)
+                                return np.column_stack([p0, p1])
+                            # Multi-class: treat last column as positive, rest as negative mass
+                            p1 = np.clip(P[:, -1], 0.0, 1.0)
+                            p0 = np.clip(1.0 - p1, 0.0, 1.0)
+                            return np.column_stack([p0, p1])
+                        except Exception:
+                            # Worst case: zeros
+                            return np.zeros((len(X), 2))
+                    proba = _to_two_cols(model, raw)
                     probas.append(proba * self.weights[name])
                 except:
                     continue
@@ -628,7 +708,15 @@ class UltraEnsembleModel:
         if not probas:
             return np.zeros((len(X), 2))
         
-        return np.sum(probas, axis=0)
+        summed = np.sum(probas, axis=0)
+        # Normalize row-wise to sum to 1 when possible
+        try:
+            row_sum = summed.sum(axis=1, keepdims=True)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                norm = np.where(row_sum > 0, summed / row_sum, summed)
+            return norm
+        except Exception:
+            return summed
     
     def online_update(self, X: pd.DataFrame, y: np.ndarray):
         """Update models with new data (online learning)."""
