@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Dict, Any
 
-from notifier import TelegramNotifier
+from integrations.telegram_bot import send_signal
 from tools.market_data import get_market_data_manager
 from tools.ultra_trainer import UltraTrainer
 
@@ -132,7 +132,7 @@ def run_once() -> Dict[str, Any]:
 
 
 def main() -> int:
-    notif = TelegramNotifier()
+    # send via integrations.telegram_bot (no-op if creds missing)
     log_dir = Path('runtime') / 'training_daily'
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -145,11 +145,15 @@ def main() -> int:
             payload = run_once()
             day = _utc_now().strftime('%Y%m%d')
             (log_dir / f'{day}.json').write_text(json.dumps(payload, indent=2))
-            if notif.enabled:
-                notif.note(_summarize(payload.get('results', [])))
+            try:
+                send_signal(_summarize(payload.get('results', [])), vip=False)
+            except Exception:
+                pass
         except Exception as e:
-            if notif.enabled:
-                notif.note(f"training scheduler error: {e}")
+            try:
+                send_signal(f"training scheduler error: {e}", vip=False)
+            except Exception:
+                pass
         # brief pause to avoid immediate loop on same minute
         time.sleep(5)
 

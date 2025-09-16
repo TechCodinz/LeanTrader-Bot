@@ -4,7 +4,7 @@ import os
 import time
 from pathlib import Path
 
-from notifier import TelegramNotifier
+from integrations.telegram_bot import send_signal
 
 
 LOG_PATH = Path(os.getenv("ULTRA_LOG_PATH", "runtime/ultra_paper.log"))
@@ -23,10 +23,7 @@ def tail_text(path: Path, n: int) -> str:
 
 
 def main() -> int:
-    notif = TelegramNotifier()
-    if not (notif.enabled and notif.token and notif.chat_id):
-        print("[status_daemon] Telegram not enabled or missing credentials.")
-        return 1
+    # We will send via integrations.telegram_bot; if creds missing, it will no-op
 
     print(f"[status_daemon] Started. period={PERIOD_SEC}s log={LOG_PATH}")
     while True:
@@ -45,7 +42,10 @@ def main() -> int:
                     msg += f"\n🧠 Training: {ok}/{len(results)} models today"
             except Exception:
                 pass
-            notif.note(msg)
+            try:
+                send_signal(msg, vip=False)
+            except Exception:
+                pass
         except Exception as e:
             print(f"[status_daemon] send error: {e}")
         time.sleep(max(10, PERIOD_SEC))

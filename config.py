@@ -26,6 +26,8 @@ BINANCE_API_SECRET = settings.binance_api_secret
 
 TELEGRAM_BOT_TOKEN = settings.telegram_bot_token
 TELEGRAM_CHAT_ID = settings.telegram_chat_id
+TELEGRAM_FREE_CHAT_ID = os.getenv("TELEGRAM_FREE_CHAT_ID") or TELEGRAM_CHAT_ID
+TELEGRAM_VIP_CHAT_ID = os.getenv("TELEGRAM_VIP_CHAT_ID") or os.getenv("TELEGRAM_CHAT_ID") or TELEGRAM_CHAT_ID
 
 # MT5 (only works locally)
 MT5_LOGIN = settings.mt5_login
@@ -103,6 +105,8 @@ __all__ = [
     "BINANCE_API_SECRET",
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",
+    "TELEGRAM_FREE_CHAT_ID",
+    "TELEGRAM_VIP_CHAT_ID",
     "MT5_LOGIN",
     "MT5_PASSWORD",
     "MT5_SERVER",

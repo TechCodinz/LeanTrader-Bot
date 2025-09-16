@@ -10,6 +10,7 @@ pytest
 mplfinance
 matplotlib
 requests
+prometheus-client
 pillow
 feedparser
 vaderSentiment
