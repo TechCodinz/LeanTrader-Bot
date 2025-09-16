@@ -12,6 +12,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN python -m pip install --upgrade pip \
  && pip install -r requirements.txt || true \
- && pip install feedparser python-dotenv ccxt aiohttp web3 python-telegram-bot matplotlib scikit-learn || true
+ && pip install feedparser python-dotenv ccxt aiohttp web3 python-telegram-bot matplotlib scikit-learn nltk vaderSentiment || true
 
 CMD ["python", "/app/ultra_launcher.py", "--mode", "paper", "--god-mode", "--moon-spotter", "--evolution", "--forex"]

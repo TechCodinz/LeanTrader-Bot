@@ -19,7 +19,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt || true
-pip install feedparser python-dotenv ccxt aiohttp web3 python-telegram-bot matplotlib scikit-learn || true
+pip install feedparser python-dotenv ccxt aiohttp web3 python-telegram-bot matplotlib scikit-learn nltk vaderSentiment || true
 ```
 
 3) Create an `.env` from `.env.example` and fill in tokens/keys.
@@ -139,7 +139,7 @@ WORKDIR /app
 COPY . /app
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir -r requirements.txt || true \
- && pip install --no-cache-dir feedparser python-dotenv ccxt aiohttp web3 python-telegram-bot matplotlib scikit-learn || true
+ && pip install --no-cache-dir feedparser python-dotenv ccxt aiohttp web3 python-telegram-bot matplotlib scikit-learn nltk vaderSentiment || true
 ENV PYTHONUNBUFFERED=1
 CMD ["python", "/app/ultra_launcher.py", "--mode", "paper", "--god-mode", "--moon-spotter", "--evolution", "--forex", "--telegram", "--telegram-token", "${TELEGRAM_BOT_TOKEN}", "--telegram-channel", "${TELEGRAM_CHAT_ID}"]
 ```
