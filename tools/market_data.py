@@ -89,7 +89,30 @@ class MarketDataManager:
             router = ExchangeRouter()
             rows = router.safe_fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
             
-            if not rows:
+            def _has_nonzero_close(rs: List[List[float]]) -> bool:
+                try:
+                    for r in rs:
+                        if isinstance(r, (list, tuple)) and len(r) >= 5:
+                            try:
+                                if float(r[4]) != 0.0:
+                                    return True
+                            except Exception:
+                                continue
+                except Exception:
+                    return False
+                return False
+            
+            if not rows or not _has_nonzero_close(rows):
+                # Router returned empty or zero-valued bars (likely network blocked). Try yfinance fallback.
+                yf_df = self._fetch_ohlcv_yfinance(symbol, timeframe, limit)
+                if yf_df is not None and not yf_df.empty:
+                    # Save to CSV for backup
+                    csv_path = self.cache_dir / f"{symbol.replace('/', '_')}_{timeframe}.csv"
+                    try:
+                        yf_df.to_csv(csv_path, index=False)
+                    except Exception:
+                        pass
+                    return yf_df
                 # Return empty DataFrame with correct structure
                 return pd.DataFrame(columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             
@@ -111,7 +134,110 @@ class MarketDataManager:
                 df = pd.read_csv(csv_path)
                 df['timestamp'] = pd.to_datetime(df['timestamp'])
                 return df
+            # Last resort: yfinance fallback
+            yf_df = self._fetch_ohlcv_yfinance(symbol, timeframe, limit)
+            if yf_df is not None and not yf_df.empty:
+                try:
+                    csv_path = self.cache_dir / f"{symbol.replace('/', '_')}_{timeframe}.csv"
+                    yf_df.to_csv(csv_path, index=False)
+                except Exception:
+                    pass
+                return yf_df
             return pd.DataFrame(columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+
+    def _fetch_ohlcv_yfinance(self, symbol: str, timeframe: str, limit: int) -> Optional[pd.DataFrame]:
+        """Best-effort OHLCV via yfinance for FX/metals/commodities/crypto.
+
+        Returns a DataFrame with columns: timestamp, open, high, low, close, volume
+        or None if yfinance is not available.
+        """
+        try:
+            import yfinance as yf
+        except Exception:
+            return None
+
+        def _map_symbol_to_yf(sym: str) -> Optional[str]:
+            s = sym.strip().upper()
+            # Commodities shortcuts
+            if s == 'USOIL':
+                return 'CL=F'   # WTI Crude Oil Futures
+            if s == 'UKOIL':
+                return 'BZ=F'   # Brent Crude Oil Futures
+            if s == 'NATGAS':
+                return 'NG=F'   # Natural Gas Futures
+            # Metals (spot via forex-style =X tickers)
+            if s in ('XAUUSD', 'XAGUSD', 'XPTUSD', 'XPDUSD'):
+                return f'{s}=X'
+            # Forex majors/minors (e.g., EURUSD -> EURUSD=X)
+            if len(s) == 6 and s.isalpha():
+                return f'{s}=X'
+            # Crypto pairs BTC/USDT -> BTC-USD
+            if '/' in s:
+                base, quote = s.split('/', 1)
+                return f'{base}-USD'
+            # Fallback: try BTC -> BTC-USD style
+            return f'{s}-USD'
+
+        def _map_interval(tf: str) -> str:
+            tf = tf.lower().strip()
+            if tf in ('1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo'):
+                return tf
+            if tf == '4h':
+                return '1h'  # will resample later
+            if tf == '1h':
+                return '1h'
+            if tf in ('5m', '15m'):
+                return tf
+            return '1h'
+
+        def _period_for_interval(iv: str) -> str:
+            # Reasonable periods for interval
+            m = iv
+            if m == '1m':
+                return '7d'
+            if m in ('2m', '5m', '15m', '30m'):
+                return '60d'
+            if m in ('60m', '90m', '1h'):
+                return '730d'
+            if m in ('1d', '5d'):
+                return '10y'
+            if m in ('1wk', '1mo', '3mo'):
+                return '20y'
+            return '60d'
+
+        ticker = _map_symbol_to_yf(symbol)
+        if not ticker:
+            return None
+        interval = _map_interval(timeframe)
+        period = _period_for_interval(interval)
+        try:
+            df = yf.download(ticker, period=period, interval=interval, auto_adjust=False, progress=False)
+        except Exception:
+            return None
+        if df is None or df.empty:
+            return None
+
+        # Standardize columns
+        try:
+            df = df.rename(columns={
+                'Open': 'open', 'High': 'high', 'Low': 'low', 'Close': 'close', 'Volume': 'volume'
+            })
+            df['timestamp'] = pd.to_datetime(df.index)
+            df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
+            # If we fetched 1h to represent 4h, resample
+            if timeframe.lower().strip() == '4h' and interval == '1h':
+                df = df.set_index('timestamp').resample('4H').agg({
+                    'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last', 'volume': 'sum'
+                }).dropna().reset_index()
+            # Keep only the last `limit` rows
+            if limit and limit > 0 and len(df) > limit:
+                df = df.tail(limit)
+            # Ensure numeric types
+            for c in ['open', 'high', 'low', 'close', 'volume']:
+                df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0.0)
+            return df
+        except Exception:
+            return None
     
     def get_multi_timeframe(self, symbol: str, timeframes: List[str] = None) -> Dict[str, pd.DataFrame]:
         """Fetch data for multiple timeframes."""
