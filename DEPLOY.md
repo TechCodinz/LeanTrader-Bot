@@ -128,6 +128,12 @@ sudo systemctl daemon-reload
 sudo systemctl enable ultrabot ultrabot-status ultrabot-training ultrabot-weekly ultrabot-news
 sudo systemctl start ultrabot ultrabot-status ultrabot-training ultrabot-weekly ultrabot-news
 
+# Metrics exporter (optional):
+sudo cp -a deploy/systemd/ultrabot-metrics.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable ultrabot-metrics
+sudo systemctl start ultrabot-metrics
+
 # Optional: EU OHLCV Collector
 sudo cp -a deploy/systemd/ultrabot-collector.service /etc/systemd/system/
 sudo cp -a deploy/systemd/ultrabot-collector.timer /etc/systemd/system/
