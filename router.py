@@ -143,6 +143,32 @@ class ExchangeRouter:
             if not klass:
                 raise RuntimeError(f"Unknown ccxt exchange id: {self.id}")
             self.ex = klass(opts)
+
+            # Apply proxy settings if provided via environment
+            try:
+                http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
+                https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
+                proxies = {}
+                if http_proxy:
+                    proxies["http"] = http_proxy
+                if https_proxy:
+                    proxies["https"] = https_proxy
+                if proxies:
+                    try:
+                        # ccxt requests-based sync client
+                        setattr(self.ex, "proxies", proxies)
+                    except Exception:
+                        pass
+                    try:
+                        # aiohttp (async) proxy hint if used by environment
+                        if https_proxy:
+                            setattr(self.ex, "aiohttp_proxy", https_proxy)
+                        elif http_proxy:
+                            setattr(self.ex, "aiohttp_proxy", http_proxy)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
         except Exception as _e:
             raise RuntimeError(f"failed to initialize ccxt exchange '{self.id}': {_e}") from _e
 
