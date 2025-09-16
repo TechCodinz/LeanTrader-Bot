@@ -611,6 +611,9 @@ class TelegramBot:
         # Commands
         self.application.add_handler(CommandHandler("start", self.cmd_start))
         self.application.add_handler(CommandHandler("panic", self.cmd_panic))
+        self.application.add_handler(CommandHandler("proxy_on", self.cmd_proxy_on))
+        self.application.add_handler(CommandHandler("proxy_off", self.cmd_proxy_off))
+        self.application.add_handler(CommandHandler("collect", self.cmd_collect))
         self.application.add_handler(CommandHandler("premium", self.cmd_premium))
         self.application.add_handler(CommandHandler("stats", self.cmd_stats))
         self.application.add_handler(CommandHandler("active", self.cmd_active))
@@ -866,6 +869,47 @@ The most advanced AI-powered trading signal system ever created!
             os.environ["ALLOW_LIVE"] = "false"
         except Exception:
             pass
+
+    async def cmd_proxy_on(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Enable HTTP/HTTPS proxy from env PROXY_URL for ccxt routing (process-local)."""
+        try:
+            import os
+            proxy = os.getenv("PROXY_URL")
+            if not proxy:
+                await update.message.reply_text("Set PROXY_URL in env first.")
+                return
+            os.environ["HTTP_PROXY"] = proxy
+            os.environ["HTTPS_PROXY"] = proxy
+            await update.message.reply_text(f"🔌 Proxy enabled: {proxy}")
+        except Exception as e:
+            await update.message.reply_text(f"proxy_on error: {e}")
+
+    async def cmd_proxy_off(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Disable HTTP/HTTPS proxy for this process."""
+        try:
+            import os
+            os.environ.pop("HTTP_PROXY", None)
+            os.environ.pop("HTTPS_PROXY", None)
+            await update.message.reply_text("📴 Proxy disabled.")
+        except Exception as e:
+            await update.message.reply_text(f"proxy_off error: {e}")
+
+    async def cmd_collect(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Trigger a one-off EU collector run (best-effort)."""
+        try:
+            import asyncio as _asyncio
+            import subprocess as _sp
+            import sys as _sys
+            from pathlib import Path as _Path
+            root = _Path(__file__).resolve().parent
+            script = root / "tools" / "eu_collector.py"
+            if not script.exists():
+                # adjust for project layout
+                script = _Path.cwd() / "tools" / "eu_collector.py"
+            _sp.Popen([_sys.executable, str(script)], cwd=str(_Path.cwd()))
+            await update.message.reply_text("📦 Collector triggered.")
+        except Exception as e:
+            await update.message.reply_text(f"collect error: {e}")
         try:
             await update.message.reply_text("🛑 Panic engaged: live trading disabled for this process.")
         except Exception:

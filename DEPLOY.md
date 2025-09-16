@@ -127,6 +127,13 @@ Enable and start:
 sudo systemctl daemon-reload
 sudo systemctl enable ultrabot ultrabot-status ultrabot-training ultrabot-weekly ultrabot-news
 sudo systemctl start ultrabot ultrabot-status ultrabot-training ultrabot-weekly ultrabot-news
+
+# Optional: EU OHLCV Collector
+sudo cp -a deploy/systemd/ultrabot-collector.service /etc/systemd/system/
+sudo cp -a deploy/systemd/ultrabot-collector.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable ultrabot-collector ultrabot-collector.timer
+sudo systemctl start ultrabot-collector ultrabot-collector.timer
 ```
 
 ## Option B: Docker + Compose
