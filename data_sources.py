@@ -93,6 +93,20 @@ class SentimentSource:
         """Fetch fear and greed index (0-100)."""
         return 50.0
 
+
+# Aliases for compatibility
+NewsSentimentSource = SentimentSource
+OnchainMetricSource = OnChainSource
+
+# Helper function for merging external data
+def merge_externals(*sources) -> Dict[str, Any]:
+    """Merge data from multiple external sources."""
+    merged = {}
+    for source in sources:
+        if isinstance(source, dict):
+            merged.update(source)
+    return merged
+
 import os  # noqa: F401
 import random
 from typing import Any, Dict, List, Optional

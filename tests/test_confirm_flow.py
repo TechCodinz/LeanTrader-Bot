@@ -5,15 +5,13 @@ import time
 from pathlib import Path
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 
 from fastapi.testclient import TestClient
 
 import runtime.webhook_server as ws
 from tools import user_pins
-
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
 
 TEST_UID = "5329503447"
 
