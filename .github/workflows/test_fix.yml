@@ -1,10 +1,10 @@
-name: CI Tests with Auto-Fix
+name: Test Fix Verification
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main, master, develop ]
+    branches: [ main, master ]
 
 jobs:
   test:
@@ -17,11 +17,6 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    
-    - name: Auto-fix CI/CD issues
-      run: |
-        chmod +x .github/scripts/auto_fix_ci.sh
-        .github/scripts/auto_fix_ci.sh
     
     - name: Install dependencies
       run: |
@@ -36,14 +31,7 @@ jobs:
         export PYTHONPATH=.
         python .github/scripts/import_smoke.py
     
-    - name: Run tests
+    - name: Run core tests
       run: |
         export PYTHONPATH=.
         python -m pytest tests/test_calendar_gates.py tests/test_risk_guards.py tests/test_web3_guards.py -v
-      continue-on-error: true  # Don't fail the whole pipeline if some tests fail
-    
-    - name: Summary
-      if: always()
-      run: |
-        echo "CI/CD Pipeline completed!"
-        echo "All import errors have been automatically fixed."

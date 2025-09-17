@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from risk.calendar_gates import is_high_impact_window, is_crypto_event_window, is_exchange_maintenance, risk_gate
 
 
