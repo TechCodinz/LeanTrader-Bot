@@ -1,4 +1,4 @@
-"""User PIN management"""
+"""User PIN management for testing"""
 
 def generate_pin(user_id: str) -> str:
     """Generate a PIN for a user."""
