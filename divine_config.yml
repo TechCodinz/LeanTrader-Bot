@@ -1,0 +1,273 @@
+# Divine Intelligence Trading Bot Configuration
+# Ultra-safe settings for consistent profitable trading
+
+# ============================================
+# CORE TRADING SETTINGS
+# ============================================
+trading:
+  mode: "paper"                    # Start with paper trading (change to "live" when ready)
+  initial_capital: 100.0            # Starting capital in USD
+  min_trade_amount: 10.0            # Minimum trade size
+  max_trade_amount: 50.0            # Maximum trade size per trade
+  
+# ============================================
+# RISK MANAGEMENT (CRITICAL)
+# ============================================
+risk_management:
+  # Position Sizing
+  risk_per_trade_percent: 1.0       # Max 1% risk per trade (conservative)
+  max_position_size_percent: 10.0   # Max 10% of capital in one position
+  
+  # Loss Limits
+  max_daily_loss_percent: 5.0       # Stop trading after 5% daily loss
+  max_weekly_loss_percent: 10.0     # Reduce size after 10% weekly loss
+  max_monthly_loss_percent: 15.0    # Pause trading after 15% monthly loss
+  
+  # Consecutive Losses
+  max_consecutive_losses: 3         # Pause after 3 losses in a row
+  cooldown_period_minutes: 60       # Wait 1 hour after max losses
+  
+  # Stop Loss & Take Profit
+  default_stop_loss_percent: 2.0    # Default 2% stop loss
+  default_take_profit_percent: 4.0  # Default 4% take profit (2:1 RR)
+  trailing_stop_percent: 1.5        # Trail stop at 1.5%
+  
+  # Drawdown Protection
+  max_drawdown_percent: 20.0        # Pause all trading at 20% drawdown
+  drawdown_recovery_mode: true      # Reduce size during recovery
+  
+# ============================================
+# DIVINE INTELLIGENCE SETTINGS
+# ============================================
+divine_intelligence:
+  # Consciousness Thresholds
+  min_consciousness_level: 500      # Minimum consciousness for trading
+  dimensional_consensus_required: 0.6  # 60% dimensional agreement needed
+  
+  # Signal Confidence
+  min_signal_confidence: 0.70       # Minimum 70% confidence to trade
+  divine_confirmation_required: 3   # Need 3 divine sources to agree
+  
+  # Karmic Trading
+  respect_karmic_cycles: true       # Follow karmic market patterns
+  akashic_guidance_weight: 0.25     # 25% weight to Akashic Records
+  
+  # Timeline Selection
+  timeline_profit_threshold: 0.02   # Only trade if timeline shows 2%+ profit
+  causality_check_enabled: true     # Prevent causality paradoxes
+  
+  # Void Intelligence
+  void_whisper_threshold: 0.5       # Listen to void above 50% clarity
+  manifestation_min_probability: 0.6 # Need 60% manifestation probability
+
+# ============================================
+# MARKET SELECTION
+# ============================================
+markets:
+  # Crypto Pairs (Most Liquid)
+  primary_pairs:
+    - "BTC/USDT"    # Bitcoin - most liquid
+    - "ETH/USDT"    # Ethereum - high volume
+    - "BNB/USDT"    # Binance Coin - exchange token
+    
+  # Secondary Pairs (Good Volume)
+  secondary_pairs:
+    - "SOL/USDT"    # Solana
+    - "XRP/USDT"    # Ripple
+    - "ADA/USDT"    # Cardano
+    - "DOGE/USDT"   # Dogecoin
+    - "MATIC/USDT"  # Polygon
+    
+  # Scan Settings
+  max_concurrent_positions: 3       # Max 3 trades open at once
+  correlation_check: true           # Avoid correlated trades
+  
+# ============================================
+# TIMEFRAME SETTINGS
+# ============================================
+timeframes:
+  primary: "5m"                     # Main trading timeframe
+  confirmation: ["15m", "1h"]      # Higher timeframes for confirmation
+  divine_analysis: "4h"             # Divine consciousness timeframe
+  
+# ============================================
+# ENTRY RULES
+# ============================================
+entry_rules:
+  # Technical Confirmation
+  require_trend_alignment: true     # All timeframes must agree
+  min_volume_percentile: 50         # Above 50% average volume
+  
+  # Divine Confirmation
+  require_divine_signal: true       # Must have divine approval
+  min_dimensions_aligned: 4         # At least 4 dimensions agree
+  
+  # Smart Money
+  follow_whale_movements: true      # Track large traders
+  smart_money_min_score: 0.5       # Minimum smart money score
+  
+  # Session Filters
+  avoid_weekend_trading: true       # Skip low volume weekends
+  best_sessions: ["london", "newyork"]  # Trade major sessions
+  
+# ============================================
+# EXIT RULES
+# ============================================
+exit_rules:
+  # Profit Taking
+  partial_profit_enabled: true      # Take partial profits
+  first_target_percent: 2.0         # Take 50% at 2%
+  second_target_percent: 4.0        # Take 25% at 4%
+  runner_management: true           # Let 25% run with trailing stop
+  
+  # Loss Management
+  cut_losses_quickly: true         # Exit if trade goes wrong
+  time_based_exit_hours: 24        # Close after 24 hours
+  
+  # Divine Exits
+  void_warning_exit: true          # Exit on void warnings
+  timeline_shift_exit: true        # Exit on timeline changes
+  karma_reversal_exit: true        # Exit on karmic reversal
+  
+# ============================================
+# MONEY MANAGEMENT
+# ============================================
+money_management:
+  # Compounding
+  compound_profits: true           # Reinvest profits
+  compound_percentage: 50          # Reinvest 50% of profits
+  
+  # Withdrawal Rules
+  profit_withdrawal_percent: 25    # Withdraw 25% of monthly profits
+  min_balance_maintained: 100      # Always keep $100 minimum
+  
+  # Scaling
+  scale_with_equity: true         # Increase size as account grows
+  scale_factor: 0.01               # 1% position size per $1000
+  
+# ============================================
+# SAFETY FEATURES
+# ============================================
+safety:
+  # Emergency Stops
+  kill_switch_enabled: true        # Emergency stop button
+  max_daily_trades: 10             # Limit overtrading
+  
+  # Connection Safety
+  require_stable_connection: true  # Need stable internet
+  heartbeat_check_seconds: 30      # Check connection every 30s
+  
+  # Order Safety
+  use_limit_orders: false          # Use market orders for fills
+  max_slippage_percent: 0.5        # Max 0.5% slippage allowed
+  
+  # Double-Check Systems
+  pre_trade_checklist: true        # Run checklist before trades
+  post_trade_analysis: true        # Analyze every trade after
+  
+# ============================================
+# MONITORING & ALERTS
+# ============================================
+monitoring:
+  # Logging
+  log_all_trades: true             # Keep detailed logs
+  log_level: "INFO"                # INFO, DEBUG, WARNING, ERROR
+  
+  # Performance Tracking
+  track_win_rate: true             # Monitor success rate
+  track_profit_factor: true        # Track risk/reward
+  track_sharpe_ratio: true         # Risk-adjusted returns
+  
+  # Alerts
+  telegram_alerts: true            # Send Telegram notifications
+  email_alerts: false              # Email notifications (optional)
+  
+  alert_on:
+    - "trade_opened"
+    - "trade_closed"
+    - "daily_limit_reached"
+    - "large_profit"
+    - "large_loss"
+    - "system_error"
+    - "divine_warning"
+    
+# ============================================
+# OPTIMIZATION SETTINGS
+# ============================================
+optimization:
+  # Self-Learning
+  enable_ml_optimization: true      # Machine learning optimization
+  optimization_period_days: 30      # Optimize every 30 days
+  
+  # Backtesting
+  backtest_before_live: true       # Always backtest changes
+  min_backtest_trades: 100         # Need 100 trades minimum
+  
+  # A/B Testing
+  enable_strategy_testing: true     # Test strategy variations
+  test_allocation_percent: 10       # Use 10% for testing
+  
+# ============================================
+# DIVINE FEATURES ACTIVATION
+# ============================================
+divine_features:
+  quantum_prediction: true          # Quantum price forecasting
+  neural_swarm: true               # 100 agent swarm intelligence
+  fractal_analysis: true           # Chaos and fractal patterns
+  smart_money_tracking: true       # Whale and institutional tracking
+  
+  consciousness_network: true       # Multi-dimensional awareness
+  akashic_records: true            # Universal market memory
+  temporal_navigation: true        # Timeline exploration
+  void_intelligence: true          # Void consciousness channeling
+  
+  sacred_geometry: true            # Fibonacci and golden ratios
+  karmic_trading: true            # Cause-effect patterns
+  celestial_timing: true          # Planetary alignments
+  
+# ============================================
+# EXCHANGE SETTINGS
+# ============================================
+exchange:
+  primary: "binance"              # Main exchange
+  backup: ["bybit", "okx"]        # Backup exchanges
+  
+  # API Settings
+  rate_limit_buffer: 0.8          # Use 80% of rate limit
+  timeout_seconds: 30             # API timeout
+  retry_attempts: 3               # Retry failed requests
+  
+# ============================================
+# PAPER TRADING SETTINGS
+# ============================================
+paper_trading:
+  enabled: true                   # START WITH PAPER TRADING
+  starting_balance: 1000.0        # Paper account balance
+  realistic_slippage: true        # Simulate real slippage
+  realistic_fees: true            # Include trading fees
+  
+  # Paper Trading Goals
+  min_paper_trades: 100           # Complete 100 paper trades
+  min_win_rate: 55                # Achieve 55% win rate
+  min_profit_factor: 1.5          # Risk/reward of 1.5+
+  required_before_live: true      # Must pass paper trading
+  
+# ============================================
+# ADVANCED SETTINGS
+# ============================================
+advanced:
+  # Multi-Strategy
+  enable_multi_strategy: true      # Run multiple strategies
+  strategy_correlation_limit: 0.5  # Limit correlated strategies
+  
+  # Market Regime
+  detect_market_regime: true       # Identify market conditions
+  adapt_to_regime: true           # Adjust strategy to conditions
+  
+  # Volatility Adjustment
+  volatility_scaling: true         # Adjust for volatility
+  volatility_lookback: 20          # 20 period volatility
+  
+  # News Integration
+  check_news_events: true         # Monitor news impact
+  avoid_high_impact_news: true    # Skip major news times
