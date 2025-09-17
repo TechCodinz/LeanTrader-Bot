@@ -15,5 +15,9 @@ feedparser
 vaderSentiment
 # optional but useful for news_harvest auto VADER download
 nltk
-python-dotenv
-pytest
+# Missing test dependencies
+httpx
+optuna
+# Additional dependencies for divine bot
+aiohttp
+pyyaml

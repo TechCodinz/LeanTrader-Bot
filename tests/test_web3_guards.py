@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from web3.guards import estimate_price_impact, is_safe_gas, token_safety_checks, is_safe_price_impact
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from w3guard.guards import estimate_price_impact, is_safe_gas, token_safety_checks, is_safe_price_impact
 
 
 def test_price_impact_calc():

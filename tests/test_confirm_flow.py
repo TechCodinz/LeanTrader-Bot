@@ -4,6 +4,9 @@ import sys
 import time
 from pathlib import Path
 
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from fastapi.testclient import TestClient
 
 import runtime.webhook_server as ws
