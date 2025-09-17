@@ -1,1 +1,1 @@
-# Evolution module for genetic algorithms and strategy optimization
+# research.evolution package
