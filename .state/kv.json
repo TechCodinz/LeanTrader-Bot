@@ -1,0 +1,19 @@
+{
+  "test_meta_selector": {
+    "classical": 0.3636038969321072,
+    "quantum": 0.1,
+    "ensemble": 0.1
+  },
+  "meta_selector": {
+    "classical": -425.6646016577396,
+    "quantum": 0.0,
+    "ensemble": 0.0
+  },
+  "weights_prev_classical": [
+    0.14896853765566972,
+    0.0,
+    0.15491782648756197,
+    0.13909696257932352,
+    0.5570166732774448
+  ]
+}

@@ -1,0 +1,1 @@
+# Research package for trading strategies and evolution
