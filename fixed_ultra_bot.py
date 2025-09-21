@@ -201,23 +201,22 @@ class FixedUltraTradingSystem:
         self.telegram_demo_mode()
     
     def telegram_demo_mode(self):
-        """Setup demo Telegram mode"""
-        # You can replace these with your actual bot token and chat ID
-        bot_token = "YOUR_BOT_TOKEN_HERE"  # Replace with your actual bot token
-        chat_id = "YOUR_CHAT_ID_HERE"      # Replace with your actual chat ID
+        """Setup Telegram with real credentials"""
+        # Your actual Telegram bot credentials
+        bot_token = "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
+        chat_id = "5329503447"
         
-        if bot_token != "YOUR_BOT_TOKEN_HERE" and chat_id != "YOUR_CHAT_ID_HERE":
-            try:
-                self.telegram_bot = Bot(token=bot_token)
-                self.telegram_chat_id = chat_id
-                self.telegram_enabled = True
-                logger.info("✅ Telegram configured - notifications will be sent!")
-            except Exception as e:
-                logger.error(f"❌ Telegram configuration failed: {e}")
-                self.telegram_enabled = False
-        else:
-            logger.info("📱 DEMO MODE: Telegram not configured")
-            logger.info("📱 All signals will be logged here instead")
+        try:
+            self.telegram_bot = Bot(token=bot_token)
+            self.telegram_chat_id = chat_id
+            self.telegram_enabled = True
+            logger.info("✅ Telegram configured with REAL credentials!")
+            logger.info("📱 Bot Token: 8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+            logger.info("📱 Chat ID: 5329503447")
+            logger.info("🚀 Real notifications will be sent to your Telegram!")
+        except Exception as e:
+            logger.error(f"❌ Telegram configuration failed: {e}")
+            self.telegram_enabled = False
     
     async def send_telegram_message(self, message: str):
         """Send Telegram message"""
