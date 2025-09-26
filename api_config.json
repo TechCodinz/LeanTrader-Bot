@@ -2,58 +2,67 @@
   "exchanges": {
     "binance": {
       "enabled": true,
-      "api_key": "",
-      "secret": "",
-      "sandbox": true,
+      "api_key": "uxMw38StLFlWpqzi9OpFMMj4H7m3dWy8jnR2EAl2raL0n465jtxnlK9S2CYBflyf",
+      "secret": "k6dCSRQfCiNYHn3PjWtORNUKP69EvnbyAHmEIio9my8qRBHbzNHbXdWV2HilzRrO",
+      "sandbox": false,
       "rate_limit": 1200,
       "timeout": 10000,
       "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
     },
-    "coinbase": {
-      "enabled": true,
-      "api_key": "",
-      "secret": "",
-      "passphrase": "",
-      "sandbox": true,
-      "rate_limit": 10,
-      "timeout": 10000,
-      "markets": ["BTC/USDT", "ETH/USDT", "ADA/USDT", "SOL/USDT"]
-    },
-    "kraken": {
-      "enabled": true,
-      "api_key": "",
-      "secret": "",
-      "sandbox": true,
-      "rate_limit": 1,
-      "timeout": 10000,
-      "markets": ["BTC/USDT", "ETH/USDT", "ADA/USDT", "SOL/USDT"]
-    },
     "bybit": {
-      "enabled": false,
-      "api_key": "",
-      "secret": "",
-      "testnet": true,
+      "enabled": true,
+      "api_key": "fX0py6Av5dFPmCPOMX",
+      "secret": "P9lkTCsxMWhmnqmCeoZzjll0kR2Db7ykgek0",
+      "testnet": false,
       "rate_limit": 120,
       "timeout": 10000,
       "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
     },
     "okx": {
       "enabled": true,
-      "api_key": "",
-      "secret": "",
+      "api_key": "9b6e8a19-5a9c-44ca-942f-e98cc36d0354",
+      "secret": "A59EF8A73CC7462F9B2C20FECB4C6723",
       "passphrase": "",
-      "sandbox": true,
+      "sandbox": false,
       "rate_limit": 20,
       "timeout": 10000,
       "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
     },
     "kucoin": {
       "enabled": true,
-      "api_key": "",
-      "secret": "",
+      "api_key": "68d494bd54d53500017383ed",
+      "secret": "e25a93de-01c1-4d4a-8d70-cc33c47d89ab",
       "passphrase": "",
-      "sandbox": true,
+      "sandbox": false,
       "rate_limit": 45,
+      "timeout": 10000,
+      "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
+    },
+    "gateio": {
+      "enabled": true,
+      "api_key": "a0508d8aadf3bcb76e16f4373e1f3a76",
+      "secret": "451770a07dbede1b87bb92f5ce98e24029d2fe91e0053be2ec41771c953113f9",
+      "sandbox": false,
+      "rate_limit": 10,
+      "timeout": 10000,
+      "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
+    },
+    "mexc": {
+      "enabled": true,
+      "api_key": "mx0vgl7ytNbnU44V5G",
+      "secret": "68562da9963e4666a32a4a73cda61062",
+      "sandbox": false,
+      "rate_limit": 20,
+      "timeout": 10000,
+      "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
+    },
+    "bitget": {
+      "enabled": true,
+      "api_key": "bg_a76be18966412e3f95b11eac379edf91",
+      "secret": "7507beac89f798ea88f469747e5c8fd0094fc3c3887afc671c777380d9c95cff",
+      "passphrase": "",
+      "sandbox": false,
+      "rate_limit": 20,
       "timeout": 10000,
       "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
     }
@@ -103,7 +112,7 @@
   },
   "settings": {
     "default_exchange": "binance",
-    "fallback_exchanges": ["coinbase", "kraken", "okx"],
+    "fallback_exchanges": ["okx", "bybit", "kucoin", "gateio", "mexc", "bitget"],
     "max_retries": 3,
     "retry_delay": 1,
     "connection_timeout": 30,
@@ -114,6 +123,12 @@
     "min_profit_threshold": 0.001,
     "max_slippage": 0.005,
     "gas_limit": 500000,
-    "gas_price_gwei": 20
+    "gas_price_gwei": 20,
+    "enable_live_trading": true,
+    "allow_live_orders": true,
+    "live_confirm": true,
+    "max_position_size": 0.02,
+    "daily_loss_limit": 50.0,
+    "risk_per_trade": 0.01
   }
 }
