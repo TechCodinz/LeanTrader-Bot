@@ -110,6 +110,13 @@
       "markets": ["3pool", "tricrypto2", "steth"]
     }
   },
+  "telegram": {
+    "enabled": true,
+    "bot_token": "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg",
+    "admin_id": "5329503447",
+    "free_channel": "-1002930953007",
+    "vip_channel": "-1002983007302"
+  },
   "settings": {
     "default_exchange": "binance",
     "fallback_exchanges": ["okx", "bybit", "kucoin", "gateio", "mexc", "bitget"],
