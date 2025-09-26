@@ -1,0 +1,134 @@
+{
+  "exchanges": {
+    "binance": {
+      "enabled": true,
+      "api_key": "uxMw38StLFlWpqzi9OpFMMj4H7m3dWy8jnR2EAl2raL0n465jtxnlK9S2CYBflyf",
+      "secret": "k6dCSRQfCiNYHn3PjWtORNUKP69EvnbyAHmEIio9my8qRBHbzNHbXdWV2HilzRrO",
+      "sandbox": false,
+      "rate_limit": 1200,
+      "timeout": 10000,
+      "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
+    },
+    "bybit": {
+      "enabled": true,
+      "api_key": "fX0py6Av5dFPmCPOMX",
+      "secret": "P9lkTCsxMWhmnqmCeoZzjll0kR2Db7ykgek0",
+      "testnet": false,
+      "rate_limit": 120,
+      "timeout": 10000,
+      "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
+    },
+    "okx": {
+      "enabled": true,
+      "api_key": "9b6e8a19-5a9c-44ca-942f-e98cc36d0354",
+      "secret": "A59EF8A73CC7462F9B2C20FECB4C6723",
+      "passphrase": "",
+      "sandbox": false,
+      "rate_limit": 20,
+      "timeout": 10000,
+      "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
+    },
+    "kucoin": {
+      "enabled": true,
+      "api_key": "68d494bd54d53500017383ed",
+      "secret": "e25a93de-01c1-4d4a-8d70-cc33c47d89ab",
+      "passphrase": "",
+      "sandbox": false,
+      "rate_limit": 45,
+      "timeout": 10000,
+      "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
+    },
+    "gateio": {
+      "enabled": true,
+      "api_key": "a0508d8aadf3bcb76e16f4373e1f3a76",
+      "secret": "451770a07dbede1b87bb92f5ce98e24029d2fe91e0053be2ec41771c953113f9",
+      "sandbox": false,
+      "rate_limit": 10,
+      "timeout": 10000,
+      "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
+    },
+    "mexc": {
+      "enabled": true,
+      "api_key": "mx0vgl7ytNbnU44V5G",
+      "secret": "68562da9963e4666a32a4a73cda61062",
+      "sandbox": false,
+      "rate_limit": 20,
+      "timeout": 10000,
+      "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
+    },
+    "bitget": {
+      "enabled": true,
+      "api_key": "bg_a76be18966412e3f95b11eac379edf91",
+      "secret": "7507beac89f798ea88f469747e5c8fd0094fc3c3887afc671c777380d9c95cff",
+      "passphrase": "",
+      "sandbox": false,
+      "rate_limit": 20,
+      "timeout": 10000,
+      "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "SOL/USDT"]
+    }
+  },
+  "dex": {
+    "uniswap_v3": {
+      "enabled": true,
+      "rpc_url": "https://mainnet.infura.io/v3/YOUR_INFURA_KEY",
+      "router_address": "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+      "factory_address": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+      "markets": ["ETH/USDC", "WBTC/ETH", "USDC/USDT"]
+    },
+    "pancakeswap": {
+      "enabled": true,
+      "rpc_url": "https://bsc-dataseed.binance.org/",
+      "router_address": "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+      "factory_address": "0xcA143Ce0Fe65960e6Aa4D42C8D3cE161c2B1F1A5",
+      "markets": ["BNB/USDT", "BTCB/USDT", "ETH/USDT"]
+    },
+    "sushiswap": {
+      "enabled": true,
+      "rpc_url": "https://mainnet.infura.io/v3/YOUR_INFURA_KEY",
+      "router_address": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F",
+      "factory_address": "0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac",
+      "markets": ["ETH/USDC", "WBTC/ETH", "USDC/USDT"]
+    }
+  },
+  "defi": {
+    "aave": {
+      "enabled": true,
+      "rpc_url": "https://mainnet.infura.io/v3/YOUR_INFURA_KEY",
+      "lending_pool_address": "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9",
+      "markets": ["USDC", "USDT", "DAI", "WETH", "WBTC"]
+    },
+    "compound": {
+      "enabled": true,
+      "rpc_url": "https://mainnet.infura.io/v3/YOUR_INFURA_KEY",
+      "comptroller_address": "0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B",
+      "markets": ["USDC", "USDT", "DAI", "WETH", "WBTC"]
+    },
+    "curve": {
+      "enabled": true,
+      "rpc_url": "https://mainnet.infura.io/v3/YOUR_INFURA_KEY",
+      "registry_address": "0x90E00ACe148ca3b23Ac1bC8C240C2a7Dd9c2d7f5",
+      "markets": ["3pool", "tricrypto2", "steth"]
+    }
+  },
+  "settings": {
+    "default_exchange": "binance",
+    "fallback_exchanges": ["okx", "bybit", "kucoin", "gateio", "mexc", "bitget"],
+    "max_retries": 3,
+    "retry_delay": 1,
+    "connection_timeout": 30,
+    "request_timeout": 10,
+    "enable_arbitrage": true,
+    "enable_yield_farming": true,
+    "enable_liquidity_mining": true,
+    "min_profit_threshold": 0.001,
+    "max_slippage": 0.005,
+    "gas_limit": 500000,
+    "gas_price_gwei": 20,
+    "enable_live_trading": true,
+    "allow_live_orders": true,
+    "live_confirm": true,
+    "max_position_size": 0.02,
+    "daily_loss_limit": 50.0,
+    "risk_per_trade": 0.01
+  }
+}
