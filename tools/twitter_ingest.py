@@ -11,21 +11,15 @@ Writes brief text snippets to runtime/strategies/twitter_<slug>.txt (one file pe
 Per run, dedupes by tweet id within the request set.
 """
 
-from __future__ import annotations
-
 import os
 import time
 import urllib.parse as _up
-from pathlib import Path
-from typing import Any, Dict, List, Set
 
 import requests
-
 
 def _slug(s: str) -> str:
     s = s.strip().lower().replace(" ", "_")
     return "".join(ch for ch in s if ch.isalnum() or ch in ("_", "-"))[:60]
-
 
 def _sleep(ms: int) -> None:
     try:
@@ -35,7 +29,6 @@ def _sleep(ms: int) -> None:
     except Exception:
         pass
 
-
 def _ingest_query(bearer: str, query: str, max_results: int, pages: int, sleep_ms: int) -> int:
     query = query.strip()
     if not query:
@@ -44,8 +37,8 @@ def _ingest_query(bearer: str, query: str, max_results: int, pages: int, sleep_m
     if not bearer:
         return 0
     max_results = min(100, max(10, int(max_results)))
-    url = (
-        "https://api.twitter.com/2/tweets/search/recent?" + _up.urlencode({"query": query, "max_results": max_results})
+    url = "https://api.twitter.com/2/tweets/search/recent?" + _up.urlencode(
+        {"query": query, "max_results": max_results}
     )
     headers = {"Authorization": f"Bearer {bearer}"}
     try:
@@ -57,7 +50,12 @@ def _ingest_query(bearer: str, query: str, max_results: int, pages: int, sleep_m
             params = {"query": query, "max_results": max_results}
             if next_token:
                 params["next_token"] = next_token
-            r = requests.get("https://api.twitter.com/2/tweets/search/recent", headers=headers, params=params, timeout=12)
+            r = requests.get(
+                "https://api.twitter.com/2/tweets/search/recent",
+                headers=headers,
+                params=params,
+                timeout=12,
+            )
             if r.status_code != 200:
                 break
             j = r.json()
@@ -89,7 +87,6 @@ def _ingest_query(bearer: str, query: str, max_results: int, pages: int, sleep_m
         return len(lines)
     except Exception:
         return 0
-
 
 def ingest_once() -> int:
     bearer = os.getenv("TWITTER_BEARER_TOKEN", "").strip()
@@ -124,7 +121,12 @@ def ingest_once() -> int:
                     params = {"max_results": max_results}
                     if next_token:
                         params["pagination_token"] = next_token
-                    r = requests.get(f"https://api.twitter.com/2/lists/{lid}/tweets", headers=headers, params=params, timeout=12)
+                    r = requests.get(
+                        f"https://api.twitter.com/2/lists/{lid}/tweets",
+                        headers=headers,
+                        params=params,
+                        timeout=12,
+                    )
                     if r.status_code != 200:
                         break
                     j = r.json()
@@ -156,7 +158,6 @@ def ingest_once() -> int:
             except Exception:
                 continue
     return total
-
 
 if __name__ == "__main__":
     n = ingest_once()

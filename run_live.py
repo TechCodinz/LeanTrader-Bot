@@ -1,15 +1,36 @@
 # run_live.py
-from __future__ import annotations
 
 import argparse
 import os  # noqa: F401  # intentionally kept
 import sys
 import time
+import asyncio
+import threading
 from pathlib import Path
 from typing import Any, Dict, List
 
 import pandas as pd
+
 from dotenv import load_dotenv
+from notifier import TelegramNotifier
+from cmd_reader import read_commands
+from acct_portfolio import ccxt_summary
+from ledger import daily_pnl_text
+from ultra_core import UltraCore
+from guardrails import GuardConfig, TradeGuard
+from dex_router import execute_swap
+
+# add 'src' to import path for runtime modules under src/
+SRC_DIR = Path(__file__).resolve().parent / "src"
+if SRC_DIR.exists() and str(SRC_DIR) not in sys.path:
+    sys.path.append(str(SRC_DIR))
+
+try:
+    from notification_manager import NotificationManager  # type: ignore
+    from monitoring import MonitoringSystem  # type: ignore
+except Exception:
+    NotificationManager = None  # type: ignore
+    MonitoringSystem = None  # type: ignore
 
 # ---- project root on path ----
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -22,7 +43,6 @@ if str(PROJECT_ROOT) not in sys.path:
 # avoid importing safe_create_order at top-level to prevent redefinition warnings
 
 load_dotenv()
-
 
 # -------- ccxt exchange bootstrap --------
 def _pick_exchanges() -> List[str]:
@@ -47,7 +67,6 @@ def _pick_exchanges() -> List[str]:
         "coinbase",
         "binanceus",
     ]
-
 
 def _make_exchange_trylist() -> List[Any]:
     import ccxt
@@ -74,14 +93,12 @@ def _make_exchange_trylist() -> List[Any]:
         tries.append(klass(opts))
     return tries
 
-
 def ensure_exchange():
     from router import ExchangeRouter
 
     router = ExchangeRouter()
     router._load_markets_safe()
     return router
-
 
 # provide a safe top-level reference for `place_market` so linters don't flag F821
 try:
@@ -93,7 +110,6 @@ except Exception:
         is imported locally where needed.
         """
         raise RuntimeError("place_market is not available in this environment")
-
 
 # -------- data fetch --------
 def fetch_df(ex, symbol: str, timeframe: str, limit: int = 400) -> pd.DataFrame:
@@ -139,7 +155,6 @@ def fetch_df(ex, symbol: str, timeframe: str, limit: int = 400) -> pd.DataFrame:
     df["timestamp"] = pd.to_datetime(df["ts"], unit="ms")
     return df
 
-
 # -------- OCO helper (spot best-effort) --------
 def place_oco_ccxt(
     ex,
@@ -184,7 +199,9 @@ def place_oco_ccxt(
         # take-profit
         try:
             if hasattr(ex, "safe_place_order"):
-                notified["tp"] = ex.safe_place_order(symbol, opp, qty, price=take_px, params={"reduceOnly": True})
+                notified["tp"] = ex.safe_place_order(
+                    symbol, opp, qty, price=take_px, params={"reduceOnly": True}
+                )
             elif hasattr(ex, "create_limit_order"):
                 try:
                     notified["tp"] = ex.create_limit_order(symbol, opp, qty, float(take_px))
@@ -215,7 +232,9 @@ def place_oco_ccxt(
                     )
                 except Exception:
                     try:
-                        notified["tp"] = safe_create_order(ex, "limit", symbol, opp, qty, float(take_px))
+                        notified["tp"] = safe_create_order(
+                            ex, "limit", symbol, opp, qty, float(take_px)
+                        )
                     except Exception:
                         notified["tp"] = {"ok": False, "error": "tp create failed"}
             else:
@@ -230,18 +249,24 @@ def place_oco_ccxt(
                 notified["sl"] = ex.safe_place_order(symbol, opp, qty, price=stop_px, params=params)
             elif hasattr(ex, "create_stop_order"):
                 try:
-                    notified["sl"] = ex.create_stop_order(symbol, opp, qty, float(stop_px), params=params)
+                    notified["sl"] = ex.create_stop_order(
+                        symbol, opp, qty, float(stop_px), params=params
+                    )
                 except Exception:
                     try:
                         from order_utils import safe_create_order
 
-                        notified["sl"] = safe_create_order(ex, "stop", symbol, opp, qty, float(stop_px), params=params)
+                        notified["sl"] = safe_create_order(
+                            ex, "stop", symbol, opp, qty, float(stop_px), params=params
+                        )
                     except Exception:
                         notified["sl"] = {"ok": False, "error": "sl create failed"}
             elif hasattr(ex, "create_order"):
                 try:
                     # prefer centralized safe_create_order wrapper
-                    notified["sl"] = safe_create_order(ex, "stop", symbol, opp, qty, stop_px, params=params)
+                    notified["sl"] = safe_create_order(
+                        ex, "stop", symbol, opp, qty, stop_px, params=params
+                    )
                 except Exception:
                     try:
                         notified["sl"] = safe_create_order(ex, "stop", symbol, opp, qty, stop_px)
@@ -255,7 +280,6 @@ def place_oco_ccxt(
         return {"ok": True, "orders": notified}
     except Exception as _e:
         return {"ok": False, "error": str(_e)}
-
 
 def handle_cmds_ccxt(cmds, router, tg, live: bool):
     """Process a small set of telegram commands safely.
@@ -277,7 +301,9 @@ def handle_cmds_ccxt(cmds, router, tg, live: bool):
                 base = sym.split("/")[0]
                 try:
                     bal = (
-                        router.safe_fetch_balance() if hasattr(router, "safe_fetch_balance") else router.fetch_balance()
+                        router.safe_fetch_balance()
+                        if hasattr(router, "safe_fetch_balance")
+                        else router.fetch_balance()
                     )
                 except Exception:
                     bal = {}
@@ -314,7 +340,6 @@ def handle_cmds_ccxt(cmds, router, tg, live: bool):
             except Exception:
                 pass
 
-
 # -------- main --------
 def main():
     ap = argparse.ArgumentParser()
@@ -326,11 +351,6 @@ def main():
     args = ap.parse_args()
 
     # local imports (moved from top-level to avoid E402 warnings)
-    from acct_portfolio import ccxt_summary
-    from cmd_reader import read_commands
-    from guardrails import GuardConfig, TradeGuard
-    from ledger import daily_pnl_text
-    from notifier import TelegramNotifier
     from risk import RiskConfig
     from strategy import TrendBreakoutStrategy
     from utils import load_config, setup_logger
@@ -344,6 +364,38 @@ def main():
     live = os.getenv("ENABLE_LIVE", "false").lower() == "true"
 
     router = ensure_exchange()
+
+    # --- Notifications (async init) ---
+    notif_mgr = None
+    if NotificationManager is not None:
+        try:
+            notif_mgr = NotificationManager()
+            # run async init
+            try:
+                asyncio.run(notif_mgr.initialize())
+            except RuntimeError:
+                # if an event loop is already running (e.g., uvicorn), schedule a task
+                loop = asyncio.get_event_loop()
+                loop.create_task(notif_mgr.initialize())
+        except Exception:
+            notif_mgr = None
+
+    # --- Monitoring (background) ---
+    def _run_monitoring_bg():
+        try:
+            if MonitoringSystem is None:
+                return
+            mon = MonitoringSystem(trading_bot=None)
+            asyncio.run(mon.start())
+        except Exception:
+            pass
+
+    try:
+        if MonitoringSystem is not None:
+            t = threading.Thread(target=_run_monitoring_bg, name="monitoring", daemon=True)
+            t.start()
+    except Exception:
+        pass
 
     # explicit safety guard: if live is disabled, block any method that would send
     # real orders to an exchange unless the exchange is explicitly the `paper` adapter.
@@ -429,7 +481,6 @@ def main():
     last_bal_ts = 0.0
 
     # --- UltraCore god mode integration ---
-    from ultra_core import UltraCore
     from universe import Universe
 
     ultra_universe = Universe(router) if hasattr(router, "markets") else None
@@ -456,13 +507,13 @@ def main():
             last_bal_ts = now
 
         # Optional on-chain swap entrypoint (env gated)
+
 def _maybe_onchain_swap():
     try:
         if os.getenv("ONCHAIN_SWAP_ENABLED", "false").lower() not in ("1", "true", "yes", "on"):
             return
         # optional dynamic entry module providing tx_builder and senders
         import importlib
-        from dex_router import execute_swap
 
         mod_name = os.getenv("ONCHAIN_ENTRY", "onchain_entry").strip()
         entry = importlib.import_module(mod_name)

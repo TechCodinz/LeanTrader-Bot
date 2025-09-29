@@ -1,17 +1,14 @@
-from __future__ import annotations
-
-import json
-import time
-from typing import Dict, List, Tuple, Any
-
-
 def get_ticker(exchange: str, symbol: str) -> Dict[str, float]:
     """Fetch best bid/ask (fallback to last if needed). Uses ccxt via connector when available."""
     try:
         from traders_core.connectors.crypto_ccxt import _mk_exchange as mk_ex  # type: ignore
 
         ex = mk_ex(exchange, False)
-        t = ex.safe_fetch_ticker(symbol) if hasattr(ex, "safe_fetch_ticker") else ex.fetch_ticker(symbol)
+        t = (
+            ex.safe_fetch_ticker(symbol)
+            if hasattr(ex, "safe_fetch_ticker")
+            else ex.fetch_ticker(symbol)
+        )
         return {
             "bid": float(t.get("bid") or t.get("close") or 0.0),
             "ask": float(t.get("ask") or t.get("close") or 0.0),
@@ -19,7 +16,6 @@ def get_ticker(exchange: str, symbol: str) -> Dict[str, float]:
         }
     except Exception:
         return {"bid": 0.0, "ask": 0.0, "last": 0.0}
-
 
 def get_orderbook(exchange: str, symbol: str) -> Dict[str, Any]:
     """Top-of-book snapshot for quick sizing (best bid/ask and sizes)."""
@@ -39,8 +35,9 @@ def get_orderbook(exchange: str, symbol: str) -> Dict[str, Any]:
     except Exception:
         return {"bid": 0.0, "bid_size": 0.0, "ask": 0.0, "ask_size": 0.0}
 
-
-def cross_exchange_spreads(symbols: List[str], venues: List[str], min_bps: float = 10.0) -> List[Dict[str, Any]]:
+def cross_exchange_spreads(
+    symbols: List[str], venues: List[str], min_bps: float = 10.0
+) -> List[Dict[str, Any]]:
     """Find cross-exchange arbitrage spreads (sell venue highest bid, buy venue lowest ask)."""
     out: List[Dict[str, Any]] = []
     for sym in symbols:
@@ -61,30 +58,32 @@ def cross_exchange_spreads(symbols: List[str], venues: List[str], min_bps: float
             oba = get_orderbook(buy_v, sym)
             obs = get_orderbook(sell_v, sym)
             size_cap = min(float(oba.get("ask_size", 0.0)), float(obs.get("bid_size", 0.0)))
-            out.append({
-                "symbol": sym,
-                "buy_venue": buy_v,
-                "sell_venue": sell_v,
-                "buy": float(buy["ask"]),
-                "sell": float(sell["bid"]),
-                "spread_bps": float(spread),
-                "size_cap": float(size_cap),
-            })
+            out.append(
+                {
+                    "symbol": sym,
+                    "buy_venue": buy_v,
+                    "sell_venue": sell_v,
+                    "buy": float(buy["ask"]),
+                    "sell": float(sell["bid"]),
+                    "spread_bps": float(spread),
+                    "size_cap": float(size_cap),
+                }
+            )
     return out
-
 
 def triangular_arbitrage(venue: str, pairs: List[Tuple[str, str, str]]) -> List[Dict[str, Any]]:
     """Simple triangular arb scanner on one venue using mid prices.
 
     pairs: list of (A/B, B/C, C/A)
     """
+
     def mid(v, s):
         t = get_ticker(v, s)
         b, a = float(t.get("bid", 0.0)), float(t.get("ask", 0.0))
         return (b + a) / 2.0 if b and a else float(t.get("last", 0.0))
 
     out: List[Dict[str, Any]] = []
-    for (ab, bc, ca) in pairs:
+    for ab, bc, ca in pairs:
         m1, m2, m3 = mid(venue, ab), mid(venue, bc), mid(venue, ca)
         if not (m1 and m2 and m3):
             continue
@@ -95,13 +94,11 @@ def triangular_arbitrage(venue: str, pairs: List[Tuple[str, str, str]]) -> List[
             out.append({"venue": venue, "cycle": (ab, bc, ca), "edge_bps": float(bps)})
     return out
 
-
 def risk_checks(opp: Dict[str, Any], min_volume: float = 0.001) -> bool:
     try:
         return float(opp.get("size_cap", 0.0)) >= float(min_volume)
     except Exception:
         return False
-
 
 def plan_and_route(opp: Dict[str, Any], qty: float) -> Dict[str, Any]:
     """Plan execution using quantum_exec_plan to split across venues if provided.
@@ -121,22 +118,29 @@ def plan_and_route(opp: Dict[str, Any], qty: float) -> Dict[str, Any]:
         per = float(qty) / max(1, len(venues))
         return {"plan": [{"venue": v, "qty": per} for v in venues], "method": "twap_equal"}
 
-
 # Metrics helpers
 try:
     from observability.metrics import Counter, Histogram, time_block
 except Exception:  # pragma: no cover
     Counter = Histogram = None
+
     def time_block(name: str):
-        from contextlib import contextmanager
         @contextmanager
         def _cm():
             yield
+
         return _cm()
 
 ARB_OPPS = Counter("ARB_OPPS", "Arbitrage opportunities detected") if Counter else None
-ARB_FILL_MS = Histogram("ARB_FILL_MS", "Arb fill latency (ms)", buckets=(5,10,25,50,100,200,400,800,1600,3200)) if Histogram else None
-
+ARB_FILL_MS = (
+    Histogram(
+        "ARB_FILL_MS",
+        "Arb fill latency (ms)",
+        buckets=(5, 10, 25, 50, 100, 200, 400, 800, 1600, 3200),
+    )
+    if Histogram
+    else None
+)
 
 def record_arb_opp(n: int = 1):
     try:
@@ -144,7 +148,6 @@ def record_arb_opp(n: int = 1):
             ARB_OPPS.inc(int(n))
     except Exception:
         pass
-
 
 __all__ = [
     "get_ticker",
@@ -155,4 +158,3 @@ __all__ = [
     "plan_and_route",
     "record_arb_opp",
 ]
-

@@ -1,15 +1,12 @@
-from __future__ import annotations
-
 import argparse
 import asyncio
 import datetime as dt
 import json
 import os
-from pathlib import Path
-from typing import Dict
 
-
-async def _collect_with_telethon(chan_usernames: Dict[str, str], minutes: int) -> Dict[str, Dict[str, float]]:
+async def _collect_with_telethon(
+    chan_usernames: Dict[str, str], minutes: int
+) -> Dict[str, Dict[str, float]]:
     out: Dict[str, Dict[str, float]] = {}
     try:
         from telethon import TelegramClient  # type: ignore
@@ -39,13 +36,18 @@ async def _collect_with_telethon(chan_usernames: Dict[str, str], minutes: int) -
     await client.disconnect()
     return out
 
-
 def main() -> int:
     p = argparse.ArgumentParser(description='Collect Telegram volume per asset via Telethon')
     p.add_argument('--assets', required=True, help='comma-separated assets e.g., BTC,ETH,SOL')
-    p.add_argument('--channels', default=os.getenv('TELEGRAM_CHANNELS', ''), help='mapping like ETH=@channel1,SOL=@channel2')
+    p.add_argument(
+        '--channels',
+        default=os.getenv('TELEGRAM_CHANNELS', ''),
+        help='mapping like ETH=@channel1,SOL=@channel2',
+    )
     p.add_argument('--minutes', type=int, default=int(os.getenv('TELEGRAM_WINDOW_MIN', '60')))
-    p.add_argument('--out', default=os.getenv('TELEGRAM_VOLUME_PATH', 'runtime/telegram_volume.json'))
+    p.add_argument(
+        '--out', default=os.getenv('TELEGRAM_VOLUME_PATH', 'runtime/telegram_volume.json')
+    )
     args = p.parse_args()
 
     chan_map: Dict[str, str] = {}
@@ -60,7 +62,9 @@ def main() -> int:
         return 0
 
     try:
-        out = asyncio.get_event_loop().run_until_complete(_collect_with_telethon(chan_map, args.minutes))
+        out = asyncio.get_event_loop().run_until_complete(
+            _collect_with_telethon(chan_map, args.minutes)
+        )
     except RuntimeError:
         out = asyncio.run(_collect_with_telethon(chan_map, args.minutes))
 
@@ -68,7 +72,6 @@ def main() -> int:
     Path(args.out).write_text(json.dumps(out, ensure_ascii=False), encoding='utf-8')
     print(json.dumps({"count": len(out)}))
     return 0
-
 
 if __name__ == '__main__':
     raise SystemExit(main())

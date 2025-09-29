@@ -4,13 +4,11 @@ Writes runtime/metrics.json every N seconds with counts parsed from logs and pap
 
 import json
 import time
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LOG = ROOT / "runtime" / "logs" / "continuous_demo.log"
 METRICS = ROOT / "runtime" / "metrics.json"
 PAPER = ROOT / "runtime" / "paper_state.json"
-
 
 def read_tail_count(path, needle):
     try:
@@ -19,14 +17,12 @@ def read_tail_count(path, needle):
         return 0
     return text.count(needle)
 
-
 def read_cash():
     try:
         j = json.loads(PAPER.read_text(encoding="utf-8"))
         return float(j.get("cash", 0.0))
     except Exception:
         return 0.0
-
 
 def main(interval=10):
     METRICS.parent.mkdir(parents=True, exist_ok=True)
@@ -45,7 +41,6 @@ def main(interval=10):
         except Exception:
             pass
         time.sleep(interval)
-
 
 if __name__ == "__main__":
     import argparse

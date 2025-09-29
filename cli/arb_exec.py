@@ -1,12 +1,9 @@
-from __future__ import annotations
-
 import argparse
 import json
 import random
 import time
 
 from scanners.arbitrage import plan_and_route
-
 
 def main():
     p = argparse.ArgumentParser(description="Simulate arbitrage execution and record latency")
@@ -16,11 +13,17 @@ def main():
     p.add_argument("--qty", type=float, default=0.01)
     args = p.parse_args()
 
-    opp = {"buy_venue": args.buy, "sell_venue": args.sell, "symbol": args.symbol, "size_cap": args.qty}
+    opp = {
+        "buy_venue": args.buy,
+        "sell_venue": args.sell,
+        "symbol": args.symbol,
+        "size_cap": args.qty,
+    }
     plan = plan_and_route(opp, args.qty)
     # simulate execution latency and record into ARB_FILL_MS
     try:
         from scanners.arbitrage import ARB_FILL_MS
+
         if ARB_FILL_MS is not None:
             t0 = time.time()
             # simulate per-leg latency
@@ -32,7 +35,5 @@ def main():
         pass
     print(json.dumps(plan))
 
-
 if __name__ == "__main__":
     main()
-

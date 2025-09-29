@@ -1,17 +1,13 @@
-from __future__ import annotations
-
-import math
-from typing import Dict, Optional, Tuple
-
+from typing import Optional, Tuple
 import numpy as np
-
 
 def _l1_normalize(w: np.ndarray) -> np.ndarray:
     s = float(np.sum(np.abs(w)))
     return (w / s) if s > 0 else w * 0.0
 
-
-def compute_risk_parity_weights(Sigma: np.ndarray, mask: Optional[np.ndarray] = None, iters: int = 200) -> np.ndarray:
+def compute_risk_parity_weights(
+    Sigma: np.ndarray, mask: Optional[np.ndarray] = None, iters: int = 200
+) -> np.ndarray:
     """Iterative risk parity weights for selected assets.
 
     Uses simple fixed-point iteration on risk contributions:
@@ -49,7 +45,6 @@ def compute_risk_parity_weights(Sigma: np.ndarray, mask: Optional[np.ndarray] = 
         w = _l1_normalize(w)
     return w
 
-
 def stress_indicator(vol: float, vix_proxy: float, liquidity: float) -> float:
     """Combine volatility, VIX-like proxy, and liquidity into stress score [0,1].
 
@@ -71,8 +66,9 @@ def stress_indicator(vol: float, vix_proxy: float, liquidity: float) -> float:
     s = 0.5 * vol_n + 0.4 * vix_n + 0.1 * liq_n
     return float(max(0.0, min(1.0, s)))
 
-
-def adaptive_budget(w_base: np.ndarray, stress_s: float, min_leverage: float = 0.5, max_leverage: float = 1.5) -> Tuple[np.ndarray, float]:
+def adaptive_budget(
+    w_base: np.ndarray, stress_s: float, min_leverage: float = 0.5, max_leverage: float = 1.5
+) -> Tuple[np.ndarray, float]:
     """Scale portfolio weights by leverage L that decays with stress, then renormalize.
 
     Returns (weights, L)."""
@@ -85,10 +81,8 @@ def adaptive_budget(w_base: np.ndarray, stress_s: float, min_leverage: float = 0
     w_scaled = _l1_normalize(L * w)
     return w_scaled, L
 
-
 __all__ = [
     "compute_risk_parity_weights",
     "stress_indicator",
     "adaptive_budget",
 ]
-

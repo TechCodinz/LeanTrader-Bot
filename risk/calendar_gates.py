@@ -1,17 +1,13 @@
-from __future__ import annotations
-
 import csv
 import os
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
-from typing import List, Dict, Optional
-
+from typing import Optional, List, Dict
 
 CAL_DIR = os.path.join("data", "calendar")
 FX_FILE = os.path.join(CAL_DIR, "fx_macro.csv")
 CRYPTO_FILE = os.path.join(CAL_DIR, "crypto_events.csv")
 MAINT_FILE = os.path.join(CAL_DIR, "maintenance.csv")
-
 
 def _parse_ts(s: str) -> Optional[datetime]:
     try:
@@ -27,7 +23,6 @@ def _parse_ts(s: str) -> Optional[datetime]:
     except Exception:
         return None
 
-
 def _load_csv(path: str) -> List[Dict[str, str]]:
     if not os.path.exists(path):
         return []
@@ -38,21 +33,17 @@ def _load_csv(path: str) -> List[Dict[str, str]]:
     except Exception:
         return []
 
-
 @lru_cache(maxsize=16)
 def _events_fx() -> List[Dict[str, str]]:
     return _load_csv(FX_FILE)
-
 
 @lru_cache(maxsize=16)
 def _events_crypto() -> List[Dict[str, str]]:
     return _load_csv(CRYPTO_FILE)
 
-
 @lru_cache(maxsize=16)
 def _events_maint() -> List[Dict[str, str]]:
     return _load_csv(MAINT_FILE)
-
 
 def _within_window(ts: Optional[datetime], now_utc: datetime, lookahead_min: int) -> bool:
     if ts is None:
@@ -60,7 +51,6 @@ def _within_window(ts: Optional[datetime], now_utc: datetime, lookahead_min: int
     start = now_utc
     end = now_utc + timedelta(minutes=int(lookahead_min))
     return start <= ts <= end
-
 
 def is_high_impact_window(now_utc: datetime, lookahead_min: int = 30) -> bool:
     for row in _events_fx():
@@ -72,14 +62,12 @@ def is_high_impact_window(now_utc: datetime, lookahead_min: int = 30) -> bool:
                 return True
     return False
 
-
 def is_crypto_event_window(now_utc: datetime, lookahead_min: int = 30) -> bool:
     for row in _events_crypto():
         ts = _parse_ts(row.get("timestamp") or row.get("ts") or row.get("time") or "")
         if _within_window(ts, now_utc, lookahead_min):
             return True
     return False
-
 
 def is_exchange_maintenance(exchange: str, now_utc: datetime, lookahead_min: int = 30) -> bool:
     ex = (exchange or "").strip().lower()
@@ -89,7 +77,6 @@ def is_exchange_maintenance(exchange: str, now_utc: datetime, lookahead_min: int
         if ven and ven == ex and _within_window(ts, now_utc, lookahead_min):
             return True
     return False
-
 
 def risk_gate(now_utc: datetime, exchange: Optional[str] = None) -> Dict[str, object]:
     reasons: List[str] = []
@@ -104,8 +91,11 @@ def risk_gate(now_utc: datetime, exchange: Optional[str] = None) -> Dict[str, ob
     if exchange and is_exchange_maintenance(exchange, now_utc):
         reasons.append(f"maintenance:{exchange}")
         block = block or True
-    return {"block": bool(block), "reasons": reasons, "throttle": throttle if not block else throttle}
-
+    return {
+        "block": bool(block),
+        "reasons": reasons,
+        "throttle": throttle if not block else throttle,
+    }
 
 __all__ = [
     "is_high_impact_window",
@@ -113,4 +103,3 @@ __all__ = [
     "is_exchange_maintenance",
     "risk_gate",
 ]
-

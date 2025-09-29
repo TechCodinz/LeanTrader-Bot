@@ -1,8 +1,7 @@
 # session_clock.py
-from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
+from dataclasses import dataclass
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -11,13 +10,11 @@ NEWYORK = ZoneInfo("America/New_York")
 TOKYO = ZoneInfo("Asia/Tokyo")
 SYDNEY = ZoneInfo("Australia/Sydney")
 
-
 @dataclass
 class Window:
     tz: ZoneInfo
     start: time
     end: time
-
 
 # Core sessions (local clock in each region)
 LONDON_WIN = Window(LONDON, time(7, 0), time(17, 0))
@@ -25,13 +22,11 @@ NEWYORK_WIN = Window(NEWYORK, time(8, 0), time(17, 0))
 TOKYO_WIN = Window(TOKYO, time(9, 0), time(18, 0))
 SYDNEY_WIN = Window(SYDNEY, time(9, 0), time(18, 0))
 
-
 def _in_window(win: Window, now_utc: datetime) -> bool:
     now_local = now_utc.astimezone(win.tz)
     start = datetime.combine(now_local.date(), win.start, tzinfo=win.tz)
     end = datetime.combine(now_local.date(), win.end, tzinfo=win.tz)
     return start <= now_local <= end
-
 
 def fx_session_active(symbol: str, now_utc: Optional[datetime] = None) -> bool:
     """
@@ -62,7 +57,6 @@ def fx_session_active(symbol: str, now_utc: Optional[datetime] = None) -> bool:
     if is_sydney:
         active |= _in_window(SYDNEY_WIN, now_utc)
     return active
-
 
 def minutes_to_next_open(symbol: str, now_utc: Optional[datetime] = None) -> int:
     now_utc = now_utc or datetime.now(timezone.utc)

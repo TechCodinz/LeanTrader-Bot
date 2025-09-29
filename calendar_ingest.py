@@ -14,7 +14,6 @@ DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 OUT_FILE = DATA_DIR / "calendar.csv"
 
-
 def fetch_investing_calendar():
     """
     Minimal example – you can replace with a paid API or premium feed for reliability.
@@ -37,7 +36,6 @@ def fetch_investing_calendar():
         )
     return pd.DataFrame(rows)
 
-
 def main():
     try:
         df = fetch_investing_calendar()
@@ -51,7 +49,6 @@ def main():
             w.writerow(["time", "currency", "impact", "event", "forecast", "previous"])
             w.writerow(["2099-01-01", "USD", "HIGH", "Dummy Event", "N/A", "N/A"])
         print(f"[calendar] wrote fallback to {OUT_FILE}")
-
 
 if __name__ == "__main__":
     main()

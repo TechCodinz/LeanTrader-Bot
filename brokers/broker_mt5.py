@@ -3,7 +3,6 @@ import os  # noqa: F401
 import MetaTrader5 as mt5
 from dotenv import load_dotenv
 
-
 class MT5Broker:
     def __init__(self):
         load_dotenv()

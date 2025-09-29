@@ -1,6 +1,5 @@
-import os
 import sys
-
+from sitecustomize import publish_signal, build_confirm_buttons_clean  # ensure availability
 
 def test_ultra_minconf_gating(tmp_path, monkeypatch):
     # Enable Ultra Pro mode with strict minconf and no prior blending
@@ -11,8 +10,6 @@ def test_ultra_minconf_gating(tmp_path, monkeypatch):
     monkeypatch.setenv("TELEGRAM_ASCII", "true")
     # Disable telegram actually sending
     monkeypatch.setenv("TELEGRAM_ENABLED", "false")
-
-    from signals_publisher import publish_signal
 
     sig = {
         "market": "crypto",
@@ -30,7 +27,6 @@ def test_ultra_minconf_gating(tmp_path, monkeypatch):
     out = publish_signal(sig)
     assert out.get("ok") is False
     assert "conf<" in (out.get("skipped_reason") or "")
-
 
 def test_ultra_prior_blend_allows(monkeypatch):
     # Enable Ultra with high minconf but weight prior heavily so we pass
@@ -51,8 +47,6 @@ def test_ultra_prior_blend_allows(monkeypatch):
     fake_pm.get_score = get_score
     sys.modules["pattern_memory"] = fake_pm
 
-    from signals_publisher import publish_signal
-
     sig = {
         "market": "crypto",
         "symbol": "ETH/USDT",
@@ -70,9 +64,7 @@ def test_ultra_prior_blend_allows(monkeypatch):
     assert out.get("ok") is True
     assert out.get("id")
 
-
 def test_confirm_buttons_clean_ascii():
-    from tg_utils import build_confirm_buttons_clean
 
     btns = build_confirm_buttons_clean("abc", include_simulate=True, include_subscribe=True)
     assert isinstance(btns, list) and btns

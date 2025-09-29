@@ -1,18 +1,18 @@
-from __future__ import annotations
-
 import os
 import time
-from typing import Optional
 
 import requests
-
 
 def _enabled() -> bool:
     tok = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     chat = os.getenv("TELEGRAM_CHAT_ID", "").strip()
-    flag = os.getenv("TELEGRAM_ALERTS_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+    flag = os.getenv("TELEGRAM_ALERTS_ENABLED", "true").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
     return flag and bool(tok and chat)
-
 
 def notify(text: str, chat_id: Optional[str] = None) -> bool:
     """Send a simple text message to Telegram. No-op if not configured.
@@ -46,4 +46,3 @@ def notify(text: str, chat_id: Optional[str] = None) -> bool:
     except Exception:
         pass
     return False
-

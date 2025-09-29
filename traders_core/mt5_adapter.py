@@ -1,8 +1,6 @@
 # mt5_adapter.py
-from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
@@ -13,9 +11,7 @@ except Exception:  # pragma: no cover
 
 load_dotenv()
 
-
 # ------------------ .env helpers ------------------
-
 
 def _envs() -> Dict[str, str]:
     return {
@@ -25,9 +21,7 @@ def _envs() -> Dict[str, str]:
         "SERVER": (os.getenv("MT5_SERVER") or "").strip(),
     }
 
-
 # ------------------ init ------------------
-
 
 def mt5_init(path: Optional[str] = None):
     """
@@ -55,9 +49,7 @@ def mt5_init(path: Optional[str] = None):
 
     return mt5
 
-
 # ------------------ symbol helpers ------------------
-
 
 def ensure_symbol(symbol: str) -> None:
     info = mt5.symbol_info(symbol)
@@ -66,7 +58,6 @@ def ensure_symbol(symbol: str) -> None:
     if not info.visible:
         if not mt5.symbol_select(symbol, True):
             raise RuntimeError(f"symbol_select({symbol}) failed")
-
 
 def symbol_trade_specs(symbol: str) -> Dict[str, Any]:
     info = mt5.symbol_info(symbol)
@@ -84,22 +75,18 @@ def symbol_trade_specs(symbol: str) -> Dict[str, Any]:
         "trade_tick_value": float(getattr(info, "trade_tick_value", 0)),
     }
 
-
 def normalize_volume(symbol: str, lots: float) -> float:
     s = symbol_trade_specs(symbol)
     step = s["volume_step"] or 0.01
     v = round(max(s["volume_min"], min(lots, s["volume_max"])) / step) * step
     return max(s["volume_min"], min(v, s["volume_max"]))
 
-
 def min_stop_distance_points(symbol: str) -> int:
     s = symbol_trade_specs(symbol)
     # brokers may enforce either stops_level or freeze_level – respect the max
     return max(int(s["trade_stops_level"]), int(s["freeze_level"]))
 
-
 # ------------------ data: robust bars_df ------------------
-
 
 def bars_df(symbol: str, timeframe_str: str, limit: int = 200):
     """
@@ -182,9 +169,7 @@ def bars_df(symbol: str, timeframe_str: str, limit: int = 200):
     ]
     return df[keep].copy()
 
-
 # ------------------ account summary ------------------
-
 
 def account_summary_lines() -> List[str]:
     info = mt5.account_info()
@@ -205,9 +190,7 @@ def account_summary_lines() -> List[str]:
         f"Margin: {float(info.margin):.2f}    Positions: {pos_n}  (uPnL {profit:.2f})",
     ]
 
-
 # ------------------ order helper ------------------
-
 
 def order_send_market(
     symbol: str,

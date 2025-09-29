@@ -4,13 +4,11 @@ Run: python -m tools.report_unused_imports
 """
 
 import subprocess
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "reports"
 OUT.mkdir(exist_ok=True)
 REPORT = OUT / "f401_report.txt"
-
 
 def run():
     cmd = [
@@ -28,7 +26,6 @@ def run():
 
     REPORT.write_text(out, encoding="utf-8")
     print(f"Wrote unused-import report to: {REPORT}")
-
 
 if __name__ == "__main__":
     run()

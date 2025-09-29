@@ -1,0 +1,43 @@
+{
+  "title": "Ultra Trading Bot KPIs",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Models Trained Today",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "ultra_training_models_today", "refId": "A"}]
+    },
+    {
+      "type": "stat",
+      "title": "Win Rate (rolling)",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "ultra_kpi_win_rate", "refId": "A"}],
+      "options": {"reduceOptions": {"calcs": ["last"]}, "colorMode": "value"}
+    },
+    {
+      "type": "stat",
+      "title": "Sharpe (rolling)",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "ultra_kpi_sharpe", "refId": "A"}]
+    },
+    {
+      "type": "stat",
+      "title": "Max Drawdown (rolling)",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "targets": [{"expr": "ultra_kpi_max_drawdown", "refId": "A"}]
+    },
+    {
+      "type": "graph",
+      "title": "Cash / Dry-run / Ticks",
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 8},
+      "targets": [
+        {"expr": "ultra_cash", "refId": "A"},
+        {"expr": "ultra_dryrun_skips", "refId": "B"},
+        {"expr": "ultra_ticks", "refId": "C"}
+      ]
+    }
+  ]
+}

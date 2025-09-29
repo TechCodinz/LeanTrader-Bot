@@ -1,8 +1,3 @@
-from __future__ import annotations
-
-from typing import Dict, List
-
-
 def _simple_keywords() -> Dict[str, List[str]]:
     return {
         "XAUUSD": ["gold", "xau", "safe haven"],
@@ -12,7 +7,6 @@ def _simple_keywords() -> Dict[str, List[str]]:
         "BTCUSDT": ["bitcoin", "btc", "crypto"],
     }
 
-
 def tag_symbols(title: str) -> List[str]:
     t = title.lower()
     tags: List[str] = []
@@ -20,7 +14,6 @@ def tag_symbols(title: str) -> List[str]:
         if any(k in t for k in kws):
             tags.append(sym)
     return tags
-
 
 def sentiment_score(text: str) -> float:
     # Try VADER, fallback to naive

@@ -1,12 +1,9 @@
-from __future__ import annotations
-
 from signals.onchain_flows import (
     whale_transfer_detector,
     pool_imbalance_detector,
     dex_volume_spike,
     sentiment_fusion,
 )
-
 
 def test_whale_transfer_and_fusion():
     evts = whale_transfer_detector(
@@ -19,7 +16,6 @@ def test_whale_transfer_and_fusion():
     assert len(evts) == 1
     feats = sentiment_fusion(evts)
     assert "ETH" in feats and feats["ETH"]["buzz"] > 0
-
 
 def test_pool_imbalance_detector():
     evts = pool_imbalance_detector(
@@ -39,7 +35,6 @@ def test_pool_imbalance_detector():
     assert len(evts) == 1
     assert evts[0]["type"] == "pool_imbalance"
 
-
 def test_dex_volume_spike_zscore():
     vols = [100, 110, 95, 105, 98, 102, 99, 101, 97, 103] * 6
     vols.append(200)  # current spike
@@ -47,4 +42,3 @@ def test_dex_volume_spike_zscore():
     assert len(evts) == 1
     feats = sentiment_fusion(evts)
     assert feats.get("ETH", {}).get("buzz", 0) > 0
-

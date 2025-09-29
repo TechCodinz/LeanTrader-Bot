@@ -4,7 +4,6 @@ import redis
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-
 class GlobalRiskLock:
     def __init__(self, prefix="leantrader"):
         self.r = redis.Redis.from_url(REDIS_URL)

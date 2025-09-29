@@ -1,20 +1,24 @@
 # router.py
-from __future__ import annotations
 
 import logging
 import os
 import time
 from typing import Any, Dict, List, Optional
 
+from paper_broker import PaperBroker
+try:  # optional awareness
+    from awareness import AwarenessConfig, SituationalAwareness  # type: ignore
+except Exception:  # pragma: no cover - optional feature
+    AwarenessConfig = None  # type: ignore
+    SituationalAwareness = None  # type: ignore
+
 # Note: import ccxt lazily inside ExchangeRouter when a real exchange is requested.
 ccxt = None
 _log = logging.getLogger("router")
 
-
 def _env(k: str, d: str = "") -> str:
     v = os.getenv(k)
     return v if v is not None else d
-
 
 def _env_bool(k: str, d: bool = False) -> bool:
     return _env(k, "true" if d else "false").strip().lower() in (
@@ -25,13 +29,11 @@ def _env_bool(k: str, d: bool = False) -> bool:
         "on",
     )
 
-
 def _env_int(k: str, d: int) -> int:
     try:
         return int(float(_env(k, str(d))))
     except Exception:
         return d
-
 
 def _env_float(k: str, d: float) -> float:
     """Parse float env var with safe fallback."""
@@ -39,7 +41,6 @@ def _env_float(k: str, d: float) -> float:
         return float(_env(k, str(d)))
     except Exception:
         return d
-
 
 class ExchangeRouter:
     """
@@ -64,7 +65,6 @@ class ExchangeRouter:
         # Initialize paper broker early and force dry-run mode regardless of env flags.
         if self.id == "paper":
             try:
-                from paper_broker import PaperBroker
 
                 self.ex = PaperBroker(float(_env("PAPER_START_CASH", "5000")))
                 self.markets = self.ex.load_markets() if hasattr(self.ex, "load_markets") else {}
@@ -88,7 +88,9 @@ class ExchangeRouter:
 
         if self.live and not self.allow_live:
             # avoid silently performing live trading unless explicitly allowed
-            print("[router] ENABLE_LIVE requested but ALLOW_LIVE not set -> running in dry-run mode")
+            print(
+                "[router] ENABLE_LIVE requested but ALLOW_LIVE not set -> running in dry-run mode"
+            )
             self.live = False
         elif self.live and self.allow_live and not self.live_confirm:
             # require explicit live confirmation token in addition to ALLOW_LIVE
@@ -102,7 +104,9 @@ class ExchangeRouter:
 
         # If user insisted on live mode via envs, require API credentials to avoid accidental live execution.
         if self.live and not (api_key and api_sec):
-            raise RuntimeError("Live trading enabled (ENABLE_LIVE/ALLOW_LIVE) but API_KEY/API_SECRET are missing.")
+            raise RuntimeError(
+                "Live trading enabled (ENABLE_LIVE/ALLOW_LIVE) but API_KEY/API_SECRET are missing."
+            )
 
         opts: Dict[str, Any] = {
             "enableRateLimit": True,
@@ -155,7 +159,6 @@ class ExchangeRouter:
         try:
             self._aw_enabled = _env_bool("AWARENESS_ENABLED", False)
             if self._aw_enabled:
-                from awareness import AwarenessConfig, SituationalAwareness
 
                 self._aw = SituationalAwareness(AwarenessConfig())
             else:
@@ -184,7 +187,9 @@ class ExchangeRouter:
             except Exception as _e:
                 attempts += 1
                 if os.getenv("CCXT_DEBUG", "false").lower() == "true":
-                    _log.warning(f"[router] load_markets attempt {attempts} failed: {type(_e).__name__}: {_e}")
+                    _log.warning(
+                        f"[router] load_markets attempt {attempts} failed: {type(_e).__name__}: {_e}"
+                    )
                 else:
                     _log.warning(f"[router] load_markets attempt {attempts} failed: {_e}")
                 time.sleep(0.5 * attempts)
@@ -253,7 +258,12 @@ class ExchangeRouter:
         for sym, m in self.markets.items():  # ALWAYS .items()
             try:
                 # be defensive: some market entries may be non-dict; require dict for .get()
-                if isinstance(sym, str) and sym.endswith(f"/{quote}") and isinstance(m, dict) and m.get("spot"):
+                if (
+                    isinstance(sym, str)
+                    and sym.endswith(f"/{quote}")
+                    and isinstance(m, dict)
+                    and m.get("spot")
+                ):
                     out.append(sym)
             except Exception:
                 # keep scanning even if one entry is malformed
@@ -269,7 +279,9 @@ class ExchangeRouter:
                     continue
                 if not isinstance(m, dict):
                     continue
-                if m.get("linear") or (m.get("swap") and m.get("contract") and m.get("quote") == quote):
+                if m.get("linear") or (
+                    m.get("swap") and m.get("contract") and m.get("quote") == quote
+                ):
                     out.append(sym)
             except Exception:
                 continue
@@ -296,7 +308,9 @@ class ExchangeRouter:
             print(f"[router] fetch_ticker {symbol} outer error: {_e}")
             return {}
 
-    def fetch_ohlcv(self, symbol: str, timeframe: str = "1m", limit: int = 200) -> List[List[float]]:
+    def fetch_ohlcv(
+        self, symbol: str, timeframe: str = "1m", limit: int = 200
+    ) -> List[List[float]]:
         # If exchange failed to load markets previously, avoid calling into it and return synthesized bars
         if getattr(self, "_exchange_malformed", False):
             # synthesize fallback immediately
@@ -370,13 +384,28 @@ class ExchangeRouter:
                                 o = r.get("open") or r.get("o") or r.get("1. open") or r.get("Open")
                                 h = r.get("high") or r.get("h") or r.get("2. high") or r.get("High")
                                 low = r.get("low") or r.get("l") or r.get("3. low") or r.get("Low")
-                                c = r.get("close") or r.get("c") or r.get("4. close") or r.get("Close")
-                                v = r.get("volume") or r.get("v") or r.get("5. volume") or r.get("Volume") or 0
+                                c = (
+                                    r.get("close")
+                                    or r.get("c")
+                                    or r.get("4. close")
+                                    or r.get("Close")
+                                )
+                                v = (
+                                    r.get("volume")
+                                    or r.get("v")
+                                    or r.get("5. volume")
+                                    or r.get("Volume")
+                                    or 0
+                                )
                                 try:
                                     if ts is None:
                                         ts_int = int(time.time() * 1000)
                                     else:
-                                        ts_int = int(float(ts)) if not isinstance(ts, (int, float)) else int(ts)
+                                        ts_int = (
+                                            int(float(ts))
+                                            if not isinstance(ts, (int, float))
+                                            else int(ts)
+                                        )
                                         # normalize seconds -> ms
                                         if ts_int < 1e12:
                                             ts_int = int(ts_int * 1000)
@@ -400,7 +429,9 @@ class ExchangeRouter:
                                 return out
 
             # If we get here, the payload was unexpected
-            print(f"[router] fetch_ohlcv {symbol} {timeframe} unexpected result type: {type(result)} value: {result}")
+            print(
+                f"[router] fetch_ohlcv {symbol} {timeframe} unexpected result type: {type(result)} value: {result}"
+            )
         except Exception as _e:
             # Log the original exception for debugging, but fall through to a safe synthetic fallback
             print(f"[router] fetch_ohlcv {symbol} {timeframe} error: {_e}")
@@ -506,7 +537,9 @@ class ExchangeRouter:
 
                     def make_ex_stub():
                         def _ex_stub(*a, **k):
-                            lg.warning("[router] blocked underlying exchange order (ENABLE_LIVE != 'true')")
+                            lg.warning(
+                                "[router] blocked underlying exchange order (ENABLE_LIVE != 'true')"
+                            )
                             return {"ok": False, "dry_run": True, "error": "live disabled"}
 
                         return _ex_stub
@@ -534,7 +567,9 @@ class ExchangeRouter:
             print(f"[router] safe_fetch_ticker {symbol} error: {_e}")
             return {}
 
-    def safe_fetch_ohlcv(self, symbol: str, timeframe: str = "1m", limit: int = 200) -> List[List[float]]:
+    def safe_fetch_ohlcv(
+        self, symbol: str, timeframe: str = "1m", limit: int = 200
+    ) -> List[List[float]]:
         # alias to fetch_ohlcv but keeps name consistent
         # guard when exchange is malformed
         if getattr(self, "_exchange_malformed", False):
@@ -582,7 +617,9 @@ class ExchangeRouter:
         try:
             # If exchange failed to load markets previously, avoid calling into it
             if getattr(self, "_exchange_malformed", False):
-                print(f"[router] exchange malformed, simulating dry-run order: {side} {amount} {symbol}")
+                print(
+                    f"[router] exchange malformed, simulating dry-run order: {side} {amount} {symbol}"
+                )
                 return {
                     "ok": False,
                     "dry_run": True,
@@ -594,7 +631,9 @@ class ExchangeRouter:
             # Live-safety: require explicit ALLOW_LIVE env to actually send live orders.
             # DEFAULT: even if ENABLE_LIVE=true, ALLOW_LIVE must be set to a truthy value.
             # require both ALLOW_LIVE and LIVE_CONFIRM=YES to proceed with real orders
-            allow_live = _env_bool("ALLOW_LIVE", False) and (_env("LIVE_CONFIRM", "").strip().lower() == "yes")
+            allow_live = _env_bool("ALLOW_LIVE", False) and (
+                _env("LIVE_CONFIRM", "").strip().lower() == "yes"
+            )
             max_order_size = _env_float("MAX_ORDER_SIZE", float("inf"))
             # Optional USD cap per order to avoid large accidental trades (set LIVE_ORDER_USD)
             live_order_usd_env = _env("LIVE_ORDER_USD", "")
@@ -621,9 +660,7 @@ class ExchangeRouter:
             # does not have API credentials (captured at init) — protects against
             # enabling live mode via envs during runtime without credentials present.
             if self.live and allow_live and not getattr(self, "_has_api_creds", False):
-                msg = (
-                    "Live trading allowed by flags but API credentials missing at runtime; refusing to place live order"
-                )
+                msg = "Live trading allowed by flags but API credentials missing at runtime; refusing to place live order"
                 print(f"[router] {msg}")
                 return {"ok": False, "error": msg}
 
@@ -653,11 +690,15 @@ class ExchangeRouter:
 
                         rows = []
                         try:
-                            rows = self.fetch_ohlcv(symbol, timeframe=_env("AWARENESS_TF", "5m"), limit=200)
+                            rows = self.fetch_ohlcv(
+                                symbol, timeframe=_env("AWARENESS_TF", "5m"), limit=200
+                            )
                         except Exception:
                             rows = []
                         if rows:
-                            df = _pd.DataFrame(rows, columns=["time", "open", "high", "low", "close", "volume"]).tail(100)
+                            df = _pd.DataFrame(
+                                rows, columns=["time", "open", "high", "low", "close", "volume"]
+                            ).tail(100)
                     except Exception:
                         df = None
 
@@ -712,31 +753,42 @@ class ExchangeRouter:
                         blk = False
 
                     if df is not None:
-                        dec = self._aw.decide(df, equity or 0.0, base_conf, wr, pf, high_impact_event_soon=blk)
+                        dec = self._aw.decide(
+                            df, equity or 0.0, base_conf, wr, pf, high_impact_event_soon=blk
+                        )
                         try:
-                            from utils.jsonlog import jlog
-
-                            jlog(
-                                "info",
-                                "router",
-                                "aw_decision",
-                                symbol=symbol,
-                                reason=dec.reason,
-                                size_frac=dec.size_frac,
-                                stop_atr=dec.stop_atr,
-                                take_atr=dec.take_atr,
-                            )
+                            import importlib as _il
+                            _jl_mod = _il.import_module("utils.jsonlog")
+                            jlog = getattr(_jl_mod, "jlog", None)
+                            if jlog:
+                                jlog(
+                                    "info",
+                                    "router",
+                                    "aw_decision",
+                                    symbol=symbol,
+                                    reason=dec.reason,
+                                    size_frac=dec.size_frac,
+                                    stop_atr=dec.stop_atr,
+                                    take_atr=dec.take_atr,
+                                )
                         except Exception:
                             pass
                         if not dec.allow:
                             try:
                                 if dec.reason in ("circuit_breaker_dd", "cooldown"):
-                                    from utils.tele import notify as _notify
-
-                                    _notify(f"AW block {symbol}: {dec.reason}")
+                                    import importlib as _il2
+                                    _t_mod = _il2.import_module("utils.tele")
+                                    _notify = getattr(_t_mod, "notify", None)
+                                    if _notify:
+                                        _notify(f"AW block {symbol}: {dec.reason}")
                             except Exception:
                                 pass
-                            return {"ok": False, "error": f"aw_block:{dec.reason}", "symbol": symbol, "side": side}
+                            return {
+                                "ok": False,
+                                "error": f"aw_block:{dec.reason}",
+                                "symbol": symbol,
+                                "side": side,
+                            }
                         # annotate params for downstream planners
                         params = dict(params or {})
                         params.setdefault("aw_size_frac", dec.size_frac)
@@ -754,11 +806,15 @@ class ExchangeRouter:
                     if price_for_notional is None:
                         try:
                             t = self.fetch_ticker(symbol) or {}
-                            price_for_notional = t.get("last") or t.get("price") or t.get("close") or t.get("c")
+                            price_for_notional = (
+                                t.get("last") or t.get("price") or t.get("close") or t.get("c")
+                            )
                         except Exception:
                             price_for_notional = None
                     try:
-                        price_f = float(price_for_notional) if price_for_notional is not None else 0.0
+                        price_f = (
+                            float(price_for_notional) if price_for_notional is not None else 0.0
+                        )
                     except Exception:
                         price_f = 0.0
                     usd_notional = float(amount) * price_f if price_f else 0.0
@@ -831,7 +887,9 @@ class ExchangeRouter:
                 pos = bal or {}
             except Exception:
                 pos = {}
-            print(f"[router] safe_close_position called for {symbol}, position snapshot keys={list(pos.keys())}")
+            print(
+                f"[router] safe_close_position called for {symbol}, position snapshot keys={list(pos.keys())}"
+            )
             return {"ok": True, "note": "close attempted (adapter may not implement)"}
         except Exception as _e:
             print(f"[router] safe_close_position {symbol} error: {_e}")
@@ -924,7 +982,6 @@ class ExchangeRouter:
         except Exception:
             return {}
 
-
 def scan_codebase(root: str = ".", py_ext: str = ".py", exclude_dirs=None) -> dict:
     """
     Walk `root` and produce a lightweight analysis of Python files:
@@ -1005,8 +1062,9 @@ def scan_codebase(root: str = ".", py_ext: str = ".py", exclude_dirs=None) -> di
             report["totals"]["bare_excepts"] += bare_except
     return report
 
-
-def scan_all_files(root: str = ".", include_exts: Optional[List[str]] = None, top_n: int = 10) -> dict:
+def scan_all_files(
+    root: str = ".", include_exts: Optional[List[str]] = None, top_n: int = 10
+) -> dict:
     """
     Walk `root` and return simple stats about all files (not just .py):
       - counts by extension
@@ -1044,7 +1102,6 @@ def scan_all_files(root: str = ".", include_exts: Optional[List[str]] = None, to
     top = [{"path": p, "size": s} for p, s in files_sizes[:top_n]]
     return {"counts_by_ext": counts, "total_size": total_size, "top_files": top}
 
-
 def scan_full_project(
     root: str = ".",
     py_ext: str = ".py",
@@ -1067,7 +1124,6 @@ def scan_full_project(
     except Exception as e:
         out["other_files_error"] = str(e)
     return out
-
 
 if __name__ == "__main__":  # simple CLI for quick scanning
     try:

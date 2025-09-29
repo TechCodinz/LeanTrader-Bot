@@ -5,12 +5,8 @@ exceptions, writing a persistent `runtime/logs/market_diag.txt` file so the
 results are visible even if shell redirection fails.
 """
 
-from __future__ import annotations
-
 import time
 import traceback
-from pathlib import Path
-
 
 def _write(lines: list[str]) -> None:
     p = Path("runtime") / "logs" / "market_diag.txt"
@@ -18,7 +14,6 @@ def _write(lines: list[str]) -> None:
     with p.open("w", encoding="utf-8") as f:
         for line in lines:
             f.write(line + "\n")
-
 
 def main() -> int:
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -46,7 +41,6 @@ def main() -> int:
     for line in lines:
         print(line)
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

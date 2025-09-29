@@ -4,16 +4,11 @@ Writes `runtime/logs/exchanges_status.txt` with per-exchange results. Use
 `python -m tools.check_exchanges` to run (ensures package imports resolve).
 """
 
-from __future__ import annotations
-
 import time
 import traceback
-from pathlib import Path
-from typing import List
 
 EXCHANGES = ["gateio", "binance", "kucoin", "bybit", "okx"]
 TIMEOUT_MS = 30_000
-
 
 def _write(lines: List[str]) -> None:
     p = Path("runtime") / "logs" / "exchanges_status.txt"
@@ -21,7 +16,6 @@ def _write(lines: List[str]) -> None:
     with p.open("w", encoding="utf-8") as f:
         for line in lines:
             f.write(line + "\n")
-
 
 def probe_exchange(ex_id: str) -> str:
     try:
@@ -51,7 +45,6 @@ def probe_exchange(ex_id: str) -> str:
     except Exception as e:
         return f"{ex_id}: ERROR {e}"
 
-
 def main() -> int:
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
     lines: List[str] = [f"exchanges status {ts}"]
@@ -69,7 +62,6 @@ def main() -> int:
     for line in lines:
         print(line)
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

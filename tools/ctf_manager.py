@@ -1,3 +1,5 @@
+from pathlib import Path
+
 """Cross-timeframe manager (CTF):
 
 Upgraded behavior:
@@ -7,16 +9,11 @@ Upgraded behavior:
  - Writes richer records to runtime/closed_trades.json and leaves reconciled open_trades.json
 """
 
-from __future__ import annotations
-
 import json
 import pathlib
 import time
-from typing import Any, Dict, List
 
-import pandas as pd
 from dotenv import load_dotenv
-
 
 def _read(path: pathlib.Path, default):
     try:
@@ -24,15 +21,12 @@ def _read(path: pathlib.Path, default):
     except Exception:
         return default
 
-
 def _write(path: pathlib.Path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-
 def ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=n, adjust=False).mean()
-
 
 def _atr_bb(df: pd.DataFrame) -> dict:
     # compute ATR% and BB width
@@ -54,7 +48,6 @@ def _atr_bb(df: pd.DataFrame) -> dict:
     except Exception:
         return {"atr_pct": 0.0, "bbw": 0.0}
 
-
 def tf_signal(bars: List[List[float]]) -> str:
     try:
         df = pd.DataFrame(bars, columns=["ts", "open", "high", "low", "close", "vol"])
@@ -68,7 +61,6 @@ def tf_signal(bars: List[List[float]]) -> str:
     except Exception:
         pass
     return "flat"
-
 
 def _get_available_qty(router, symbol: str):
     """Robustly read available base qty from router/ex change shapes.
@@ -105,7 +97,6 @@ def _get_available_qty(router, symbol: str):
     except Exception:
         return None
     return None
-
 
 def main():
     load_dotenv()
@@ -146,7 +137,9 @@ def main():
             vf = _atr_bb(pd.DataFrame(bars, columns=["ts", "open", "high", "low", "close", "vol"]))
             # apply simple volatility guard: skip if ATR%<0.0002 and BBW<0.005 (very quiet)
             if vf.get("atr_pct", 0) < 0.0002 and vf.get("bbw", 0) < 0.005:
-                print(f"  {sym} {tf}: low vol atr%={vf.get('atr_pct'):.6f} bbw={vf.get('bbw'):.6f} -> skip trade")
+                print(
+                    f"  {sym} {tf}: low vol atr%={vf.get('atr_pct'):.6f} bbw={vf.get('bbw'):.6f} -> skip trade"
+                )
                 skip = True
                 break
             s = tf_signal(bars)
@@ -199,7 +192,9 @@ def main():
                             if mode == "spot":
                                 retry = router.place_spot_market(sym, close_side, qty=retry_qty)
                             else:
-                                retry = router.place_futures_market(sym, close_side, qty=retry_qty, close=True)
+                                retry = router.place_futures_market(
+                                    sym, close_side, qty=retry_qty, close=True
+                                )
                         except Exception as e:
                             retry = {"ok": False, "error": str(e)}
                         entry["retry_with_available"] = {"qty": retry_qty, "result": retry}

@@ -7,19 +7,13 @@ Environment:
 Writes brief text snippets to runtime/strategies/
 """
 
-from __future__ import annotations
-
 import os
 import time
-from pathlib import Path
-from typing import List
 
 import feedparser  # type: ignore
 
-
 def _csv(x: str) -> List[str]:
     return [s.strip() for s in (x or "").split(",") if s.strip()]
-
 
 def ingest() -> int:
     subs = _csv(os.getenv("REDDIT_SUBS", ""))
@@ -48,8 +42,6 @@ def ingest() -> int:
             continue
     return count
 
-
 if __name__ == "__main__":
     n = ingest()
     print("reddit items saved:", n)
-

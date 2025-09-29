@@ -5,7 +5,6 @@
 # work from any of the runners.
 
 import logging
-import math  # noqa: F401  # intentionally kept
 import os
 import sys
 from pathlib import Path
@@ -18,14 +17,12 @@ try:
 except Exception:  # pragma: no cover
     yaml = None
 
-
 # -------------------------
 # Filesystem helpers
 # -------------------------
 def ensure_dir(path: str | os.PathLike) -> None:
     """Create the directory (and parents) if it doesn't exist."""
     Path(path).mkdir(parents=True, exist_ok=True)
-
 
 # -------------------------
 # Logging
@@ -56,7 +53,6 @@ def setup_logger(name: str, level="INFO", log_dir="logs"):
     logger.propagate = False
     return logger
 
-
 # -------------------------
 # Config
 # -------------------------
@@ -69,7 +65,6 @@ def load_config(path: str = "config.yml") -> Dict[str, Any]:
         return {}
     with p.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
-
 
 # -------------------------
 # Math / conversions
@@ -84,7 +79,6 @@ def bps_to_frac(bps: float | int) -> float:
     except Exception:
         return 0.0
 
-
 # -------------------------
 # Misc small helpers
 # -------------------------
@@ -96,7 +90,6 @@ def read_env_bool(key: str, default: bool = False) -> bool:
     if val is None:
         return default
     return str(val).strip().lower() in {"1", "true", "t", "yes", "y"}
-
 
 def safe_float(x: Any, fallback: float = 0.0) -> float:
     """

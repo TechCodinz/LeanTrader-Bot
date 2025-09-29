@@ -1,7 +1,5 @@
 # online_learner.py
-from __future__ import annotations
 
-import json  # noqa: F401  # intentionally kept
 from pathlib import Path
 from typing import Any, Dict
 
@@ -9,8 +7,12 @@ import joblib
 import numpy as np
 from sklearn.linear_model import SGDClassifier
 
-from alpha_engines import AlphaRouter
-
+try:
+    from alpha_engines import AlphaRouter  # main router with reliability updates
+except Exception:  # pragma: no cover
+    class AlphaRouter:  # type: ignore
+        def update_reliability(self, *a, **k):
+            return None
 
 def reward_from_exit(symbol: str, timeframe: str, decision_votes: Dict[str, float], pnl_usd: float):
     """
@@ -22,12 +24,10 @@ def reward_from_exit(symbol: str, timeframe: str, decision_votes: Dict[str, floa
     r = AlphaRouter()
     r.update_reliability(symbol, timeframe, top, reward=float(pnl_usd))
 
-
 MODEL_PATH = Path("data") / "pattern_lr.pkl"
 MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 FEATURE_ORDER = ["ret1", "ret3", "ret5", "atr", "rsi", "bb_bw", "ema_slope"]
-
 
 def _ensure():
     if MODEL_PATH.exists():
@@ -50,7 +50,6 @@ def _ensure():
     joblib.dump(clf, MODEL_PATH)
     return clf
 
-
 def predict_proba(feat_dict: dict) -> float:
     clf = _ensure()
     x = np.array([[feat_dict.get(k, 0.0) for k in FEATURE_ORDER]], dtype=float)
@@ -59,7 +58,6 @@ def predict_proba(feat_dict: dict) -> float:
     except Exception:
         p = 0.5
     return float(p)
-
 
 def update_from_feats(feat_dict: dict, win: bool):
     clf = _ensure()
@@ -70,15 +68,12 @@ def update_from_feats(feat_dict: dict, win: bool):
 
     # online_learner.py — safe no-op hooks so imports never break
 
-
 def memorize_entry(symbol: str, row: Dict[str, Any]) -> None:
     # TODO: store features from entry for later training
     return
 
-
 def reward_from_exit_safe(symbol: str, pnl: float, row: dict | None = None) -> None:
     # TODO: store realized PnL outcome — safe no-op alias to avoid redefinition
     return
-
 
 # online_learner.py

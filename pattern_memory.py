@@ -1,5 +1,4 @@
 # pattern_memory.py
-from __future__ import annotations
 
 import csv
 import json
@@ -7,10 +6,33 @@ import math
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional  # noqa: F401  # intentionally kept
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
+
+class PatternMemory:
+    """Pattern memory system for storing and retrieving trading patterns"""
+
+    def __init__(self):
+        self.patterns = {}
+        self.scores = {}
+
+    def store_pattern(self, pattern_id: str, pattern_data: Dict[str, Any]) -> None:
+        """Store a trading pattern"""
+        self.patterns[pattern_id] = pattern_data
+
+    def get_pattern(self, pattern_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a trading pattern"""
+        return self.patterns.get(pattern_id)
+
+    def update_score(self, pattern_id: str, score: float) -> None:
+        """Update pattern score"""
+        self.scores[pattern_id] = score
+
+    def get_score(self, pattern_id: str) -> float:
+        """Get pattern score"""
+        return self.scores.get(pattern_id, 0.0)
 
 # ---------------- paths ----------------
 DATA_DIR = Path("data")
@@ -23,12 +45,10 @@ SCORES_PATH = DATA_DIR / "pattern_scores.json"  # aggregated pattern stats
 FEATS = ["ret1", "ret3", "ret5", "atr", "rsi", "bb_bw", "ema_slope"]
 HEAD = ["symbol", "tf", "ts", "entry_price", *FEATS, "outcome", "label", "meta"]
 
-
 def _ensure_header() -> None:
     if not MEM_PATH.exists():
         with open(MEM_PATH, "w", newline="", encoding="utf-8") as f:
             csv.writer(f).writerow(HEAD)
-
 
 # ---------------- feature engineering ----------------
 def _rsi(series: pd.Series, n: int = 14) -> pd.Series:
@@ -37,7 +57,6 @@ def _rsi(series: pd.Series, n: int = 14) -> pd.Series:
     dn = (-d.clip(upper=0)).rolling(n).mean()
     rs = up / dn.replace(0, np.nan)
     return 100.0 - (100.0 / (1.0 + rs))
-
 
 def features(df: pd.DataFrame) -> Dict[str, float]:
     """
@@ -76,7 +95,6 @@ def features(df: pd.DataFrame) -> Dict[str, float]:
     # sanitize NaN/inf
     return {k: (0.0 if (math.isnan(v) or math.isinf(v)) else v) for k, v in f.items()}
 
-
 # ---------------- persistence ----------------
 def record(
     symbol: str,
@@ -105,7 +123,6 @@ def record(
         csv.writer(fp).writerow(row)
     return f
 
-
 def _load_memory() -> pd.DataFrame:
     _ensure_header()
     try:
@@ -118,7 +135,6 @@ def _load_memory() -> pd.DataFrame:
         return df.fillna({"label": ""})
     except Exception:
         return pd.DataFrame(columns=HEAD)
-
 
 def set_outcome(symbol: str, tf: str, ts: int, outcome: float, label: str = "") -> bool:
     """
@@ -140,7 +156,6 @@ def set_outcome(symbol: str, tf: str, ts: int, outcome: float, label: str = "") 
         df.loc[m, "label"] = str(label)
     df.to_csv(MEM_PATH, index=False)
     return True
-
 
 # ---------------- similarity recall ----------------
 def recall(
@@ -189,7 +204,6 @@ def recall(
         "note": f"mem={len(mem)} top={len(q)} sim≈{sim_med:.2f} avg_out≈{avg_outcome:.4f} winrate≈{winrate:.1f}%",
     }
 
-
 # ---------------- pattern bucketing ----------------
 def _bin(v: float, step: float, lo: float = None, hi: float = None) -> int:
     if math.isnan(v) or math.isinf(v):
@@ -199,7 +213,6 @@ def _bin(v: float, step: float, lo: float = None, hi: float = None) -> int:
     if hi is not None:
         v = min(hi, v)
     return int(round(v / step))
-
 
 def pattern_key_from_feats(f: Dict[str, float]) -> str:
     """
@@ -216,7 +229,6 @@ def pattern_key_from_feats(f: Dict[str, float]) -> str:
             f"ema:{_bin(f.get('ema_slope', 0.0), 0.001, -0.05, 0.05)}",
         ]
     )
-
 
 def recompute_scores() -> None:
     """
@@ -259,7 +271,6 @@ def recompute_scores() -> None:
     with open(SCORES_PATH, "w", encoding="utf-8") as f:
         json.dump(scores, f, indent=2)
 
-
 def get_score(sig: Dict[str, Any]) -> Dict[str, Any]:
     """
     Fast prior from global pattern stats.
@@ -269,7 +280,11 @@ def get_score(sig: Dict[str, Any]) -> Dict[str, Any]:
     Returns dict with winrate/avg_out/n; falls back to neutral priors.
     """
     # extract features from the signal
-    feats = sig.get("feats") if isinstance(sig.get("feats"), dict) else {k: sig[k] for k in FEATS if k in sig}
+    feats = (
+        sig.get("feats")
+        if isinstance(sig.get("feats"), dict)
+        else {k: sig[k] for k in FEATS if k in sig}
+    )
 
     if len(feats) != len(FEATS):
         return {"winrate": 0.5, "avg_out": 0.0, "n": 0}
@@ -282,7 +297,6 @@ def get_score(sig: Dict[str, Any]) -> Dict[str, Any]:
         return scores.get(key, {"winrate": 0.5, "avg_out": 0.0, "n": 0})
     except Exception:
         return {"winrate": 0.5, "avg_out": 0.0, "n": 0}
-
 
 # ---------------- module exports ----------------
 __all__ = [

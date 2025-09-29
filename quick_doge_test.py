@@ -1,7 +1,5 @@
 import time
 
-import pandas as pd
-
 from router import ExchangeRouter
 
 print("starting quick doge test...")

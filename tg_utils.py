@@ -1,13 +1,16 @@
 # tg_utils.py
-from __future__ import annotations
 
 import json
 import os
 import time
 from pathlib import Path
-from typing import List, Optional  # noqa: F401  # intentionally kept
+from typing import List
 
 import requests
+try:
+    from PIL import Image  # optional; used for resize fallback
+except Exception:  # pragma: no cover
+    Image = None  # type: ignore
 
 # Ensure local .env is loaded for CLI runs that don't import trader_core
 try:
@@ -31,14 +34,12 @@ RETRY = int(os.getenv("TELEGRAM_RETRY", "1"))  # quick retry count (0/1/2)
 
 API_BASE = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-
 def _enabled() -> bool:
     # Allow sending messages to arbitrary chat_id (e.g. callback_query.from.id)
     # as long as the bot token is present and TELEGRAM_ENABLED is truthy.
     # CHAT_ID is still used as a convenience default for broadcast messages,
     # but it should not block direct replies to users.
     return ENABLED and bool(BOT_TOKEN)
-
 
 # Minimal Markdown escaping (Telegram MarkdownV2 is stricter; we keep classic Markdown)
 _MD_REPLACE = {
@@ -48,13 +49,11 @@ _MD_REPLACE = {
     "[": r"\[",
 }
 
-
 def _md(text: str) -> str:
     out = []
     for ch in text:
         out.append(_MD_REPLACE.get(ch, ch))
     return "".join(out)
-
 
 def _post_json(method: str, payload: dict) -> bool:
     if not _enabled():
@@ -65,14 +64,15 @@ def _post_json(method: str, payload: dict) -> bool:
         try:
             r = requests.post(url, json=payload, timeout=TIMEOUT_S)
             if r.status_code == 200 and (
-                r.json().get("ok", False) if r.headers.get("content-type", "").startswith("application/json") else True
+                r.json().get("ok", False)
+                if r.headers.get("content-type", "").startswith("application/json")
+                else True
             ):
                 return True
         except Exception:
             pass
         time.sleep(0.4)  # tiny backoff
     return False
-
 
 # -------- Public helpers --------
 def send_signal(title: str, lines: List[str]) -> bool:
@@ -94,7 +94,6 @@ def send_signal(title: str, lines: List[str]) -> bool:
         "disable_web_page_preview": True,
     }
     return _post_json("sendMessage", payload)
-
 
 def send_premium_signal(title: str, lines: List[str]) -> bool:
     """Send an upgraded, clean-looking MarkdownV2 message with sections and code helpers.
@@ -129,7 +128,6 @@ def send_premium_signal(title: str, lines: List[str]) -> bool:
     }
     return _post_json("sendMessage", payload)
 
-
 def send_text(msg: str) -> bool:
     """Plain text convenience notifier."""
     if not _enabled():
@@ -141,7 +139,6 @@ def send_text(msg: str) -> bool:
         "disable_web_page_preview": True,
     }
     return _post_json("sendMessage", payload)
-
 
 def send_photo(caption: str, photo_url: str) -> bool:
     """Optional: send a photo (e.g., chart image URL) with caption."""
@@ -190,7 +187,12 @@ def send_photo(caption: str, photo_url: str) -> bool:
 
                 rel = _up.quote(os.path.basename(photo_url))
                 photo_remote = public_base.rstrip("/") + "/" + rel
-                payload = {"chat_id": CHAT_ID, "photo": photo_remote, "caption": _md(caption), "parse_mode": "Markdown"}
+                payload = {
+                    "chat_id": CHAT_ID,
+                    "photo": photo_remote,
+                    "caption": _md(caption),
+                    "parse_mode": "Markdown",
+                }
                 return _post_json("sendPhoto", payload)
             return False
     except Exception:
@@ -202,7 +204,6 @@ def send_photo(caption: str, photo_url: str) -> bool:
             "parse_mode": "Markdown",
         }
         return _post_json("sendPhoto", payload)
-
 
 def debug_send_photo(caption: str, photo_url: str):
     """Debug helper: attempt to upload and return (ok: bool, details: str).
@@ -279,7 +280,12 @@ def debug_send_photo(caption: str, photo_url: str):
                 return False, "local file not found"
 
             # treat as a remote URL and send via JSON payload
-            payload = {"chat_id": CHAT_ID, "photo": photo_url, "caption": _md(caption), "parse_mode": "Markdown"}
+            payload = {
+                "chat_id": CHAT_ID,
+                "photo": photo_url,
+                "caption": _md(caption),
+                "parse_mode": "Markdown",
+            }
             try:
                 r = requests.post(f"{API_BASE}/sendPhoto", json=payload, timeout=TIMEOUT_S)
                 ok = r.status_code == 200
@@ -321,7 +327,6 @@ def debug_send_photo(caption: str, photo_url: str):
     except Exception as _e:
         return False, str(_e)
 
-
 def send_photo_rich(caption: str, photo_path: str, buttons: list) -> bool:
     """Higher-level photo send that wraps send_photo_with_buttons with extra
     retries, explicit debug logging, and URL fallback. Returns True on success.
@@ -356,11 +361,9 @@ def send_photo_rich(caption: str, photo_path: str, buttons: list) -> bool:
     except Exception:
         return False
 
-
 def heartbeat(title: str, lines: List[str]) -> bool:
     """Small wrapper for periodic status messages."""
     return send_signal(title, lines)
-
 
 def send_photo_with_buttons(caption: str, photo_path: str, buttons: list) -> bool:
     """Send a photo with inline keyboard buttons.
@@ -420,7 +423,6 @@ def send_photo_with_buttons(caption: str, photo_path: str, buttons: list) -> boo
             # if response not OK, try resizing image and retry once to avoid upload size issues
             if getattr(r, "status_code", None) != 200:
                 try:
-                    from PIL import Image
 
                     img = Image.open(photo_path)
                     img.thumbnail((1200, 1200))
@@ -486,8 +488,9 @@ def send_photo_with_buttons(caption: str, photo_path: str, buttons: list) -> boo
     except Exception:
         return False
 
-
-def build_confirm_buttons(signal_id: str, include_simulate: bool = True, include_subscribe: bool = False) -> list:
+def build_confirm_buttons(
+    signal_id: str, include_simulate: bool = True, include_subscribe: bool = False
+) -> list:
     """Return a standard confirm/cancel inline keyboard for a signal id.
 
     Options:
@@ -509,11 +512,12 @@ def build_confirm_buttons(signal_id: str, include_simulate: bool = True, include
         secondary.append({"text": "🧪 Simulate", "callback_data": f"simulate:{signal_id}"})
     if include_subscribe:
         # subscribe callback will trigger login/link flow
-        secondary.append({"text": "🔗 Subscribe / Link Broker", "callback_data": f"subscribe:{signal_id}"})
+        secondary.append(
+            {"text": "🔗 Subscribe / Link Broker", "callback_data": f"subscribe:{signal_id}"}
+        )
     if secondary:
         rows.append(secondary)
     return rows
-
 
 def send_message_with_buttons(text: str, buttons: list) -> bool:
     """Send a text message with inline keyboard buttons (callback_data or url allowed)."""
@@ -532,16 +536,22 @@ def send_message_with_buttons(text: str, buttons: list) -> bool:
             logdir = Path(os.getenv("RUNTIME_DIR", "runtime")) / "logs"
             logdir.mkdir(parents=True, exist_ok=True)
             debug_file = logdir / "tg_send_debug.log"
-            entry = {"ts": int(time.time()), "event": "send_message_failed", "text": text, "buttons": buttons}
+            entry = {
+                "ts": int(time.time()),
+                "event": "send_message_failed",
+                "text": text,
+                "buttons": buttons,
+            }
             with open(debug_file, "a", encoding="utf-8") as df:
                 df.write(json.dumps(entry, ensure_ascii=False) + "\n")
         except Exception:
             pass
     return ok
 
-
 # Clean, ASCII-safe confirm buttons builder for integrations
-def build_confirm_buttons_clean(signal_id: str, include_simulate: bool = True, include_subscribe: bool = False) -> list:
+def build_confirm_buttons_clean(
+    signal_id: str, include_simulate: bool = True, include_subscribe: bool = False
+) -> list:
     """Return InlineKeyboard button rows for confirm/cancel (+optional simulate/subscribe).
 
     Uses readable labels with optional emoji unless TELEGRAM_ASCII=true.

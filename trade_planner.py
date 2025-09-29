@@ -1,10 +1,8 @@
 # trade_planner.py
 # Convert signals → executable plans; can place OCO on CCXT (Bybit/Binance best-effort).
 
-from __future__ import annotations
-
 import os
-from typing import Any, Dict, Optional, Tuple  # noqa: F401  # intentionally kept
+from typing import Any, Dict, Optional
 
 try:
     from risk_engine import Equity, plan_crypto, plan_fx
@@ -18,14 +16,14 @@ except Exception:
     def plan_fx(*a, **k):
         return {}
 
-
 from order_utils import place_market
-from session_filter import crypto_session_weight, fx_session_weight  # noqa: F401  # intentionally kept
 
 EXCHANGE_MODE = os.getenv("EXCHANGE_MODE", "spot").lower()  # "spot" | "linear"
 
 # Safety / sizing defaults
-RISK_PCT_PER_TRADE = float(os.getenv("RISK_PCT_PER_TRADE", "1.0"))  # percent of equity risked per trade
+RISK_PCT_PER_TRADE = float(
+    os.getenv("RISK_PCT_PER_TRADE", "1.0")
+)  # percent of equity risked per trade
 MIN_NOTIONAL_USD = float(os.getenv("MIN_NOTIONAL_USD", "10"))
 FUT_DEFAULT_LEVERAGE = int(os.getenv("FUT_DEFAULT_LEVERAGE", "3"))
 
@@ -33,12 +31,10 @@ FUT_DEFAULT_LEVERAGE = int(os.getenv("FUT_DEFAULT_LEVERAGE", "3"))
 AW_APPLY_SIZING = os.getenv("AW_APPLY_SIZING", "true").strip().lower() in ("1", "true", "yes", "on")
 AW_APPLY_LEVELS = os.getenv("AW_APPLY_LEVELS", "true").strip().lower() in ("1", "true", "yes", "on")
 
-
 # ---------- merge helpers ----------
 def _merge_weight(sig: Dict[str, Any], base_conf: float, sess_w: float) -> float:
     # confidence * session weight, clipped 0..1
     return max(0.0, min(1.0, base_conf * sess_w))
-
 
 def attach_plan(sig: Dict[str, Any], equity: Any) -> Dict[str, Any]:
     """
@@ -64,9 +60,17 @@ def attach_plan(sig: Dict[str, Any], equity: Any) -> Dict[str, Any]:
             # Populate TP ladder if not present
             if aw_take_atr > 0.0 and not all(k in s for k in ("tp1", "tp2", "tp3")):
                 if side_ == "buy":
-                    s["tp1"], s["tp2"], s["tp3"] = entry + aw_take_atr, entry + 2 * aw_take_atr, entry + 3 * aw_take_atr
+                    s["tp1"], s["tp2"], s["tp3"] = (
+                        entry + aw_take_atr,
+                        entry + 2 * aw_take_atr,
+                        entry + 3 * aw_take_atr,
+                    )
                 else:
-                    s["tp1"], s["tp2"], s["tp3"] = entry - aw_take_atr, entry - 2 * aw_take_atr, entry - 3 * aw_take_atr
+                    s["tp1"], s["tp2"], s["tp3"] = (
+                        entry - aw_take_atr,
+                        entry - 2 * aw_take_atr,
+                        entry - 3 * aw_take_atr,
+                    )
     except Exception:
         pass
 
@@ -173,9 +177,10 @@ def attach_plan(sig: Dict[str, Any], equity: Any) -> Dict[str, Any]:
     s["session_w"] = s.get("session_w", 1.0)
     base = float(s.get("confidence", s.get("quality", 0.0)) or 0.0)
     s["confidence"] = _merge_weight(s, base, s["session_w"])
-    s.setdefault("context", []).append(f"risk_pct={RISK_PCT_PER_TRADE}% min_notional={MIN_NOTIONAL_USD}")
+    s.setdefault("context", []).append(
+        f"risk_pct={RISK_PCT_PER_TRADE}% min_notional={MIN_NOTIONAL_USD}"
+    )
     return s
-
 
 # ---------- CCXT OCO best-effort ----------
 def place_oco_ccxt_safe(
@@ -261,7 +266,9 @@ def place_oco_ccxt_safe(
                 try:
                     from order_utils import safe_create_order
 
-                    out["entry"] = safe_create_order(ex, "market", symbol, side, qty, price=None, params=params1)
+                    out["entry"] = safe_create_order(
+                        ex, "market", symbol, side, qty, price=None, params=params1
+                    )
                 except Exception:
                     try:
                         from order_utils import safe_create_order
@@ -332,7 +339,9 @@ def place_oco_ccxt_safe(
 
                 p_tp = dict(params)
                 p_tp.setdefault("postOnly", True)
-                out["tp"] = safe_create_order(ex, "limit", symbol, tp_side, qty, float(take_px), params=p_tp)
+                out["tp"] = safe_create_order(
+                    ex, "limit", symbol, tp_side, qty, float(take_px), params=p_tp
+                )
             except Exception:
                 try:
                     from order_utils import safe_create_order
@@ -359,7 +368,9 @@ def place_oco_ccxt_safe(
             except Exception:
                 try:
                     if hasattr(ex, "create_order"):
-                        out["sl"] = safe_create_order(ex, "stop", symbol, sl_side, qty, None, params=p)
+                        out["sl"] = safe_create_order(
+                            ex, "stop", symbol, sl_side, qty, None, params=p
+                        )
                     else:
                         out["sl"] = {"ok": False, "error": "sl create failed"}
                 except Exception:

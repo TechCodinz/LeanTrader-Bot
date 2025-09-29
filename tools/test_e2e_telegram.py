@@ -13,8 +13,6 @@ It performs:
 This harness is intentionally non-invasive and prints a short summary.
 """
 
-from __future__ import annotations
-
 import importlib
 import os
 import sys
@@ -29,16 +27,13 @@ import tg_utils as _tg  # noqa: E402
 
 calls = []
 
-
 def fake_send_photo_rich(caption, photo_path, buttons):
     calls.append({"caption": caption, "photo": photo_path, "buttons": buttons})
     return True
 
-
 def fake_send_photo_with_buttons(caption, photo_path, buttons):
     calls.append({"caption": caption, "photo": photo_path, "buttons": buttons, "basic": True})
     return True
-
 
 # Replace implementations
 _tg.send_photo_rich = fake_send_photo_rich

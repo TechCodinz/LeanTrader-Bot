@@ -1,16 +1,14 @@
 # mt5_adapter.py
-from __future__ import annotations
 
 import os
-from typing import Any, Dict, Optional  # noqa: F401  # intentionally kept
 
 from dotenv import load_dotenv
+import pandas as pd
 
 try:
     import MetaTrader5 as mt5  # type: ignore
 except Exception:
     mt5 = None
-
 
 # Early no-op placeholders for public helpers. If the module is imported but
 # execution is interrupted (circular import or other error), these names will
@@ -18,7 +16,6 @@ except Exception:
 # won't raise ImportError during supervised child startup.
 def _placeholder_min_stop_distance_points(symbol: str) -> int:
     return 0
-
 
 def _placeholder_bars_df(symbol: str, timeframe_str: str, limit: int = 200):
     try:
@@ -28,18 +25,14 @@ def _placeholder_bars_df(symbol: str, timeframe_str: str, limit: int = 200):
     except Exception:
         return None
 
-
 def _placeholder_ensure_symbol(symbol: str) -> None:
     return None
-
 
 def _placeholder_order_send_market(*args, **kwargs):
     return {"ok": False, "retcode": -1, "comment": "mt5 unavailable", "deal": 0}
 
-
 def _placeholder_symbol_trade_specs(symbol: str):
     return {"point": 0.00001, "trade_tick_value": 0.0}
-
 
 # Bind placeholders to module globals if real implementations haven't been
 # defined yet (they may be replaced later in the file during normal import).
@@ -48,7 +41,6 @@ globals().setdefault("bars_df", _placeholder_bars_df)
 globals().setdefault("ensure_symbol", _placeholder_ensure_symbol)
 globals().setdefault("order_send_market", _placeholder_order_send_market)
 globals().setdefault("symbol_trade_specs", _placeholder_symbol_trade_specs)
-
 
 def __getattr__(name: str):
     """Module-level fallback for attribute access.
@@ -91,7 +83,6 @@ def __getattr__(name: str):
         return _noop
     raise AttributeError(name)
 
-
 def __dir__():
     base = list(globals().keys())
     public = [
@@ -107,7 +98,6 @@ def __dir__():
         if p not in base:
             base.append(p)
     return sorted(base)
-
 
 load_dotenv()
 
@@ -136,7 +126,6 @@ try:
 except Exception:
     pass
 
-
 def _live_trading_allowed() -> bool:
     """Return True only when explicit environment gates permit live trading.
 
@@ -150,9 +139,7 @@ def _live_trading_allowed() -> bool:
         and os.getenv("LIVE_CONFIRM", "").upper() == "YES"
     )
 
-
 # local runtime imports are performed inside functions to avoid top-level side effects
-
 
 def _envs() -> Dict[str, str]:
     return {
@@ -161,7 +148,6 @@ def _envs() -> Dict[str, str]:
         "PASSWORD": os.getenv("MT5_PASSWORD", ""),
         "SERVER": os.getenv("MT5_SERVER", ""),
     }
-
 
 def mt5_init(path: Optional[str] = None):
     if mt5 is None:
@@ -178,7 +164,6 @@ def mt5_init(path: Optional[str] = None):
             raise RuntimeError(f"mt5.login failed: ({code}) {desc} (server={env['SERVER']})")
     return mt5
 
-
 def ensure_symbol(symbol: str) -> None:
     info = mt5.symbol_info(symbol)
     if info is None:
@@ -186,7 +171,6 @@ def ensure_symbol(symbol: str) -> None:
     if not info.visible:
         if not mt5.symbol_select(symbol, True):
             raise RuntimeError(f"symbol_select({symbol}) failed")
-
 
 def min_stop_distance_points(symbol: str) -> int:
     """Return minimum stop distance in points for a symbol (trade_stops_level or freeze_level).
@@ -207,9 +191,7 @@ def min_stop_distance_points(symbol: str) -> int:
         freeze = 0
     return max(stops, freeze)
 
-
 def _normalize_rates_df(df):
-    import pandas as pd  # noqa: E402
 
     if df is None or len(df) == 0:
         return pd.DataFrame(
@@ -251,9 +233,7 @@ def _normalize_rates_df(df):
         pass
     return df[required]
 
-
 def bars_df(symbol: str, timeframe_str: str, limit: int = 200):
-    import pandas as pd  # noqa: E402
 
     ensure_symbol(symbol)
     tf_map = {
@@ -276,7 +256,6 @@ def bars_df(symbol: str, timeframe_str: str, limit: int = 200):
         raise RuntimeError(f"copy_rates_from_pos failed: ({code}) {desc}")
     return _normalize_rates_df(pd.DataFrame(list(rates)))
 
-
 def account_summary_lines():
     info = mt5.account_info()
     if info is None:
@@ -295,7 +274,6 @@ def account_summary_lines():
         f"Balance: {float(info.balance):.2f}  Equity: {float(info.equity):.2f}",
         f"Margin: {float(info.margin):.2f}    Positions: {pos_n}  (uPnL {u_pnl:.2f})",
     ]
-
 
 # --- Compatibility wrappers -------------------------------------------------
 def symbol_trade_specs(symbol: str) -> Dict[str, Any]:
@@ -325,7 +303,6 @@ def symbol_trade_specs(symbol: str) -> Dict[str, Any]:
             "trade_contract_size": float(getattr(info, "trade_contract_size", 0.0)),
             "trade_tick_value": float(getattr(info, "trade_tick_value", 0.0)),
         }
-
 
 def order_send_market(
     mt5mod,

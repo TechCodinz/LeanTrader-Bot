@@ -7,13 +7,10 @@ child process' sys.executable, cwd, sys.path[0], and find_spec origins for
 critical modules before the actual application code runs.
 """
 
-from __future__ import annotations
-
 import importlib.util
 import os
 import runpy
 import sys
-
 
 def diag_module(name: str):
     try:
@@ -22,7 +19,6 @@ def diag_module(name: str):
     except Exception:
         origin = None
     return origin
-
 
 def main():
     if len(sys.argv) < 2:
@@ -49,9 +45,13 @@ def main():
         try:
             diag_dir = os.path.join(repo_root, "runtime", "logs")
             os.makedirs(diag_dir, exist_ok=True)
-            diag_file = os.path.join(diag_dir, f"child_wrapper_{target.replace('.', '_')}_{os.getpid()}.diag")
+            diag_file = os.path.join(
+                diag_dir, f"child_wrapper_{target.replace('.', '_')}_{os.getpid()}.diag"
+            )
             with open(diag_file, "w", encoding="utf-8") as fh:
-                fh.write(f"pid={os.getpid()} exe={getattr(sys, 'executable', None)} cwd={os.getcwd()}\n")
+                fh.write(
+                    f"pid={os.getpid()} exe={getattr(sys, 'executable', None)} cwd={os.getcwd()}\n"
+                )
         except Exception:
             pass
 
@@ -181,7 +181,6 @@ def main():
     except Exception as _e:
         print(f"[child_wrapper] exception before module exec: {_e}", file=sys.stderr)
         raise
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

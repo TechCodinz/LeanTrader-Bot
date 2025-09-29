@@ -1,13 +1,8 @@
-from dataclasses import dataclass, field
-from typing import Dict
-
-
 @dataclass
 class Skill:
     name: str
     enabled: bool = False
     threshold: float = 0.0
-
 
 @dataclass
 class Curriculum:

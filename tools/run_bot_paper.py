@@ -12,7 +12,6 @@ os.environ.setdefault("EXCHANGE_ID", "paper")
 os.environ.setdefault("ENABLE_LIVE", "false")
 os.environ.setdefault("ALLOW_LIVE", "false")
 
-
 def bars_to_df(bars):
     # bars: list of [ts, o, h, l, c, v]
     import pandas as pd
@@ -36,12 +35,13 @@ def bars_to_df(bars):
     # keep time order if needed
     return df
 
-
 def run_once(symbol=None, timeframe="1m", limit=200):
     out = {"errors": [], "results": {}}
     try:
-        from router import ExchangeRouter
-        from strategy import get_strategy, resolve_strategy_and_params  # noqa: F401  # intentionally kept
+        from strategy import (
+            get_strategy,
+            resolve_strategy_and_params,
+        )  # noqa: F401  # intentionally kept
     except Exception as e:
         out["errors"].append(f"import error: {e}")
         print(json.dumps(out, indent=2))
@@ -91,7 +91,9 @@ def run_once(symbol=None, timeframe="1m", limit=200):
         # default ATR multipliers (adjust as needed)
         atr_stop_mult = float(os.getenv("ATR_STOP_MULT", "1.0"))
         atr_trail_mult = float(os.getenv("ATR_TRAIL_MULT", "0.5"))
-        sig_df, info = strat.entries_and_exits(sample, atr_stop_mult=atr_stop_mult, atr_trail_mult=atr_trail_mult)
+        sig_df, info = strat.entries_and_exits(
+            sample, atr_stop_mult=atr_stop_mult, atr_trail_mult=atr_trail_mult
+        )
         out["results"]["strategy_info"] = info
         # examine last signal
         last = sig_df.iloc[-1].to_dict() if not sig_df.empty else {}
@@ -115,7 +117,6 @@ def run_once(symbol=None, timeframe="1m", limit=200):
         out["errors"].append(f"order attempt failed: {e}")
 
     print(json.dumps(out, indent=2))
-
 
 if __name__ == "__main__":
     run_once()

@@ -1,6 +1,3 @@
-import pandas as pd
-
-
 def attribute_trade(entry_px, exit_px, sl_px, tp_px, costs, side: str) -> dict:
     # Simple components: entry edge, exit edge, risk (SL/TP), and costs
     if side == "long":

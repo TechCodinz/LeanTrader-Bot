@@ -1,5 +1,6 @@
-import os, time, yaml
-from decimal import Decimal
+import os
+import time
+import yaml
 from lt_plugins.common.bus import Bus
 from .sources import dexscreener, geckoterminal, etherscan_pulse
 
@@ -18,14 +19,18 @@ def normalize(sig: dict) -> dict:
         "pair": sig.get("pair"),
         "score": int(sig.get("score", 0)),
         "url": sig.get("url"),
-        "meta": {k:v for k,v in sig.items() if k not in {"source","chain","symbol","pair","score","url"}},
-        "ts": int(time.time()*1000),
+        "meta": {
+            k: v
+            for k, v in sig.items()
+            if k not in {"source", "chain", "symbol", "pair", "score", "url"}
+        },
+        "ts": int(time.time() * 1000),
     }
 
 def run():
     cfg = load_cfg(CONFIG_PATH)
     loop_sec = int(cfg.get("loop_sec", 120))
-    bus = Bus(channel=cfg.get("publish", {}).get("channel","signal.web3.trending"))
+    bus = Bus(channel=cfg.get("publish", {}).get("channel", "signal.web3.trending"))
 
     while True:
         try:
@@ -46,7 +51,7 @@ def run():
 
             ecfg = cfg.get("etherscan", {})
             out += etherscan_pulse.fetch(
-                api_key=os.getenv("ETHERSCAN_API_KEY", ecfg.get("api_key","")).strip(),
+                api_key=os.getenv("ETHERSCAN_API_KEY", ecfg.get("api_key", "")).strip(),
                 contracts=ecfg.get("watch_contracts", []),
                 blocks_lookback=int(ecfg.get("blocks_lookback", 5000)),
             )
@@ -54,9 +59,9 @@ def run():
             uniq = {}
             for s in out:
                 key = (s.get("source"), s.get("pair"))
-                if key not in uniq or s.get("score",0) > uniq[key].get("score",0):
+                if key not in uniq or s.get("score", 0) > uniq[key].get("score", 0):
                     uniq[key] = s
-            top = sorted(uniq.values(), key=lambda s: s.get("score",0), reverse=True)[:20]
+            top = sorted(uniq.values(), key=lambda s: s.get("score", 0), reverse=True)[:20]
 
             for s in top:
                 bus.publish(normalize(s))
@@ -67,4 +72,3 @@ def run():
 
 if __name__ == "__main__":
     run()
-

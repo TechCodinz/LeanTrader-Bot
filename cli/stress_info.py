@@ -1,15 +1,9 @@
-from __future__ import annotations
-
 import argparse
 import json
 import os
 
-import numpy as np
-import pandas as pd
-
 from features.pipeline import compute_mu_cov
 from risk.adaptive_budget import stress_indicator, adaptive_budget
-
 
 def _load_prices(path: str | None) -> pd.DataFrame:
     if path and os.path.exists(path):
@@ -27,7 +21,6 @@ def _load_prices(path: str | None) -> pd.DataFrame:
     idx = pd.date_range(end=pd.Timestamp.utcnow().floor("min"), periods=300, freq="1min")
     return pd.DataFrame(data, index=idx)
 
-
 def main():
     p = argparse.ArgumentParser(description="Compute stress indicator and suggested leverage")
     p.add_argument("--csv", default=None)
@@ -44,7 +37,5 @@ def main():
     w, L = adaptive_budget(w_base, s)
     print(json.dumps({"stress_s": s, "leverage_L": L}))
 
-
 if __name__ == "__main__":
     main()
-

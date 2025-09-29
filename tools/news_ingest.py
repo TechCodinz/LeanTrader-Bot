@@ -5,23 +5,17 @@ recent items under `runtime/news/` for use by strategies. It is intentionally
 opt-in and conservative.
 """
 
-from __future__ import annotations
-
 import time
-from pathlib import Path
-from typing import List
 
 try:
     import feedparser  # type: ignore
 except Exception:
     feedparser = None
 
-
 def _ensure_dir() -> Path:
     p = Path("runtime") / "news"
     p.mkdir(parents=True, exist_ok=True)
     return p
-
 
 def fetch_feeds(urls: List[str], max_items: int = 50) -> int:
     if feedparser is None:
@@ -31,7 +25,9 @@ def fetch_feeds(urls: List[str], max_items: int = 50) -> int:
     for url in urls:
         try:
             d = feedparser.parse(url)
-            fname = dirp / (url.replace("https://", "").replace("http://", "").replace("/", "_") + ".ndjson")
+            fname = dirp / (
+                url.replace("https://", "").replace("http://", "").replace("/", "_") + ".ndjson"
+            )
             with fname.open("a", encoding="utf-8") as f:
                 for e in (d.entries or [])[:max_items]:
                     ts = int(time.time())

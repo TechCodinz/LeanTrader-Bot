@@ -1,12 +1,6 @@
-from __future__ import annotations
-
 import argparse
 import json
 import os
-from typing import Any
-
-from dex_router import execute_swap
-
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Demo DEX swap using guarded router")
@@ -41,7 +35,5 @@ def main() -> int:
     print(json.dumps(res))
     return 0
 
-
 if __name__ == "__main__":
     raise SystemExit(main())
-

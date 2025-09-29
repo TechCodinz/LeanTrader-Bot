@@ -4,8 +4,6 @@ import importlib.util
 import json
 import os
 import sys
-from typing import Any, Dict, List, Tuple
-
 
 def find_py_files(root: str, exclude_dirs=None) -> List[str]:
     if exclude_dirs is None:
@@ -30,7 +28,6 @@ def find_py_files(root: str, exclude_dirs=None) -> List[str]:
                 out.append(os.path.join(dirpath, fn))
     return sorted(out)
 
-
 def parse_file(path: str) -> Tuple[bool, Any]:
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -39,7 +36,6 @@ def parse_file(path: str) -> Tuple[bool, Any]:
         return True, tree
     except Exception as e:
         return False, str(e)
-
 
 def extract_imports(tree: ast.AST) -> List[str]:
     mods = set()
@@ -56,13 +52,11 @@ def extract_imports(tree: ast.AST) -> List[str]:
                 mods.add(node.module.split(".")[0])
     return sorted(mods)
 
-
 def check_module_available(name: str) -> bool:
     try:
         return importlib.util.find_spec(name) is not None
     except Exception:
         return False
-
 
 def analyze_project(root: str) -> Dict[str, Any]:
     # Ensure the provided root is on sys.path so top-level modules resolve
@@ -96,7 +90,6 @@ def analyze_project(root: str) -> Dict[str, Any]:
         report["files"][rel] = entry
     return report
 
-
 def pretty_report(rep: Dict[str, Any]) -> None:
     root = rep.get("root")
     s = rep.get("summary", {})
@@ -115,9 +108,10 @@ def pretty_report(rep: Dict[str, Any]) -> None:
             print(f"[MISSING IMPORTS] {rel}: {len(missing)} -> {', '.join(missing)}")
     print("-" * 80)
 
-
 def main():
-    ap = argparse.ArgumentParser(description="Light static checker: parse + import availability (no execution).")
+    ap = argparse.ArgumentParser(
+        description="Light static checker: parse + import availability (no execution)."
+    )
     ap.add_argument("--root", default=".", help="project root to scan")
     ap.add_argument("--json", help="write JSON report to file")
     args = ap.parse_args()
@@ -130,7 +124,6 @@ def main():
             print(f"Wrote JSON report to {args.json}")
         except Exception as e:
             print("Failed writing JSON:", e)
-
 
 if __name__ == "__main__":
     main()

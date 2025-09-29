@@ -7,7 +7,6 @@ BOT = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 PREMIUM_PATH = os.getenv("PREMIUM_LIST_PATH", "data/telegram/premium.json")
 
-
 def _chat_ok(chat_id: str) -> bool:
     try:
         with open(PREMIUM_PATH, "r", encoding="utf-8") as f:
@@ -17,14 +16,11 @@ def _chat_ok(chat_id: str) -> bool:
     except Exception:
         return True
 
-
 def enabled() -> bool:
     return bool(BOT and CHAT_ID)
 
-
 def _api(method: str):
     return f"https://api.telegram.org/bot{BOT}/{method}"
-
 
 def _is_premium(chat_id: str = None) -> bool:
     try:
@@ -34,7 +30,6 @@ def _is_premium(chat_id: str = None) -> bool:
         return str(chat_id or CHAT_ID) in allowed or not allowed
     except Exception:
         return True
-
 
 def send_message(text: str, chat_id: str = None, reply_markup: dict = None) -> bool:
     cid = chat_id or CHAT_ID
@@ -49,8 +44,9 @@ def send_message(text: str, chat_id: str = None, reply_markup: dict = None) -> b
     except Exception:
         return False
 
-
-def send_photo(image_path: str, caption: str = "", chat_id: str = None, reply_markup: dict = None) -> bool:
+def send_photo(
+    image_path: str, caption: str = "", chat_id: str = None, reply_markup: dict = None
+) -> bool:
     cid = chat_id or CHAT_ID
     if not _chat_ok(cid):
         return False

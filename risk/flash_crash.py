@@ -1,10 +1,4 @@
-from __future__ import annotations
-
 import time
-from collections import deque
-from dataclasses import dataclass
-from typing import Deque, Tuple
-
 
 @dataclass
 class FlashCrashParams:
@@ -12,7 +6,6 @@ class FlashCrashParams:
     drop_bps: float = 150.0
     min_depth: float = 0.0  # optional liquidity thinning threshold
     cooldown_sec: int = 600
-
 
 class FlashCrashGuard:
     def __init__(self, params: FlashCrashParams | None = None):
@@ -53,8 +46,12 @@ class FlashCrashGuard:
             return True
         return False
 
-
-def emergency_hedge(exposure_usd: float, futures_venue: str, max_slippage_bps: float = 50.0, symbol: str = "BTC/USDT") -> dict:
+def emergency_hedge(
+    exposure_usd: float,
+    futures_venue: str,
+    max_slippage_bps: float = 50.0,
+    symbol: str = "BTC/USDT",
+) -> dict:
     """Send protective order(s) on futures venue. Best-effort stub.
 
     In real integration, place a market/stop order sized to partially or fully hedge the exposure.
@@ -64,16 +61,30 @@ def emergency_hedge(exposure_usd: float, futures_venue: str, max_slippage_bps: f
         from traders_core.connectors.crypto_ccxt import _mk_exchange as mk_ex  # type: ignore
 
         ex = mk_ex(futures_venue, False)
-        t = ex.safe_fetch_ticker(symbol) if hasattr(ex, "safe_fetch_ticker") else ex.fetch_ticker(symbol)
+        t = (
+            ex.safe_fetch_ticker(symbol)
+            if hasattr(ex, "safe_fetch_ticker")
+            else ex.fetch_ticker(symbol)
+        )
         px = float(t.get("last") or t.get("close") or 0.0)
         if px <= 0:
             return {"ok": False, "error": "price_unavailable"}
         qty = float(exposure_usd) / px
         # hedge by selling spot (proxy) – replace with futures short on integration
-        res = ex.safe_place_order(symbol, "sell", qty) if hasattr(ex, "safe_place_order") else ex.create_market_sell_order(symbol, qty)
-        return {"ok": True, "venue": futures_venue, "notional_usd": float(exposure_usd), "qty": float(qty), "px": px, "result": res}
+        res = (
+            ex.safe_place_order(symbol, "sell", qty)
+            if hasattr(ex, "safe_place_order")
+            else ex.create_market_sell_order(symbol, qty)
+        )
+        return {
+            "ok": True,
+            "venue": futures_venue,
+            "notional_usd": float(exposure_usd),
+            "qty": float(qty),
+            "px": px,
+            "result": res,
+        }
     except Exception as e:
         return {"ok": False, "error": str(e)}
-
 
 __all__ = ["FlashCrashParams", "FlashCrashGuard", "emergency_hedge"]

@@ -2,15 +2,13 @@
 import json
 import os
 import time
+from pathlib import Path
 from typing import Any, Dict, Iterator
 
 from dotenv import load_dotenv
 
-from router import ExchangeRouter  # noqa: E402
-
 # Avoid top-level import of mt5_adapter which can raise in environments
 # without MetaTrader5. Import lazily inside fx executor.
-
 
 load_dotenv()
 
@@ -18,7 +16,6 @@ SIGNALS_QUEUE = os.getenv("SIGNALS_QUEUE", "runtime/signals_queue.jsonl")
 SIGNALS_STATE = os.getenv("SIGNALS_STATE", "runtime/signals_offset.txt")
 SLEEP_SEC = int(os.getenv("LOOP_SLEEP_SEC", "5"))
 EXECUTE = os.getenv("ENABLE_LIVE", "false").lower() == "true"
-
 
 def iter_new_signals() -> Iterator[Dict[str, Any]]:
     pos = 0
@@ -39,7 +36,6 @@ def iter_new_signals() -> Iterator[Dict[str, Any]]:
                 continue
     with open(SIGNALS_STATE, "w") as s:
         s.write(str(pos))
-
 
 def exec_crypto(sig: Dict[str, Any]) -> Dict[str, Any]:
     r = ExchangeRouter()
@@ -73,7 +69,6 @@ def exec_crypto(sig: Dict[str, Any]) -> Dict[str, Any]:
             }
         return r.place_futures_market(symbol, side, qty=qty, leverage=lev)
 
-
 def _import_mt5_helpers():
     try:
         import importlib
@@ -86,7 +81,6 @@ def _import_mt5_helpers():
         try:
             import importlib.util
             import sys
-            from pathlib import Path
 
             repo_root = Path(__file__).resolve().parent
             candidate = repo_root / "mt5_adapter.py"
@@ -96,7 +90,9 @@ def _import_mt5_helpers():
                 sys.modules["mt5_adapter"] = mod
                 spec.loader.exec_module(mod)  # type: ignore
                 return getattr(mod, "mt5_init", lambda: None), getattr(
-                    mod, "order_send_market", lambda *a, **k: {"ok": False, "comment": "mt5 unavailable"}
+                    mod,
+                    "order_send_market",
+                    lambda *a, **k: {"ok": False, "comment": "mt5 unavailable"},
                 )
         except Exception:
             pass
@@ -108,7 +104,6 @@ def _import_mt5_helpers():
         return {"ok": False, "comment": "mt5 unavailable"}
 
     return mt5_init, order_send_market
-
 
 def exec_fx(sig: Dict[str, Any]) -> Dict[str, Any]:
     # lazy import to avoid import-time failure when mt5_adapter isn't present
@@ -129,7 +124,6 @@ def exec_fx(sig: Dict[str, Any]) -> Dict[str, Any]:
     # perform real order via adapter
     return order_send_market(mt5ctx, sig["symbol"], sig["side"], lots)
 
-
 def main():
     print(f"[loop] start EXECUTE={EXECUTE} sleep={SLEEP_SEC}s queue={SIGNALS_QUEUE}")
     while True:
@@ -146,7 +140,6 @@ def main():
             except Exception as e:
                 print({"signal_err": str(e), "sig": sig})
         time.sleep(SLEEP_SEC)
-
 
 if __name__ == "__main__":
     main()

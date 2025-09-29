@@ -1,7 +1,5 @@
 """Small smoke test for the crawler to verify it can fetch a few static pages."""
 
-from __future__ import annotations
-
 import os
 import sys
 
@@ -12,7 +10,6 @@ if proj_root not in sys.path:
 
 from tools.web_crawler import crawl_urls  # noqa: E402
 
-
 def main():
     seeds = [
         "https://www.investopedia.com/",
@@ -21,7 +18,6 @@ def main():
     ]
     n = crawl_urls(seeds, max_pages=3)
     print("snippets saved:", n)
-
 
 if __name__ == "__main__":
     main()

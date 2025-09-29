@@ -1,13 +1,10 @@
 # run_live_fx_full.py
-from __future__ import annotations
 
 import argparse
 import datetime as dt  # noqa: F401  # intentionally kept
 import os
 import time
-from typing import Any, Dict, List  # noqa: F401  # intentionally kept
 
-import pandas as pd
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,7 +16,6 @@ try:
     import MetaTrader5 as mt5  # noqa: E402
 except Exception:
     mt5 = None
-
 
 def mt5_init():
     if mt5 is None:
@@ -49,11 +45,9 @@ def mt5_init():
 
     return mt5
 
-
 # ---------- simple indicators ----------
 def ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=n, adjust=False).mean()
-
 
 def atr(df: pd.DataFrame, n: int) -> pd.Series:
     prev = df["close"].shift(1)
@@ -66,7 +60,6 @@ def atr(df: pd.DataFrame, n: int) -> pd.Series:
         axis=1,
     ).max(axis=1)
     return tr.rolling(n).mean()
-
 
 # ---------- MT5 market data ----------
 def mt5_bars(symbol: str, timeframe: str, limit: int = 400) -> pd.DataFrame:
@@ -93,7 +86,6 @@ def mt5_bars(symbol: str, timeframe: str, limit: int = 400) -> pd.DataFrame:
     df["timestamp"] = pd.to_datetime(df["ts"], unit="s")
     return df[["timestamp", "open", "high", "low", "close", "vol"]]
 
-
 # ---------- toy strategy (EMA trend + ATR stop) ----------
 def make_signal(df: pd.DataFrame, atr_mult_stop: float = 2.0) -> Dict[str, Any]:
     d = df.copy()
@@ -101,7 +93,9 @@ def make_signal(df: pd.DataFrame, atr_mult_stop: float = 2.0) -> Dict[str, Any]:
     d["ema_slow"] = ema(d["close"], 50)
     d["atr"] = atr(d, 14)
 
-    long_ok = (d["ema_fast"].iloc[-1] > d["ema_slow"].iloc[-1]) and (d["close"].iloc[-1] > d["ema_fast"].iloc[-1])
+    long_ok = (d["ema_fast"].iloc[-1] > d["ema_slow"].iloc[-1]) and (
+        d["close"].iloc[-1] > d["ema_fast"].iloc[-1]
+    )
     price = float(d["close"].iloc[-1])
     stop = price - atr_mult_stop * float(d["atr"].iloc[-1])
 
@@ -111,7 +105,6 @@ def make_signal(df: pd.DataFrame, atr_mult_stop: float = 2.0) -> Dict[str, Any]:
         "stop": stop,
         "score": 0.70 if long_ok else 0.30,
     }
-
 
 # ---------- order helpers ----------
 def mt5_market_order(symbol: str, volume: float, side: str = "buy") -> bool:
@@ -136,7 +129,6 @@ def mt5_market_order(symbol: str, volume: float, side: str = "buy") -> bool:
     res = mt5.order_send(req)
     return getattr(res, "retcode", 0) == mt5.TRADE_RETCODE_DONE
 
-
 # ---------- main loop ----------
 def main():
     ap = argparse.ArgumentParser()
@@ -144,7 +136,9 @@ def main():
     ap.add_argument("--timeframe", default="5m")
     ap.add_argument("--lots", type=float, default=0.02)
     ap.add_argument("--stake_usd", type=float, default=0)  # for ccxt loops; unused here
-    ap.add_argument("--balance_every", type=int, default=60)  # seconds between Telegram portfolio posts
+    ap.add_argument(
+        "--balance_every", type=int, default=60
+    )  # seconds between Telegram portfolio posts
     ap.add_argument("--live", action="store_true", help="place real orders (MT5)")
     args = ap.parse_args()
 
@@ -218,7 +212,9 @@ def main():
                                         df,
                                         entries=[
                                             {
-                                                "ts": int(df["timestamp"].iloc[-1].timestamp() * 1000),
+                                                "ts": int(
+                                                    df["timestamp"].iloc[-1].timestamp() * 1000
+                                                ),
                                                 "price": float(df["close"].iloc[-1]),
                                                 "side": "sell",
                                             }
@@ -286,9 +282,10 @@ def main():
                 notif.note(f"FX loop error {sym}: {e}")
 
         # Throttled portfolio post (MT5)
-        state = maybe_post_balance(notif, "mt5", seconds_every=args.balance_every, state=state, prefer="mt5")
+        state = maybe_post_balance(
+            notif, "mt5", seconds_every=args.balance_every, state=state, prefer="mt5"
+        )
         time.sleep(5)
-
 
 if __name__ == "__main__":
     main()

@@ -1,21 +1,29 @@
-from __future__ import annotations
-
-import os
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, List
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
-
-
 try:
     from prometheus_client import Gauge, Counter  # type: ignore
-
-    NET_EXPOSURE_USD = Gauge("net_exposure_usd", "Net exposure per asset (USD)", ["asset"])  # current snapshot
-    HEDGE_NOTIONAL_USD = Gauge(
-        "hedge_notional_usd",
-        "Planned/last executed hedge notional (USD)",
-        ["asset", "instrument"],
-    )
-    HEDGE_UPDATES = Counter("hedge_updates_total", "Hedge plans computed/executed", ["action", "status"])
 except Exception:  # pragma: no cover
+    Gauge = None  # type: ignore
+    Counter = None  # type: ignore
+
+try:
+
+    if Gauge is not None and Counter is not None:
+        NET_EXPOSURE_USD = Gauge(
+            "net_exposure_usd", "Net exposure per asset (USD)", ["asset"]
+        )  # current snapshot
+        HEDGE_NOTIONAL_USD = Gauge(
+            "hedge_notional_usd",
+            "Planned/last executed hedge notional (USD)",
+            ["asset", "instrument"],
+        )
+        HEDGE_UPDATES = Counter(
+            "hedge_updates_total", "Hedge plans computed/executed", ["action", "status"]
+        )
+    else:
+        raise Exception("no prometheus")
+except Exception:  # pragma: no cover
+
     class _Noop:
         def labels(self, *_: Any, **__: Any) -> "_Noop":
             return self
@@ -30,7 +38,6 @@ except Exception:  # pragma: no cover
     HEDGE_NOTIONAL_USD = _Noop()  # type: ignore
     HEDGE_UPDATES = _Noop()  # type: ignore
 
-
 def account_state(venue: Any) -> Dict[str, Any]:
     """Return positions and balances for a venue/router.
 
@@ -38,7 +45,11 @@ def account_state(venue: Any) -> Dict[str, Any]:
     Output schema:
       { 'id': 'bybit'|'binance'|'paper'|..., 'balances': {asset: free_usd}, 'positions': [{'symbol', 'asset', 'qty', 'px'}] }
     """
-    state: Dict[str, Any] = {"id": str(getattr(venue, "id", "unknown")), "balances": {}, "positions": []}
+    state: Dict[str, Any] = {
+        "id": str(getattr(venue, "id", "unknown")),
+        "balances": {},
+        "positions": [],
+    }
 
     # balances
     try:
@@ -52,7 +63,7 @@ def account_state(venue: Any) -> Dict[str, Any]:
                 bal = None
         if isinstance(bal, dict):
             total = bal.get("total") or bal.get("free") or {}
-            for k, v in (total.items() if isinstance(total, dict) else {}):
+            for k, v in total.items() if isinstance(total, dict) else {}:
                 try:
                     state["balances"][str(k).upper()] = float(v)
                 except Exception:
@@ -69,7 +80,14 @@ def account_state(venue: Any) -> Dict[str, Any]:
                 sym = str(p.get("symbol"))
                 qty = float(p.get("qty") or 0.0)
                 asset = sym.split(":")[-1].split("/")[0] if "/" in sym else sym
-                state["positions"].append({"symbol": sym, "asset": asset.upper(), "qty": qty, "px": float(p.get("entry") or 0.0)})
+                state["positions"].append(
+                    {
+                        "symbol": sym,
+                        "asset": asset.upper(),
+                        "qty": qty,
+                        "px": float(p.get("entry") or 0.0),
+                    }
+                )
     except Exception:
         pass
 
@@ -96,14 +114,15 @@ def account_state(venue: Any) -> Dict[str, Any]:
                     qty = dirn * abs(contracts) * contract_size
                     asset = sym.split("/")[0] if "/" in sym else sym
                     px = float(p.get("entryPrice") or p.get("avgPrice") or 0.0)
-                    state["positions"].append({"symbol": sym, "asset": asset.upper(), "qty": qty, "px": px})
+                    state["positions"].append(
+                        {"symbol": sym, "asset": asset.upper(), "qty": qty, "px": px}
+                    )
                 except Exception:
                     continue
     except Exception:
         pass
 
     return state
-
 
 def _last_price(venue: Any, symbol: str) -> float:
     try:
@@ -118,7 +137,6 @@ def _last_price(venue: Any, symbol: str) -> float:
     except Exception:
         return 0.0
     return 0.0
-
 
 def net_exposure(venues: Sequence[Any], price_router: Optional[Any] = None) -> Dict[str, float]:
     """Compute net USD exposure by asset across venues.
@@ -160,7 +178,6 @@ def net_exposure(venues: Sequence[Any], price_router: Optional[Any] = None) -> D
             pass
     return agg
 
-
 @dataclass
 class Instrument:
     asset: str
@@ -169,7 +186,6 @@ class Instrument:
     vol: float = 0.02  # daily vol proxy (for risk parity)
     delta: float = 1.0  # option delta proxy; use 1.0 for futures
     vega: float = 0.0  # option vega proxy per USD notional
-
 
 def hedge_plan(
     exposures_usd: Mapping[str, float],
@@ -208,7 +224,9 @@ def hedge_plan(
                 }
             )
             try:
-                HEDGE_NOTIONAL_USD.labels(asset=asset.upper(), instrument=i.symbol).set(float(notional))
+                HEDGE_NOTIONAL_USD.labels(asset=asset.upper(), instrument=i.symbol).set(
+                    float(notional)
+                )
             except Exception:
                 pass
     try:
@@ -217,8 +235,9 @@ def hedge_plan(
         pass
     return plan
 
-
-def execute_hedge(plan: Sequence[Mapping[str, Any]], router: Optional[Any] = None) -> List[Dict[str, Any]]:
+def execute_hedge(
+    plan: Sequence[Mapping[str, Any]], router: Optional[Any] = None
+) -> List[Dict[str, Any]]:
     """Execute hedge plan using ExchangeRouter if provided; otherwise dry-run.
 
     For futures hedges, computes qty = |notional| / last_price and sends market order with reduce_only=False.
@@ -240,7 +259,9 @@ def execute_hedge(plan: Sequence[Mapping[str, Any]], router: Optional[Any] = Non
         if notional <= 0:
             continue
         if router is None:
-            results.append({"symbol": sym, "side": side, "qty": 0.0, "ok": False, "error": "no router"})
+            results.append(
+                {"symbol": sym, "side": side, "qty": 0.0, "ok": False, "error": "no router"}
+            )
             continue
         # fetch price via router
         try:
@@ -257,7 +278,15 @@ def execute_hedge(plan: Sequence[Mapping[str, Any]], router: Optional[Any] = Non
                 except Exception:
                     pass
             else:
-                results.append({"symbol": sym, "side": side, "qty": qty, "ok": False, "error": "no futures method"})
+                results.append(
+                    {
+                        "symbol": sym,
+                        "side": side,
+                        "qty": qty,
+                        "ok": False,
+                        "error": "no futures method",
+                    }
+                )
         except Exception as e:  # pragma: no cover
             results.append({"symbol": sym, "side": side, "qty": 0.0, "ok": False, "error": str(e)})
             try:
@@ -265,7 +294,6 @@ def execute_hedge(plan: Sequence[Mapping[str, Any]], router: Optional[Any] = Non
             except Exception:
                 pass
     return results
-
 
 def hedge_plan_greeks(
     exposures_usd: Mapping[str, float],
@@ -312,7 +340,9 @@ def hedge_plan_greeks(
                     }
                 )
                 try:
-                    HEDGE_NOTIONAL_USD.labels(asset=asset.upper(), instrument=i.symbol).set(abs(notional))
+                    HEDGE_NOTIONAL_USD.labels(asset=asset.upper(), instrument=i.symbol).set(
+                        abs(notional)
+                    )
                 except Exception:
                     pass
         except Exception:
@@ -323,7 +353,6 @@ def hedge_plan_greeks(
     except Exception:
         pass
     return plan
-
 
 __all__ = [
     "NET_EXPOSURE_USD",
@@ -338,6 +367,10 @@ __all__ = [
     "execute_hedge",
 ]
 
+try:
+    import cvxpy as cp  # type: ignore
+except Exception:  # pragma: no cover
+    cp = None  # type: ignore
 
 def hedge_plan_qp(
     exposures_usd: Mapping[str, float],
@@ -352,12 +385,12 @@ def hedge_plan_qp(
     - target: [-exposure_usd, 0]
     Bounds dict maps instrument.symbol -> (min,max) in USD. Defaults to unbounded.
     """
+    if cp is None:
+        return hedge_plan_greeks(exposures_usd, instruments, min_usd=min_usd)
     try:
-        import cvxpy as cp  # type: ignore
-        import numpy as np  # type: ignore
+        import numpy as _np  # type: ignore
     except Exception:  # pragma: no cover
         return hedge_plan_greeks(exposures_usd, instruments, min_usd=min_usd)
-
     plan: List[Dict[str, Any]] = []
     bounds = bounds or {}
     for asset, usd in exposures_usd.items():
@@ -368,11 +401,11 @@ def hedge_plan_qp(
         if not insts:
             continue
         n = len(insts)
-        A = np.zeros((2, n), dtype=float)
+        A = _np.zeros((2, n), dtype=float)
         for j, i in enumerate(insts):
             A[0, j] = float(i.delta if i.kind == "option" else 1.0)
             A[1, j] = float(i.vega if i.kind == "option" else 0.0)
-        target = np.array([-usd, 0.0], dtype=float)
+        target = _np.array([-usd, 0.0], dtype=float)
         x = cp.Variable(n)
         cons = [A @ x == target]
         for j, i in enumerate(insts):
@@ -407,7 +440,9 @@ def hedge_plan_qp(
                 }
             )
             try:
-                HEDGE_NOTIONAL_USD.labels(asset=asset.upper(), instrument=i.symbol).set(abs(notional))
+                HEDGE_NOTIONAL_USD.labels(asset=asset.upper(), instrument=i.symbol).set(
+                    abs(notional)
+                )
             except Exception:
                 pass
     try:

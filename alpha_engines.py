@@ -1,5 +1,4 @@
 # alpha_engines.py
-from __future__ import annotations
 
 import json
 import math
@@ -14,15 +13,12 @@ import pandas as pd
 MEMO = Path("reports/alpha_memory.json")
 MEMO.parent.mkdir(parents=True, exist_ok=True)
 
-
 # ----------------- small utils -----------------
 def _clip(x, lo, hi):
     return max(lo, min(hi, x))
 
-
 def _sigmoid(x):
     return 1.0 / (1.0 + math.exp(-x))
-
 
 def _softmax(xs: List[float]) -> List[float]:
     a = np.array(xs, dtype=float)
@@ -30,7 +26,6 @@ def _softmax(xs: List[float]) -> List[float]:
     e = np.exp(a)
     p = e / (np.sum(e) + 1e-12)
     return p.tolist()
-
 
 def _load_memo() -> Dict[str, Any]:
     if MEMO.exists():
@@ -40,13 +35,11 @@ def _load_memo() -> Dict[str, Any]:
             pass
     return {"reliability": {}, "explore_eps": 0.08}
 
-
 def _save_memo(obj: Dict[str, Any]):
     try:
         MEMO.write_text(json.dumps(obj, indent=2))
     except Exception:
         pass
-
 
 # ----------------- Decision object -----------------
 @dataclass
@@ -59,7 +52,6 @@ class Decision:
     notes: str  # short text about which strategies voted what
     votes: Dict[str, float]  # strategy->score
     features: Dict[str, float]  # useful for logging
-
 
 # ----------------- Base class -----------------
 class BaseStrategy:
@@ -87,7 +79,6 @@ class BaseStrategy:
         dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False).mean()
         rs = up / (dn + 1e-12)
         return 100 - (100 / (1 + rs))
-
 
 # ----------------- “Naked” & Oscillator engines -----------------
 class OscillatorConfluence(BaseStrategy):
@@ -136,7 +127,11 @@ class OscillatorConfluence(BaseStrategy):
         rsi_ok = (rsi > 50) | ((rsi >= 48) & (rsi.diff() > 0))
         macd_up = hist.diff() > 0
         raw = float((kx & stoch_low & rsi_ok & macd_up).astype(int).iloc[-1])
-        s = 0.40 * raw + 0.25 * _sigmoid((rsi.iloc[-1] - 50) / 5) + 0.35 * _sigmoid(hist.iloc[-1] * 6)
+        s = (
+            0.40 * raw
+            + 0.25 * _sigmoid((rsi.iloc[-1] - 50) / 5)
+            + 0.35 * _sigmoid(hist.iloc[-1] * 6)
+        )
         s = _clip(2 * s - 1, -1, 1)
         reasons = [f"Stoch K∧D, RSI={rsi.iloc[-1]:.1f}, MACDΔ={hist.iloc[-1]:.3f}"]
         feats = {
@@ -146,7 +141,6 @@ class OscillatorConfluence(BaseStrategy):
             "d": float(q.iloc[-1]),
         }
         return {"score": s, "reasons": reasons, "features": feats}
-
 
 class NakedPriceAction(BaseStrategy):
     name = "naked_price"
@@ -164,7 +158,12 @@ class NakedPriceAction(BaseStrategy):
         lower_wick = (o - low).iloc[-1] if c >= o.iloc[-1] else (c - low).iloc[-1]
         score = 0.0
         why = []
-        if c.iloc[-2] < o.iloc[-2] and c.iloc[-1] > o.iloc[-1] and c.iloc[-1] > o.iloc[-2] and o.iloc[-1] < c.iloc[-2]:
+        if (
+            c.iloc[-2] < o.iloc[-2]
+            and c.iloc[-1] > o.iloc[-1]
+            and c.iloc[-1] > o.iloc[-2]
+            and o.iloc[-1] < c.iloc[-2]
+        ):
             score += 0.6
             why.append("Bullish engulfing")
         if lower_wick > self.body_mult * body and lower_wick > 0.6 * rng:
@@ -174,7 +173,6 @@ class NakedPriceAction(BaseStrategy):
         score = 2 * score - 1
         feats = {"rng": float(rng), "body": float(body), "lw": float(lower_wick)}
         return {"score": score, "reasons": why, "features": feats}
-
 
 # ----------------- Trend / Breakout engines -----------------
 class TrendSqueeze(BaseStrategy):
@@ -209,7 +207,6 @@ class TrendSqueeze(BaseStrategy):
         }
         return {"score": s, "reasons": reasons, "features": feats}
 
-
 class DonchianBreakout(BaseStrategy):
     name = "donchian"
 
@@ -231,7 +228,6 @@ class DonchianBreakout(BaseStrategy):
             "features": {"z": float(z.iloc[-1])},
         }
 
-
 class KeltnerBreakout(BaseStrategy):
     name = "keltner"
 
@@ -244,14 +240,15 @@ class KeltnerBreakout(BaseStrategy):
         atr = self._atr(df, 20)
         upper = ema + self.atr_mult * atr
         raw = float((df["close"].iloc[-1] > upper.iloc[-1]).astype(int))
-        s = 0.7 * raw + 0.3 * _sigmoid((df["close"].iloc[-1] - ema.iloc[-1]) / (atr.iloc[-1] + 1e-12))
+        s = 0.7 * raw + 0.3 * _sigmoid(
+            (df["close"].iloc[-1] - ema.iloc[-1]) / (atr.iloc[-1] + 1e-12)
+        )
         s = _clip(2 * s - 1, -1, 1)
         return {
             "score": s,
             "reasons": [f"Keltner breakout {self.ema_len}/{self.atr_mult}"],
             "features": {"atr": float(atr.iloc[-1]) if pd.notna(atr.iloc[-1]) else 0.0},
         }
-
 
 # ----------------- Reversion / Flow engines -----------------
 class VWAPBounce(BaseStrategy):
@@ -273,7 +270,6 @@ class VWAPBounce(BaseStrategy):
             "features": {"vwap_dist": float(dist.iloc[-1])},
         }
 
-
 class VolumeSpike(BaseStrategy):
     name = "vol_spike"
 
@@ -289,7 +285,6 @@ class VolumeSpike(BaseStrategy):
             "features": {"vol_z": float(z.iloc[-1])},
         }
 
-
 # ----------------- Regime / Session filters -----------------
 class VolRegime(BaseStrategy):
     name = "regime"
@@ -303,7 +298,6 @@ class VolRegime(BaseStrategy):
             "reasons": [f"Vol regime {(vol_norm.iloc[-1] or 0):.4f}"],
             "features": {"vol_norm": float(vol_norm.iloc[-1] or 0)},
         }
-
 
 class SessionBias(BaseStrategy):
     name = "session_bias"
@@ -320,7 +314,6 @@ class SessionBias(BaseStrategy):
             "reasons": [f"Session hour={hour} bias={bias:.1f}"],
             "features": {"hour": float(hour)},
         }
-
 
 # ----------------- Alpha Router -----------------
 class AlphaRouter:

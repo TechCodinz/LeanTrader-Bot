@@ -1,16 +1,14 @@
 # run_unified.py
-from __future__ import annotations
 
 import argparse
 
-from trader_core import TraderCore
 from traders_core.services.web3_bias_daemon import start as start_bias
 from traders_core.services.pnl_daemon import start as start_pnl
+
 try:
     from traders_core.services.ratio_arb_daemon import start as start_ratio_arb
 except Exception:
     start_ratio_arb = None
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -37,6 +35,7 @@ def main():
     # Start background services (lightweight)
     try:
         import os
+
         run_daemons = os.getenv("RUN_DAEMONS", "true").strip().lower() in ("1", "true", "yes", "on")
         if run_daemons:
             start_bias()
@@ -58,7 +57,6 @@ def main():
         bbw_th=args.bbw_th,
     )
     core.run_forever()
-
 
 if __name__ == "__main__":
     main()

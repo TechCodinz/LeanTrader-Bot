@@ -3,7 +3,6 @@ from datetime import datetime
 # Placeholder: in production, fetch from Forex Factory / Investing.com / Econoday / API.
 # Here we allow manually feeding events.
 
-
 class NewsCalendar:
     def __init__(self):
         self.events = []  # list of dict(time, impact, currency, desc)

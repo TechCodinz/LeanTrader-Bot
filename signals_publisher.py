@@ -9,8 +9,6 @@ Advanced signal publisher
 - Telegram push via tg_utils.send_signal(title, lines)
 """
 
-from __future__ import annotations
-
 import hashlib
 import hmac
 import json
@@ -31,7 +29,9 @@ except Exception:
 
 try:
     # if you maintain outcomes elsewhere you can import your writer here
-    from pattern_memory import set_outcome as pm_set_outcome  # (symbol, tf, entry_ts, outcome, label)
+    from pattern_memory import (
+        set_outcome as pm_set_outcome,
+    )  # (symbol, tf, entry_ts, outcome, label)
 except Exception:
     pm_set_outcome = None
 
@@ -42,7 +42,6 @@ except Exception:
 
     def tg_send(_: str, __: List[str]) -> bool:
         return False
-
 
 # ------------ config ------------
 Q_DIR: Path = Path(os.getenv("SIGNALS_QUEUE_DIR", "runtime"))
@@ -55,7 +54,11 @@ MINCONF: float = float(os.getenv("SIGNALS_MIN_CONF", "0.0"))
 # Ultra Pro mode toggles (opt-in via env)
 ULTRA_PRO_MODE: bool = os.getenv("ULTRA_PRO_MODE", "false").strip().lower() in ("1", "true", "yes")
 ULTRA_PRO_MINCONF: float = float(os.getenv("ULTRA_PRO_MINCONF", "0.7"))
-ULTRA_PRO_INLINE: bool = os.getenv("ULTRA_PRO_INLINE", "true").strip().lower() in ("1", "true", "yes")
+ULTRA_PRO_INLINE: bool = os.getenv("ULTRA_PRO_INLINE", "true").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
 ULTRA_PRO_PRIOR_WEIGHT: float = float(os.getenv("ULTRA_PRO_PRIOR_WEIGHT", "0.25"))
 
 WEBHOOK_URL = os.getenv("SIGNALS_WEBHOOK_URL", "").strip()
@@ -74,7 +77,6 @@ except Exception:
         from tg_utils import build_confirm_buttons as _build_confirm_buttons  # type: ignore
     except Exception:
         _build_confirm_buttons = None  # type: ignore
-
 
 # ------------ token bucket ------------
 class _Bucket:
@@ -95,10 +97,8 @@ class _Bucket:
             return True
         return False
 
-
 # instantiate module-level bucket
 _BUCKET = _Bucket(RATE_PM)
-
 
 def _queue_path() -> Path:
     if ROLL:
@@ -106,13 +106,11 @@ def _queue_path() -> Path:
         return Q_DIR / f"{Q_PREF}-{day}.ndjson"
     return Q_DIR / f"{Q_PREF}.ndjson"
 
-
 def _append_ndjson(payload: Dict[str, Any]) -> Path:
     path = _queue_path()
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(payload, ensure_ascii=False) + "\n")
     return path
-
 
 def _post_webhook(payload: Dict[str, Any]) -> bool:
     if not WEBHOOK_URL:
@@ -132,10 +130,8 @@ def _post_webhook(payload: Dict[str, Any]) -> bool:
         print("[webhook] error:", _e)
         return False
 
-
 def _fmt_price(x: float) -> str:
     return f"{x:.6f}".rstrip("0").rstrip(".")
-
 
 def _fingerprint(s: Dict[str, Any]) -> str:
     """Create a stable fingerprint for a signal dict."""
@@ -145,7 +141,6 @@ def _fingerprint(s: Dict[str, Any]) -> str:
     except Exception:
         return hashlib.sha1(str(s).encode("utf-8")).hexdigest()
 
-
 def _load_seen() -> Dict[str, float]:
     if SEEN_PATH.exists():
         try:
@@ -154,13 +149,11 @@ def _load_seen() -> Dict[str, float]:
             return {}
     return {}
 
-
 def _save_seen(seen: Dict[str, float]) -> None:
     try:
         SEEN_PATH.write_text(json.dumps(seen, ensure_ascii=False), encoding="utf-8")
     except Exception:
         pass
-
 
 def _validate_and_normalize(sig: Dict[str, Any]) -> Dict[str, Any]:
     """Minimal validation/normalization to keep behavior stable."""
@@ -183,7 +176,6 @@ def _validate_and_normalize(sig: Dict[str, Any]) -> Dict[str, Any]:
         out["confidence"] = 0.0
     return out
 
-
 def _q_emoji2(q: float) -> str:
     """ASCII/emoji confidence badge based on env TELEGRAM_ASCII."""
     ascii_only = os.getenv("TELEGRAM_ASCII", "false").strip().lower() in ("1", "true", "yes")
@@ -195,7 +187,6 @@ def _q_emoji2(q: float) -> str:
     if ascii_only:
         return f"Q{int(q*100):d}%"
     return "🟢" if q >= 0.75 else "🟡" if q >= 0.5 else "🟠" if q >= 0.25 else "⚪"
-
 
 def _render_for_telegram2(s: Dict[str, Any]) -> Tuple[str, List[str]]:
     """Clean renderer for Telegram message title + lines.
@@ -259,10 +250,8 @@ def _render_for_telegram2(s: Dict[str, Any]) -> Tuple[str, List[str]]:
 
     return title, lines
 
-
 def _q_emoji(q: float) -> str:
     return "🟢" if q >= 0.75 else "🟡" if q >= 0.5 else "🟠" if q >= 0.25 else "🔘"
-
 
 def _render_for_telegram(s: Dict[str, Any]) -> Tuple[str, List[str]]:
     mkt = s.get("market", "").upper()
@@ -321,7 +310,6 @@ def _render_for_telegram(s: Dict[str, Any]) -> Tuple[str, List[str]]:
 
     return title, lines
 
-
 # ------------ public API ------------
 def publish_signal(sig: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -354,10 +342,13 @@ def publish_signal(sig: Dict[str, Any]) -> Dict[str, Any]:
             prior_conf = 0.5 + max(0.0, min(1.0, winrate)) * 0.5
             s["context"] = list(s.get("context") or [])
             s["context"].insert(
-                0, f"Prior winrate {winrate*100:.1f}% avg_out {prior.get('avg_out', 0.0):.4f} n={prior.get('n', 0)}"
+                0,
+                f"Prior winrate {winrate*100:.1f}% avg_out {prior.get('avg_out', 0.0):.4f} n={prior.get('n', 0)}",
             )
             w = max(0.0, min(1.0, ultra_prior_w))
-            s["confidence"] = max(0.0, min(1.0, (1 - w) * float(s.get("confidence", 0.0)) + w * prior_conf))
+            s["confidence"] = max(
+                0.0, min(1.0, (1 - w) * float(s.get("confidence", 0.0)) + w * prior_conf)
+            )
         except Exception:
             pass
     if s["confidence"] < eff_minconf:
@@ -452,7 +443,10 @@ def publish_signal(sig: Dict[str, Any]) -> Dict[str, Any]:
 
                         # try common exchanges quickly (best-effort)
                         ex_used, rows = fetch_ohlcv_multi(
-                            ["binance", "bybit"], s.get("symbol"), timeframe=s.get("tf", "1m"), limit=150
+                            ["binance", "bybit"],
+                            s.get("symbol"),
+                            timeframe=s.get("tf", "1m"),
+                            limit=150,
                         )
                         ohlcv = rows
                     except Exception:
@@ -464,7 +458,9 @@ def publish_signal(sig: Dict[str, Any]) -> Dict[str, Any]:
                         1,
                         f"Trend: {snap.get('trend')} ({snap.get('trend_score'):.4f}) | RSI: {snap.get('rsi')} | ATR: {snap.get('atr')}",
                     )
-                    lines.insert(2, f"Momentum: {snap.get('momentum_pct')}% | Vol: {snap.get('volatility')}")
+                    lines.insert(
+                        2, f"Momentum: {snap.get('momentum_pct')}% | Vol: {snap.get('volatility')}"
+                    )
             except Exception:
                 pass
 
@@ -527,7 +523,6 @@ def publish_signal(sig: Dict[str, Any]) -> Dict[str, Any]:
 
     return {"ok": True, "id": fp, "path": str(path), "notified": notified}
 
-
 def publish_batch(signals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for s in signals:
@@ -536,7 +531,6 @@ def publish_batch(signals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         except Exception as _e:
             out.append({"ok": False, "error": str(_e)})
     return out
-
 
 # ------------ CLI quick test ------------
 if __name__ == "__main__":

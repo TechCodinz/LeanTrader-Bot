@@ -1,10 +1,7 @@
 from datetime import datetime, timedelta
 
-import pandas as pd
-
 # Placeholder: in production, fetch from Forex Factory / Investing.com / Econoday / API.
 # Here we allow manually feeding events.
-
 
 class NewsCalendar:
     def __init__(self):

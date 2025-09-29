@@ -1,16 +1,31 @@
-from __future__ import annotations
-
 import math
-from dataclasses import dataclass
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple
-
 
 def _norm_inv(p: float) -> float:
     """Inverse CDF for standard normal via approximation (Acklam)."""
     # pylint: disable=too-many-locals
-    a = [-3.969683028665376e01, 2.209460984245205e02, -2.759285104469687e02, 1.383577518672690e02, -3.066479806614716e01, 2.506628277459239e00]
-    b = [-5.447609879822406e01, 1.615858368580409e02, -1.556989798598866e02, 6.680131188771972e01, -1.328068155288572e01]
-    c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e00, -2.549732539343734e00, 4.374664141464968e00, 2.938163982698783e00]
+    a = [
+        -3.969683028665376e01,
+        2.209460984245205e02,
+        -2.759285104469687e02,
+        1.383577518672690e02,
+        -3.066479806614716e01,
+        2.506628277459239e00,
+    ]
+    b = [
+        -5.447609879822406e01,
+        1.615858368580409e02,
+        -1.556989798598866e02,
+        6.680131188771972e01,
+        -1.328068155288572e01,
+    ]
+    c = [
+        -7.784894002430293e-03,
+        -3.223964580411365e-01,
+        -2.400758277161838e00,
+        -2.549732539343734e00,
+        4.374664141464968e00,
+        2.938163982698783e00,
+    ]
     d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e00, 3.754408661907416e00]
     plow = 0.02425
     phigh = 1 - plow
@@ -26,10 +41,11 @@ def _norm_inv(p: float) -> float:
         )
     q = p - 0.5
     r = q * q
-    return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (
-        (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r) + 1
+    return (
+        (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5])
+        * q
+        / ((((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r) + 1)
     )
-
 
 def scenario(
     *,
@@ -55,8 +71,9 @@ def scenario(
     corr_mult = 1.0 + 0.3 * abs(o) + 0.7 * rec
     return {"mu_shift": mu_shift, "vol_mult": vol_mult, "corr_mult": corr_mult}
 
-
-def _portfolio_stats(w: Sequence[float], Sigma: Sequence[Sequence[float]], mu: Optional[Sequence[float]] = None) -> Tuple[float, float]:
+def _portfolio_stats(
+    w: Sequence[float], Sigma: Sequence[Sequence[float]], mu: Optional[Sequence[float]] = None
+) -> Tuple[float, float]:
     n = len(w)
     mu_p = 0.0
     if mu is not None:
@@ -69,8 +86,9 @@ def _portfolio_stats(w: Sequence[float], Sigma: Sequence[Sequence[float]], mu: O
     sigma = math.sqrt(max(var, 0.0))
     return mu_p, sigma
 
-
-def _scale_cov(Sigma: Sequence[Sequence[float]], vol_mult: float, corr_mult: float) -> List[List[float]]:
+def _scale_cov(
+    Sigma: Sequence[Sequence[float]], vol_mult: float, corr_mult: float
+) -> List[List[float]]:
     # Decompose Sigma into vol * corr * vol and rescale
     n = len(Sigma)
     vol = [math.sqrt(max(0.0, float(Sigma[i][i]))) for i in range(n)]
@@ -89,7 +107,6 @@ def _scale_cov(Sigma: Sequence[Sequence[float]], vol_mult: float, corr_mult: flo
             corr[i][j] = Sigma_ij
     return corr
 
-
 def _var_cvar(mu_p: float, sigma: float, alpha: float = 0.95) -> Tuple[float, float]:
     # Loss distribution L = -R, normal approximation
     z = _norm_inv(alpha)
@@ -98,7 +115,6 @@ def _var_cvar(mu_p: float, sigma: float, alpha: float = 0.95) -> Tuple[float, fl
     phi = math.exp(-0.5 * z * z) / math.sqrt(2 * math.pi)
     CVaR = -mu_p + sigma * (phi / (1 - alpha))
     return VaR, CVaR
-
 
 def run_scenarios(
     w: Sequence[float],
@@ -146,6 +162,4 @@ def run_scenarios(
         )
     return out
 
-
 __all__ = ["scenario", "run_scenarios"]
-

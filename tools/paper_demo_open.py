@@ -1,19 +1,17 @@
+from pathlib import Path
+
 """Open several paper trades quickly for demo/testing.
 
 Creates entries in runtime/open_trades.json using the project's ExchangeRouter
 when `EXCHANGE_ID=paper` (safe). Quantities are computed from notional/last price.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import pathlib
 import time
-from typing import Any, Dict, List
 
 from dotenv import load_dotenv
-
 
 def _read(path: pathlib.Path, default):
     try:
@@ -21,11 +19,9 @@ def _read(path: pathlib.Path, default):
     except Exception:
         return default
 
-
 def _write(path: pathlib.Path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
 
 def main():
     load_dotenv()
@@ -78,7 +74,6 @@ def main():
 
     _write(OPEN, rows)
     print(f"wrote {len(rows)} open trades to {OPEN}")
-
 
 if __name__ == "__main__":
     main()

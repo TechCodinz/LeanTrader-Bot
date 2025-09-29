@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -9,7 +8,6 @@ sys.path.insert(0, str(ROOT))
 from fastapi.testclient import TestClient  # noqa: E402
 
 import runtime.webhook_server as ws  # noqa: E402
-
 
 def run_once():
     test_uid = os.environ.get("TEST_UID", "5329503447")
@@ -19,7 +17,9 @@ def run_once():
     client = TestClient(ws.app)
 
     sig = f"dbg-run-{int(time.time())}"
-    payload = {"callback_query": {"id": "cb-dbg", "from": {"id": int(test_uid)}, "data": f"confirm:{sig}"}}
+    payload = {
+        "callback_query": {"id": "cb-dbg", "from": {"id": int(test_uid)}, "data": f"confirm:{sig}"}
+    }
     r = client.post("/telegram_webhook", json=payload)
     print("webhook status", r.status_code, r.json())
 
@@ -38,7 +38,6 @@ def run_once():
     # call execute endpoint with a bogus pin (we're only testing presence)
     r2 = client.post("/execute", json={"user_id": test_uid, "text": "/execute 0000"})
     print("/execute status", r2.status_code, r2.json())
-
 
 if __name__ == "__main__":
     run_once()

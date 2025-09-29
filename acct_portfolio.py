@@ -1,5 +1,4 @@
 # portfolio.py
-from __future__ import annotations
 
 import os
 from typing import Dict, List, Optional
@@ -18,11 +17,9 @@ try:
 except Exception:
     mt5 = None  # graceful if FX not used
 
-
 load_dotenv()
 
 # local imports are used inside functions to avoid top-level runtime dependencies
-
 
 # ---------- helpers ----------
 def _fmt_usd(x: float) -> str:
@@ -33,7 +30,6 @@ def _fmt_usd(x: float) -> str:
     if v >= 1_000:
         return f"{sign}${v:,.0f}"
     return f"{sign}${v:,.2f}"
-
 
 def _ensure_ccxt_exchange(exchange=None, exchange_id: Optional[str] = None):
     """
@@ -76,7 +72,6 @@ def _ensure_ccxt_exchange(exchange=None, exchange_id: Optional[str] = None):
             }
         )
         return ex
-
 
 def _estimate_in_quote(ex, asset: str, amount: float, quote: str = "USD") -> float:
     """
@@ -122,7 +117,6 @@ def _estimate_in_quote(ex, asset: str, amount: float, quote: str = "USD") -> flo
         except Exception:
             continue
     return 0.0
-
 
 # ---------- public: crypto balances ----------
 def ccxt_summary(exchange=None, exchange_id: Optional[str] = None, quote: str = "USD") -> List[str]:
@@ -172,7 +166,6 @@ def ccxt_summary(exchange=None, exchange_id: Optional[str] = None, quote: str = 
 
     lines.append(f"— estimated total: {_fmt_usd(total_quote)}")
     return lines
-
 
 # ---------- public: MT5 account summary ----------
 def mt5_summary() -> List[str]:

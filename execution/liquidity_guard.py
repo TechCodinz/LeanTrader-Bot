@@ -1,8 +1,3 @@
-from __future__ import annotations
-
-from typing import Any, Dict
-
-
 def estimate_price_impact_from_book(orderbook: Dict[str, Any], qty: float) -> float:
     """Estimate price impact in basis points using linearized slope from top-of-book.
 
@@ -21,7 +16,6 @@ def estimate_price_impact_from_book(orderbook: Dict[str, Any], qty: float) -> fl
         return float(max(0.0, bps))
     except Exception:
         return float("inf")
-
 
 def max_safe_qty(orderbook: Dict[str, Any], bps_cap: float) -> float:
     """Maximum qty such that estimated impact <= bps_cap.
@@ -43,7 +37,6 @@ def max_safe_qty(orderbook: Dict[str, Any], bps_cap: float) -> float:
     except Exception:
         return 0.0
 
-
 def _fetch_orderbook(venue: str, symbol: str) -> Dict[str, Any]:
     try:
         from traders_core.connectors.crypto_ccxt import _mk_exchange as mk_ex  # type: ignore
@@ -61,7 +54,6 @@ def _fetch_orderbook(venue: str, symbol: str) -> Dict[str, Any]:
     except Exception:
         return {"bid": 0.0, "bid_size": 0.0, "ask": 0.0, "ask_size": 0.0}
 
-
 def guard_order(symbol: str, venue: str, qty: float, bps_cap: float = 30.0) -> float:
     """Return a possibly reduced qty that respects the impact cap.
 
@@ -71,6 +63,4 @@ def guard_order(symbol: str, venue: str, qty: float, bps_cap: float = 30.0) -> f
     qmax = max_safe_qty(ob, float(bps_cap))
     return float(min(float(qty), qmax))
 
-
 __all__ = ["estimate_price_impact_from_book", "max_safe_qty", "guard_order"]
-

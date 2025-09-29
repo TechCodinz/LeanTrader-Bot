@@ -1,17 +1,12 @@
-from __future__ import annotations
-
 import json
 import math
 import os
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-import pandas as pd
 
 from features.pipeline import compute_mu_cov
 from allocators.portfolio import choose_assets
 from sizer import suggest_size
-
 
 def _next_day_returns(prices: pd.DataFrame, t: int) -> np.ndarray:
     # simple returns for day t+1 relative to t
@@ -22,8 +17,9 @@ def _next_day_returns(prices: pd.DataFrame, t: int) -> np.ndarray:
     r[~np.isfinite(r)] = 0.0
     return r
 
-
-def _weights_from_sizer(symbols: List[str], prices_row: pd.Series, selected_idx: np.ndarray, equity: float = 1.0) -> np.ndarray:
+def _weights_from_sizer(
+    symbols: List[str], prices_row: pd.Series, selected_idx: np.ndarray, equity: float = 1.0
+) -> np.ndarray:
     # Use existing suggest_size to map to notionals then normalize to weights
     notionals = []
     for i, sym in enumerate(symbols):
@@ -37,7 +33,10 @@ def _weights_from_sizer(symbols: List[str], prices_row: pd.Series, selected_idx:
         if not math.isfinite(entry) or entry <= 0:
             entry = 1.0
         sl = entry * 0.98
-        sized = suggest_size({"symbol": sym, "entry": entry, "sl": sl, "market": "crypto-spot", "tf": "1d"}, equity_usd=equity)
+        sized = suggest_size(
+            {"symbol": sym, "entry": entry, "sl": sl, "market": "crypto-spot", "tf": "1d"},
+            equity_usd=equity,
+        )
         notionals.append(float(sized.get("notional_usd") or 0.0))
     arr = np.asarray(notionals, dtype=float)
     tot = float(arr.sum())
@@ -49,7 +48,6 @@ def _weights_from_sizer(symbols: List[str], prices_row: pd.Series, selected_idx:
         return w
     return arr / tot
 
-
 def _ensure_binary(x: np.ndarray, budget: int) -> np.ndarray:
     x = np.asarray(x).reshape(-1)
     idx = np.argsort(-x)[: int(budget)]
@@ -57,8 +55,9 @@ def _ensure_binary(x: np.ndarray, budget: int) -> np.ndarray:
     out[idx] = 1
     return out
 
-
-def _quantum_select_direct(mu: np.ndarray, Sigma: np.ndarray, budget: int, seed: int) -> Optional[np.ndarray]:
+def _quantum_select_direct(
+    mu: np.ndarray, Sigma: np.ndarray, budget: int, seed: int
+) -> Optional[np.ndarray]:
     qpo = None
     for _mod in ("quantum_portfolio", "quantum", "traders_core.quantum_portfolio"):
         try:
@@ -72,13 +71,22 @@ def _quantum_select_direct(mu: np.ndarray, Sigma: np.ndarray, budget: int, seed:
         return None
     use_runtime = os.getenv("Q_USE_RUNTIME", "false").strip().lower() in ("1", "true", "yes", "on")
     try:
-        y = qpo(returns=mu, covariance=Sigma, budget=int(budget), reps=2, resilience_level=1, use_runtime=use_runtime, seed=int(seed))
+        y = qpo(
+            returns=mu,
+            covariance=Sigma,
+            budget=int(budget),
+            reps=2,
+            resilience_level=1,
+            use_runtime=use_runtime,
+            seed=int(seed),
+        )
         return _ensure_binary(np.asarray(y), budget)
     except Exception:
         return None
 
-
-def run_ab_backtest(prices_df: pd.DataFrame, budget: int = 10, window: int = 252, seed: int = 123) -> Dict[str, Dict[str, object]]:
+def run_ab_backtest(
+    prices_df: pd.DataFrame, budget: int = 10, window: int = 252, seed: int = 123
+) -> Dict[str, Dict[str, object]]:
     """Run A/B backtest comparing classical vs quantum allocator.
 
     Returns dict with keys: classical, quantum, meta. Each track contains
@@ -87,7 +95,7 @@ def run_ab_backtest(prices_df: pd.DataFrame, budget: int = 10, window: int = 252
     if prices_df is None or prices_df.empty:
         raise ValueError("prices_df is empty")
 
-    rng = np.random.default_rng(int(seed))
+    np.random.default_rng(int(seed))
     symbols = [str(c) for c in prices_df.columns]
     n_days = prices_df.shape[0]
     start = int(window)
@@ -168,7 +176,6 @@ def run_ab_backtest(prices_df: pd.DataFrame, budget: int = 10, window: int = 252
         },
     }
 
-
 def _main_cli():
     import argparse
 
@@ -201,7 +208,5 @@ def _main_cli():
         print(json.dumps({"error": str(e)}))
         return 1
 
-
 if __name__ == "__main__":
     raise SystemExit(_main_cli())
-

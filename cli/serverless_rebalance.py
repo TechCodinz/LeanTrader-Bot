@@ -7,15 +7,9 @@ Prints a single-line JSON summary on success, and exits 0.
 On failure, prints {"error": "..."} and exits 1.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import sys
-from typing import Optional
-
-import numpy as np
-import pandas as pd
 
 try:
     import click  # type: ignore
@@ -30,10 +24,8 @@ except Exception:
     def quantum_tail_estimator(returns_vec, cov_matrix, alpha=0.95, use_runtime=True):
         return {"alpha": alpha, "var": 0.0, "cvar": 0.0, "samples": 0, "method": "na"}
 try:
-    from config import IBM_MIN_QUBITS
 except Exception:
     IBM_MIN_QUBITS = 127
-
 
 def _load_prices(path: Optional[str]) -> pd.DataFrame:
     if path and os.path.exists(path):
@@ -53,7 +45,6 @@ def _load_prices(path: Optional[str]) -> pd.DataFrame:
         data[c] = 100 * np.cumprod(1.0 + steps)
     idx = pd.date_range(end=pd.Timestamp.utcnow().floor("min"), periods=300, freq="1min")
     return pd.DataFrame(data, index=idx)
-
 
 def _run(path: Optional[str], budget: int, regime: Optional[str], use_runtime: bool) -> int:
     try:
@@ -79,7 +70,6 @@ def _run(path: Optional[str], budget: int, regime: Optional[str], use_runtime: b
             if qpo is not None:
                 backend = None
                 try:
-                    from qiskit_ibm_runtime import QiskitRuntimeService  # type: ignore
 
                     token = os.getenv("IBM_QUANTUM_API_KEY", "").strip() or None
                     # channel default: ibm_quantum for public cloud
@@ -131,7 +121,6 @@ def _run(path: Optional[str], budget: int, regime: Optional[str], use_runtime: b
         print(json.dumps({"error": str(e)}))
         return 1
 
-
 if click:
 
     @click.command()
@@ -158,7 +147,6 @@ else:  # pragma: no cover
         args = p.parse_args()
         code = _run(args.data_csv, args.budget, args.regime, args.use_runtime)
         sys.exit(code)
-
 
 if __name__ == "__main__":
     main()

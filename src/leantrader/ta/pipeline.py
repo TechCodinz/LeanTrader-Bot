@@ -1,19 +1,10 @@
-from __future__ import annotations
-
 import os
-from typing import Dict
-
-import numpy as np
-import pandas as pd
-
 
 def _ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=int(max(1, n)), adjust=False).mean()
 
-
 def _sma(s: pd.Series, n: int) -> pd.Series:
     return s.rolling(int(max(1, n))).mean()
-
 
 def _rsi(close: pd.Series, n: int = 14) -> pd.Series:
     d = close.diff()
@@ -22,14 +13,12 @@ def _rsi(close: pd.Series, n: int = 14) -> pd.Series:
     rs = up / (dn.replace(0, np.nan))
     return 100.0 - (100.0 / (1.0 + rs))
 
-
 def _atr(high: pd.Series, low: pd.Series, close: pd.Series, n: int = 14) -> pd.Series:
     tr = pd.concat(
         [(high - low), (high - close.shift()).abs(), (low - close.shift()).abs()],
         axis=1,
     ).max(axis=1)
     return tr.rolling(n).mean()
-
 
 def _bollinger(close: pd.Series, n: int = 20) -> pd.DataFrame:
     ma = close.rolling(n).mean()
@@ -39,7 +28,6 @@ def _bollinger(close: pd.Series, n: int = 20) -> pd.DataFrame:
     bw = (upper - lower) / ma.replace(0, np.nan)
     return pd.DataFrame({"bb_mid": ma, "bb_up": upper, "bb_dn": lower, "bb_bw": bw})
 
-
 def _macd(close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
     f = _ema(close, fast)
     s = _ema(close, slow)
@@ -48,21 +36,22 @@ def _macd(close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> 
     hist = macd - sig
     return pd.DataFrame({"macd": macd, "macd_sig": sig, "macd_hist": hist})
 
-
 def _obv(close: pd.Series, vol: pd.Series) -> pd.Series:
     direction = np.sign(close.diff().fillna(0))
     return (direction * vol.fillna(0)).cumsum()
 
-
-def _stochastic(high: pd.Series, low: pd.Series, close: pd.Series, n: int = 14, smooth: int = 3) -> pd.DataFrame:
+def _stochastic(
+    high: pd.Series, low: pd.Series, close: pd.Series, n: int = 14, smooth: int = 3
+) -> pd.DataFrame:
     ll = low.rolling(n).min()
     hh = high.rolling(n).max()
     k = 100 * (close - ll) / (hh - ll).replace(0, np.nan)
     d = k.rolling(smooth).mean()
     return pd.DataFrame({"stoch_k": k, "stoch_d": d})
 
-
-def _supertrend(high: pd.Series, low: pd.Series, close: pd.Series, n: int = 10, mult: float = 3.0) -> pd.Series:
+def _supertrend(
+    high: pd.Series, low: pd.Series, close: pd.Series, n: int = 10, mult: float = 3.0
+) -> pd.Series:
     atr = _atr(high, low, close, n)
     hl2 = (high + low) / 2.0
     upper = hl2 + mult * atr
@@ -83,7 +72,6 @@ def _supertrend(high: pd.Series, low: pd.Series, close: pd.Series, n: int = 10, 
         prev = st.iloc[i]
     return st
 
-
 def _vwap(df: pd.DataFrame) -> pd.Series:
     # Requires volume
     if "volume" not in df.columns:
@@ -91,7 +79,6 @@ def _vwap(df: pd.DataFrame) -> pd.Series:
     pv = (df["close"] * df["volume"]).cumsum()
     vv = df["volume"].cumsum().replace(0, np.nan)
     return pv / vv
-
 
 def _normalize(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
@@ -103,7 +90,6 @@ def _normalize(df: pd.DataFrame) -> pd.DataFrame:
             out[c] = (s - m) / v
     return out
 
-
 def _asof_join(frames: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     # Align multiple TF frames by asof join on index
     keys = sorted(frames.keys())
@@ -113,9 +99,14 @@ def _asof_join(frames: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     for k in keys[1:]:
         df = frames[k].copy()
         df = df.add_suffix(f"_{k}")
-        out = pd.merge_asof(out.sort_index(), df.sort_index(), left_index=True, right_index=True, direction="backward")
+        out = pd.merge_asof(
+            out.sort_index(),
+            df.sort_index(),
+            left_index=True,
+            right_index=True,
+            direction="backward",
+        )
     return out
-
 
 def compute_ta(frames: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     """Compute multi-timeframe technical features from input OHLCV frames.

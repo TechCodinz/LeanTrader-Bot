@@ -2,15 +2,11 @@ import argparse
 import os
 import time
 
-import pandas as pd
-
 from .live.signal_service import generate_signals
-
 
 def csv_path(pair: str, tf: str) -> str:
     p = pair.replace("/", "")
     return f"data/ohlc/{p}_{tf}.csv"
-
 
 def load_frames(pair: str):
     frames = {}
@@ -21,7 +17,6 @@ def load_frames(pair: str):
             frames[tf] = df[["open", "high", "low", "close"]].sort_index()
     return frames
 
-
 def main():
     ap = argparse.ArgumentParser(description="LeanTrader CLI")
     ap.add_argument("--pair", default="EURUSD")
@@ -30,7 +25,9 @@ def main():
     args = ap.parse_args()
     frames = load_frames(args.pair)
     if not frames:
-        print("No data found. Put CSVs in data/ohlc/<PAIR>_<TF>.csv with columns: time,open,high,low,close")
+        print(
+            "No data found. Put CSVs in data/ohlc/<PAIR>_<TF>.csv with columns: time,open,high,low,close"
+        )
         return
     if args.loop:
         last_idx = None
@@ -43,7 +40,6 @@ def main():
     else:
         sigs = generate_signals(frames, args.pair)
         print(sigs.tail())
-
 
 if __name__ == "__main__":
     main()

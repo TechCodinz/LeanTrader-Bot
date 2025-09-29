@@ -1,8 +1,5 @@
 import random
 import time
-from dataclasses import dataclass
-from typing import Dict
-
 
 @dataclass
 class EmuOrder:
@@ -13,7 +10,6 @@ class EmuOrder:
     price: float
     filled: float = 0.0
     status: str = "submitted"
-
 
 class BrokerEmulator:
     def __init__(self, slippage_bps: float = 2.0, mean_latency_ms: int = 150):
@@ -36,7 +32,13 @@ class BrokerEmulator:
         time.sleep(0.05)
         filled2 = qty - filled1
         self.orders[oid] = EmuOrder(
-            id=oid, symbol=symbol, side=side, qty=qty, price=avg_fill_px, filled=qty, status="filled"
+            id=oid,
+            symbol=symbol,
+            side=side,
+            qty=qty,
+            price=avg_fill_px,
+            filled=qty,
+            status="filled",
         )
         return {
             "id": oid,

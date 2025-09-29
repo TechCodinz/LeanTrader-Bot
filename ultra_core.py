@@ -3,6 +3,12 @@ ultra_core.py
 Ultra Reasoning, Scanning, Planning, and Learning Engine for God Mode Trading Bot
 """
 
+# Optional heavy dependencies
+try:  # optional TF; not required for paper mode
+    import tensorflow as tf  # noqa: F401
+except Exception:
+    tf = None  # type: ignore
+
 import json
 import logging
 import os
@@ -10,30 +16,31 @@ import random
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional  # noqa: F401  # intentionally kept
-
-import numpy as np
-import pandas as pd
+from typing import Any, Dict, List
 
 # local helpers
 from ledger import log_entry
 
-# New imports for enhancements
+import numpy as np
+import pandas as pd
+
+from ultra_scout import UltraScout
+
+# New imports for enhancements (optional)
 try:
-    from tensorflow.keras.layers import LSTM, Dense
-    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import LSTM, Dense  # type: ignore
+    from tensorflow.keras.models import Sequential  # type: ignore
 
     lstm_model = Sequential([LSTM(50, input_shape=(10, 1)), Dense(1)])
     lstm_model.compile(loss="mean_squared_error", optimizer="adam")
-except ImportError:
+except Exception:
     lstm_model = None
 
-# Quantum-inspired imports
+# Quantum-inspired imports (optional)
 try:
-    from qiskit import Aer, QuantumCircuit, execute
-except ImportError:
-    Aer, execute, QuantumCircuit = None, None, None
-
+    from qiskit import Aer, QuantumCircuit, execute  # type: ignore
+except Exception:
+    Aer, execute, QuantumCircuit = None, None, None  # type: ignore
 
 class UltraCore:
     def ultra_advanced_cycle(self):
@@ -96,7 +103,6 @@ class UltraCore:
         self.knowledge_base = {}
         self.performance_log = []
         self.last_update = time.time()
-        from ultra_scout import UltraScout
 
         self.scout = UltraScout()
         # internal logger
@@ -108,10 +114,10 @@ class UltraCore:
         self.lstm_model = lstm_model
         try:
             import torch  # noqa: F401  # intentionally kept
-            import torch_geometric as pyg
+            from torch_geometric.nn import GCNConv  # type: ignore
 
-            self.gnn_model = pyg.nn.GCNConv(10, 1)  # Placeholder GNN
-        except ImportError:
+            self.gnn_model = GCNConv(10, 1)  # Placeholder GNN
+        except Exception:
             self.gnn_model = None
         self.anomaly_detector = None  # Will be set in scout_all if available
         try:
@@ -635,7 +641,6 @@ class UltraCore:
         if self.logger:
             self.logger.info(f"God mode cycle complete. Knowledge base: {self.knowledge_base}")
 
-
 # Ultra feature suggestions for future upgrades:
 # - Deep reinforcement learning for trade decision optimization
 # - NLP-based news sentiment analysis for market impact
@@ -644,3 +649,77 @@ class UltraCore:
 # - Automated strategy backtesting and self-tuning
 # - Multi-agent collaboration (swarm intelligence)
 # - Real-time anomaly detection and risk alerts
+
+# Integration functions for all ultra modules
+
+def integrate_god_mode(ultra_core: UltraCore):
+    """Integrate God Mode with core system"""
+    try:
+        from ultra_god_mode import UltraGodMode  # type: ignore
+        return UltraGodMode(ultra_core)
+    except Exception:
+        return None
+
+
+def integrate_moon_spotter(ultra_core: UltraCore):
+    """Integrate Moon Spotter with core system"""
+    try:
+        from ultra_moon_spotter import UltraMoonSpotter  # type: ignore
+        return UltraMoonSpotter(ultra_core)
+    except Exception:
+        return None
+
+
+def integrate_forex_master(ultra_core: UltraCore):
+    """Integrate Forex Master with core system"""
+    try:
+        from ultra_forex_master import UltraForexMaster  # type: ignore
+        return UltraForexMaster(ultra_core)
+    except Exception:
+        return None
+
+
+def integrate_telegram_master(ultra_core: UltraCore):
+    """Integrate Telegram Master with core system"""
+    try:
+        from ultra_telegram_master import UltraTelegramMaster  # type: ignore
+        return UltraTelegramMaster(ultra_core)
+    except Exception:
+        return None
+
+# New advanced trading engines
+
+def integrate_ultra_scalping_engine(ultra_core: UltraCore, risk_engine):
+    """Integrate Ultra Scalping Engine with core system"""
+    try:
+        from ultra_scalping_engine import UltraScalpingEngine
+        return UltraScalpingEngine(ultra_core, risk_engine)
+    except Exception:
+        return None
+
+
+def integrate_ultra_arbitrage_engine(ultra_core: UltraCore, risk_engine):
+    """Integrate Ultra Arbitrage Engine with core system"""
+    try:
+        from ultra_arbitrage_engine import UltraArbitrageEngine
+        return UltraArbitrageEngine(ultra_core, risk_engine)
+    except Exception:
+        return None
+
+
+def integrate_ultra_continuous_trading(ultra_core: UltraCore, risk_engine):
+    """Integrate Ultra Continuous Trading Orchestrator with core system"""
+    try:
+        from ultra_continuous_trading import UltraContinuousTradingOrchestrator
+        return UltraContinuousTradingOrchestrator(ultra_core, risk_engine)
+    except Exception:
+        return None
+
+
+def integrate_november_growth_strategy(ultra_core: UltraCore, risk_engine):
+    """Integrate November Growth Strategy with core system"""
+    try:
+        from november_growth_strategy import NovemberGrowthStrategy
+        return NovemberGrowthStrategy(ultra_core, risk_engine)
+    except Exception:
+        return None

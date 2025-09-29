@@ -1,8 +1,6 @@
 # brain_loop.py
 # Orchestrates: scan → enrich/score → plan(size/targets) → (optional trade) → publish → remember
 
-from __future__ import annotations
-
 import json
 import os
 import random
@@ -10,15 +8,22 @@ import threading
 import time
 import traceback
 from dataclasses import dataclass
-from datetime import datetime  # noqa: F401
 from typing import Any, Dict, List, Optional
 
 import numpy as np  # Added for ML arrays
 
+# scanner shim (optional import)
+try:
+    import signals_scanner as scanner
+except Exception:
+    class _S:
+        @staticmethod
+        def run_once(args):
+            return []
+
+    scanner = _S()  # type: ignore
+
 # ---- dependencies in your repo ----
-import signals_scanner as scanner
-from pattern_memory import FEATS, features, get_score, recall, record
-from signals_publisher import publish_batch
 
 # session-weighted sizing/targets (+ optional OCO helpers)
 try:
@@ -27,15 +32,15 @@ except Exception:
     equity_from_router = None
 
 try:
-    from trade_planner import attach_plan, place_oco_ccxt_safe
+    from planner import attach_plan  # your module if present
+    from planner import place_oco_ccxt_safe  # optional OCO
 except Exception:
 
     def attach_plan(sig: Dict[str, Any], equity: float) -> Dict[str, Any]:
         return sig
 
     def place_oco_ccxt_safe(*a, **k):
-        pass
-
+        return None
 
 # Router for CCXT autotrade
 try:
@@ -57,27 +62,24 @@ except Exception:
     def heartbeat(_: list) -> None:
         return None
 
-
 # New imports for enhancements
 try:
-    import xgboost as xgb  # For ML-based confidence blending
+    import xgboost as xgb  # optional
 
     xgb_model = xgb.XGBRegressor()
-except ImportError:
+except Exception:
     xgb_model = None
 
 try:
     from news_bias import news_bias  # Assuming this exists or fallback
-except ImportError:
+except Exception:
 
     def news_bias(symbol, market):
         return {"bias": 0.0, "reason": "stub"}
 
-
 # =================== ENV HELPERS ===================
 def env_b(k: str, d: bool) -> bool:
     return os.getenv(k, str(d)).strip().lower() in ("1", "true", "yes", "y", "on")
-
 
 def env_f(k: str, d: float) -> float:
     try:
@@ -85,13 +87,11 @@ def env_f(k: str, d: float) -> float:
     except Exception:
         return d
 
-
 def env_i(k: str, d: int) -> int:
     try:
         return int(float(os.getenv(k, str(d))))
     except Exception:
         return d
-
 
 # =================== CONFIG ===================
 THINK_TOP = env_i("THINK_TOP", env_i("TOP_N", 7))
@@ -103,7 +103,6 @@ THINK_REPEAT = env_i("THINK_REPEAT", 60)
 AUTO_TRADE = env_b("LIVE_AUTOTRADE", False)  # if True, place OCO on CCXT
 AUTO_TRADE_MIN_QTY = env_f("AUTOTRADE_MIN_QTY", 0.0)
 
-
 # =================== SCAN ARGS SHIM ===================
 @dataclass
 class ScanArgs:
@@ -113,7 +112,6 @@ class ScanArgs:
     repeat: int = 0
     publish: bool = False  # scanner never publishes
 
-
 # =================== ENRICHMENT ===================
 def _attach_feats(sig: Dict[str, Any]) -> None:
     if isinstance(sig.get("feats"), dict):
@@ -121,6 +119,8 @@ def _attach_feats(sig: Dict[str, Any]) -> None:
     df = sig.get("df") or sig.get("df_now")
     if df is not None:
         try:
+            from pattern_memory import FEATS, features
+
             sig["feats"] = {k: float(features(df).get(k, 0.0)) for k in FEATS}
         except Exception as _e:
             # preserve signal but note the failure
@@ -129,11 +129,15 @@ def _attach_feats(sig: Dict[str, Any]) -> None:
             except Exception:
                 pass
 
-
 def _blend_confidence(sig: Dict[str, Any]) -> float:
     # Enhanced: ML-based blending with XGBoost
     base = float(sig.get("confidence", sig.get("quality", 0.0)) or 0.0)
-    prior = get_score(sig)
+    try:
+        from pattern_memory import get_score, recall
+
+        prior = get_score(sig)
+    except Exception:
+        prior = {"winrate": 0.5, "avg_out": 0.0, "n": 0}
     if xgb_model and sig.get("feats"):
         try:
             X = np.array(list(sig["feats"].values())).reshape(1, -1)
@@ -146,7 +150,10 @@ def _blend_confidence(sig: Dict[str, Any]) -> float:
         pw = 0.4 if prior.get("n", 0) < 50 else 0.6
         prior_conf = 2.0 * (float(prior.get("winrate", 0.5)) - 0.5)
         try:
-            ctx = recall(sig["symbol"], sig["tf"], sig.get("df") or sig.get("df_now"), k=200)
+            try:
+                ctx = recall(sig["symbol"], sig["tf"], sig.get("df") or sig.get("df_now"), k=200)
+            except Exception:
+                ctx = {}
             prior_conf = max(prior_conf, 2.0 * (ctx.get("winrate", 50.0) / 100.0 - 0.5))
             if ctx.get("note"):
                 sig.setdefault("context", []).append(ctx["note"])
@@ -156,7 +163,6 @@ def _blend_confidence(sig: Dict[str, Any]) -> float:
     sig["confidence"] = blended
     sig.setdefault("quality", blended)
     return blended
-
 
 # =================== NORMALIZE FOR PUBLISHER ===================
 def _normalize_for_publisher(sig: Dict[str, Any]) -> Dict[str, Any]:
@@ -193,10 +199,8 @@ def _normalize_for_publisher(sig: Dict[str, Any]) -> Dict[str, Any]:
             out[k] = 0.0
     return out
 
-
 # =================== COOLDOWN ===================
 _last_symbol_ts: Dict[str, float] = {}
-
 
 def _cooldown_ok(symbol: str, now: float, cd_sec: int) -> bool:
     t = _last_symbol_ts.get(symbol)
@@ -205,10 +209,8 @@ def _cooldown_ok(symbol: str, now: float, cd_sec: int) -> bool:
         return True
     return False
 
-
 # =================== AUTOTRADE (CCXT) ===================
 _ccxt_router: Optional[Any] = None
-
 
 def _router() -> Optional[Any]:
     global _ccxt_router
@@ -218,7 +220,6 @@ def _router() -> Optional[Any]:
         except Exception:
             _ccxt_router = None
     return _ccxt_router
-
 
 def _equity_now_fallback(router: Optional[Any]) -> float:
     """Use risk_engine.equity_from_router if available, else do a cheap parse."""
@@ -235,7 +236,6 @@ def _equity_now_fallback(router: Optional[Any]) -> float:
         return total if total > 0 else 5000.0
     except Exception:
         return 5000.0
-
 
 def _maybe_autotrade(picks: List[Dict[str, Any]]) -> None:
     # Enhanced: Slippage handling
@@ -265,7 +265,6 @@ def _maybe_autotrade(picks: List[Dict[str, Any]]) -> None:
                 )
         except Exception as _e:
             send_text(f"⚠️ Autotrade error {s.get('symbol')}: {_e}")
-
 
 def _fill_missing_price(sig: Dict[str, Any], router: Optional[Any]) -> Dict[str, Any]:
     """Best-effort: populate missing entry/sl using router tickers or recent OHLCV.
@@ -340,7 +339,6 @@ def _fill_missing_price(sig: Dict[str, Any], router: Optional[Any]) -> Dict[str,
 
     return out
 
-
 # =================== ONE THINK CYCLE ===================
 def think_once() -> List[Dict[str, Any]]:
     raw = scanner.run_once(ScanArgs())
@@ -412,17 +410,22 @@ def think_once() -> List[Dict[str, Any]]:
         try:
             df = s.get("df")
             if df is not None:
-                record(
-                    s["symbol"],
-                    s.get("tf") or os.getenv("SCAN_TF", "5m"),
-                    df,
-                    float(s["entry"]),
-                    meta={
-                        "side": s["side"],
-                        "market": s.get("market", "?"),
-                        "conf": float(s.get("confidence", 0.0)),
-                    },
-                )
+                try:
+                    from pattern_memory import record as _pm_record
+
+                    _pm_record(
+                        s["symbol"],
+                        s.get("tf") or os.getenv("SCAN_TF", "5m"),
+                        df,
+                        float(s["entry"]),
+                        meta={
+                            "side": s["side"],
+                            "market": s.get("market", "?"),
+                            "conf": float(s.get("confidence", 0.0)),
+                        },
+                    )
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -476,6 +479,8 @@ def think_once() -> List[Dict[str, Any]]:
     # publish (Telegram/webhook/queue handled by publisher)
     if filtered:
         try:
+            from signals_publisher import publish_batch
+
             publish_batch(filtered)
         except Exception:
             pass
@@ -488,7 +493,6 @@ def think_once() -> List[Dict[str, Any]]:
             pass
 
     return filtered
-
 
 def beautiful_telegram_notification(signals: List[Dict[str, Any]]):
     """Safe, module-level pretty Telegram notifications with emoji + graceful fallback."""
@@ -509,7 +513,6 @@ def beautiful_telegram_notification(signals: List[Dict[str, Any]]):
         except Exception:
             continue
 
-
 def multi_timeframe_session_spotting(
     signals: List[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
@@ -527,14 +530,12 @@ def multi_timeframe_session_spotting(
                 continue
     return enhanced_signals
 
-
 def _analyze_tf(symbol: str, tf: str) -> bool:
     """Cheap placeholder multi-TF analyzer (stochastic fallback)."""
     try:
         return random.random() > 0.5
     except Exception:
         return False
-
 
 def profit_summary_notification(trades: List[Dict[str, Any]]):
     """Module-level profit summary via Telegram (safe)."""
@@ -551,7 +552,6 @@ def profit_summary_notification(trades: List[Dict[str, Any]]):
     except Exception:
         pass
 
-
 def health_check() -> bool:
     """Simple health check stub (module-level)."""
     try:
@@ -559,7 +559,6 @@ def health_check() -> bool:
         return True
     except Exception:
         return False
-
 
 # =================== LOOP ===================
 def main() -> None:
@@ -583,7 +582,6 @@ def main() -> None:
         except Exception:
             traceback.print_exc()
         time.sleep(THINK_REPEAT)
-
 
 if __name__ == "__main__":
     main()

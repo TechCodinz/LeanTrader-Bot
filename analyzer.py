@@ -1,9 +1,4 @@
 # analyzer.py
-from __future__ import annotations
-
-import numpy as np
-import pandas as pd
-
 
 def instant_analysis(df: pd.DataFrame, symbol: str) -> str:
     if df is None or df.empty:

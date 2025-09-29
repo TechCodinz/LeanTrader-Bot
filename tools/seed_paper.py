@@ -1,15 +1,14 @@
+from pathlib import Path
+
 """Seed the PaperBroker holdings so reconciliation and partial closes can succeed.
 
 This is safe in paper mode. It sets holdings for a few bases and persists state.
 """
 
-from __future__ import annotations
-
 import json
 import pathlib
 
 from traders_core.router import ExchangeRouter
-
 
 def main():
     r = ExchangeRouter()
@@ -45,7 +44,6 @@ def main():
             print("persisted fallback to runtime/paper_state.json")
         except Exception as e:
             print("fallback persist failed:", e)
-
 
 if __name__ == "__main__":
     main()

@@ -1,19 +1,15 @@
-apscheduler
+numpy
+pandas
+ccxt
+requests
+prometheus_client
 fastapi
 uvicorn
-ccxt
-pandas
-numpy
-python-dotenv
-flake8
-pytest
-mplfinance
-matplotlib
-requests
-pillow
-feedparser
-vaderSentiment
-# optional but useful for news_harvest auto VADER download
-nltk
-python-dotenv
-pytest
+qiskit==1.2.2; python_version >= '3.10'  # optional, guarded
+streamlit  # optional, guarded
+scikit-learn
+xgboost
+lightgbm
+TA-Lib
+tensorflow==2.16.2; platform_system != 'Windows'  # optional heavy, guarded
+# On Windows, install tensorflow-cpu manually if desired

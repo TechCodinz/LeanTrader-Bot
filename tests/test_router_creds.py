@@ -1,6 +1,5 @@
 from router import ExchangeRouter
 
-
 def test_refuse_live_without_creds(monkeypatch):
     # Simulate environment where live flags are set but no API creds provided
     monkeypatch.setenv("EXCHANGE_ID", "paper")

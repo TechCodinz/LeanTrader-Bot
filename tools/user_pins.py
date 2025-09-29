@@ -6,8 +6,6 @@ Provides generate_pin(user_id) and verify_pin(user_id, pin).
 This is minimal and intended for small scale; for production use a secure KVS and proper secret handling.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 import secrets
@@ -18,7 +16,6 @@ from typing import Any, Dict
 ROOT = Path(__file__).resolve().parent.parent
 STORE = ROOT / "runtime" / "users.json"
 
-
 def _load() -> Dict[str, Any]:
     try:
         if STORE.exists():
@@ -27,7 +24,6 @@ def _load() -> Dict[str, Any]:
         pass
     return {}
 
-
 def _save(d: Dict[str, Any]) -> None:
     try:
         STORE.parent.mkdir(parents=True, exist_ok=True)
@@ -35,12 +31,10 @@ def _save(d: Dict[str, Any]) -> None:
     except Exception:
         pass
 
-
 def _hash_pin(pin: str, salt: bytes) -> str:
     # use PBKDF2-HMAC-SHA256
     dk = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt, 100_000)
     return dk.hex()
-
 
 def generate_pin(user_id: str, length: int = 6) -> str:
     """Generate a numeric PIN, store its hash, and return the plain PIN once."""
@@ -58,7 +52,6 @@ def generate_pin(user_id: str, length: int = 6) -> str:
     _save(d)
     return pin
 
-
 def verify_pin(user_id: str, pin: str) -> bool:
     uid = str(user_id)
     d = _load()
@@ -72,14 +65,12 @@ def verify_pin(user_id: str, pin: str) -> bool:
     except Exception:
         return False
 
-
 def revoke_pin(user_id: str) -> None:
     uid = str(user_id)
     d = _load()
     if uid in d:
         d[uid]["active"] = False
         _save(d)
-
 
 if __name__ == "__main__":
     import sys

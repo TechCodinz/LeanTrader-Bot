@@ -1,10 +1,6 @@
-from __future__ import annotations
-
-from typing import Tuple
-
 import numpy as np
+from typing import Tuple
 import pandas as pd
-
 
 def ensure_psd(Sigma: np.ndarray, eps: float = 1e-8) -> np.ndarray:
     """Ensure covariance matrix is positive semi-definite via eigenvalue floor.
@@ -22,7 +18,6 @@ def ensure_psd(Sigma: np.ndarray, eps: float = 1e-8) -> np.ndarray:
     except Exception:
         n = A.shape[0]
         return np.eye(n, dtype=float) * eps
-
 
 def compute_mu_cov(
     df: "pd.DataFrame",
@@ -83,6 +78,4 @@ def compute_mu_cov(
 
     return mu.reshape(-1), Sigma
 
-
 __all__ = ["compute_mu_cov", "ensure_psd"]
-

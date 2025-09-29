@@ -3,7 +3,6 @@ import os
 from .broker_fx_mt5 import MT5Broker
 from .broker_fx_oanda import OandaBroker
 
-
 class FXBroker:
     def __init__(self, api_key: str = "", api_secret: str = "", **kwargs):
         self.backend = (os.getenv("FX_BACKEND", "oanda")).lower()

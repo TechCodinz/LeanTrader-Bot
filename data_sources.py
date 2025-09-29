@@ -1,5 +1,4 @@
 # data_sources.py
-from __future__ import annotations
 
 import os  # noqa: F401
 import random
@@ -12,7 +11,9 @@ except Exception:  # pragma: no cover
     ccxt = None
 
 USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " "AppleWebKit/537.36 (KHTML, like Gecko) " "Chrome/124.0 Safari/537.36"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/124.0 Safari/537.36"
 )
 
 # ---------------------------------------------------------------------
@@ -29,10 +30,8 @@ EX_ROUTES: Dict[str, List[str]] = {
     "gateio": ["kraken", "okx", "kucoin", "binance"],
 }
 
-
 def _has_ccxt() -> bool:
     return ccxt is not None
-
 
 def _build_ex(ex_id: str):
     """
@@ -68,7 +67,6 @@ def _build_ex(ex_id: str):
         cfg["secret"] = env_sec
     return klass(cfg)
 
-
 def _map_symbol_for(ex_id: str, symbol: str) -> str:
     """
     Map 'BASE/USD' -> 'BASE/USDT' for venues that mainly quote in USDT.
@@ -84,7 +82,6 @@ def _map_symbol_for(ex_id: str, symbol: str) -> str:
     if ex_id in ("binanceus", "binance", "bybit", "okx", "kucoin", "gateio") and quote == "USD":
         return f"{base}/USDT"
     return symbol
-
 
 def _is_geo_or_cred_error(e: Exception) -> bool:
     s = str(e).lower()
@@ -103,7 +100,6 @@ def _is_geo_or_cred_error(e: Exception) -> bool:
             "not available in your country",
         ]
     )
-
 
 def fetch_ohlcv_router(
     ex_primary,
@@ -172,5 +168,56 @@ def fetch_ohlcv_router(
             tried.append(ex_id)
             continue
     # If we reach here no route returned data; return empty list rather than raise so callers can handle gracefully
-    print(f"[data_sources] fetch_ohlcv_router no data for {symbol}@{timeframe}; tried={tried}; last_err={last_err}")
+    print(
+        f"[data_sources] fetch_ohlcv_router no data for {symbol}@{timeframe}; tried={tried}; last_err={last_err}"
+    )
     return []
+
+# Data source classes for external data integration
+class EconomicCalendarSource:
+    """Source for economic calendar data."""
+
+    def __init__(self):
+        self.name = "economic_calendar"
+
+    def fetch_events(self, start_date=None, end_date=None):
+        """Fetch economic calendar events."""
+        return []
+
+class FundingRateSource:
+    """Source for funding rate data."""
+
+    def __init__(self):
+        self.name = "funding_rate"
+
+    def fetch_rates(self, symbol=None):
+        """Fetch funding rates."""
+        return []
+
+class NewsSentimentSource:
+    """Source for news sentiment data."""
+
+    def __init__(self):
+        self.name = "news_sentiment"
+
+    def fetch_sentiment(self, symbol=None, limit=10):
+        """Fetch news sentiment data."""
+        return []
+
+class OnchainMetricSource:
+    """Source for on-chain metrics data."""
+
+    def __init__(self):
+        self.name = "onchain_metrics"
+
+    def fetch_metrics(self, symbol=None):
+        """Fetch on-chain metrics."""
+        return []
+
+def merge_externals(*sources):
+    """Merge data from multiple external sources."""
+    merged = []
+    for source in sources:
+        if hasattr(source, 'data'):
+            merged.extend(source.data)
+    return merged

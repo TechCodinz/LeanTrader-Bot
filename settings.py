@@ -1,11 +1,9 @@
 import os
-from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
 # Load .env file if present (local dev); in Codex, Secrets are already env vars
 load_dotenv()
-
 
 @dataclass
 class Settings:
@@ -32,7 +30,6 @@ class Settings:
 
     # === System ===
     python_unbuffered: int = int(os.getenv("PYTHONUNBUFFERED", "1"))
-
 
 # Create global settings object
 settings = Settings()

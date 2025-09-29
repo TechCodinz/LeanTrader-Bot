@@ -1,17 +1,15 @@
-import pandas as pd
-
 try:
     import ccxt
 except Exception:
     ccxt = None
 
-
 def get_ohlc_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, parse_dates=["time"], index_col="time")
     return df[["open", "high", "low", "close"]].sort_index()
 
-
-def get_ohlc_ccxt(exchange: str, symbol: str, timeframe: str = "15m", limit: int = 1000) -> pd.DataFrame:
+def get_ohlc_ccxt(
+    exchange: str, symbol: str, timeframe: str = "15m", limit: int = 1000
+) -> pd.DataFrame:
     assert ccxt is not None, "ccxt not installed"
     ex = getattr(ccxt, exchange)()
     ex.load_markets()
@@ -21,13 +19,24 @@ def get_ohlc_ccxt(exchange: str, symbol: str, timeframe: str = "15m", limit: int
     df.set_index("time", inplace=True)
     return df[["open", "high", "low", "close"]].sort_index()
 
-
 def resample_frames(df: pd.DataFrame) -> dict:
     # build aligned frames on M15 index
     m15 = df
-    h1 = m15.resample("60T").agg({"open": "first", "high": "max", "low": "min", "close": "last"}).dropna()
-    h4 = m15.resample("240T").agg({"open": "first", "high": "max", "low": "min", "close": "last"}).dropna()
-    d1 = m15.resample("1D").agg({"open": "first", "high": "max", "low": "min", "close": "last"}).dropna()
+    h1 = (
+        m15.resample("60T")
+        .agg({"open": "first", "high": "max", "low": "min", "close": "last"})
+        .dropna()
+    )
+    h4 = (
+        m15.resample("240T")
+        .agg({"open": "first", "high": "max", "low": "min", "close": "last"})
+        .dropna()
+    )
+    d1 = (
+        m15.resample("1D")
+        .agg({"open": "first", "high": "max", "low": "min", "close": "last"})
+        .dropna()
+    )
     # forward align to m15 index
     frames = {
         "M15": m15,

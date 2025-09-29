@@ -1,27 +1,31 @@
-from __future__ import annotations
-
+import numpy as np
 from typing import Optional
 
-import numpy as np
 try:
     from observability.metrics import record_ensemble_lambda
 except Exception:  # pragma: no cover
+
     def record_ensemble_lambda(val: float):
         return None
+
 try:
     from observability.metrics import ENSEMBLE_LAMBDA_CAP_G, record_ensemble_lambda_cap
 except Exception:  # pragma: no cover
     ENSEMBLE_LAMBDA_CAP_G = None  # type: ignore
+
     def record_ensemble_lambda_cap(val: float):
         return None
+
 try:
     from ops.auto_throttle import get_lambda_cap
 except Exception:  # pragma: no cover
+
     def get_lambda_cap(default=None):
         return default
 
-
-def blend_weights(w_q: np.ndarray, w_c: np.ndarray, lam: float = 0.5, norm: bool = True) -> np.ndarray:
+def blend_weights(
+    w_q: np.ndarray, w_c: np.ndarray, lam: float = 0.5, norm: bool = True
+) -> np.ndarray:
     """Linear blend of quantum and classical weights.
 
     w = lam * w_q + (1 - lam) * w_c
@@ -40,7 +44,6 @@ def blend_weights(w_q: np.ndarray, w_c: np.ndarray, lam: float = 0.5, norm: bool
         if s > 0:
             w = w / s
     return w
-
 
 def regime_weight_lambda(regime: Optional[str]) -> float:
     """Return blending lambda based on regime.
@@ -74,6 +77,5 @@ def regime_weight_lambda(regime: Optional[str]) -> float:
     except Exception:
         pass
     return lam
-
 
 __all__ = ["blend_weights", "regime_weight_lambda"]

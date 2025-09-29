@@ -4,13 +4,9 @@ Auto trading loop (polling-based). Replace CSV input with live feeds & broker fo
 
 import os
 import time
-from typing import Dict
-
-import pandas as pd
 
 from ..data.feeds import get_ohlc_csv, resample_frames
 from .signal_service import generate_signals
-
 
 def autotrade(pair: str, m15_csv: str, sleep_s: int = 30):
     while True:

@@ -1,7 +1,6 @@
 # lightweight runner to call signals_scanner.run_once under programmatic env
 import os
 import sys
-from types import SimpleNamespace
 
 sys.path.insert(0, r"C:\Users\User\Downloads\LeanTrader_ForexPack")
 # ensure dry-run paper exchange

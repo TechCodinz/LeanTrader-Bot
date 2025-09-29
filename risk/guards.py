@@ -1,9 +1,6 @@
-from __future__ import annotations
-
 import datetime as dt
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Tuple
-
 
 @dataclass
 class RiskLimits:
@@ -11,7 +8,6 @@ class RiskLimits:
     max_daily_loss: float
     max_account_drawdown: float
     pct: bool = True
-
 
 class GuardState:
     def __init__(self) -> None:
@@ -69,17 +65,18 @@ class GuardState:
         # Account drawdown from peak
         if self.peak_equity > 0:
             dd = 1.0 - (eq / self.peak_equity)
-            if dd >= abs(limits.max_account_drawdown if limits.pct else limits.max_account_drawdown / max(1e-9, self.peak_equity)):
+            if dd >= abs(
+                limits.max_account_drawdown
+                if limits.pct
+                else limits.max_account_drawdown / max(1e-9, self.peak_equity)
+            ):
                 reasons.append(f"drawdown:{dd:.4f}>={abs(limits.max_account_drawdown):.4f}")
 
         return reasons
-
 
 def should_halt_trading(state: GuardState, limits: RiskLimits) -> Tuple[bool, List[str]]:
     reasons = state.trip_reasons(limits)
     return (len(reasons) > 0, reasons)
 
-
 class HaltTrading(Exception):
     """Soft exception to signal routing halt due to risk guards."""
-

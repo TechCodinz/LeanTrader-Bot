@@ -1,10 +1,7 @@
 # build_universe.py
-from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
-
 
 def build(exchange_id: str, quotes=("USDT", "USD"), min_cost_usd: float = 5.0):
     # Prefer ExchangeRouter when possible so markets are loaded via the safe wrapper
@@ -12,7 +9,10 @@ def build(exchange_id: str, quotes=("USDT", "USD"), min_cost_usd: float = 5.0):
         from router import ExchangeRouter
 
         router = ExchangeRouter()
-        if getattr(router, "ex", None) and getattr(router.ex, "id", "").lower() == exchange_id.lower():
+        if (
+            getattr(router, "ex", None)
+            and getattr(router.ex, "id", "").lower() == exchange_id.lower()
+        ):
             ex = router
         else:
             raise Exception("router mismatch")
@@ -47,7 +47,6 @@ def build(exchange_id: str, quotes=("USDT", "USD"), min_cost_usd: float = 5.0):
     outf = outdir / f"symbols_{exchange_id}.json"
     outf.write_text(json.dumps({"exchange": exchange_id, "symbols": syms}, indent=2))
     print(f"wrote {len(syms)} symbols -> {outf}")
-
 
 if __name__ == "__main__":
     for ex in ("bybit", "kraken", "binanceus"):

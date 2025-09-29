@@ -1,7 +1,5 @@
-import numpy as np
-
 from allocators.sizing import vol_scaled_weights, apply_exposure_caps
-
+import numpy as np
 
 def test_vol_scaled_obeys_mask_and_sums():
     mu = np.array([0.01, 0.02, 0.015])
@@ -14,7 +12,6 @@ def test_vol_scaled_obeys_mask_and_sums():
     s = float(np.sum(np.abs(w)))
     assert abs(s - 1.0) < 1e-6
 
-
 def test_sector_caps_respected():
     # initial equal weights
     w = np.array([0.34, 0.33, 0.33])
@@ -26,4 +23,3 @@ def test_sector_caps_respected():
     # sector A sum <= 0.6
     a_sum = float(w_cap[0] + w_cap[1])
     assert a_sum <= 0.600001
-

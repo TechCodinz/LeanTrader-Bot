@@ -4,19 +4,15 @@ This script avoids package import quirks by adding the project root to sys.path
 and calling the helper functions directly. It prints step-by-step output.
 """
 
-from __future__ import annotations
-
 import os
 import sys
 import time
 import traceback
-from pathlib import Path
 
 # ensure project root on sys.path
 proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if proj_root not in sys.path:
     sys.path.insert(0, proj_root)
-
 
 def _append_log(line: str) -> None:
     try:
@@ -26,7 +22,6 @@ def _append_log(line: str) -> None:
             f.write(f"{line}\n")
     except Exception:
         pass
-
 
 def main():
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -120,7 +115,6 @@ def main():
     print("full pipeline done", ts2)
     _append_log(f"full pipeline done {ts2}")
     return 0
-
 
 if __name__ == "__main__":
     rc = main()

@@ -1,2 +1,2 @@
-# Minimal test package initializer
+# Minimal, test package initializer,
 __all__ = ["smoke_test"]

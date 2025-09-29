@@ -1,28 +1,28 @@
-from __future__ import annotations
-
 from hedging.multi_account import Instrument, hedge_plan, net_exposure
 from hedging.multi_account import account_state
-
 
 def test_hedge_plan_risk_parity_weights():
     exposures = {"ETH": 10000.0}
     insts = {
-        "ETH": [Instrument(asset="ETH", symbol="ETH/USDT:USDT", vol=0.01), Instrument(asset="ETH", symbol="ETH/USDT:USDT", vol=0.02)],
+        "ETH": [
+            Instrument(asset="ETH", symbol="ETH/USDT:USDT", vol=0.01),
+            Instrument(asset="ETH", symbol="ETH/USDT:USDT", vol=0.02),
+        ],
     }
     plan = hedge_plan(exposures, insts, min_usd=0.0)
     # Two legs with weights 0.8 and 0.2 roughly
     notional = sorted([round(p["notional_usd"], 1) for p in plan])
     assert notional == sorted([-(10000 * 0.8), -(10000 * 0.2)])
 
-
 def test_option_delta_effect():
     exposures = {"ETH": 10000.0}
-    insts = {"ETH": [Instrument(asset="ETH", symbol="ETH-C-OPT", kind="option", vol=0.02, delta=0.5)]}
+    insts = {
+        "ETH": [Instrument(asset="ETH", symbol="ETH-C-OPT", kind="option", vol=0.02, delta=0.5)]
+    }
     plan = hedge_plan(exposures, insts, min_usd=0.0)
     assert len(plan) == 1
     # delta 0.5 implies double notional to hedge
     assert round(plan[0]["notional_usd"], 1) == -20000.0
-
 
 def test_net_exposure_fake_venue():
     class V:
@@ -43,7 +43,6 @@ def test_net_exposure_fake_venue():
     # 2 ETH * 1500 + 100 USDT
     assert round(expo["ETH"], 2) == 3000.0
     assert round(expo["USDT"], 2) == 100.0
-
 
 def test_ccxt_positions_parsing_like_bybit():
     class Ex:

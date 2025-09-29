@@ -1,13 +1,10 @@
 # run_live_fx_full.py
-from __future__ import annotations
 
 import argparse
 import os
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
 
-import pandas as pd
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,7 +17,6 @@ try:
     import MetaTrader5 as mt5
 except Exception:
     mt5 = None
-
 
 def mt5_init():
     if mt5 is None:
@@ -38,7 +34,6 @@ def mt5_init():
             raise RuntimeError(f"mt5.login failed: ({code}) {desc}")
     return mt5
 
-
 def ensure_symbol(symbol: str):
     info = mt5.symbol_info(symbol)
     if info is None:
@@ -47,11 +42,9 @@ def ensure_symbol(symbol: str):
         if not mt5.symbol_select(symbol, True):
             raise RuntimeError(f"symbol_select({symbol}) failed")
 
-
 # --- indicators ---
 def ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=n, adjust=False).mean()
-
 
 def atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
     c = df["close"]
@@ -64,7 +57,6 @@ def atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
         axis=1,
     ).max(axis=1)
     return tr.rolling(n).mean().ffill()  # fix deprecation
-
 
 def bars_df(symbol: str, timeframe: str, limit: int = 400) -> pd.DataFrame:
     tf_map = {
@@ -83,7 +75,6 @@ def bars_df(symbol: str, timeframe: str, limit: int = 400) -> pd.DataFrame:
     df.rename(columns={"time": "ts", "tick_volume": "vol"}, inplace=True)
     df["timestamp"] = pd.to_datetime(df["ts"], unit="s")
     return df[["timestamp", "open", "high", "low", "close", "vol"]]
-
 
 # --- signal ---
 def make_signal(df: pd.DataFrame, atr_mult: float = 2.0) -> Dict[str, Any]:
@@ -122,14 +113,12 @@ def make_signal(df: pd.DataFrame, atr_mult: float = 2.0) -> Dict[str, Any]:
         }
     return {"side": "flat", "price": price}
 
-
 # --- order helpers ---
 def _tick_price(symbol: str, side: str) -> Optional[float]:
     t = mt5.symbol_info_tick(symbol)
     if not t:
         return None
     return float(t.ask if side == "buy" else t.bid)
-
 
 def market_open(symbol: str, side: str, lots: float, sl: float) -> Dict[str, Any]:
     side = side.lower()
@@ -155,7 +144,6 @@ def market_open(symbol: str, side: str, lots: float, sl: float) -> Dict[str, Any
         "comment": getattr(r, "comment", ""),
     }
 
-
 def market_reduce(symbol: str, side_open: str, lots: float) -> Dict[str, Any]:
     side = "sell" if side_open == "buy" else "buy"
     price = _tick_price(symbol, side)
@@ -178,7 +166,6 @@ def market_reduce(symbol: str, side_open: str, lots: float) -> Dict[str, Any]:
         "retcode": getattr(r, "retcode", -1),
     }
 
-
 def modify_sl(symbol: str, sl: float) -> bool:
     poss = mt5.positions_get(symbol=symbol)
     if not poss:
@@ -195,7 +182,6 @@ def modify_sl(symbol: str, sl: float) -> bool:
     }
     r = mt5.order_send(req)
     return bool(r and r.retcode == mt5.TRADE_RETCODE_DONE)
-
 
 # --- loop ---
 def main():
@@ -245,8 +231,14 @@ def main():
                     # trailing SL
                     d_atr = float(atr(df, 14).iloc[-1])
                     if args.trail_mult > 0 and d_atr > 0:
-                        new_sl = best - args.trail_mult * d_atr if side == "buy" else best + args.trail_mult * d_atr
-                        if (side == "buy" and new_sl > st["sl"]) or (side == "sell" and new_sl < st["sl"]):
+                        new_sl = (
+                            best - args.trail_mult * d_atr
+                            if side == "buy"
+                            else best + args.trail_mult * d_atr
+                        )
+                        if (side == "buy" and new_sl > st["sl"]) or (
+                            side == "sell" and new_sl < st["sl"]
+                        ):
                             if args.live and modify_sl(sym, new_sl):
                                 st["sl"] = new_sl
 
@@ -368,7 +360,6 @@ def main():
             last_daily = today
 
         time.sleep(5)
-
 
 if __name__ == "__main__":
     main()

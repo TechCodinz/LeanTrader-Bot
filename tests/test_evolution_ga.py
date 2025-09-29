@@ -1,10 +1,6 @@
-from __future__ import annotations
-
+from research.evolution.ga_trader import run_ga
 import numpy as np
 import pandas as pd
-
-from research.evolution.ga_trader import run_ga
-
 
 def _make_prices(n=300, m=6, seed=0):
     rng = np.random.default_rng(seed)
@@ -15,7 +11,6 @@ def _make_prices(n=300, m=6, seed=0):
     idx = pd.date_range(end=pd.Timestamp.utcnow().floor("min"), periods=n, freq="1min")
     return pd.DataFrame(data, index=idx)
 
-
 def test_ga_determinism_and_progress():
     df = _make_prices()
     best1, lb1 = run_ga(df, pop=10, gens=5, seed=42)
@@ -23,4 +18,3 @@ def test_ga_determinism_and_progress():
     assert best1.__dict__ == best2.__dict__
     # Progress: best_sharpe in final gen >= first gen
     assert lb1[-1]["best_sharpe"] >= lb1[0]["best_sharpe"] - 1e-9
-

@@ -2,7 +2,6 @@
 import datetime
 import json
 import time
-from pathlib import Path
 
 p = Path("runtime") / f"signals-{datetime.datetime.utcnow().strftime('%Y%m%d')}.ndjson"
 p.parent.mkdir(parents=True, exist_ok=True)

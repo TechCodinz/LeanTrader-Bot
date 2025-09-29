@@ -8,11 +8,8 @@ Usage: .venv/Scripts/python tools/learner.py
 
 This does NOT enable live trading. Models are saved under runtime/models.
 """
-from __future__ import annotations
 
 import json
-from pathlib import Path
-from typing import List
 
 try:
     import joblib
@@ -22,7 +19,6 @@ except Exception:
     TfidfVectorizer = None
     LogisticRegression = None
     joblib = None
-
 
 def _load_news_texts(limit: int = 1000) -> List[str]:
     p = Path("runtime") / "news"
@@ -44,7 +40,6 @@ def _load_news_texts(limit: int = 1000) -> List[str]:
             continue
     return texts
 
-
 def _load_signals(limit: int = 2000):
     # load historical published signals to use as labels (buy=1 sell=0)
     p = Path("runtime")
@@ -65,7 +60,6 @@ def _load_signals(limit: int = 2000):
             continue
     return signals
 
-
 def train_simple_model():
     if TfidfVectorizer is None:
         raise RuntimeError("scikit-learn and joblib required: pip install scikit-learn joblib")
@@ -75,7 +69,9 @@ def train_simple_model():
         return
     signals = _load_signals(2000)
     if not signals:
-        print("No historical signals found under runtime/signals-*.ndjson. Model will be unsupervised.")
+        print(
+            "No historical signals found under runtime/signals-*.ndjson. Model will be unsupervised."
+        )
     # build corpus from news texts
     corpus = texts
     vect = TfidfVectorizer(max_features=4000, stop_words="english")
@@ -104,7 +100,6 @@ def train_simple_model():
     else:
         joblib.dump({"vect": vect, "clf": None}, outdir / "news_model_partial.pkl")
         print("Saved vectorizer to runtime/models/news_model_partial.pkl")
-
 
 if __name__ == "__main__":
     train_simple_model()

@@ -6,27 +6,25 @@ import re
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-
 
 def find_py_files(root: Path):
     out = []
     for p in root.rglob("*.py"):
         # skip virtualenv, runtime, .git, __pycache__
-        if any(part in ("venv", ".venv", ".git", "runtime", "__pycache__", "tools") for part in p.parts):
+        if any(
+            part in ("venv", ".venv", ".git", "runtime", "__pycache__", "tools") for part in p.parts
+        ):
             continue
         out.append(p)
     return sorted(out)
-
 
 def which_tools():
     tools = {}
     for t in ("ruff", "isort", "black", "autoflake"):
         tools[t] = shutil.which(t)
     return tools
-
 
 def run_cmd(cmd, cwd=None):
     try:
@@ -43,7 +41,6 @@ def run_cmd(cmd, cwd=None):
     except Exception as e:
         return 1, str(e)
 
-
 def find_smike_script(root: Path):
     """Search for smike.py or smoke.py under root and return path or None."""
     for name in ("smike.py", "smoke.py"):
@@ -53,14 +50,12 @@ def find_smike_script(root: Path):
             return p
     return None
 
-
 def run_smike_script(root: Path):
     script = find_smike_script(root)
     if not script:
         return 1, f"No smike.py or smoke.py found under {root}"
     cmd = f'{sys.executable} "{script}"'
     return run_cmd(cmd, cwd=script.parent)
-
 
 def scan_patterns(files):
     issues = []
@@ -86,7 +81,6 @@ def scan_patterns(files):
         if re.search(r"sl\s*=\s*float\(entry\s*([\+\-])\s*0\)", txt):
             issues.append({"file": str(f), "issue": "possible degenerate SL==entry pattern"})
     return issues
-
 
 def auto_wrap_router(files):
     """Automatically wrap direct `self.router = router` assignments with RouterAdapter.
@@ -137,7 +131,6 @@ def auto_wrap_router(files):
                     pass
     return changed
 
-
 def apply_formatters(files, tools):
     paths = " ".join(str(p) for p in files)
     results = {}
@@ -154,7 +147,6 @@ def apply_formatters(files, tools):
         rc, out = run_cmd(f"autoflake --in-place --remove-all-unused-imports -r {paths}")
         results["autoflake"] = (rc, out)
     return results
-
 
 def inspect_router_interface(root: Path):
     """Look for router.py and check for common method names using AST."""
@@ -183,7 +175,6 @@ def inspect_router_interface(root: Path):
         info["error"] = str(e)
     return info
 
-
 def full_scan(files, tools, root: Path):
     """Run a fuller scan: syntax checks + optional linters + router interface inspection."""
     report = {"syntax": [], "ruff": None, "flake8": None, "router": None}
@@ -205,7 +196,6 @@ def full_scan(files, tools, root: Path):
     # inspect router.py interface
     report["router"] = inspect_router_interface(root)
     return report
-
 
 def main():
     ap = argparse.ArgumentParser(description="Autofix / scan helper for LeanTrader_ForexPack")
@@ -316,7 +306,6 @@ def main():
     print(
         "Done. Review the pattern_issues and formatter outputs. For safety, review changes before enabling live trading."
     )
-
 
 if __name__ == "__main__":
     main()

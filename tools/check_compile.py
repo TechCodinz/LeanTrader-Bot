@@ -2,7 +2,6 @@ import os
 import py_compile
 import sys
 
-
 def should_prune_dir(parent: str, dirname: str) -> bool:
     """Return True if this directory should be skipped.
 
@@ -17,7 +16,6 @@ def should_prune_dir(parent: str, dirname: str) -> bool:
     if dirname == "backups" and os.path.basename(parent) == "runtime":
         return True
     return False
-
 
 bad = []
 for root, dirs, files in os.walk(".", topdown=True):

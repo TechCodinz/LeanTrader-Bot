@@ -1,19 +1,14 @@
 # dashboard_reporter.py
-from __future__ import annotations
 
 import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
-
-from cross_examiner import cross_examine
-from notifier import TelegramNotifier
+from typing import Any, Dict, List
 
 DASH = Path("runtime")
 DASH.mkdir(exist_ok=True)
 SNAP = DASH / "snapshot.json"
-
 
 def update_snapshot(payload: dict) -> None:
     try:
@@ -23,21 +18,17 @@ def update_snapshot(payload: dict) -> None:
         # never break the live loop because of reporting
         pass
 
-
 def _side_emoji(side: str | None) -> str:
     return "🟢" if side == "buy" else "⚪"
 
-
 def _fmt_prob(p: float) -> str:
     return f"{p:0.2f}"
-
 
 @dataclass
 class TFView:
     prob: float  # 0..1
     side: str | None  # "buy" or None
     price: float  # last price
-
 
 class DashboardReporter:
     """
@@ -50,12 +41,22 @@ class DashboardReporter:
         self.max_symbols = max_symbols
         self._last_emit = 0.0
         self._cache: Dict[str, Dict[str, TFView]] = {}  # symbol -> {tf -> TFView}
-        self._tg = TelegramNotifier()
+        try:
+            from notifier import TelegramNotifier  # type: ignore
+            self._tg = TelegramNotifier()
+        except Exception:
+            class _Noop:
+                enabled = False
+                def note(self, *a, **k):
+                    return None
+            self._tg = _Noop()
 
     def update(self, symbol: str, timeframe: str, prob: float, side: str | None, price: float):
         sym = symbol.upper()
         tf = timeframe.lower()
-        self._cache.setdefault(sym, {})[tf] = TFView(prob=float(prob), side=side, price=float(price))
+        self._cache.setdefault(sym, {})[tf] = TFView(
+            prob=float(prob), side=side, price=float(price)
+        )
 
     def _build_symbol_block(self, symbol: str, views: Dict[str, TFView]) -> str:
         # sort TFs by "importance" (short to long)
@@ -81,7 +82,11 @@ class DashboardReporter:
 
         # Per-TF lines with CrossTF headline and SUI
         for tf in tfs:
-            cx = cross_examine(frame_probs, frame_sides, tf)
+            try:
+                from cross_examiner import cross_examine  # type: ignore
+                cx = cross_examine(frame_probs, frame_sides, tf)
+            except Exception:
+                cx = {"headline": ""}
             emoji = _side_emoji(views[tf].side)
             p = _fmt_prob(views[tf].prob)
             lines.append(f"`{tf:>3}` {emoji} p={p}  {cx['headline']}")

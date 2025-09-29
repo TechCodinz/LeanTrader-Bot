@@ -1,7 +1,6 @@
 """Helper to start the webhook server with .env loaded."""
 
 import sys
-from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv(".env")

@@ -1,17 +1,14 @@
-from __future__ import annotations
-
 import argparse
 import json
 import os
 import time
-from pathlib import Path
-from typing import Any, Dict, List
 
 from core.events.web3_consumer import subscribe
 
-
 def main() -> int:
-    p = argparse.ArgumentParser(description="On-chain fuser: ingest events and write ONCHAIN_EVENTS_PATH periodically")
+    p = argparse.ArgumentParser(
+        description="On-chain fuser: ingest events and write ONCHAIN_EVENTS_PATH periodically"
+    )
     p.add_argument("--channel", default=os.getenv("ONCHAIN_CHANNEL", "signal.web3.trending"))
     p.add_argument("--redis", default=os.getenv("REDIS_URL", ""))
     p.add_argument("--out", default=os.getenv("ONCHAIN_EVENTS_PATH", "runtime/onchain_events.json"))
@@ -51,7 +48,5 @@ def main() -> int:
     subscribe(_cb, channel=args.channel, redis_url=args.redis or None)
     return 0
 
-
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-

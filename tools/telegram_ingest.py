@@ -11,23 +11,16 @@ and stores offset in runtime/logs/telegram_ingest_state.json
 Requires the bot to be a member of the target chats/channels with permission to read messages.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import time
-from pathlib import Path
-from typing import Dict, List
 
 import requests
 
-
 STATE = Path("runtime") / "logs" / "telegram_ingest_state.json"
-
 
 def _csv(x: str) -> List[str]:
     return [s.strip() for s in (x or "").split(",") if s.strip()]
-
 
 def _load_state() -> Dict:
     try:
@@ -37,14 +30,12 @@ def _load_state() -> Dict:
         pass
     return {"offset": 0}
 
-
 def _save_state(st: Dict) -> None:
     try:
         STATE.parent.mkdir(parents=True, exist_ok=True)
         STATE.write_text(json.dumps(st), encoding="utf-8")
     except Exception:
         pass
-
 
 def ingest_once(timeout: int = 5) -> int:
     tok = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
@@ -56,7 +47,11 @@ def ingest_once(timeout: int = 5) -> int:
     lim = int(os.getenv("TELEGRAM_INGEST_LIMIT", "100"))
     url = f"{base}/getUpdates"
     try:
-        r = requests.get(url, params={"offset": offset + 1, "timeout": timeout, "limit": lim}, timeout=timeout + 2)
+        r = requests.get(
+            url,
+            params={"offset": offset + 1, "timeout": timeout, "limit": lim},
+            timeout=timeout + 2,
+        )
         j = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
     except Exception:
         return 0
@@ -113,7 +108,6 @@ def ingest_once(timeout: int = 5) -> int:
     st["offset"] = last_id
     _save_state(st)
     return saved
-
 
 if __name__ == "__main__":
     n = ingest_once()

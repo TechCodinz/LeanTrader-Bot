@@ -7,7 +7,6 @@ BOT = os.getenv("TELEGRAM_BOT_TOKEN", "")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 PREMIUM_PATH = os.getenv("PREMIUM_LIST_PATH", "data/telegram/premium.json")
 
-
 def _chat_ok(chat_id: str) -> bool:
     try:
         with open(PREMIUM_PATH, "r", encoding="utf-8") as f:
@@ -17,14 +16,11 @@ def _chat_ok(chat_id: str) -> bool:
     except Exception:
         return True
 
-
 def enabled() -> bool:
     return bool(BOT and CHAT_ID)
 
-
 def _api(method: str):
     return f"https://api.telegram.org/bot{BOT}/{method}"
-
 
 def _is_premium(chat_id: str = None) -> bool:
     """Return True if the given chat_id is allowed premium (has access to reply_markup).
@@ -35,7 +31,6 @@ def _is_premium(chat_id: str = None) -> bool:
         return _chat_ok(chat_id)
     except Exception:
         return False
-
 
 def send_message(text: str, chat_id: str = None, reply_markup: dict = None) -> bool:
     cid = chat_id or CHAT_ID
@@ -50,8 +45,9 @@ def send_message(text: str, chat_id: str = None, reply_markup: dict = None) -> b
     except Exception:
         return False
 
-
-def send_photo(image_path: str, caption: str = "", chat_id: str = None, reply_markup: dict = None) -> bool:
+def send_photo(
+    image_path: str, caption: str = "", chat_id: str = None, reply_markup: dict = None
+) -> bool:
     cid = chat_id or CHAT_ID
     if not _chat_ok(cid):
         return False
@@ -65,13 +61,16 @@ def send_photo(image_path: str, caption: str = "", chat_id: str = None, reply_ma
     except Exception:
         return False
 
-
-def _build_buttons(signal_id: str, include_simulate: bool = True, include_subscribe: bool = True) -> list:
+def _build_buttons(
+    signal_id: str, include_simulate: bool = True, include_subscribe: bool = True
+) -> list:
     # Prefer tg_utils clean builder when available
     try:
         from tg_utils import build_confirm_buttons_clean as _build
 
-        return _build(signal_id, include_simulate=include_simulate, include_subscribe=include_subscribe)
+        return _build(
+            signal_id, include_simulate=include_simulate, include_subscribe=include_subscribe
+        )
     except Exception:
         # Basic inline keyboard fallback
         btns = [
@@ -83,9 +82,10 @@ def _build_buttons(signal_id: str, include_simulate: bool = True, include_subscr
         if include_simulate:
             btns.append([{"text": "🧪 Simulate", "callback_data": f"simulate:{signal_id}"}])
         if include_subscribe:
-            btns.append([{"text": "🔗 Subscribe / Link", "callback_data": f"subscribe:{signal_id}"}])
+            btns.append(
+                [{"text": "🔗 Subscribe / Link", "callback_data": f"subscribe:{signal_id}"}]
+            )
         return btns
-
 
 def publish_signal(
     symbol: str,

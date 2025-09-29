@@ -1,12 +1,7 @@
-from __future__ import annotations
-
 import base64
 import json
 import os
 import time
-from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, Union
-
 
 # --------- Optional libsodium (PyNaCl) backend ---------
 try:
@@ -17,13 +12,11 @@ try:
 except Exception:  # pragma: no cover
     _NACL = False
 
-
 RUNTIME = Path(os.getenv("VAULT_RUNTIME", "runtime"))
 RUNTIME.mkdir(parents=True, exist_ok=True)
 KEYSTORE = RUNTIME / "vault_keys.json"
 KV_FILE = RUNTIME / "vault_kv.json"
 CURRENT_KID_KEY = "vault:current_kid"
-
 
 def _kv_get(k: str) -> Optional[str]:
     try:
@@ -40,7 +33,6 @@ def _kv_get(k: str) -> Optional[str]:
         return str(v) if v is not None else None
     except Exception:
         return None
-
 
 def _kv_set(k: str, v: str) -> None:
     try:
@@ -59,7 +51,6 @@ def _kv_set(k: str, v: str) -> None:
     except Exception:
         pass
 
-
 def _load_keystore() -> Dict[str, Any]:
     if KEYSTORE.exists():
         try:
@@ -68,13 +59,11 @@ def _load_keystore() -> Dict[str, Any]:
             return {"keys": {}, "current_kid": ""}
     return {"keys": {}, "current_kid": ""}
 
-
 def _save_keystore(data: Dict[str, Any]) -> None:
     try:
         KEYSTORE.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     except Exception:
         pass
-
 
 def rotate_keys() -> str:
     """Generate a new symmetric key (SecretBox) and set as current; return kid."""
@@ -92,7 +81,6 @@ def rotate_keys() -> str:
     _kv_set(CURRENT_KID_KEY, kid)
     return kid
 
-
 def _current_key() -> Tuple[str, bytes]:
     ks = _load_keystore()
     kid = _kv_get(CURRENT_KID_KEY) or ks.get("current_kid")
@@ -107,7 +95,6 @@ def _current_key() -> Tuple[str, bytes]:
         k64 = (ks.get("keys") or {}).get(kid)
     key = base64.b64decode(k64.encode("ascii")) if k64 else os.urandom(32)
     return kid, key
-
 
 def encrypt_log(content: Union[str, bytes], key: bytes) -> Dict[str, str]:
     """Encrypt content using libsodium SecretBox if available; returns dict {nonce,b64}.
@@ -136,15 +123,17 @@ def encrypt_log(content: Union[str, bytes], key: bytes) -> Dict[str, str]:
     x = bytes([b ^ kb[i % len(kb)] for i, b in enumerate(content_b)])
     return {"nonce": "", "ciphertext": base64.b64encode(x).decode("ascii"), "alg": "xor-dev"}
 
-
 def pqc_encrypt(content: Union[str, bytes]) -> Dict[str, str]:  # pragma: no cover
     """Placeholder for PQC (Kyber/Dilithium). Returns a descriptor for future migration."""
     if isinstance(content, str):
         content_b = content.encode("utf-8")
     else:
         content_b = content
-    return {"alg": "pqc-tbd", "note": "placeholder", "ciphertext": base64.b64encode(content_b).decode("ascii")}
-
+    return {
+        "alg": "pqc-tbd",
+        "note": "placeholder",
+        "ciphertext": base64.b64encode(content_b).decode("ascii"),
+    }
 
 def secure_write(path: str, data: Union[str, bytes, Dict[str, Any]]) -> str:
     """Encrypt data with current key and write JSON envelope to path ('.enc' recommended)."""
@@ -157,6 +146,4 @@ def secure_write(path: str, data: Union[str, bytes, Dict[str, Any]]) -> str:
     out.write_text(json.dumps(env, ensure_ascii=False), encoding="utf-8")
     return str(out)
 
-
 __all__ = ["encrypt_log", "pqc_encrypt", "secure_write", "rotate_keys"]
-

@@ -1,6 +1,5 @@
 # signals_hub.py
 # Ultra analyzers for CCXT (crypto) and MT5 (FX) + multi-TF confirmation.
-from __future__ import annotations
 
 import math
 import os
@@ -8,17 +7,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # numpy only; pandas optional (we handle absence gracefully)
 import numpy as np
-
 try:
     import pandas as pd  # type: ignore
 except Exception:  # pragma: no cover
     pd = None  # pandas is optional
 
-
 # ==============================
 # --------- UTILITIES ----------
 # ==============================
-
 
 def _envf(k: str, d: float) -> float:
     try:
@@ -26,10 +22,8 @@ def _envf(k: str, d: float) -> float:
     except Exception:
         return d
 
-
 def _clip01(x: float) -> float:
     return 0.0 if not np.isfinite(x) else max(0.0, min(1.0, float(x)))
-
 
 def _to_numpy_ohlcv(
     bars,
@@ -56,7 +50,12 @@ def _to_numpy_ohlcv(
             # fabricate sequential timestamps if absent
             ts = np.arange(len(bars))
 
-        vcol = cols.get("vol") or cols.get("tick_volume") or cols.get("volume") or cols.get("real_volume")
+        vcol = (
+            cols.get("vol")
+            or cols.get("tick_volume")
+            or cols.get("volume")
+            or cols.get("real_volume")
+        )
         vol = bars[vcol].astype(float).to_numpy() if vcol else np.zeros(len(bars), dtype=float)
 
         o = bars[cols.get("open", "open")].astype(float).to_numpy()
@@ -77,7 +76,6 @@ def _to_numpy_ohlcv(
     v = arr[:, 5] if arr.shape[1] >= 6 else np.zeros(arr.shape[0], dtype=float)
     return ts, o, h, low, c, v
 
-
 def _ema(x: np.ndarray, span: int) -> np.ndarray:
     if len(x) == 0:
         return np.array([])
@@ -87,7 +85,6 @@ def _ema(x: np.ndarray, span: int) -> np.ndarray:
     for i in range(1, len(x)):
         out[i] = alpha * x[i] + (1 - alpha) * out[i - 1]
     return out
-
 
 def _atr(h: np.ndarray, low: np.ndarray, c: np.ndarray, n: int = 14) -> np.ndarray:
     if len(c) == 0:
@@ -101,7 +98,6 @@ def _atr(h: np.ndarray, low: np.ndarray, c: np.ndarray, n: int = 14) -> np.ndarr
     for i in range(1, len(tr)):
         atr[i] = alpha * tr[i] + (1 - alpha) * atr[i - 1]
     return atr
-
 
 def _rsi(c: np.ndarray, n: int = 14) -> np.ndarray:
     if len(c) < 2:
@@ -121,8 +117,9 @@ def _rsi(c: np.ndarray, n: int = 14) -> np.ndarray:
     rs = np.divide(roll_up, np.maximum(1e-12, roll_dn))
     return 100.0 - (100.0 / (1.0 + rs))
 
-
-def _bbands(c: np.ndarray, n: int = 20, k: float = 2.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def _bbands(
+    c: np.ndarray, n: int = 20, k: float = 2.0
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     if len(c) < n:
         m = np.full_like(c, np.nan)
         return m, m, m, m
@@ -130,14 +127,17 @@ def _bbands(c: np.ndarray, n: int = 20, k: float = 2.0) -> Tuple[np.ndarray, np.
     ma = np.convolve(c, np.ones(n) / n, mode="same")
     # naive rolling std
     pad = n // 2
-    std = np.array([np.nanstd(c[max(0, i - pad) : min(len(c), i + pad + 1)], ddof=0) for i in range(len(c))])
+    std = np.array(
+        [np.nanstd(c[max(0, i - pad) : min(len(c), i + pad + 1)], ddof=0) for i in range(len(c))]
+    )
     upper = ma + k * std
     lower = ma - k * std
     bbw = np.divide(upper - lower, np.maximum(1e-12, ma))
     return ma, upper, lower, bbw
 
-
-def _macd(c: np.ndarray, fast: int = 12, slow: int = 26, sig: int = 9) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _macd(
+    c: np.ndarray, fast: int = 12, slow: int = 26, sig: int = 9
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     if len(c) == 0:
         z = np.array([])
         return z, z, z
@@ -148,7 +148,6 @@ def _macd(c: np.ndarray, fast: int = 12, slow: int = 26, sig: int = 9) -> Tuple[
     hist = macd - signal
     return macd, signal, hist
 
-
 def _tf_minutes(tf: str) -> int:
     tf = str(tf).lower().strip()
     if tf.endswith("m"):
@@ -156,7 +155,6 @@ def _tf_minutes(tf: str) -> int:
     if tf.endswith("h"):
         return int(tf[:-1]) * 60
     raise ValueError(f"Unsupported tf: {tf}")
-
 
 def _aggregate_ohlc(
     o: np.ndarray, h: np.ndarray, low: np.ndarray, c: np.ndarray, v: np.ndarray, step: int
@@ -184,7 +182,6 @@ def _aggregate_ohlc(
         idx = j1
     return open_ary, high_ary, low_ary, close_ary, vol_ary
 
-
 def _hh_ll(h: np.ndarray, low: np.ndarray, lookback: int = 8) -> Tuple[bool, bool]:
     """Higher-high / lower-low structure over the last 'lookback' bars."""
     if len(h) < lookback + 2:
@@ -193,11 +190,9 @@ def _hh_ll(h: np.ndarray, low: np.ndarray, lookback: int = 8) -> Tuple[bool, boo
     ll = float(low[-1]) < float(np.min(low[-lookback - 1 : -1]))
     return hh, ll
 
-
 # ==================================
 # ----- CORE SIGNAL CONSTRUCTION ----
 # ==================================
-
 
 def _build_signal_common(
     symbol: str,
@@ -230,11 +225,16 @@ def _build_signal_common(
     # components in [0,1]
     trend_align = (
         1.0
-        if ((side == "buy" and ema_fast_last > ema_slow_last) or (side == "sell" and ema_fast_last < ema_slow_last))
+        if (
+            (side == "buy" and ema_fast_last > ema_slow_last)
+            or (side == "sell" and ema_fast_last < ema_slow_last)
+        )
         else 0.0
     )
     mom_align = _clip01(0.5 + 0.5 * np.sign(macd_hist_last) * (1 if side == "buy" else -1))
-    vol_ok = _clip01((bbw_last - _envf("VOL_BBW_MIN", 0.01)) / max(1e-6, _envf("VOL_BBW_MAX", 0.08)))
+    vol_ok = _clip01(
+        (bbw_last - _envf("VOL_BBW_MIN", 0.01)) / max(1e-6, _envf("VOL_BBW_MAX", 0.08))
+    )
     # prefer RSI 45-65 for trend-follow longs; 35-55 for shorts
     if side == "buy":
         rsi_score = _clip01(1.0 - abs(rsi_last - 55.0) / 35.0)
@@ -258,7 +258,6 @@ def _build_signal_common(
         "quality": float(conf),
         "context": reasons,
     }
-
 
 def _analyze_core(symbol: str, tf: str, market: str, bars) -> Optional[Dict[str, Any]]:
     ts, o, h, low, c, v = _to_numpy_ohlcv(bars)
@@ -295,7 +294,9 @@ def _analyze_core(symbol: str, tf: str, market: str, bars) -> Optional[Dict[str,
         reasons.append("HH structure")
     if ll:
         reasons.append("LL structure")
-    reasons.append(f"ATR={last_atr:.6g}  BBw={last_bbw:.4f}  MACDhist={hist[-1]:.6g}  RSI={rsi14[-1]:.1f}")
+    reasons.append(
+        f"ATR={last_atr:.6g}  BBw={last_bbw:.4f}  MACDhist={hist[-1]:.6g}  RSI={rsi14[-1]:.1f}"
+    )
 
     # pick side
     side = "buy" if trend_buy else ("sell" if trend_sell else None)
@@ -321,13 +322,13 @@ def _analyze_core(symbol: str, tf: str, market: str, bars) -> Optional[Dict[str,
         reasons=reasons,
     )
 
-
 # ==================================
 # -------- PUBLIC ANALYZERS --------
 # ==================================
 
-
-def analyze_symbol_ccxt(bars, tf: str, symbol: str, market: str = "spot") -> Optional[Dict[str, Any]]:
+def analyze_symbol_ccxt(
+    bars, tf: str, symbol: str, market: str = "spot"
+) -> Optional[Dict[str, Any]]:
     """
     bars: CCXT OHLCV arrays (or pandas DataFrame)
     Returns a normalized signal dict or None.
@@ -353,7 +354,6 @@ def analyze_symbol_ccxt(bars, tf: str, symbol: str, market: str = "spot") -> Opt
         print(f"[analyze_symbol_ccxt error] {symbol}: {e}")
         return None
 
-
 def analyze_symbol_mt5(bars, tf: str, symbol: str) -> Optional[Dict[str, Any]]:
     """
     bars: MT5 dataframe (copy_rates_from_pos) or list-like. We do **not** rely on a 'tid' column.
@@ -363,19 +363,21 @@ def analyze_symbol_mt5(bars, tf: str, symbol: str) -> Optional[Dict[str, Any]]:
         if sig:
             _, o, h, low, c, v = _to_numpy_ohlcv(bars)
             tail = min(600, len(c))
-            sig["bars_tail"] = np.column_stack([o[-tail:], h[-tail:], low[-tail:], c[-tail:], v[-tail:]]).tolist()
+            sig["bars_tail"] = np.column_stack(
+                [o[-tail:], h[-tail:], low[-tail:], c[-tail:], v[-tail:]]
+            ).tolist()
         return sig
     except Exception as e:
         print(f"[analyze_symbol_mt5 error] {symbol}: {e}")
         return None
 
-
 # ==================================
 # --------- MTF CONFIRMATION -------
 # ==================================
 
-
-def _confirm_side_from_bars(tf_minutes: int, side: str, bars_tail: List[List[float]]) -> Tuple[bool, List[str]]:
+def _confirm_side_from_bars(
+    tf_minutes: int, side: str, bars_tail: List[List[float]]
+) -> Tuple[bool, List[str]]:
     """
     Down-sample the provided tail to higher TFs and confirm trend alignment.
     bars_tail: list of [o,h,l,c,v] floats
@@ -420,7 +422,6 @@ def _confirm_side_from_bars(tf_minutes: int, side: str, bars_tail: List[List[flo
         return True, [f"MTF aligned ({steps[0]}x & {steps[1]}x)"]
     except Exception:
         return True, ["MTF: error (ignored)"]
-
 
 def mtf_confirm(sig: Dict[str, Any]) -> Tuple[bool, List[str]]:
     """

@@ -4,16 +4,9 @@ This is intentionally simple: it executes at next-bar open and exits at next-bar
 uses fixed fraction position sizing, and writes a summary to logs.
 """
 
-from __future__ import annotations
-
 import pickle
-from pathlib import Path
-from typing import Dict
-
-import numpy as np
 
 from tools.featurizer import featurize_basic, load_csv
-
 
 def load_model(model_path: str):
     p = Path(model_path)
@@ -26,8 +19,9 @@ def load_model(model_path: str):
         return data["model"], data.get("meta", {})
     return data, {}
 
-
-def run_backtest(model_path: str, csv_path: str, initial_cash: float = 10000.0, risk_per_trade: float = 0.01) -> Dict:
+def run_backtest(
+    model_path: str, csv_path: str, initial_cash: float = 10000.0, risk_per_trade: float = 0.01
+) -> Dict:
     model, meta = load_model(model_path)
     df = load_csv(csv_path)
     df = featurize_basic(df)

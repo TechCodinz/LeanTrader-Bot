@@ -1,14 +1,6 @@
-from __future__ import annotations
-
-import datetime as _dt
 import json
-import os
-from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
-
 
 try:
-    from prometheus_client import Gauge  # type: ignore
 
     ATTRIBUTION_COMPONENT = Gauge(
         "attribution_component",
@@ -16,6 +8,7 @@ try:
         ["component"],
     )
 except Exception:  # pragma: no cover
+
     class _Noop:
         def labels(self, *_: Any, **__: Any) -> "_Noop":
             return self
@@ -25,7 +18,6 @@ except Exception:  # pragma: no cover
 
     ATTRIBUTION_COMPONENT = _Noop()  # type: ignore
 
-
 def _normalize_series(x: Sequence[float] | None) -> List[float]:
     if not x:
         return []
@@ -33,7 +25,6 @@ def _normalize_series(x: Sequence[float] | None) -> List[float]:
         return [float(v) for v in x]
     except Exception:
         return []
-
 
 def attribute_daily_pnl(
     pnl_series: Sequence[float],
@@ -82,7 +73,6 @@ def attribute_daily_pnl(
             pass
     return contr
 
-
 def write_daily_attribution(
     date: str,
     pnl_series: Sequence[float],
@@ -110,8 +100,9 @@ def write_daily_attribution(
         pass
     return payload
 
-
-def load_daily_attribution(date: str, out_dir: str = "reports/attribution") -> Optional[Dict[str, Any]]:
+def load_daily_attribution(
+    date: str, out_dir: str = "reports/attribution"
+) -> Optional[Dict[str, Any]]:
     p = Path(out_dir) / f"{date}.json"
     if not p.exists():
         return None
@@ -120,11 +111,9 @@ def load_daily_attribution(date: str, out_dir: str = "reports/attribution") -> O
     except Exception:
         return None
 
-
 __all__ = [
     "ATTRIBUTION_COMPONENT",
     "attribute_daily_pnl",
     "write_daily_attribution",
     "load_daily_attribution",
 ]
-

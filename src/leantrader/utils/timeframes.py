@@ -1,11 +1,7 @@
-from dataclasses import dataclass
-
-
 @dataclass(frozen=True)
 class TF:
     name: str
     minutes: int
-
 
 D1 = TF("D1", 1440)
 H4 = TF("H4", 240)

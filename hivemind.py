@@ -1,5 +1,4 @@
 # hivemind.py
-from __future__ import annotations
 
 import statistics
 from dataclasses import dataclass
@@ -7,20 +6,17 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from alpha_engines import AlphaRouter, BaseStrategy, Decision
-from news_service import bullets_for
-
+from alpha_engines import BaseStrategy, Decision, AlphaRouter
+from news_adapter import fetch_crypto_sentiment as bullets_for  # reuse as simple bullets
 
 # ---- small helpers ----
 def _clip(x: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, x))
 
-
 def _tf_sort_key(tf: str) -> int:
     # rank shorter frames first
     order = {"1m": 1, "3m": 2, "5m": 3, "15m": 4, "30m": 5, "1h": 6, "2h": 7, "4h": 8}
     return order.get(tf.lower(), 99)
-
 
 @dataclass
 class FrameDecision:
@@ -29,7 +25,6 @@ class FrameDecision:
     price: float
     atr_p: float  # ATR% of price for this frame (rough regime)
     df: pd.DataFrame
-
 
 class HiveCoordinator:
     """
@@ -74,7 +69,9 @@ class HiveCoordinator:
         atr_p = float(atr_abs / max(1e-9, price)) if pd.notna(atr_abs) else 0.0
         # news bullets once; only on shortest TF to avoid duplication
         bullets = bullets_for(symbol, is_fx=is_fx, top_n=3) if timeframe == self.tfs[0] else []
-        dec = self.brains[timeframe].pick(df, symbol=symbol, timeframe=timeframe, base_reasons=bullets)
+        dec = self.brains[timeframe].pick(
+            df, symbol=symbol, timeframe=timeframe, base_reasons=bullets
+        )
         return FrameDecision(timeframe, dec, price, atr_p, df)
 
     def _consensus(self, fds: List[FrameDecision]) -> Tuple[Decision, List[str]]:

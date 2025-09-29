@@ -1,10 +1,9 @@
 import math
 
 try:
-    from config import Q_ENABLE_QUANTUM
+    from config import Q_ENABLE_QUANTUM  # type: ignore
 except Exception:
     Q_ENABLE_QUANTUM = False
-
 
 # Try to import quantum option pricing if present
 _quantum_price_fn = None
@@ -13,11 +12,9 @@ try:
 except Exception:
     _quantum_price_fn = None
 
-
 def _norm_cdf(x: float) -> float:
     """Standard normal CDF via erf to avoid external deps."""
     return 0.5 * (1.0 + math.erf(float(x) / math.sqrt(2.0)))
-
 
 def price_call_classical(S0: float, K: float, T: float, r: float, sigma: float) -> float:
     """Black-Scholes European call price.
@@ -43,7 +40,6 @@ def price_call_classical(S0: float, K: float, T: float, r: float, sigma: float) 
     Nd2 = _norm_cdf(d2)
     return S0 * Nd1 - K * math.exp(-r * T) * Nd2
 
-
 def price_call(S0: float, K: float, T: float, r: float, sigma: float) -> float:
     """Quantum-backed call pricing with classical fallback.
 
@@ -56,7 +52,6 @@ def price_call(S0: float, K: float, T: float, r: float, sigma: float) -> float:
         except Exception:
             pass
     return price_call_classical(S0, K, T, r, sigma)
-
 
 __all__ = ["price_call", "price_call_classical"]
 

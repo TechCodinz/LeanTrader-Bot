@@ -1,15 +1,9 @@
-from dataclasses import dataclass, field
-from typing import Dict, Tuple
-
-import pandas as pd
-
 # Default session windows in UTC
 SESSIONS = {
     "asia": (0, 8),  # 00:00 - 08:00
     "london": (8, 16),  # 08:00 - 16:00
     "ny": (13, 21),  # 13:00 - 21:00 overlaps
 }
-
 
 @dataclass
 class SessionStats:
@@ -18,12 +12,12 @@ class SessionStats:
     pnl: float = 0.0
     sharpe_like: float = 0.0
 
-
 @dataclass
 class SessionBook:
     pair: str
-    stats: Dict[str, SessionStats] = field(default_factory=lambda: {k: SessionStats() for k in SESSIONS.keys()})
-
+    stats: Dict[str, SessionStats] = field(
+        default_factory=lambda: {k: SessionStats() for k in SESSIONS.keys()}
+    )
 
 def which_session(ts: pd.Timestamp) -> str:
     h = ts.tz_convert("UTC").hour if ts.tzinfo else ts.hour
@@ -36,7 +30,6 @@ def which_session(ts: pd.Timestamp) -> str:
             if h >= start or h < end:
                 return name
     return "asia"  # default
-
 
 def update_session_stats(book: SessionBook, session: str, pnl: float, win: bool):
     st = book.stats[session]

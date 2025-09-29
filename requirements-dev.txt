@@ -1,0 +1,6 @@
+# Development requirements (optional tooling and UI)
+# Install with: pip install -r requirements-dev.txt
+
+streamlit
+qiskit
+

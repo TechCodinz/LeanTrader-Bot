@@ -26,7 +26,6 @@ except Exception:
 
 PY = sys.executable or "python"
 
-
 def has_api_creds() -> bool:
     # Check common env names: API_KEY/API_SECRET or BYBIT_API_KEY/BYBIT_API_SECRET
     if os.getenv("API_KEY") and os.getenv("API_SECRET"):
@@ -35,11 +34,12 @@ def has_api_creds() -> bool:
         return True
     return False
 
-
 def main():
     print("[run_demo_testnet] Starting demo/testnet helper")
     if has_api_creds():
-        print("[run_demo_testnet] Found API credentials in environment. Enabling testnet/live mode (testnet only).")
+        print(
+            "[run_demo_testnet] Found API credentials in environment. Enabling testnet/live mode (testnet only)."
+        )
         os.environ.setdefault("ENABLE_LIVE", "true")
         os.environ.setdefault("ALLOW_LIVE", "true")
         os.environ.setdefault("LIVE_CONFIRM", "YES")
@@ -49,7 +49,9 @@ def main():
         # Start supervisor which will pick up env flags
         cmd = [PY, "-u", "-m", "tools.supervisor"]
     else:
-        print("[run_demo_testnet] No API credentials detected. Falling back to safe paper broker (EXCHANGE_ID=paper).")
+        print(
+            "[run_demo_testnet] No API credentials detected. Falling back to safe paper broker (EXCHANGE_ID=paper)."
+        )
         os.environ.setdefault("EXCHANGE_ID", "paper")
         os.environ.setdefault("ENABLE_LIVE", "false")
         # Start a short paper run by default to avoid long-running surprises
@@ -66,7 +68,6 @@ def main():
     except Exception as e:
         print(f"[run_demo_testnet] Failed to start process: {e}")
         raise
-
 
 if __name__ == "__main__":
     main()

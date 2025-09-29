@@ -1,14 +1,9 @@
-from __future__ import annotations
-
 import argparse
 import datetime as dt
 import json
 import os
-from pathlib import Path
-from typing import Dict, List
 
 import requests
-
 
 def commits_in_window(owner_repo: str, days: int = 3, token: str | None = None) -> int:
     base = f"https://api.github.com/repos/{owner_repo}/commits"
@@ -24,9 +19,10 @@ def commits_in_window(owner_repo: str, days: int = 3, token: str | None = None) 
     except Exception:
         return 0
 
-
 def main() -> int:
-    p = argparse.ArgumentParser(description="Collect recent GitHub commits per repo and write GITHUB_COMMITS_PATH JSON")
+    p = argparse.ArgumentParser(
+        description="Collect recent GitHub commits per repo and write GITHUB_COMMITS_PATH JSON"
+    )
     p.add_argument("--repos", required=True, help="comma-separated owner/repo list")
     p.add_argument("--out", default=os.getenv("GITHUB_COMMITS_PATH", "runtime/github_commits.json"))
     p.add_argument("--days", type=int, default=int(os.getenv("GITHUB_COMMITS_DAYS", "3")))
@@ -45,7 +41,5 @@ def main() -> int:
     print(json.dumps({"count": len(out)}))
     return 0
 
-
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-

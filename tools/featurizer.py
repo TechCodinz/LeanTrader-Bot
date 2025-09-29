@@ -4,14 +4,6 @@ Reads a CSV produced by market_data.fetch_ohlcv and produces a feature matrix X 
 labels y (next-bar direction) suitable for quick testing with scikit-learn.
 """
 
-from __future__ import annotations
-
-from pathlib import Path
-from typing import List, Tuple
-
-import pandas as pd
-
-
 def load_csv(path: str) -> pd.DataFrame:
     p = Path(path)
     if not p.exists():
@@ -20,7 +12,6 @@ def load_csv(path: str) -> pd.DataFrame:
     # ensure columns
     df = df.rename(columns={c: c.strip() for c in df.columns})
     return df
-
 
 def featurize_basic(df: pd.DataFrame) -> pd.DataFrame:
     # expect columns: ts, open, high, low, close, vol
@@ -33,7 +24,6 @@ def featurize_basic(df: pd.DataFrame) -> pd.DataFrame:
     df["ma_diff"] = df["ma3"] - df["ma10"]
     return df
 
-
 def build_features_and_labels(path: str, lookahead: int = 1) -> Tuple[pd.DataFrame, pd.Series]:
     df = load_csv(path)
     df = featurize_basic(df)
@@ -43,7 +33,6 @@ def build_features_and_labels(path: str, lookahead: int = 1) -> Tuple[pd.DataFra
     X = df[["ret", "range", "logvol", "ma3", "ma10", "ma_diff"]].astype(float)
     y = (df["next_close"] > df["close"]).astype(int)
     return X, y
-
 
 def sample_paths_from_data_dir(data_dir: str, pattern: str = "*_BTC_USDT_1m.csv") -> List[str]:
     p = Path(data_dir)

@@ -1,15 +1,12 @@
-from __future__ import annotations
-
 import argparse
 import asyncio
 import datetime as dt
 import json
 import os
-from pathlib import Path
-from typing import Dict
 
-
-async def _collect(token: str, chan_map: Dict[str, int], minutes: int) -> Dict[str, Dict[str, float]]:
+async def _collect(
+    token: str, chan_map: Dict[str, int], minutes: int
+) -> Dict[str, Dict[str, float]]:
     try:
         import discord  # type: ignore
     except Exception:
@@ -33,7 +30,10 @@ async def _collect(token: str, chan_map: Dict[str, int], minutes: int) -> Dict[s
                     count = 0
                     async for msg in chan.history(after=since, limit=None):
                         count += 1
-                    out[asset] = {"value": float(count), "ts": float(dt.datetime.utcnow().timestamp())}
+                    out[asset] = {
+                        "value": float(count),
+                        "ts": float(dt.datetime.utcnow().timestamp()),
+                    }
                 except Exception:
                     out[asset] = {"value": 0.0, "ts": float(dt.datetime.utcnow().timestamp())}
         finally:
@@ -44,11 +44,12 @@ async def _collect(token: str, chan_map: Dict[str, int], minutes: int) -> Dict[s
     await ready.wait()
     return out
 
-
 def main() -> int:
     p = argparse.ArgumentParser(description="Collect Discord volume per asset from channels")
     p.add_argument("--assets", required=True, help="comma-separated assets e.g., BTC,ETH,SOL")
-    p.add_argument("--channels", default=os.getenv("DISCORD_CHANNELS", ""), help="mapping like ETH=123,SOL=456")
+    p.add_argument(
+        "--channels", default=os.getenv("DISCORD_CHANNELS", ""), help="mapping like ETH=123,SOL=456"
+    )
     p.add_argument("--minutes", type=int, default=int(os.getenv("DISCORD_WINDOW_MIN", "60")))
     p.add_argument("--out", default=os.getenv("DISCORD_VOLUME_PATH", "runtime/discord_volume.json"))
     args = p.parse_args()
@@ -82,7 +83,6 @@ def main() -> int:
     Path(args.out).write_text(json.dumps(out, ensure_ascii=False), encoding='utf-8')
     print(json.dumps({"count": len(out)}))
     return 0
-
 
 if __name__ == '__main__':
     raise SystemExit(main())

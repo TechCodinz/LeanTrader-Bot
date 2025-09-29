@@ -1,8 +1,6 @@
 # build_history.py
 import os
 
-from research_optuna import DATA_PATH, build_history_ccxt
-
 if __name__ == "__main__":
     ex = os.getenv("EXCHANGE_ID", "binanceus")
     sym = os.getenv("OPT_SYMBOL", os.getenv("SYMBOLS", "DOGE/USD").split(",")[0].strip())

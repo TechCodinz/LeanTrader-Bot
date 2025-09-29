@@ -1,11 +1,6 @@
-from __future__ import annotations
-
 import csv
 import os
 import time
-from pathlib import Path
-from typing import Optional
-
 
 def _currency_from_symbol(symbol: str) -> Optional[str]:
     s = symbol.replace("/", "").upper()
@@ -16,9 +11,13 @@ def _currency_from_symbol(symbol: str) -> Optional[str]:
         return s[0:3]
     return None
 
-
 def is_high_impact_soon(symbol: str, minutes: int = 15) -> bool:
-    if os.getenv("NEWS_BLACKOUT_ENABLED", "false").strip().lower() not in ("1", "true", "yes", "on"):
+    if os.getenv("NEWS_BLACKOUT_ENABLED", "false").strip().lower() not in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    ):
         return False
     cur = _currency_from_symbol(symbol) or "USD"
     root = Path("data")
@@ -57,4 +56,3 @@ def is_high_impact_soon(symbol: str, minutes: int = 15) -> bool:
         except Exception:
             continue
     return False
-

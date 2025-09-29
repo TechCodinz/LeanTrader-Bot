@@ -1,4 +1,5 @@
 # guardrails.py
+
 from dataclasses import dataclass
 
 
@@ -9,7 +10,6 @@ class GuardConfig:
     daily_profit_lock_bps: int = 50
     spread_bps_threshold: int = 8
     max_trades_per_day: int = 40
-
 
 class TradeGuard:
     def __init__(self, cfg: GuardConfig):

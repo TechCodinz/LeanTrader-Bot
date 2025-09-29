@@ -1,33 +1,25 @@
+from concurrent.futures import ThreadPoolExecutor
+from sklearn.ensemble import RandomForestClassifier
+
 """Ultra Advanced Market Data Module - Extended Features.
 
 This module extends the basic market_data.py with ultra-advanced features.
 Import this alongside market_data.py for full functionality.
 """
 
-from __future__ import annotations
-
 import asyncio
-import hashlib
 import json
 import logging
-import pickle
 import random
 import threading
 import time
-import warnings
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import as_completed
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Callable
 
-import numpy as np
-import pandas as pd
 import requests
-from bs4 import BeautifulSoup
 
 # Configure logging
 logger = logging.getLogger(__name__)
-
 
 class UltraMarketData:
     """Ultra Advanced Market Data Handler with Professional Trading Features."""
@@ -62,10 +54,12 @@ class UltraMarketData:
 
         # Session for HTTP requests
         self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": "UltraMarketData/2.0",
-            "Accept": "application/json",
-        })
+        self.session.headers.update(
+            {
+                "User-Agent": "UltraMarketData/2.0",
+                "Accept": "application/json",
+            }
+        )
 
         # Thread safety
         self._lock = threading.Lock()
@@ -87,9 +81,7 @@ class UltraMarketData:
             from sklearn.preprocessing import StandardScaler
 
             self._anomaly_detector = IsolationForest(
-                contamination=0.05,
-                random_state=42,
-                n_estimators=100
+                contamination=0.05, random_state=42, n_estimators=100
             )
             self._scaler = StandardScaler()
             logger.info("Initialized ML components")
@@ -100,6 +92,7 @@ class UltraMarketData:
         """Initialize news and sentiment analysis components."""
         try:
             from transformers import pipeline
+
             self._sentiment_analyzer = pipeline("sentiment-analysis")
             logger.info("Initialized sentiment analyzer")
         except ImportError:
@@ -119,7 +112,7 @@ class UltraMarketData:
             from .market_data import fetch_ohlcv
         except ImportError:
             from market_data import fetch_ohlcv
-        
+
         # Get basic data
         data = fetch_ohlcv(self.exchange_id, symbol, timeframe, since, limit)
 
@@ -127,10 +120,7 @@ class UltraMarketData:
             return pd.DataFrame()
 
         # Convert to DataFrame
-        df = pd.DataFrame(
-            data,
-            columns=["timestamp", "open", "high", "low", "close", "volume"]
-        )
+        df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume"])
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
         df.set_index("timestamp", inplace=True)
 
@@ -209,30 +199,25 @@ class UltraMarketData:
 
             # Market structure
             df["trend_structure"] = np.where(
-                (df["close"] > df["hh"].shift(1)), 1,
-                np.where((df["close"] < df["ll"].shift(1)), -1, 0)
+                (df["close"] > df["hh"].shift(1)),
+                1,
+                np.where((df["close"] < df["ll"].shift(1)), -1, 0),
             )
 
             # Fair Value Gaps
             df["fvg_bull"] = np.where(
-                (df["low"] > df["high"].shift(2)),
-                df["low"] - df["high"].shift(2),
-                0
+                (df["low"] > df["high"].shift(2)), df["low"] - df["high"].shift(2), 0
             )
             df["fvg_bear"] = np.where(
-                (df["high"] < df["low"].shift(2)),
-                df["low"].shift(2) - df["high"],
-                0
+                (df["high"] < df["low"].shift(2)), df["low"].shift(2) - df["high"], 0
             )
 
             # Liquidity Sweeps
             df["liquidity_sweep_high"] = np.where(
-                (df["high"] > df["hh"].shift(1)) & (df["close"] < df["hh"].shift(1)),
-                1, 0
+                (df["high"] > df["hh"].shift(1)) & (df["close"] < df["hh"].shift(1)), 1, 0
             )
             df["liquidity_sweep_low"] = np.where(
-                (df["low"] < df["ll"].shift(1)) & (df["close"] > df["ll"].shift(1)),
-                1, 0
+                (df["low"] < df["ll"].shift(1)) & (df["close"] > df["ll"].shift(1)), 1, 0
             )
 
             # Order Flow
@@ -310,7 +295,9 @@ class UltraMarketData:
         adx = dx.rolling(window=period).mean()
         return adx
 
-    def _calculate_stochastic(self, df: pd.DataFrame, period: int = 14, smooth: int = 3) -> Tuple[pd.Series, pd.Series]:
+    def _calculate_stochastic(
+        self, df: pd.DataFrame, period: int = 14, smooth: int = 3
+    ) -> Tuple[pd.Series, pd.Series]:
         """Calculate Stochastic Oscillator."""
         low_min = df["low"].rolling(window=period).min()
         high_max = df["high"].rolling(window=period).max()
@@ -353,16 +340,22 @@ class UltraMarketData:
         if all(col in df.columns for col in ["rsi_14", "macd", "bb_percent"]):
             # Bullish signal
             bullish = (
-                (df["rsi_14"] < 30) |
-                ((df["macd"] > df["macd_signal"]) & (df["macd"].shift(1) <= df["macd_signal"].shift(1))) |
-                (df["bb_percent"] < 0.2)
+                (df["rsi_14"] < 30)
+                | (
+                    (df["macd"] > df["macd_signal"])
+                    & (df["macd"].shift(1) <= df["macd_signal"].shift(1))
+                )
+                | (df["bb_percent"] < 0.2)
             )
 
             # Bearish signal
             bearish = (
-                (df["rsi_14"] > 70) |
-                ((df["macd"] < df["macd_signal"]) & (df["macd"].shift(1) >= df["macd_signal"].shift(1))) |
-                (df["bb_percent"] > 0.8)
+                (df["rsi_14"] > 70)
+                | (
+                    (df["macd"] < df["macd_signal"])
+                    & (df["macd"].shift(1) >= df["macd_signal"].shift(1))
+                )
+                | (df["bb_percent"] > 0.8)
             )
 
             signals[bullish] = 1
@@ -380,25 +373,22 @@ class UltraMarketData:
             confirmations = 0
 
             if "rsi_14" in df.columns:
-                rsi_confirms = (
-                    ((df["ml_signal"] == 1) & (df["rsi_14"] < 40)) |
-                    ((df["ml_signal"] == -1) & (df["rsi_14"] > 60))
+                rsi_confirms = ((df["ml_signal"] == 1) & (df["rsi_14"] < 40)) | (
+                    (df["ml_signal"] == -1) & (df["rsi_14"] > 60)
                 )
                 confidence += rsi_confirms.astype(float) * 0.15
                 confirmations += 1
 
             if "macd" in df.columns and "macd_signal" in df.columns:
-                macd_confirms = (
-                    ((df["ml_signal"] == 1) & (df["macd"] > df["macd_signal"])) |
-                    ((df["ml_signal"] == -1) & (df["macd"] < df["macd_signal"]))
+                macd_confirms = ((df["ml_signal"] == 1) & (df["macd"] > df["macd_signal"])) | (
+                    (df["ml_signal"] == -1) & (df["macd"] < df["macd_signal"])
                 )
                 confidence += macd_confirms.astype(float) * 0.15
                 confirmations += 1
 
             if "trend_structure" in df.columns:
-                trend_confirms = (
-                    ((df["ml_signal"] == 1) & (df["trend_structure"] == 1)) |
-                    ((df["ml_signal"] == -1) & (df["trend_structure"] == -1))
+                trend_confirms = ((df["ml_signal"] == 1) & (df["trend_structure"] == 1)) | (
+                    (df["ml_signal"] == -1) & (df["trend_structure"] == -1)
                 )
                 confidence += trend_confirms.astype(float) * 0.2
                 confirmations += 1
@@ -509,7 +499,9 @@ class UltraMarketData:
                     if result.get("status") == "1":
                         txs = result.get("result", [])
                         onchain_data["tx_count"] = len(txs)
-                        onchain_data["whale_txs"] = sum(1 for tx in txs if float(tx.get("value", 0)) > 10**18)
+                        onchain_data["whale_txs"] = sum(
+                            1 for tx in txs if float(tx.get("value", 0)) > 10**18
+                        )
             except Exception as e:
                 logger.warning(f"Etherscan API error: {e}")
 
@@ -529,8 +521,7 @@ class UltraMarketData:
 
                         # Convert to DataFrame
                         df = pd.DataFrame(
-                            ohlcv,
-                            columns=["timestamp", "open", "high", "low", "close", "volume"]
+                            ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"]
                         )
                         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
                         df.set_index("timestamp", inplace=True)
@@ -561,11 +552,10 @@ class UltraMarketData:
         missing_pct = df.isnull().sum().sum() / (len(df) * len(df.columns))
         dup_pct = df.duplicated().sum() / len(df)
 
-        validation_report["quality_score"] -= (missing_pct * 20 + dup_pct * 10)
+        validation_report["quality_score"] -= missing_pct * 20 + dup_pct * 10
         validation_report["quality_score"] = max(0, validation_report["quality_score"])
 
         return validation_report
-
 
 # Example usage
 if __name__ == "__main__":
@@ -574,10 +564,7 @@ if __name__ == "__main__":
 
     # Initialize with ultra features
     ultra_data = UltraMarketData(
-        exchange_id="binance",
-        enable_ml=True,
-        enable_news=False,
-        enable_onchain=False
+        exchange_id="binance", enable_ml=True, enable_news=False, enable_onchain=False
     )
 
     # Fetch enhanced market data
@@ -587,7 +574,7 @@ if __name__ == "__main__":
     if not df.empty:
         print(f"\nData shape: {df.shape}")
         print(f"Columns: {list(df.columns)}")
-        print(f"\nLatest values:")
+        print("\nLatest values:")
         print(df.iloc[-1])
 
         # Validate data

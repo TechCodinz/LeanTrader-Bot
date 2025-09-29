@@ -1,5 +1,4 @@
 # universe.py  (experience-weighted edition)
-from __future__ import annotations
 
 import argparse
 import datetime as dt
@@ -21,7 +20,6 @@ REGION_PREFS = {
     "DEFAULT": ["bybit", "binanceus", "kraken"],
 }
 
-
 def pick_exchanges() -> List[str]:
     reg = (os.getenv("REGION") or "").upper()
     prefs = REGION_PREFS.get(reg) or REGION_PREFS["DEFAULT"]
@@ -30,7 +28,6 @@ def pick_exchanges() -> List[str]:
     if ex0 and ex0 not in prefs:
         return [ex0] + prefs
     return prefs
-
 
 def discover_symbols(ex, quote="USDT", top_n=8, min_notional=10.0) -> List[str]:
     """
@@ -52,7 +49,6 @@ def discover_symbols(ex, quote="USDT", top_n=8, min_notional=10.0) -> List[str]:
     rows.sort(reverse=True)
     out = [s for _, s in rows[:top_n]]
     return out or [f"BTC/{quote}", f"ETH/{quote}"]
-
 
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -87,16 +83,21 @@ DEFAULT_MEMES = {
     "TURBO",
 }
 
-
 def setup_logger():
     try:
-        from utils import setup_logger as _sl
+        # Lazy import to avoid optional dependency issues
+        try:
+            from utils.jsonlog import setup_logger as _sl  # type: ignore
+        except Exception:
+            _sl = None  # type: ignore
 
-        return _sl(
-            "universe",
-            level=os.getenv("LOG_LEVEL", "INFO"),
-            log_dir=os.getenv("LOG_DIR", "logs"),
-        )
+        if _sl is not None:
+            return _sl(
+                "universe",
+                level=os.getenv("LOG_LEVEL", "INFO"),
+                log_dir=os.getenv("LOG_DIR", "logs"),
+            )
+        raise RuntimeError("json logger unavailable")
     except Exception:
 
         class _L:
@@ -111,14 +112,16 @@ def setup_logger():
 
         return _L()
 
-
 def get_exchange(exchange_id: str):
     # Prefer the project's ExchangeRouter wrapper to inherit safety guards.
     try:
         from router import ExchangeRouter
 
         router = ExchangeRouter()
-        if getattr(router, "ex", None) and getattr(router.ex, "id", "").lower() == exchange_id.lower():
+        if (
+            getattr(router, "ex", None)
+            and getattr(router.ex, "id", "").lower() == exchange_id.lower()
+        ):
             return router
     except Exception:
         pass
@@ -128,21 +131,17 @@ def get_exchange(exchange_id: str):
 
     return getattr(ccxt, exchange_id)({"enableRateLimit": True, "timeout": 20000})
 
-
 def safe_float(x, d=0.0):
     try:
         return float(x)
     except Exception:
         return float(d)
 
-
 def is_spot_market(m: Dict[str, Any]) -> bool:
     return bool(m.get("spot") is True or m.get("type") == "spot")
 
-
 def is_excluded_symbol(sym: str) -> bool:
     return bool(_EXCLUDE_RE.search(sym))
-
 
 def estimate_usd_volume(ticker: Dict[str, Any], base: str, quote: str) -> float:
     last = safe_float(ticker.get("last", ticker.get("close", np.nan)), np.nan)
@@ -162,8 +161,9 @@ def estimate_usd_volume(ticker: Dict[str, Any], base: str, quote: str) -> float:
             return safe_float(info[k], 0.0)
     return 0.0
 
-
-def fetch_liquidity_table(ex, markets: Dict[str, Any], quotes: set[str], preselect_max: int, log) -> pd.DataFrame:
+def fetch_liquidity_table(
+    ex, markets: Dict[str, Any], quotes: set[str], preselect_max: int, log
+) -> pd.DataFrame:
     from router import ExchangeRouter
 
     router = ExchangeRouter()
@@ -212,7 +212,6 @@ def fetch_liquidity_table(ex, markets: Dict[str, Any], quotes: set[str], presele
     df = df.sort_values("usd_vol", ascending=False).head(preselect_max).reset_index(drop=True)
     return df
 
-
 def compute_vol_metric(ex, df_liq: pd.DataFrame, timeframe: str, limit: int, log) -> pd.DataFrame:
     if df_liq.empty:
         return df_liq.assign(vol_metric=0.0)
@@ -241,7 +240,6 @@ def compute_vol_metric(ex, df_liq: pd.DataFrame, timeframe: str, limit: int, log
     df["vol_metric"] = vals
     return df
 
-
 # -------- NEW: experience read --------
 def _read_recent_pnl(xp_dir: Path, days: int) -> pd.DataFrame:
     """Read last N days pnl_*.csv and aggregate PnL per symbol."""
@@ -268,7 +266,6 @@ def _read_recent_pnl(xp_dir: Path, days: int) -> pd.DataFrame:
     agg = allp.groupby("symbol", as_index=False)["pnl"].sum()
     return agg
 
-
 def _score_from_xp(df_pick: pd.DataFrame, agg_pnl: pd.DataFrame, xp_weight: float) -> pd.DataFrame:
     if df_pick.empty or agg_pnl.empty:
         df_pick["xp_score"] = 0.0
@@ -289,8 +286,9 @@ def _score_from_xp(df_pick: pd.DataFrame, agg_pnl: pd.DataFrame, xp_weight: floa
     m = m.sort_values("score_xp", ascending=False).reset_index(drop=True)
     return m
 
-
-def score_and_pick(df: pd.DataFrame, min_usd_vol: float, w_liq: float, w_vol: float, max_symbols: int) -> pd.DataFrame:
+def score_and_pick(
+    df: pd.DataFrame, min_usd_vol: float, w_liq: float, w_vol: float, max_symbols: int
+) -> pd.DataFrame:
     if df.empty:
         return df
     df = df[df["usd_vol"] >= float(min_usd_vol)].copy()
@@ -305,7 +303,6 @@ def score_and_pick(df: pd.DataFrame, min_usd_vol: float, w_liq: float, w_vol: fl
     df["vol_score"] = df["vol_metric"] / vmax
     df["score"] = 0.65 * df["liq_score"] + 0.35 * df["vol_score"]  # base blend
     return df.sort_values("score", ascending=False).head(max_symbols).reset_index(drop=True)
-
 
 def save_outputs(
     exchange_id: str,
@@ -339,7 +336,6 @@ def save_outputs(
             ).to_csv(out_csv, index=False)
     log.info(f"Saved {len(payload['symbols'])} symbols -> {out_json.name} and {out_csv.name}")
     return payload["symbols"]
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -450,10 +446,8 @@ def main():
     if args.just_print:
         print(",".join(symbols))
 
-
 if __name__ == "__main__":
     main()
-
 
 class Universe:
     """Lightweight Universe helper compatible with UltraCore expectations.
@@ -468,7 +462,9 @@ class Universe:
 
     def __init__(self, router=None, exchange_id: str | None = None, symbols: list | None = None):
         self.router = router
-        self.exchange_id = exchange_id or (getattr(router, "id", None) if router else os.getenv("EXCHANGE_ID"))
+        self.exchange_id = exchange_id or (
+            getattr(router, "id", None) if router else os.getenv("EXCHANGE_ID")
+        )
         self._markets = None
         try:
             if symbols:

@@ -1,8 +1,8 @@
-import json, time
-from services.web3_bias_daemon import bias_map, start as start_bias
+from services.web3_bias_daemon import start as start_bias
 from core.events.web3_consumer import subscribe
 
-def _print(msg): print("[test]", msg)
+def _print(msg):
+    print("[test]", msg)
 
 def main():
     # Start consumer
@@ -14,4 +14,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

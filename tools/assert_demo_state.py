@@ -1,8 +1,8 @@
+from pathlib import Path
+
 """Assertions for demo state: ensure open_trades empty and closed_trades show retried successes.
 Exits with prints for human review.
 """
-
-from __future__ import annotations
 
 import json
 import pathlib
@@ -11,13 +11,11 @@ RUNTIME = pathlib.Path("runtime")
 OPEN = RUNTIME / "open_trades.json"
 CLOSED = RUNTIME / "closed_trades.json"
 
-
 def read(path, default):
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return default
-
 
 def main():
     open_trades = read(OPEN, [])
@@ -44,7 +42,6 @@ def main():
         print("assert_demo_state: OK")
     else:
         print("assert_demo_state: FAILED")
-
 
 if __name__ == "__main__":
     main()

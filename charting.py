@@ -1,16 +1,20 @@
+
 """charting.py
 Small helper to render simple price charts with signal markers.
 """
 
-from __future__ import annotations
-
 import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+try:
+    from PIL import Image, ImageDraw, ImageFont  # optional; used for annotations
+except Exception:
+    Image = None  # type: ignore
+    ImageDraw = None  # type: ignore
+    ImageFont = None  # type: ignore
 
 DATA_DIR = os.path.join("runtime", "charts")
 os.makedirs(DATA_DIR, exist_ok=True)
-
 
 def _to_df_like(ohlcv):
     """Accepts list-of-lists [[ts,open,high,low,close,vol], ...] or a pandas.DataFrame-like object.
@@ -31,7 +35,6 @@ def _to_df_like(ohlcv):
     ts = [datetime.fromtimestamp(int(r[0]) / 1000) for r in ohlcv]
     close = [float(r[4]) for r in ohlcv]
     return ts, close
-
 
 def plot_signal_chart(
     symbol: str,
@@ -95,7 +98,6 @@ def plot_signal_chart(
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
     return out_path
-
 
 def plot_candlestick(
     symbol: str,
@@ -161,7 +163,9 @@ def plot_candlestick(
                 continue
         if not rows:
             return None
-        df = pd.DataFrame(rows, columns=["Date", "Open", "High", "Low", "Close", "Volume"]).set_index("Date")
+        df = pd.DataFrame(
+            rows, columns=["Date", "Open", "High", "Low", "Close", "Volume"]
+        ).set_index("Date")
         return df
 
     df = _to_df(ohlcv)
@@ -195,7 +199,9 @@ def plot_candlestick(
         ap = []
         # ATR as separate panel
         if atr is not None:
-            ap.append(mpf.make_addplot(atr, panel=1, color="#ff8800", secondary_y=False, ylabel="ATR"))
+            ap.append(
+                mpf.make_addplot(atr, panel=1, color="#ff8800", secondary_y=False, ylabel="ATR")
+            )
 
         # RSI panel (compute series)
         try:
@@ -233,7 +239,11 @@ def plot_candlestick(
                     sser = _pd.Series(ys, index=_pd.DatetimeIndex(xs))
                     ap.append(
                         mpf.make_addplot(
-                            sser, type="scatter", markersize=80, marker="^", color=["g" if y >= 0 else "r" for y in ys]
+                            sser,
+                            type="scatter",
+                            markersize=80,
+                            marker="^",
+                            color=["g" if y >= 0 else "r" for y in ys],
                         )
                     )
             except Exception:
@@ -245,7 +255,9 @@ def plot_candlestick(
             hlines.append(float(sl))
 
         # styling: dark professional theme
-        mc = mpf.make_marketcolors(up="#0f9d58", down="#d93025", wick="inherit", edge="inherit", volume="in")
+        mc = mpf.make_marketcolors(
+            up="#0f9d58", down="#d93025", wick="inherit", edge="inherit", volume="in"
+        )
         s = mpf.make_mpf_style(base_mpf_style="nightclouds", marketcolors=mc, gridstyle="--")
 
         # multi-panel: main + volume + atr (panel=1) + rsi (panel=2)
@@ -270,7 +282,6 @@ def plot_candlestick(
 
         # Post-process: annotate trade duration, metrics box and overlay logo if present
         try:
-            from PIL import Image, ImageDraw, ImageFont
 
             img = Image.open(out_path).convert("RGBA")
             draw = ImageDraw.Draw(img)
@@ -299,7 +310,9 @@ def plot_candlestick(
                     rect_y1 = 10 + th + pad * 2
                     # semi-transparent background
                     draw.rectangle([rect_x0, rect_y0, rect_x1, rect_y1], fill=(0, 0, 0, 160))
-                    draw.text((rect_x0 + pad, rect_y0 + pad), txt, font=font, fill=(255, 255, 255, 255))
+                    draw.text(
+                        (rect_x0 + pad, rect_y0 + pad), txt, font=font, fill=(255, 255, 255, 255)
+                    )
                 except Exception:
                     pass
             # metrics box top-left
@@ -307,11 +320,15 @@ def plot_candlestick(
                 if metrics:
                     lines = []
                     if metrics.get("trend"):
-                        lines.append(f"Trend: {metrics.get('trend')} ({metrics.get('trend_score'):.4f})")
+                        lines.append(
+                            f"Trend: {metrics.get('trend')} ({metrics.get('trend_score'):.4f})"
+                        )
                     if metrics.get("rsi") is not None:
                         lines.append(f"RSI: {metrics.get('rsi')}  ATR: {metrics.get('atr')}")
                     if metrics.get("momentum_pct") is not None:
-                        lines.append(f"Momentum: {metrics.get('momentum_pct')}%  Vol: {metrics.get('volatility')}")
+                        lines.append(
+                            f"Momentum: {metrics.get('momentum_pct')}%  Vol: {metrics.get('volatility')}"
+                        )
                     txt = "\n".join(lines)
                     try:
                         font2 = ImageFont.truetype("arial.ttf", 12)
@@ -324,7 +341,9 @@ def plot_candlestick(
                     mx1 = mx0 + tw + pad * 2
                     my1 = my0 + th + pad * 2
                     draw.rectangle([mx0, my0, mx1, my1], fill=(10, 10, 10, 180))
-                    draw.multiline_text((mx0 + pad, my0 + pad), txt, font=font2, fill=(255, 255, 255, 255))
+                    draw.multiline_text(
+                        (mx0 + pad, my0 + pad), txt, font=font2, fill=(255, 255, 255, 255)
+                    )
             except Exception:
                 pass
 
@@ -350,7 +369,6 @@ def plot_candlestick(
     # fallback: non-mplfinance
     return plot_signal_chart(symbol, ohlcv, entries=entries, tps=tps, sl=sl, out_path=out_path)
 
-
 def analyze_ohlcv(ohlcv, lookback: int = 50) -> dict:
     """Compute simple market snapshot metrics from OHLCV.
 
@@ -368,7 +386,14 @@ def analyze_ohlcv(ohlcv, lookback: int = 50) -> dict:
         df = ohlcv
         if "ts" in df.columns:
             df = df.rename(
-                columns={"ts": "Date", "open": "Open", "high": "High", "low": "Low", "close": "Close", "vol": "Volume"}
+                columns={
+                    "ts": "Date",
+                    "open": "Open",
+                    "high": "High",
+                    "low": "Low",
+                    "close": "Close",
+                    "vol": "Volume",
+                }
             )
             df = df.set_index(pd.to_datetime(df["Date"], unit="ms"))
     else:
@@ -385,7 +410,9 @@ def analyze_ohlcv(ohlcv, lookback: int = 50) -> dict:
             except Exception:
                 continue
         if rows:
-            df = pd.DataFrame(rows, columns=["Date", "Open", "High", "Low", "Close", "Volume"]).set_index("Date")
+            df = pd.DataFrame(
+                rows, columns=["Date", "Open", "High", "Low", "Close", "Volume"]
+            ).set_index("Date")
 
     if df is None or len(df) < 5:
         return {}
@@ -396,7 +423,9 @@ def analyze_ohlcv(ohlcv, lookback: int = 50) -> dict:
 
     # ATR
     prev_close = s.shift(1)
-    tr = pd.concat([(high - low).abs(), (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(axis=1)
+    tr = pd.concat(
+        [(high - low).abs(), (high - prev_close).abs(), (low - prev_close).abs()], axis=1
+    ).max(axis=1)
     atr = float(tr.rolling(window=14, min_periods=1).mean().iloc[-1])
 
     # RSI

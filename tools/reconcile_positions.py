@@ -1,3 +1,5 @@
+from pathlib import Path
+
 """Reconcile runtime/open_trades.json with broker/account holdings.
 
 Goals:
@@ -7,15 +9,11 @@ Goals:
  - Emit a reconciliation log under runtime/reconcile_log.json
 """
 
-from __future__ import annotations
-
 import json
 import pathlib
 import time
-from typing import Any, Dict, List
 
 from dotenv import load_dotenv
-
 
 def _read(path: pathlib.Path, default):
     try:
@@ -23,11 +21,9 @@ def _read(path: pathlib.Path, default):
     except Exception:
         return default
 
-
 def _write(path: pathlib.Path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
 
 def _get_available_qty(router, symbol: str):
     base = symbol.split("/")[0]
@@ -52,7 +48,6 @@ def _get_available_qty(router, symbol: str):
     except Exception:
         return None
     return None
-
 
 def reconcile():
     load_dotenv()
@@ -103,7 +98,6 @@ def reconcile():
         _write(OPEN, rows)
     _write(LOG, log)
     print(f"reconcile done. changed={changed} entries logged={len(log)}")
-
 
 if __name__ == "__main__":
     reconcile()

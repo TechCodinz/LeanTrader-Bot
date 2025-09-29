@@ -1,12 +1,11 @@
 # news_adapter.py
-from __future__ import annotations
 
 import json
 import os
 import re
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple  # noqa: F401  # intentionally kept
+from typing import Any, Dict, List, Tuple
 
 import requests  # pip install requests
 
@@ -25,7 +24,6 @@ ONCHAIN_EVENTS_ENV = "ONCHAIN_EVENTS_PATH"  # optional path to JSON list of onch
 FF_THISWEEK = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 FF_NEXTWEEK = "https://nfs.faireconomy.media/ff_calendar_nextweek.json"
 
-
 def _load_json(p: Path) -> Any:
     if p.exists():
         try:
@@ -34,13 +32,11 @@ def _load_json(p: Path) -> Any:
             return None
     return None
 
-
 def _save_json(p: Path, data: Any) -> None:
     try:
         p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     except Exception:
         pass
-
 
 def fetch_calendar(force: bool = False) -> List[Dict[str, Any]]:
     """Return list of events with keys: 'country','title','impact','timestamp'(ms),'forecast','actual'."""
@@ -80,7 +76,6 @@ def fetch_calendar(force: bool = False) -> List[Dict[str, Any]]:
     _save_json(CAL_PATH, {"ts": now, "events": events})
     return events
 
-
 # Map symbol -> related currencies
 def _fx_currencies_for_symbol(sym: str) -> Tuple[str, str]:
     sym = sym.upper()
@@ -90,8 +85,9 @@ def _fx_currencies_for_symbol(sym: str) -> Tuple[str, str]:
         return ("", "")
     return m.group(1), m.group(2)
 
-
-def fx_guard_for_symbol(sym: str, hard_block_min: int = 10, soft_bias_min: int = 120) -> Dict[str, Any]:
+def fx_guard_for_symbol(
+    sym: str, hard_block_min: int = 10, soft_bias_min: int = 120
+) -> Dict[str, Any]:
     """
     Return guard/bias dict:
       { 'avoid_until': epoch_sec or 0,
@@ -130,7 +126,9 @@ def fx_guard_for_symbol(sym: str, hard_block_min: int = 10, soft_bias_min: int =
             continue
         ts = ts_ms // 1000
         # within hard-block window
-        if abs(ts - now) <= hard_block_min * 60 and str(ev.get("impact", "")).lower().startswith("high"):
+        if abs(ts - now) <= hard_block_min * 60 and str(ev.get("impact", "")).lower().startswith(
+            "high"
+        ):
             avoid_until = max(avoid_until, ts + hard_block_min * 60)
             reasons.append(f"HARD {ccy}:{ev.get('title', '')}")
         # a soft bias if we have actual vs forecast and event is within last soft_bias_min
@@ -158,7 +156,6 @@ def fx_guard_for_symbol(sym: str, hard_block_min: int = 10, soft_bias_min: int =
     if bias < 0:
         bias = -1
     return {"avoid_until": avoid_until, "bias": bias, "reason": "; ".join(reasons[:3])}
-
 
 # -------- Crypto sentiment: CryptoPanic (optional key) + Coindesk/Cointelegraph RSS --------
 def _sentiment_from_title(t: str) -> int:
@@ -202,7 +199,6 @@ def _sentiment_from_title(t: str) -> int:
         score += 0  # keep mapping by name
     return 1 if score > 0 else (-1 if score < 0 else 0)
 
-
 def _symbols_from_title(t: str) -> List[str]:
     s = t.upper()
     out = []
@@ -217,7 +213,6 @@ def _symbols_from_title(t: str) -> List[str]:
     if "DOGE" in s or "DOGECOIN" in s:
         out.append("DOGE/USDT")
     return out
-
 
 def fetch_crypto_sentiment(force: bool = False) -> Dict[str, int]:
     """
@@ -269,7 +264,6 @@ def fetch_crypto_sentiment(force: bool = False) -> Dict[str, int]:
 
     _save_json(CRYPTO_PATH, {"ts": now, "bias": bias})
     return bias
-
 
 def _merge_onchain_fusion(bias: Dict[str, int]) -> Dict[str, int]:
     """Optional: augment bias with on-chain fusion results.

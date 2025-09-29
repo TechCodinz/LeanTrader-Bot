@@ -5,10 +5,7 @@ place_spot_market) and fall back to ccxt create_order with try/except. They retu
 dict shapes so callers can handle results uniformly.
 """
 
-from __future__ import annotations
-
 from typing import Any, Dict, Optional
-
 
 def place_market(ex: Any, symbol: str, side: str, amount: float) -> Dict[str, Any]:
     """Place a market order, preferring safe helpers.
@@ -43,7 +40,6 @@ def place_market(ex: Any, symbol: str, side: str, amount: float) -> Dict[str, An
         return {"ok": False, "error": str(_e)}
     return {"ok": False, "error": "no order method"}
 
-
 def place_oco_ccxt(
     ex: Any,
     symbol: str,
@@ -76,15 +72,21 @@ def place_oco_ccxt(
                 except Exception:
                     # fall back to centralized safe_create_order
                     try:
-                        res["tp"] = safe_create_order(ex, "limit", symbol, opp_side, amount, float(take_px))
+                        res["tp"] = safe_create_order(
+                            ex, "limit", symbol, opp_side, amount, float(take_px)
+                        )
                     except Exception:
                         res["tp"] = {"ok": False, "error": "tp create failed"}
             elif hasattr(ex, "create_order"):
                 try:
-                    res["tp"] = safe_create_order(ex, "limit", symbol, opp_side, amount, float(take_px), params={})
+                    res["tp"] = safe_create_order(
+                        ex, "limit", symbol, opp_side, amount, float(take_px), params={}
+                    )
                 except Exception:
                     try:
-                        res["tp"] = safe_create_order(ex, "limit", symbol, opp_side, amount, float(take_px))
+                        res["tp"] = safe_create_order(
+                            ex, "limit", symbol, opp_side, amount, float(take_px)
+                        )
                     except Exception:
                         res["tp"] = {"ok": False, "error": "tp create failed"}
             else:
@@ -100,19 +102,27 @@ def place_oco_ccxt(
                 res["sl"] = ex.safe_place_order(symbol, opp_side, amount, price=None, params=params)
             elif hasattr(ex, "create_stop_order"):
                 try:
-                    res["sl"] = ex.create_stop_order(symbol, opp_side, amount, float(stop_px), params=params)
+                    res["sl"] = ex.create_stop_order(
+                        symbol, opp_side, amount, float(stop_px), params=params
+                    )
                 except Exception:
                     # fall back to centralized safe_create_order
                     try:
-                        res["sl"] = safe_create_order(ex, "stop", symbol, opp_side, amount, float(stop_px))
+                        res["sl"] = safe_create_order(
+                            ex, "stop", symbol, opp_side, amount, float(stop_px)
+                        )
                     except Exception:
                         res["sl"] = {"ok": False, "error": "sl create failed"}
             elif hasattr(ex, "create_order"):
                 try:
-                    res["sl"] = safe_create_order(ex, "stop", symbol, opp_side, amount, None, params=params)
+                    res["sl"] = safe_create_order(
+                        ex, "stop", symbol, opp_side, amount, None, params=params
+                    )
                 except Exception:
                     try:
-                        res["sl"] = safe_create_order(ex, "stop", symbol, opp_side, amount, float(stop_px))
+                        res["sl"] = safe_create_order(
+                            ex, "stop", symbol, opp_side, amount, float(stop_px)
+                        )
                     except Exception:
                         res["sl"] = {"ok": False, "error": "sl create failed"}
             else:
@@ -121,7 +131,6 @@ def place_oco_ccxt(
             res["sl"] = {"ok": False, "error": str(_e)}
 
     return res
-
 
 def safe_create_order(
     ex: Any,

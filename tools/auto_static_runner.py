@@ -1,7 +1,5 @@
 import json
-import os  # noqa: F401  # intentionally kept
 import time
-from pathlib import Path
 
 try:
     from tools.static_check import analyze_project
@@ -13,7 +11,6 @@ except Exception:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)  # type: ignore
     analyze_project = getattr(mod, "analyze_project")
-
 
 def run_once(root: str = "."):
     ts = int(time.time())
@@ -33,7 +30,6 @@ def run_once(root: str = "."):
     else:
         print("No parse errors or missing imports detected.")
     return outpath
-
 
 if __name__ == "__main__":
     run_once(".")

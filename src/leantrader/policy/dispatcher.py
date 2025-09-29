@@ -7,10 +7,6 @@ All heavy deps are optional and gated; absence yields graceful defaults.
 """
 
 import os
-from datetime import timezone
-from typing import Dict, List, Tuple
-
-import pandas as pd
 
 try:
     from ..news.feeds import fetch_rss
@@ -26,7 +22,6 @@ except Exception:
     def _load_learn_state():  # type: ignore
         return {"weights": {"session_tokyo": 1.0, "session_london": 1.0, "session_ny": 1.0}}
 
-
 # Try to import house_smc or meta_router if present
 try:
     from .house_smc import house_rules
@@ -37,7 +32,6 @@ try:
     from .meta_router import meta_route
 except Exception:
     meta_route = None
-
 
 def run_for_pair(pair: str, frames: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     # Prefer meta_router if available
@@ -55,7 +49,6 @@ def run_for_pair(pair: str, frames: Dict[str, pd.DataFrame]) -> pd.DataFrame:
     idx = pd.DatetimeIndex([])
     return pd.DataFrame(index=idx, columns=["signal", "go", "side"])
 
-
 # -------- Enhanced confluence --------
 def _session_from_time(ts: pd.Timestamp) -> str:
     h = ts.tz_convert(timezone.utc).hour if ts.tzinfo else ts.hour
@@ -64,7 +57,6 @@ def _session_from_time(ts: pd.Timestamp) -> str:
     if 8 <= h < 16:
         return "london"
     return "ny"
-
 
 def _news_score_for(symbol: str) -> float:
     try:
@@ -81,7 +73,6 @@ def _news_score_for(symbol: str) -> float:
         return float(scores.get(symbol.replace("/", ""), 0.5))
     except Exception:
         return 0.5
-
 
 def fuse_confluence(symbol: str, row: pd.Series, ts: pd.Timestamp) -> Tuple[float, List[str]]:
     notes: List[str] = []

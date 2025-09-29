@@ -1,7 +1,6 @@
-from __future__ import annotations
-
 import math
 from typing import Any, Dict, List
+import os
 
 import numpy as np
 import pandas as pd
@@ -30,7 +29,7 @@ except Exception:
     def set_leverage_l(val: float):
         return None
 try:
-    from config import Q_ENABLE_QUANTUM, Q_USE_RUNTIME
+    from config import Q_ENABLE_QUANTUM, Q_USE_RUNTIME  # type: ignore
 except Exception:
     Q_ENABLE_QUANTUM, Q_USE_RUNTIME = False, True
 import logging
@@ -50,7 +49,6 @@ except Exception:
     # fallback shim if router not available
     ExchangeRouter = None  # type: ignore
 
-
 def _symbol_to_pair(sym: str) -> str:
     s = sym.strip().upper()
     if "/" in s:
@@ -61,7 +59,6 @@ def _symbol_to_pair(sym: str) -> str:
         return f"{s[:-3]}/USD"
     # default to USDT quote
     return f"{s}/USDT"
-
 
 def _estimate_equity(router) -> float:
     try:
@@ -88,7 +85,6 @@ def _estimate_equity(router) -> float:
         pass
     return 1000.0
 
-
 def _compute_returns(df: pd.DataFrame) -> pd.DataFrame:
     # If the inputs look like price levels, use pct_change; otherwise, assume already returns
     try:
@@ -100,7 +96,6 @@ def _compute_returns(df: pd.DataFrame) -> pd.DataFrame:
     except Exception:
         ret = df.copy()
     return ret.dropna()
-
 
 def daily_rebalance_job(market_df: pd.DataFrame, latest_regime: str | None = None, budget: int = 10) -> Dict[str, Any]:
     """Quantum-aware portfolio selection and order placement.
@@ -134,7 +129,9 @@ def daily_rebalance_job(market_df: pd.DataFrame, latest_regime: str | None = Non
         return {"ok": False, "error": "no returns/cov computed"}
 
     # regime-aware quantum gate
-    q_on = select_quantum_mode(latest_regime, default_on=Q_ENABLE_QUANTUM)
+    # default_on follows env at runtime; fallback to config constant
+    env_q = str(os.getenv("Q_ENABLE_QUANTUM", "")).strip().lower() in ("1", "true", "yes", "y", "on")
+    q_on = select_quantum_mode(latest_regime, default_on=(env_q or Q_ENABLE_QUANTUM))
     if q_on:
         logging.info("[rebalance] quantum path enabled for regime=%s", latest_regime)
     else:
@@ -195,8 +192,8 @@ def daily_rebalance_job(market_df: pd.DataFrame, latest_regime: str | None = Non
         return arr / total if total > 0 else arr
 
     # selections lists
-    selected_q = [sym for sym, sel in zip(symbols, x) if int(sel) == 1]
-    selected_c = [sym for sym, sel in zip(symbols, x_classical) if int(sel) == 1]
+    [sym for sym, sel in zip(symbols, x) if int(sel) == 1]
+    [sym for sym, sel in zip(symbols, x_classical) if int(sel) == 1]
 
     # Volatility-scaled weights based on Sigma, then apply sector caps (if available)
     try:
@@ -227,7 +224,7 @@ def daily_rebalance_job(market_df: pd.DataFrame, latest_regime: str | None = Non
     lam = regime_weight_lambda(latest_regime)
     # Load optional evolved lambda bias from storage/strategies.json
     try:
-        import json, os
+        import json
         with open(os.path.join("storage", "strategies.json"), "r", encoding="utf-8") as f:
             best = json.load(f).get("best", {})
             lb = float(best.get("lambda_bias", 1.0))
@@ -285,7 +282,6 @@ def daily_rebalance_job(market_df: pd.DataFrame, latest_regime: str | None = Non
 
     # Adaptive budget based on simple stress proxy
     try:
-        import os
         # vol proxy from Sigma
         vol_proxy = float(np.sqrt(np.mean(np.clip(np.diag(Sigma), 1e-12, None))))
         vix_proxy = float(os.getenv("VIX_PROXY", "20"))
@@ -364,6 +360,5 @@ def daily_rebalance_job(market_df: pd.DataFrame, latest_regime: str | None = Non
         "lambda": lam,
         "path": choice.value,
     }
-
 
 __all__ = ["daily_rebalance_job"]

@@ -8,7 +8,6 @@ Run: python -m tools.auto_mark_f401
 """
 
 import re
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "reports" / "f401_report.txt"

@@ -4,12 +4,9 @@ This is safe to run in paper mode. It reuses tools.demo_run logic but loops and
 respects the signal publisher's rate limits.
 """
 
-from __future__ import annotations
-
 import time
 
 from dotenv import load_dotenv
-
 
 def main(loop_minutes: int | None = None):
     """Run continuous demo; if loop_minutes is None run forever (supervisor-friendly).
@@ -36,7 +33,6 @@ def main(loop_minutes: int | None = None):
         except Exception as e:
             print("demo tick error:", e)
         time.sleep(30)
-
 
 if __name__ == "__main__":
     main()

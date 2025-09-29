@@ -84,7 +84,6 @@ HTML_PAGE = """
 </html>
 """
 
-
 @router.get("/trade", response_class=HTMLResponse)
 async def trade(pair: str = "EURUSD", side: str = "buy", price: float = 0.0):
     page = HTML_PAGE.format(
@@ -94,7 +93,6 @@ async def trade(pair: str = "EURUSD", side: str = "buy", price: float = 0.0):
         sell_sel="selected" if side.lower() == "sell" else "",
     )
     return HTMLResponse(page)
-
 
 @router.post("/trade/confirm")
 async def confirm_trade(

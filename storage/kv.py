@@ -1,11 +1,6 @@
-from __future__ import annotations
-
 import json
 import os
 import threading
-from contextlib import contextmanager
-from typing import Any, Dict
-
 
 _STATE_DIR = os.getenv("KV_STATE_DIR", os.path.join(".state"))
 _KV_PATH = os.path.join(_STATE_DIR, "kv.json")
@@ -17,12 +12,10 @@ try:  # optional cross-process lock
 except Exception:  # pragma: no cover
     portalocker = None
 
-
 def _ensure_dir(path: str) -> None:
     d = os.path.dirname(os.path.abspath(path))
     if d and not os.path.exists(d):
         os.makedirs(d, exist_ok=True)
-
 
 @contextmanager
 def _file_lock():
@@ -42,7 +35,6 @@ def _file_lock():
                 except Exception:
                     pass
 
-
 def load_all() -> Dict[str, Any]:
     # Prefer new .state store; fallback to legacy runtime/kv.json
     with _file_lock():
@@ -60,32 +52,26 @@ def load_all() -> Dict[str, Any]:
             pass
         return {}
 
-
 def save_all(data: Dict[str, Any]) -> None:
     with _file_lock():
         _ensure_dir(_KV_PATH)
         with open(_KV_PATH, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-
 def get(key: str, default: Any = None) -> Any:
     return load_all().get(key, default)
-
 
 def set(key: str, value: Any) -> None:
     data = load_all()
     data[key] = value
     save_all(data)
 
-
 # New API as requested
 def get_kv(key: str, default: Any = None) -> Any:
     return get(key, default)
 
-
 def set_kv(key: str, value: Any) -> None:
     set(key, value)
-
 
 __all__ = [
     "get",

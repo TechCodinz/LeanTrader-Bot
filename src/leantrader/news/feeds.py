@@ -1,16 +1,11 @@
-from __future__ import annotations
-
 import json
 import os
 import time
-from dataclasses import dataclass
-from typing import Dict, List
 
 from ..optional_deps import check_or_raise
 
 _SEEN_PATH = os.getenv("NEWS_SEEN_PATH", "runtime/news_seen.json")
 _RATE_MS = int(os.getenv("NEWS_RATE_MS", "1000"))
-
 
 def _load_seen() -> Dict[str, float]:
     try:
@@ -18,7 +13,6 @@ def _load_seen() -> Dict[str, float]:
             return json.load(f)
     except Exception:
         return {}
-
 
 def _save_seen(d: Dict[str, float]) -> None:
     try:
@@ -28,14 +22,12 @@ def _save_seen(d: Dict[str, float]) -> None:
     except Exception:
         pass
 
-
 @dataclass
 class NewsItem:
     ts: float
     title: str
     link: str
     source: str
-
 
 def fetch_rss(urls: List[str]) -> List[NewsItem]:
     # lazy import feedparser

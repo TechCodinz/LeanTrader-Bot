@@ -1,15 +1,8 @@
-from __future__ import annotations
-
 import argparse
 import json
 import os
-from typing import Any, Dict
 
-import numpy as np
-import pandas as pd
-
-from research.evolution.ga_trader import run_ga, StrategyGenome
-
+from research.evolution.ga_trader import run_ga
 
 def _load_prices(path: str | None) -> pd.DataFrame:
     if path and os.path.exists(path):
@@ -26,7 +19,6 @@ def _load_prices(path: str | None) -> pd.DataFrame:
         data[c] = 100 * np.cumprod(1.0 + steps)
     idx = pd.date_range(end=pd.Timestamp.utcnow().floor("min"), periods=400, freq="1min")
     return pd.DataFrame(data, index=idx)
-
 
 def main():
     p = argparse.ArgumentParser(description="Evolve strategies (GA)")
@@ -48,7 +40,5 @@ def main():
         pass
     print(json.dumps({"best": best.__dict__, "leaderboard": leaderboard}))
 
-
 if __name__ == "__main__":
     main()
-

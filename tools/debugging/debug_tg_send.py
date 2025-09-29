@@ -12,7 +12,6 @@ if os.getenv("TELEGRAM_DEBUG", "").strip().lower() not in ("1", "true", "yes"):
 import glob
 import json
 import sys
-from pathlib import Path
 
 print("[debug_tg_send] TELEGRAM_BOT_TOKEN present:", "TELEGRAM_BOT_TOKEN" in os.environ)
 print("[debug_tg_send] TELEGRAM_CHAT_ID present:", "TELEGRAM_CHAT_ID" in os.environ)

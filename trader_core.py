@@ -1,14 +1,12 @@
 # trader_core.py
-from __future__ import annotations
 
 import os
 import time
-from typing import Any, Dict, List, Optional  # noqa: F401  # intentionally kept
+from pathlib import Path
+from typing import List
 
 import pandas as pd
 from dotenv import load_dotenv
-
-from futures_signals import calc_contract_qty_usdt, fut_side_from_ema
 
 
 def _import_mt5_init():
@@ -40,7 +38,6 @@ def _import_mt5_init():
 
     return _noop_mt5_init
 
-
 def _import_risk_components():
     """Return (RiskConfig, RiskManager) from `risk_guard` if available.
 
@@ -65,7 +62,6 @@ def _import_risk_components():
     try:
         import importlib.util
         import sys
-        from pathlib import Path
 
         repo_root = Path(__file__).resolve().parent
         candidate = repo_root / "risk_guard.py"
@@ -105,7 +101,6 @@ def _import_risk_components():
 
     return RiskConfig, RiskManager
 
-
 # Resolve risk components once using the robust loader to avoid multiple
 # import sites and reduce circular-import windows in supervised children.
 try:
@@ -132,9 +127,48 @@ except Exception:
         def size_spot(self, *a, **k):
             return 0.0
 
-
 from router import ExchangeRouter  # noqa: E402
 
+# Optional, guard absent submodules in demo envs
+try:
+    from sessions.awareness import (
+        fx_session_active,
+        minutes_to_next_open,
+        personalized_thresholds,
+    )
+except Exception:
+    def fx_session_active(_):
+        return True
+
+    def minutes_to_next_open(_):
+        return 0
+
+    def personalized_thresholds(_sym, a, b):
+        return a, b
+
+try:
+    from scanners.volatility import vol_hot
+except Exception:
+    def vol_hot(_df, atr_th=0.0, bbw_th=0.0):
+        return {"hot": 1.0, "atr_pct": 0.0, "bbw": 0.0}
+
+try:
+    from scanners.ema_direction import fut_side_from_ema
+except Exception:
+    def fut_side_from_ema(_df):
+        return None
+
+try:
+    from scanners.metrics import update_vol_stats
+except Exception:
+    def update_vol_stats(*a, **k):
+        return None
+
+try:
+    from futures.sizing import calc_contract_qty_usdt
+except Exception:
+    def calc_contract_qty_usdt(px, stake, lev, min_qty=0.001, step=0.001):
+        return 0.0
 
 def _lazy_mt5_signals():
     """Return a tuple (fetch_bars_safe, gen_signal, place_mt5_signal).
@@ -150,7 +184,9 @@ def _lazy_mt5_signals():
         return (
             getattr(mod, "fetch_bars_safe", lambda *a, **k: __import__("pandas").DataFrame()),
             getattr(mod, "gen_signal", lambda *a, **k: {}),
-            getattr(mod, "place_mt5_signal", lambda *a, **k: {"ok": False, "comment": "mt5 unavailable"}),
+            getattr(
+                mod, "place_mt5_signal", lambda *a, **k: {"ok": False, "comment": "mt5 unavailable"}
+            ),
         )
     except Exception:
         try:
@@ -166,9 +202,15 @@ def _lazy_mt5_signals():
                 sys.modules["mt5_signals"] = mod
                 spec.loader.exec_module(mod)  # type: ignore
                 return (
-                    getattr(mod, "fetch_bars_safe", lambda *a, **k: __import__("pandas").DataFrame()),
+                    getattr(
+                        mod, "fetch_bars_safe", lambda *a, **k: __import__("pandas").DataFrame()
+                    ),
                     getattr(mod, "gen_signal", lambda *a, **k: {}),
-                    getattr(mod, "place_mt5_signal", lambda *a, **k: {"ok": False, "comment": "mt5 unavailable"}),
+                    getattr(
+                        mod,
+                        "place_mt5_signal",
+                        lambda *a, **k: {"ok": False, "comment": "mt5 unavailable"},
+                    ),
                 )
         except Exception:
             pass
@@ -185,18 +227,15 @@ def _lazy_mt5_signals():
 
     return _fb, _fg, _fp
 
-
-from session_clock import fx_session_active, minutes_to_next_open  # noqa: E402
-from skillbook import personalized_thresholds, update_vol_stats  # noqa: E402
-from volatility import vol_hot  # noqa: E402
-
 load_dotenv()
 
 # Early import-time diagnostics for supervisor children. Keep minimal and safe.
 try:
     import sys
 
-    print(f"[diag trader_core] exe={getattr(sys, 'executable', None)} cwd={os.getcwd()} sys.path0={sys.path[0]}")
+    print(
+        f"[diag trader_core] exe={getattr(sys, 'executable', None)} cwd={os.getcwd()} sys.path0={sys.path[0]}"
+    )
     try:
         # list a few repo files to validate working directory
         root = os.path.dirname(__file__)
@@ -214,10 +253,8 @@ ENABLE_LIVE = (os.getenv("ENABLE_LIVE") or "false").strip().lower() in (
     "on",
 )
 
-
 def _csv(s: str) -> List[str]:
     return [x.strip() for x in (s or "").split(",") if x.strip()]
-
 
 def _lots_for(symbol: str, tf: str) -> float:
     env_key = f"LOTS_{tf.upper()}"
@@ -226,7 +263,6 @@ def _lots_for(symbol: str, tf: str) -> float:
     if "XAU" in symbol.upper():
         base *= float(os.getenv("XAU_LOT_MULT", "0.6") or "0.6")
     return base
-
 
 def _stake_for_tf(tf: str, kind: str = "SPOT") -> float:
     # SPOT stake per TF or FUT stake per TF
@@ -237,7 +273,6 @@ def _stake_for_tf(tf: str, kind: str = "SPOT") -> float:
     except Exception:
         return default
 
-
 def _fut_leverage(symbol: str) -> float:
     # Per-symbol leverage (env) with fallback
     s = symbol.upper().replace("/", "_")
@@ -246,7 +281,6 @@ def _fut_leverage(symbol: str) -> float:
         return float(v)
     except Exception:
         return 5.0
-
 
 class TraderCore:
     def __init__(
@@ -448,7 +482,9 @@ class TraderCore:
                 stake = _stake_for_tf(tf, "FUT")
                 lev = _fut_leverage(sym)
                 qty = calc_contract_qty_usdt(px, stake, lev, min_qty=0.001, step=0.001)
-                print(f"[FUT] {sym} {tf}: {side.upper()} qty≈{qty:.4f} lev={lev} live={ENABLE_LIVE}")
+                print(
+                    f"[FUT] {sym} {tf}: {side.upper()} qty≈{qty:.4f} lev={lev} live={ENABLE_LIVE}"
+                )
                 if ENABLE_LIVE and qty > 0:
                     # Place market order; your router handles margin mode/hedge/reduce-only defaults
                     res = self.router.place_futures_market(sym, side, qty, leverage=lev)
@@ -456,7 +492,9 @@ class TraderCore:
 
     # ---------- Main loop ----------
     def run_forever(self) -> None:
-        print(f"TraderCore live={ENABLE_LIVE} | FX={self.fx_symbols} | SPOT={self.crypto_spot} | FUT={self.crypto_fut}")
+        print(
+            f"TraderCore live={ENABLE_LIVE} | FX={self.fx_symbols} | SPOT={self.crypto_spot} | FUT={self.crypto_fut}"
+        )
         while True:
             try:
                 if self.fx_symbols:

@@ -1,11 +1,9 @@
 # mt5_signals.py
-from __future__ import annotations
 
 # Use lazy, defensive helpers (below) to import mt5_adapter at call-time.
 # Avoid injecting a fake module into sys.modules during module-import since
 # that can collide with other import paths and produce confusing
 # 'cannot import name' errors in supervised child processes.
-from typing import Any, Dict, List, Optional  # noqa: F401  # intentionally kept
 
 import pandas as pd
 
@@ -23,7 +21,6 @@ except Exception:
 # tools. Perform lazy imports with safe fallbacks inside the functions
 # that need them.
 
-
 def _import_mt5_helpers():
     """Return a namespace dict with mt5 helper callables or safe fallbacks."""
     try:
@@ -33,7 +30,6 @@ def _import_mt5_helpers():
         import importlib
         import os
         import sys
-        from pathlib import Path
 
         # If a stray `mt5_adapter` module is already loaded and isn't the one
         # from the repository root, remove it so our file-based loader can
@@ -62,7 +58,12 @@ def _import_mt5_helpers():
         # If the module exists but is missing key helpers, treat it as a
         # failed import so we fall back to the file-loader or to no-op
         # implementations below.
-        if _bars_df is None or _ensure_symbol is None or _order_send_market is None or _symbol_trade_specs is None:
+        if (
+            _bars_df is None
+            or _ensure_symbol is None
+            or _order_send_market is None
+            or _symbol_trade_specs is None
+        ):
             raise ImportError("mt5_adapter module missing required helpers")
 
         return {
@@ -132,10 +133,8 @@ def _import_mt5_helpers():
             "symbol_trade_specs": _symbol_trade_specs,
         }
 
-
 def ema(series: pd.Series, n: int) -> pd.Series:
     return series.ewm(span=n, adjust=False).mean()
-
 
 def gen_signal(df: pd.DataFrame) -> Dict[str, Any]:
     """
@@ -174,7 +173,6 @@ def gen_signal(df: pd.DataFrame) -> Dict[str, Any]:
         tp = px - 2.5 * a
 
     return {"side": side, "entry": px, "sl": sl, "tp": tp}
-
 
 def place_mt5_signal(
     mt5mod,
@@ -220,7 +218,6 @@ def place_mt5_signal(
         pass
 
     return helpers["order_send_market"](mt5mod, symbol, side, lots, sl=sl, tp=tp, deviation=20)
-
 
 def fetch_bars_safe(symbol: str, timeframe: str, limit: int = 300) -> pd.DataFrame:
     helpers = _import_mt5_helpers()

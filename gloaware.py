@@ -1,5 +1,4 @@
 # gloaware.py
-from __future__ import annotations
 
 import math
 from dataclasses import dataclass
@@ -7,7 +6,6 @@ from typing import Dict
 
 import numpy as np
 import pandas as pd
-
 
 def _safe(val, default=0.0):
     try:
@@ -17,10 +15,8 @@ def _safe(val, default=0.0):
     except Exception:
         return default
 
-
 def _ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=int(n), adjust=False).mean()
-
 
 def _trend_strength(df: pd.DataFrame, fast=20, slow=50) -> float:
     if len(df) < slow + 2:
@@ -32,7 +28,6 @@ def _trend_strength(df: pd.DataFrame, fast=20, slow=50) -> float:
     z = spread.tail(60).pct_change().fillna(0.0)
     s = z.mean() / (z.std(ddof=0) + 1e-12)
     return float(np.tanh(3.0 * s))  # clamp to [-1,1]
-
 
 def _market_heat(df: pd.DataFrame) -> float:
     # normalized ATR/price * volume zscore → activity proxy
@@ -53,11 +48,12 @@ def _market_heat(df: pd.DataFrame) -> float:
     px = c[-1] if len(c) else 0.0
     atr_ratio = float(atr / max(px, 1e-12))
     vol_z = (
-        ((vol - vol.rolling(100).mean()) / (vol.rolling(100).std(ddof=0) + 1e-9)).iloc[-1] if len(vol) >= 100 else 0.0
+        ((vol - vol.rolling(100).mean()) / (vol.rolling(100).std(ddof=0) + 1e-9)).iloc[-1]
+        if len(vol) >= 100
+        else 0.0
     )
     heat = np.tanh(50 * atr_ratio) + 0.15 * float(vol_z)
     return float(np.clip(heat, -2.0, 2.0))
-
 
 def _novelty(df: pd.DataFrame) -> float:
     # how "unusual" is the last candle vs 200-bar history
@@ -74,7 +70,6 @@ def _novelty(df: pd.DataFrame) -> float:
     z = ((feats - mu) / sd).tail(1).abs().mean(axis=1)
     return float(np.tanh(z.iloc[0])) if len(z) else 0.0
 
-
 @dataclass
 class AwarenessConfig:
     # risk/drawdown adaptation
@@ -89,7 +84,6 @@ class AwarenessConfig:
     # gating
     allow_when_calendar_risk_off: bool = False
 
-
 @dataclass
 class AwarenessDecision:
     mode: str
@@ -97,7 +91,6 @@ class AwarenessDecision:
     sleep_secs: float
     notes: str
     confidence: float  # 0..1
-
 
 class GloAware:
     """
@@ -126,7 +119,12 @@ class GloAware:
         cal_risk = int(last_row.get("risk_off_calendar", 0)) == 1
 
         # crude confidence blend
-        conf = 0.55 * max(0.0, trend) + 0.25 * max(0.0, heat) + 0.10 * np.tanh(sent) + 0.10 * max(0.0, pick_score)
+        conf = (
+            0.55 * max(0.0, trend)
+            + 0.25 * max(0.0, heat)
+            + 0.10 * np.tanh(sent)
+            + 0.10 * max(0.0, pick_score)
+        )
         conf = float(np.clip(conf, 0.0, 1.0))
 
         mode = "NEUTRAL"

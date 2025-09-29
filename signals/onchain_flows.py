@@ -1,21 +1,24 @@
-from __future__ import annotations
-
 import logging
 import math
 import statistics
-from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence
-
+from typing import Any, Dict, List, Mapping, Sequence
+try:
+    from prometheus_client import Counter  # type: ignore
+except Exception:  # pragma: no cover
+    Counter = None  # type: ignore
 
 # Metrics: expose a Counter named ONCHAIN_SPIKES with a 'type' label.
 try:
-    from prometheus_client import Counter  # type: ignore
-
-    ONCHAIN_SPIKES = Counter(
-        "onchain_spikes_total",
-        "Count of on-chain spike events detected",
-        ["type"],
-    )
+    if Counter is not None:
+        ONCHAIN_SPIKES = Counter(
+            "onchain_spikes_total",
+            "Count of on-chain spike events detected",
+            ["type"],
+        )
+    else:
+        raise Exception("no prometheus")
 except Exception:  # pragma: no cover - prometheus client may not be available
+
     class _NoopCounter:
         def labels(self, *_: Any, **__: Any) -> "_NoopCounter":
             return self
@@ -24,7 +27,6 @@ except Exception:  # pragma: no cover - prometheus client may not be available
             pass
 
     ONCHAIN_SPIKES = _NoopCounter()  # type: ignore
-
 
 def _get(d: Mapping[str, Any], *keys: str, default: Any = None) -> Any:
     """Return first present key from mapping.
@@ -36,7 +38,6 @@ def _get(d: Mapping[str, Any], *keys: str, default: Any = None) -> Any:
         if k in d and d[k] is not None:
             return d[k]
     return default
-
 
 def whale_transfer_detector(
     transfers: Sequence[Mapping[str, Any]],
@@ -92,7 +93,6 @@ def whale_transfer_detector(
             pass
 
     return events
-
 
 def pool_imbalance_detector(
     pools: Sequence[Mapping[str, Any]],
@@ -173,7 +173,6 @@ def pool_imbalance_detector(
 
     return events
 
-
 def dex_volume_spike(
     asset: str,
     volumes: Sequence[float],
@@ -226,7 +225,6 @@ def dex_volume_spike(
         pass
 
     return [evt]
-
 
 def sentiment_fusion(events: Sequence[Mapping[str, Any]]) -> Dict[str, Dict[str, float]]:
     """Map on-chain events to coarse sentiment and buzz features.
@@ -285,7 +283,6 @@ def sentiment_fusion(events: Sequence[Mapping[str, Any]]) -> Dict[str, Dict[str,
 
     return features
 
-
 __all__ = [
     "ONCHAIN_SPIKES",
     "whale_transfer_detector",
@@ -293,4 +290,3 @@ __all__ = [
     "dex_volume_spike",
     "sentiment_fusion",
 ]
-

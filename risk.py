@@ -1,4 +1,5 @@
 # risk.py
+
 from dataclasses import dataclass
 
 
@@ -18,10 +19,3 @@ class RiskConfig:
     max_position_size: float = 1.0
     min_position_size: float = 0.01
     position_size_step: float = 0.01
-    max_position_size: float = 1.0
-    min_position_size: float = 0.01
-    position_size_step: float = 0.01
-    max_position_size: float = 1.0
-    min_position_size: float = 0.01
-    position_size_step: float = 0.01
-    max_position_size: float = 1.0

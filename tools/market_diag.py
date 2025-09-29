@@ -3,14 +3,9 @@
 Writes a small run log to runtime/logs/market_diag.txt so results are persistent.
 """
 
-from __future__ import annotations
-
 import time
-from pathlib import Path
-from typing import List
 
 from tools.market_data import fetch_ohlcv_multi
-
 
 def _write_log(lines: List[str]) -> None:
     p = Path("runtime") / "logs" / "market_diag.txt"
@@ -18,7 +13,6 @@ def _write_log(lines: List[str]) -> None:
     with p.open("a", encoding="utf-8") as f:
         for line in lines:
             f.write(line + "\n")
-
 
 def main() -> int:
     exchanges = ["bybit", "gateio", "kucoin", "binance", "okx"]
@@ -39,7 +33,6 @@ def main() -> int:
     for r in results:
         print(r)
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

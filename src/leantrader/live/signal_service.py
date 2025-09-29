@@ -1,22 +1,14 @@
-from __future__ import annotations
-
 import os
-from pathlib import Path
-from typing import Dict, List, Tuple
-
-import pandas as pd
 
 from ..learn.online_learner import get_tuned_multipliers
 from ..live.charts import render_signal_illustration
 from ..policy.dispatcher import fuse_confluence
 from ..ta.pipeline import compute_ta
 
-
 def _ensure_reports_dir() -> Path:
     p = Path(os.getenv("REPORTS_DIR", "reports"))
     p.mkdir(parents=True, exist_ok=True)
     return p
-
 
 def _render_chart(df: pd.DataFrame, pair: str) -> str:
     from ..live.charts import render_signal_chart
@@ -24,7 +16,6 @@ def _render_chart(df: pd.DataFrame, pair: str) -> str:
     out = _ensure_reports_dir() / f"{pair.replace('/', '_')}_snapshot.png"
     render_signal_chart(df.tail(200), str(out), title=f"{pair} - snapshot")
     return str(out)
-
 
 def _session_from_time(ts: pd.Timestamp) -> str:
     # naive UTC-based session banding
@@ -34,7 +25,6 @@ def _session_from_time(ts: pd.Timestamp) -> str:
     if 8 <= h < 16:
         return "london"
     return "ny"
-
 
 def _score_from_feats(row: pd.Series, symbol: str, ts: pd.Timestamp) -> Tuple[float, List[str]]:
     notes: List[str] = []
@@ -75,8 +65,9 @@ def _score_from_feats(row: pd.Series, symbol: str, ts: pd.Timestamp) -> Tuple[fl
             notes = notes[:3]
     return score, notes
 
-
-def generate_signals(frames: Dict[str, pd.DataFrame], symbol: str, post: bool = False) -> pd.DataFrame:
+def generate_signals(
+    frames: Dict[str, pd.DataFrame], symbol: str, post: bool = False
+) -> pd.DataFrame:
     # compute features
     feats = compute_ta(frames)
     if feats.empty:
@@ -133,14 +124,21 @@ def generate_signals(frames: Dict[str, pd.DataFrame], symbol: str, post: bool = 
         last_idx = out.index[-1]
         last = out.loc[last_idx]
         base_df = list(frames.values())[-1]
-        out_img = _ensure_reports_dir() / f"{symbol.replace('/', '_')}_{int(pd.Timestamp(last_idx).timestamp())}.png"
+        out_img = (
+            _ensure_reports_dir()
+            / f"{symbol.replace('/', '_')}_{int(pd.Timestamp(last_idx).timestamp())}.png"
+        )
         render_signal_illustration(
             base_df,
             str(out_img),
             title=f"{symbol} {last['side'].upper()} ({last['confidence']:.2f})",
             entry=float(last.get("entry", 0.0)),
             sl=float(last.get("sl", 0.0)),
-            tps=[float(last.get("tp1", 0.0)), float(last.get("tp2", 0.0)), float(last.get("tp3", 0.0))],
+            tps=[
+                float(last.get("tp1", 0.0)),
+                float(last.get("tp2", 0.0)),
+                float(last.get("tp3", 0.0)),
+            ],
         )
         out.loc[last_idx, "chart_path"] = str(out_img)
     except Exception:

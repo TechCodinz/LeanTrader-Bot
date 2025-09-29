@@ -9,13 +9,10 @@ os.makedirs("runtime", exist_ok=True)
 
 error_info = None
 try:
-    from router import ExchangeRouter
-    from ultra_core import UltraCore
 
     r = ExchangeRouter()
     print("Router markets count=", len(getattr(r, "markets", {})))
     try:
-        from universe import Universe
 
         u = Universe(r) if hasattr(r, "markets") else None
     except Exception:

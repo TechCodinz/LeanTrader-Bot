@@ -1,9 +1,4 @@
-from __future__ import annotations
-
 import json
-from typing import Dict, List, Optional, Tuple
-
-import numpy as np
 
 try:
     from qiskit_optimization import QuadraticProgram  # type: ignore
@@ -15,7 +10,6 @@ except Exception:  # pragma: no cover
     MinimumEigenOptimizer = None  # type: ignore
     QAOA = None  # type: ignore
     Sampler = None  # type: ignore
-
 
 def build_exec_qubo(
     target_qty: int,
@@ -48,7 +42,9 @@ def build_exec_qubo(
 
     # Linear cost term: per-slice qty * venue cost
     slice_qty = float(target_qty) / float(max(1, max_slices))
-    linear = {f"y_{i}_{k}": float(costs[i]) * slice_qty for i in range(n) for k in range(max_slices)}
+    linear = {
+        f"y_{i}_{k}": float(costs[i]) * slice_qty for i in range(n) for k in range(max_slices)
+    }
     qp.minimize(linear=linear)
 
     # Imbalance penalty toward equal number of slices per venue
@@ -61,7 +57,9 @@ def build_exec_qubo(
         ys = [f"y_{i}_{k}" for k in range(max_slices)]
         for a in range(max_slices):
             name_a = ys[a]
-            quad_linear[name_a] = quad_linear.get(name_a, 0.0) + imbalance_lambda * (1.0 - 2.0 * ideal)
+            quad_linear[name_a] = quad_linear.get(name_a, 0.0) + imbalance_lambda * (
+                1.0 - 2.0 * ideal
+            )
             for b in range(a + 1, max_slices):
                 name_b = ys[b]
                 key = tuple(sorted((name_a, name_b)))
@@ -76,10 +74,14 @@ def build_exec_qubo(
     # Constraints: exactly one venue per slice
     for k in range(max_slices):
         vars_for_slice = [f"y_{i}_{k}" for i in range(n)]
-        qp.linear_constraint(linear={name: 1 for name in vars_for_slice}, sense="==", rhs=1, name=f"one_per_slice_{k}")
+        qp.linear_constraint(
+            linear={name: 1 for name in vars_for_slice},
+            sense="==",
+            rhs=1,
+            name=f"one_per_slice_{k}",
+        )
 
     return qp
-
 
 def _solve_qaoa(qp, reps: int = 1, seed: int = 42, use_runtime: bool = True):
     if QAOA is None or MinimumEigenOptimizer is None:
@@ -89,7 +91,6 @@ def _solve_qaoa(qp, reps: int = 1, seed: int = 42, use_runtime: bool = True):
     sampler = None
     if use_runtime:
         try:
-            from qiskit_ibm_runtime import QiskitRuntimeService, Sampler as RuntimeSampler  # type: ignore
 
             token = None
             try:
@@ -113,7 +114,6 @@ def _solve_qaoa(qp, reps: int = 1, seed: int = 42, use_runtime: bool = True):
     result = opt.solve(qp)
     return result
 
-
 def quantum_exec_plan(
     target_qty: int,
     venues: List[str],
@@ -134,7 +134,6 @@ def quantum_exec_plan(
     try:
         from observability.metrics import time_exec_plan  # type: ignore
     except Exception:  # pragma: no cover
-        from contextlib import contextmanager
 
         @contextmanager
         def time_exec_plan(name: str):
@@ -166,7 +165,6 @@ def quantum_exec_plan(
             plan = [{"venue": v, "qty": per_venue} for v in venues]
             return {"plan": plan, "slice_qty": per_venue, "method": "twap_equal"}
 
-
 def _main():
     import argparse
 
@@ -192,7 +190,6 @@ def _main():
         seed=int(args.seed),
     )
     print(json.dumps(out))
-
 
 if __name__ == "__main__":
     _main()

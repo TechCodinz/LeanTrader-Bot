@@ -2,7 +2,6 @@ import os
 import importlib
 import numpy as np
 
-
 def _reload_quantum_modules(enable: bool):
     # Control env and reload modules so flags are applied
     os.environ["Q_ENABLE_QUANTUM"] = "true" if enable else "false"
@@ -26,7 +25,6 @@ def _reload_quantum_modules(enable: bool):
     except Exception:
         pass
 
-
 def test_choose_assets_binary_within_budget():
     _reload_quantum_modules(enable=False)
     import allocators.portfolio as ap
@@ -45,7 +43,6 @@ def test_choose_assets_binary_within_budget():
     assert np.all((x == 0) | (x == 1))
     assert int(x.sum()) <= budget
 
-
 def test_price_call_matches_classical_when_quantum_disabled():
     _reload_quantum_modules(enable=False)
     import risk.pricing as rp
@@ -56,7 +53,6 @@ def test_price_call_matches_classical_when_quantum_disabled():
     assert isinstance(pc, float)
     # allow tiny tolerance
     assert abs(pc - bs) < 1e-8
-
 
 def test_quantum_disabled_returns_valid_outputs():
     _reload_quantum_modules(enable=False)
@@ -74,4 +70,3 @@ def test_quantum_disabled_returns_valid_outputs():
     price = rp.price_call(100.0, 100.0, 0.25, 0.01, 0.2)
     assert isinstance(price, float)
     assert price >= 0.0
-

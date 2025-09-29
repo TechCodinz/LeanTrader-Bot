@@ -1,5 +1,4 @@
 # strategy_zoo.py
-from __future__ import annotations
 
 import math
 from typing import Any, Dict
@@ -7,11 +6,9 @@ from typing import Any, Dict
 import numpy as np
 import pandas as pd
 
-
 # ---------- common helpers ----------
 def ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=int(n), adjust=False).mean()
-
 
 def atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
     h, low, c = df["high"], df["low"], df["close"]
@@ -19,13 +16,11 @@ def atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
     tr = pd.concat([(h - low), (h - pc).abs(), (low - pc).abs()], axis=1).max(axis=1)
     return tr.rolling(int(n)).mean()
 
-
 def bbands(close: pd.Series, n=20, k=2.0):
     ma = close.rolling(int(n)).mean()
     sd = close.rolling(int(n)).std(ddof=0)
     bw = (sd / ma).rolling(int(n)).mean()
     return ma, ma + k * sd, ma - k * sd, bw
-
 
 def rsi(close: pd.Series, n=14):
     delta = close.diff()
@@ -33,10 +28,8 @@ def rsi(close: pd.Series, n=14):
     rs = up.rolling(int(n)).mean() / dn.rolling(int(n)).mean().replace(0, np.nan)
     return 100 - (100 / (1 + rs))
 
-
 def donchian(df: pd.DataFrame, n=20):
     return df["high"].rolling(int(n)).max(), df["low"].rolling(int(n)).min()
-
 
 # swing points (fractals)
 def swing_flags(h: pd.Series, low: pd.Series, sw_n=3):
@@ -56,30 +49,27 @@ def swing_flags(h: pd.Series, low: pd.Series, sw_n=3):
     )
     return hh, ll
 
-
 def bullish_pinbar(o, h, low, c, tail_min_frac=0.6, body_max_frac=0.35):
     rng = (h - low) + 1e-12
     body = abs(c - o) / rng
     lower = (min(o, c) - low) / rng
     return (lower >= tail_min_frac) and (body <= body_max_frac)
 
-
 def bullish_engulf(prev_o, prev_c, o, c):
     return (c > o) and (o < prev_c) and (c > prev_o)
-
 
 def structure_uptrend(h: pd.Series, low: pd.Series, look=5):
     # Higher highs and higher lows over last window
     hh = h.iloc[-look:].dropna()
     ll = low.iloc[-look:].dropna()
-    return len(hh) >= 2 and len(ll) >= 2 and (hh.iloc[-1] > hh.iloc[0]) and (ll.iloc[-1] > ll.iloc[0])
-
+    return (
+        len(hh) >= 2 and len(ll) >= 2 and (hh.iloc[-1] > hh.iloc[0]) and (ll.iloc[-1] > ll.iloc[0])
+    )
 
 def nearest_support_distance(close_val: float, support_levels: np.ndarray) -> float:
     if support_levels.size == 0:
         return np.inf
     return float(np.min(np.abs(support_levels - close_val)))
-
 
 # ---------- base API ----------
 class BaseStrategy:
@@ -102,7 +92,6 @@ class BaseStrategy:
     def apply(self, df: pd.DataFrame, **p) -> pd.DataFrame:
         raise NotImplementedError
 
-
 # ---------- 1) EMA + BB squeeze ----------
 class EMAbbSqueeze(BaseStrategy):
     name = "ema_bb_squeeze"
@@ -121,7 +110,6 @@ class EMAbbSqueeze(BaseStrategy):
         out["atr"] = atr(out, p["atr_n"])
         return out
 
-
 # ---------- 2) RSI mean-reversion ----------
 class RSIMeanRev(BaseStrategy):
     name = "rsi_meanrev"
@@ -136,7 +124,6 @@ class RSIMeanRev(BaseStrategy):
         out["exit_signal"] = out["rsi"] > p["exit_th"]
         return out
 
-
 # ---------- 3) Donchian breakout ----------
 class DonchianBreakout(BaseStrategy):
     name = "donchian_breakout"
@@ -149,7 +136,6 @@ class DonchianBreakout(BaseStrategy):
         out["long_signal"] = out["close"] > hh.shift()
         out["atr"] = atr(out, p["atr_n"])
         return out
-
 
 # ---------- 4) MA pullback + zscore ----------
 class MAPullback(BaseStrategy):
@@ -169,7 +155,6 @@ class MAPullback(BaseStrategy):
         out["long_signal"] = (out["close"] > out["ma"]) & (out["z"] < p["z_th"])
         out["atr"] = atr(out, p["atr_n"])
         return out
-
 
 # ---------- 5) Evo combo (random linear combo of indicators) ----------
 class EvoCombo(BaseStrategy):
@@ -197,7 +182,6 @@ class EvoCombo(BaseStrategy):
         out["long_signal"] = score > thr
         out["atr"] = atr(out, p["atr_n"])
         return out
-
 
 # ---------- 6) Naked Forex price-action ----------
 class NakedFXPriceAction(BaseStrategy):
@@ -293,7 +277,9 @@ class NakedFXPriceAction(BaseStrategy):
 
         # context selection
         if str(p["use_context"]).lower() == "structure":
-            ctx = d.index.map(lambda idx: structure_uptrend(d["high"].loc[:idx], d["low"].loc[:idx], look=5))
+            ctx = d.index.map(
+                lambda idx: structure_uptrend(d["high"].loc[:idx], d["low"].loc[:idx], look=5)
+            )
             ctx = pd.Series(ctx.values, index=d.index)
         else:
             ctx = ema_up
@@ -304,7 +290,6 @@ class NakedFXPriceAction(BaseStrategy):
         ) | d["breakout"]
 
         return d
-
 
 # ---------- registry ----------
 REGISTRY = {
@@ -318,7 +303,6 @@ REGISTRY = {
         NakedFXPriceAction,
     ]
 }
-
 
 def get_strategy(name: str) -> BaseStrategy:
     return REGISTRY[name]() if name in REGISTRY else EMAbbSqueeze()

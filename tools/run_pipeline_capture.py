@@ -1,17 +1,13 @@
 """Run the pipeline.run_pipeline() and print structured output for capture."""
 
-from __future__ import annotations
-
 import os
 import sys
 import traceback
-from pathlib import Path
 
 # ensure project root on sys.path
 proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if proj_root not in sys.path:
     sys.path.insert(0, proj_root)
-
 
 def main():
     # force the env flags to true for a full end-to-end run
@@ -58,7 +54,6 @@ def main():
         except Exception:
             pass
         return 3
-
 
 if __name__ == "__main__":
     rc = main()

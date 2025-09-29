@@ -1,22 +1,14 @@
 import argparse  # noqa: F401
-import datetime  # noqa: F401
 import os  # noqa: F401
 
 import matplotlib.pyplot as plt  # noqa: F401
-import numpy as np  # noqa: F401
-import pandas as pd  # noqa: F401
 import yfinance as yf  # noqa: F401
 
-from forex_utils import pip_size  # noqa: F401
-from risk import RiskConfig  # noqa: F401
-from strategy import TrendBreakoutStrategy  # noqa: F401
 from utils import bps_to_frac, ensure_dir, setup_logger  # noqa: F401
-
 
 def yf_symbol(pair: str) -> str:
     pair = pair.upper().replace("/", "")
     return f"{pair}=X"
-
 
 def load_yf_ohlcv(pair: str, interval: str = "15m", start: str = "2024-01-01"):
     sym = yf_symbol(pair)
@@ -32,7 +24,6 @@ def load_yf_ohlcv(pair: str, interval: str = "15m", start: str = "2024-01-01"):
     )
     df = df.reset_index().rename(columns={"Datetime": "timestamp", "Date": "timestamp"})
     return df[["timestamp", "open", "high", "low", "close", "volume"]]
-
 
 def run(symbols: list, timeframe: str, since: str, out_dir: str = "reports"):
     setup_logger("backtest_fx")
@@ -78,7 +69,6 @@ def run(symbols: list, timeframe: str, since: str, out_dir: str = "reports"):
     path = os.path.join(out_dir, "equity_fx.png")
     plt.savefig(path, bbox_inches="tight")
     print(f"Saved: {path}")
-
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

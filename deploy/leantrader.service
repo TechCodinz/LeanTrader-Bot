@@ -1,0 +1,23 @@
+[Unit]
+Description=LeanTrader Orchestrator
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/opt/leantrader
+Environment=PYTHONUNBUFFERED=1
+Environment=ENABLE_LIVE=false
+Environment=ORCHESTRATOR_LOOP=true
+Environment=DAILY_PAPER_MINUTES=15
+EnvironmentFile=-/opt/leantrader/.env
+ExecStart=/opt/leantrader/venv/bin/python /opt/leantrader/runtime/unified_runner.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/leantrader/orchestrator.log
+StandardError=append:/var/log/leantrader/orchestrator.err
+
+[Install]
+WantedBy=multi-user.target
+
+

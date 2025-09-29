@@ -3,12 +3,9 @@
 Imports core modules and runs a single demo + reconcile + ctf pass in paper mode.
 """
 
-from __future__ import annotations
-
 import importlib
 
 from dotenv import load_dotenv
-
 
 def main():
     load_dotenv()
@@ -48,7 +45,6 @@ def main():
         print("smoke_test: OK")
     else:
         print("smoke_test: FAILED")
-
 
 if __name__ == "__main__":
     main()

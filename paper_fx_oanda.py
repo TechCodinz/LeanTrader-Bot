@@ -6,11 +6,7 @@ import pandas as pd  # noqa: F401  # intentionally kept
 from dotenv import load_dotenv
 
 from brokers.broker_oanda import OandaBroker
-from forex_utils import pip_size, pip_value_per_unit, units_for_risk
-from guardrails import GuardConfig, TradeGuard
-from strategy import TrendBreakoutStrategy
 from utils import bps_to_frac, setup_logger  # noqa: F401  # intentionally kept
-
 
 def paper_oanda(pairs: list, timeframe: str, fixed_risk_usd: float):
     load_dotenv()
@@ -48,7 +44,9 @@ def paper_oanda(pairs: list, timeframe: str, fixed_risk_usd: float):
                     "units": units,
                     "stop": price - 2.0 * atr,
                 }
-                log.info(f"[PAPER OANDA] ENTER {sym} units={units:.0f} price={price:.5f} stop={price-2*atr:.5f}")
+                log.info(
+                    f"[PAPER OANDA] ENTER {sym} units={units:.0f} price={price:.5f} stop={price-2*atr:.5f}"
+                )
             elif sym in positions:
                 pos = positions[sym]
                 pos["stop"] = max(pos["stop"], price - 1.2 * atr)
@@ -57,7 +55,6 @@ def paper_oanda(pairs: list, timeframe: str, fixed_risk_usd: float):
                     log.info(f"[PAPER OANDA] EXIT {sym} pnl={pnl:.2f}")
                     del positions[sym]
         time.sleep(5)
-
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

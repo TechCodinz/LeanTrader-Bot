@@ -6,13 +6,10 @@ posts /execute with the PIN. Prints responses and shows tail of persistent logs.
 This uses FastAPI TestClient so no external server is required.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import sys
 import time
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -20,7 +17,6 @@ sys.path.insert(0, str(ROOT))
 from fastapi.testclient import TestClient
 
 TEST_UID = "5329503447"
-
 
 def write_test_signal(signal_id: str) -> None:
     pdir = ROOT / "runtime"
@@ -39,7 +35,6 @@ def write_test_signal(signal_id: str) -> None:
     with open(f, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(sig, ensure_ascii=False) + "\n")
 
-
 def tail(path: Path, n: int = 20) -> list[str]:
     if not path.exists():
         return []
@@ -49,13 +44,11 @@ def tail(path: Path, n: int = 20) -> list[str]:
     except Exception:
         return []
 
-
 def main():
     # ensure test user is treated as premium for the confirm flow
     os.environ.setdefault("PREMIUM_USERS", TEST_UID)
     # import webhook server after env var so PREMIUM_USERS is read correctly at import-time
     import runtime.webhook_server as ws
-    from tools import user_pins
 
     signal_id = f"test-sig-{int(time.time())}"
     print("Writing test signal id=", signal_id)
@@ -108,7 +101,6 @@ def main():
         print(L)
 
     print("Done.")
-
 
 if __name__ == "__main__":
     main()

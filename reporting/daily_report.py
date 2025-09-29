@@ -1,19 +1,18 @@
-from __future__ import annotations
 
 import base64
 import io
 import json
 import os
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
 from pathlib import Path
+from typing import Any, Dict, List
 
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 def _ensure_dir(path: str) -> None:
     d = os.path.dirname(os.path.abspath(path))
     if d and not os.path.exists(d):
         os.makedirs(d, exist_ok=True)
-
 
 def _render_chart_base64(pnl_q: List[float] | None, pnl_c: List[float] | None, solve_hist: List[float] | None) -> str:
     """Render a simple chart (PNG) as base64 using plotly if available, else matplotlib.
@@ -64,7 +63,6 @@ def _render_chart_base64(pnl_q: List[float] | None, pnl_c: List[float] | None, s
         return f"data:image/png;base64,{b64}"
     except Exception:
         return ""
-
 
 def build_report_payload(
     date: str,
@@ -153,13 +151,11 @@ def build_report_payload(
         "scenario_stress": scenario_stress,
     }
 
-
 def render_html(payload: Dict[str, Any]) -> str:
     """Render payload to HTML using templates/report.html.j2 (fallback inline if missing)."""
     tmpl_path = os.path.join("templates", "report.html.j2")
     try:
         from jinja2 import Environment, FileSystemLoader  # type: ignore
-
         if os.path.exists(tmpl_path):
             env = Environment(loader=FileSystemLoader("templates"), autoescape=True)
             tmpl = env.get_template("report.html.j2")
@@ -168,6 +164,18 @@ def render_html(payload: Dict[str, Any]) -> str:
         pass
 
     # Fallback minimal HTML
+    # Precompute explanations list HTML to avoid complex nested f-strings
+    try:
+        date_str = str(payload.get('date', ''))
+        ex_list = payload.get('explanations', []) or []
+        if ex_list:
+            items = ''.join([f'<li><a href="out/explanations/{date_str}/{fn}">{fn}</a></li>' for fn in ex_list])
+            explanations_html = '<ul>' + items + '</ul>'
+        else:
+            explanations_html = '<i>No trade explanations found</i>'
+    except Exception:
+        explanations_html = '<i>No trade explanations found</i>'
+
     return f"""
 <!DOCTYPE html>
 <html><head><meta charset='utf-8'><title>Daily Report</title>
@@ -190,7 +198,7 @@ def render_html(payload: Dict[str, Any]) -> str:
   <h3>Notes</h3>
   <pre>{payload.get('notes','')}</pre>
   <h3>Trade Explanations</h3>
-  {('<ul>' + ''.join([f'<li><a href="out/explanations/{payload.get('date','')}/{fn}">{fn}</a></li>' for fn in payload.get('explanations', [])]) + '</ul>') if payload.get('explanations') else '<i>No trade explanations found</i>'}
+  {explanations_html}
   <h3>Attribution</h3>
   {('<b>Total PnL:</b> ' + str(payload.get('attribution',{}).get('total_pnl','')) + '<br/>'
     + '<b>Top Contributors:</b><ul>' + ''.join([f"<li>{k}: {v:.6f}</li>" for k,v in (payload.get('attribution',{}).get('top_contributors',[]) or [])]) + '</ul>'
@@ -215,7 +223,6 @@ def render_html(payload: Dict[str, Any]) -> str:
   {str(payload.get('lambda_cap')) if payload.get('lambda_cap') is not None else '<i>None</i>'}
 </body></html>
 """
-
 
 def save_pdf(html: str, out_path: str) -> bool:
     """Render HTML to PDF with weasyprint. Returns True on success."""

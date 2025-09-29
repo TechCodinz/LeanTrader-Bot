@@ -5,12 +5,10 @@ features derived from OHLCV CSVs saved by `market_data.py`. It is optional and
 only runs if scikit-learn is present.
 """
 
-from __future__ import annotations
-
 import json
 import pickle
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 try:
     from sklearn.ensemble import RandomForestClassifier  # type: ignore
@@ -19,16 +17,13 @@ try:
 except Exception:
     RandomForestClassifier = None
 
-
 def _model_dir() -> Path:
     p = Path("runtime") / "models"
     p.mkdir(parents=True, exist_ok=True)
     return p
 
-
 def _model_meta_path(model_path: Path) -> Path:
     return model_path.with_suffix(model_path.suffix + ".meta.json")
-
 
 def featurize_rows(rows: List[List[float]]) -> List[List[float]]:
     # rows: [ts, o, h, l, c, v]
@@ -39,7 +34,6 @@ def featurize_rows(rows: List[List[float]]) -> List[List[float]]:
         ret = (cur[4] - prev[4]) / (prev[4] if prev[4] else 1.0)
         out.append([ret, (cur[2] - cur[3]), cur[5]])
     return out
-
 
 def _save_model_and_meta(clf, meta: Dict[str, object]) -> Dict[str, object]:
     p = _model_dir() / f"rf_model_{int(__import__('time').time())}.pkl"
@@ -57,7 +51,9 @@ def _save_model_and_meta(clf, meta: Dict[str, object]) -> Dict[str, object]:
         import os
 
         keep = int(os.getenv("MODEL_RETENTION", "5"))
-        models = sorted(_model_dir().glob("rf_model_*.pkl"), key=lambda p: p.stat().st_mtime, reverse=True)
+        models = sorted(
+            _model_dir().glob("rf_model_*.pkl"), key=lambda p: p.stat().st_mtime, reverse=True
+        )
         for old in models[keep:]:
             try:
                 old_meta = _model_meta_path(old)
@@ -78,7 +74,6 @@ def _save_model_and_meta(clf, meta: Dict[str, object]) -> Dict[str, object]:
         pass
     return {"model_path": str(p), "meta_path": str(meta_path)}
 
-
 def train_dummy_classifier(candles_csv_path: str) -> Dict[str, object]:
     if RandomForestClassifier is None:
         raise RuntimeError("scikit-learn is required for training")
@@ -90,7 +85,9 @@ def train_dummy_classifier(candles_csv_path: str) -> Dict[str, object]:
         next(reader, None)
         for r in reader:
             try:
-                rows.append([int(r[0]), float(r[1]), float(r[2]), float(r[3]), float(r[4]), float(r[5])])
+                rows.append(
+                    [int(r[0]), float(r[1]), float(r[2]), float(r[3]), float(r[4]), float(r[5])]
+                )
             except Exception:
                 continue
     if len(rows) < 10:
@@ -110,8 +107,11 @@ def train_dummy_classifier(candles_csv_path: str) -> Dict[str, object]:
         "features": ["ret", "range", "volume"],
     }
     saved = _save_model_and_meta(clf, meta)
-    return {"model_path": saved.get("model_path"), "meta_path": saved.get("meta_path"), "accuracy": acc}
-
+    return {
+        "model_path": saved.get("model_path"),
+        "meta_path": saved.get("meta_path"),
+        "accuracy": acc,
+    }
 
 def load_model(path: str):
     """Load a pickled model from disk and return it. Raises on failure."""

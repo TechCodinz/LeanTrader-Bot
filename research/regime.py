@@ -4,8 +4,7 @@ Provides small utilities to decide whether quantum routines should be enabled
 for a given market regime.
 """
 
-from __future__ import annotations
-
+import os
 from typing import Optional, Set
 
 try:
@@ -13,10 +12,8 @@ try:
 except Exception:
     Q_ENABLE_QUANTUM = False  # sensible default if config is unavailable
 
-
 # Allowlist of regimes where quantum search/estimation is likely helpful.
 QUANTUM_OK: Set[str] = {"range_bound", "low_vol_trend", "calm"}
-
 
 def quantum_allowed_for_regime(regime: Optional[str]) -> bool:
     """Return True if regime is in the approved set for quantum routines.
@@ -30,7 +27,6 @@ def quantum_allowed_for_regime(regime: Optional[str]) -> bool:
     except Exception:
         return False
 
-
 def select_quantum_mode(regime: Optional[str], default_on: bool) -> bool:
     """Combine config and regime gate to decide quantum enablement.
 
@@ -43,14 +39,21 @@ def select_quantum_mode(regime: Optional[str], default_on: bool) -> bool:
     if not quantum_allowed_for_regime(regime):
         return False
     try:
-        return bool(Q_ENABLE_QUANTUM) and bool(default_on)
+        # Runtime env flag takes precedence when provided
+        env_flag = str(os.getenv("Q_ENABLE_QUANTUM", "")).strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "y",
+            "on",
+        )
+        cfg_flag = bool(Q_ENABLE_QUANTUM)
+        return (env_flag or cfg_flag) and bool(default_on)
     except Exception:
-        return False
-
+        return bool(default_on)
 
 __all__ = [
     "QUANTUM_OK",
     "quantum_allowed_for_regime",
     "select_quantum_mode",
 ]
-

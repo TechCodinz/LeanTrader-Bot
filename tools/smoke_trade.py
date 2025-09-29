@@ -4,13 +4,9 @@ This script forces the router into `paper` backend and attempts a sample order.
 It writes a persistent log to `runtime/logs/smoke_trade.txt` showing the results.
 """
 
-from __future__ import annotations
-
 import os
 import time
 import traceback
-from pathlib import Path
-
 
 def _write(lines: list[str]) -> None:
     p = Path("runtime") / "logs" / "smoke_trade.txt"
@@ -18,7 +14,6 @@ def _write(lines: list[str]) -> None:
     with p.open("w", encoding="utf-8") as f:
         for line in lines:
             f.write(line + "\n")
-
 
 def main() -> int:
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -41,7 +36,9 @@ def main() -> int:
 
         # check balance snapshot if available
         bal = r.safe_fetch_balance()
-        lines.append(f"balance snapshot keys: {list(bal.keys()) if isinstance(bal, dict) else str(type(bal))}")
+        lines.append(
+            f"balance snapshot keys: {list(bal.keys()) if isinstance(bal, dict) else str(type(bal))}"
+        )
 
     except Exception as e:
         lines.append(f"smoke failed: {e}")
@@ -53,7 +50,6 @@ def main() -> int:
     for line in lines:
         print(line)
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

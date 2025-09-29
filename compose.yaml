@@ -1,0 +1,29 @@
+version: "3.9"
+services:
+  ultrabot:
+    build: .
+    restart: always
+    env_file: .env
+    volumes:
+      - ./:/app
+    command: ["python", "/app/ultra_launcher.py", "--mode", "paper", "--god-mode", "--moon-spotter", "--evolution", "--forex", "--telegram", "--telegram-token", "${TELEGRAM_BOT_TOKEN}", "--telegram-channel", "${TELEGRAM_CHAT_ID}"]
+  status:
+    build: .
+    restart: always
+    env_file: .env
+    command: ["python", "/app/services/status_daemon.py"]
+  training:
+    build: .
+    restart: always
+    env_file: .env
+    command: ["python", "/app/services/training_scheduler.py"]
+  weekly:
+    build: .
+    restart: always
+    env_file: .env
+    command: ["python", "/app/services/weekly_digest.py"]
+  news:
+    build: .
+    restart: always
+    env_file: .env
+    command: ["python", "/app/news_harvest.py"]

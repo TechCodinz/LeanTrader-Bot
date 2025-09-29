@@ -1,17 +1,10 @@
-from __future__ import annotations
-
 import os  # noqa: F401  # intentionally kept
-from typing import Any, Dict, List, Optional  # noqa: F401  # intentionally kept
 
-import pandas as pd
 from dotenv import load_dotenv
 
 load_dotenv()
 
 import ccxt  # type: ignore  # noqa: E402
-
-from order_utils import place_market, safe_create_order  # noqa: E402
-
 
 def _mk_exchange(name: str, testnet: bool) -> Any:
     api_key = os.getenv("CRYPTO_API_KEY") or ""
@@ -58,8 +51,9 @@ def _mk_exchange(name: str, testnet: bool) -> Any:
             pass
     return ex
 
-
-def ohlcv_df(exchange: str, symbol: str, timeframe: str, lookback_days: int, testnet: bool) -> pd.DataFrame:
+def ohlcv_df(
+    exchange: str, symbol: str, timeframe: str, lookback_days: int, testnet: bool
+) -> pd.DataFrame:
     ex = _mk_exchange(exchange, testnet)
     # ccxt timeframes like '5m','1m','1h'
     limit = min(5000, lookback_days * (24 * 60 // max(1, int(timeframe[:-1]))))
@@ -84,7 +78,6 @@ def ohlcv_df(exchange: str, symbol: str, timeframe: str, lookback_days: int, tes
     df = pd.DataFrame(rows, columns=["time", "open", "high", "low", "close", "volume"])
     df["time"] = pd.to_datetime(df["time"], unit="ms", utc=True)
     return df.set_index("time")
-
 
 def ticker_price(exchange: str, symbol: str, testnet: bool) -> float:
     ex = _mk_exchange(exchange, testnet)
@@ -113,7 +106,6 @@ def ticker_price(exchange: str, symbol: str, testnet: bool) -> float:
     except Exception:
         return 0.0
 
-
 def market_buy(exchange: str, symbol: str, amount: float, testnet: bool) -> Dict[str, Any]:
     ex = _mk_exchange(exchange, testnet)
     try:
@@ -132,7 +124,6 @@ def market_buy(exchange: str, symbol: str, amount: float, testnet: bool) -> Dict
         return place_market(ex, symbol, "buy", amount)
     except Exception as e:
         return {"ok": False, "error": str(e)}
-
 
 def market_sell(exchange: str, symbol: str, amount: float, testnet: bool) -> Dict[str, Any]:
     ex = _mk_exchange(exchange, testnet)
@@ -153,7 +144,6 @@ def market_sell(exchange: str, symbol: str, amount: float, testnet: bool) -> Dic
     except Exception as _e:
         return {"ok": False, "error": str(_e)}
 
-
 def market_info(exchange: str, symbol: str, testnet: bool) -> Dict[str, Any]:
     ex = _mk_exchange(exchange, testnet)
     try:
@@ -163,9 +153,13 @@ def market_info(exchange: str, symbol: str, testnet: bool) -> Dict[str, Any]:
         pass
     m = getattr(ex, "markets", {}).get(symbol) or {}
     return {
-        "min_cost": float(m.get("limits", {}).get("cost", {}).get("min", 5.0)),  # e.g., ~10 USDT on Binance
+        "min_cost": float(
+            m.get("limits", {}).get("cost", {}).get("min", 5.0)
+        ),  # e.g., ~10 USDT on Binance
         "min_qty": float(m.get("limits", {}).get("amount", {}).get("min", 0.0001)),
-        "step_qty": float(m.get("precision", {}).get("amount", 6)),  # we’ll round with precision decimals
+        "step_qty": float(
+            m.get("precision", {}).get("amount", 6)
+        ),  # we’ll round with precision decimals
         "price_prec": int(m.get("precision", {}).get("price", 2)),
         "amount_prec": int(m.get("precision", {}).get("amount", 6)),
         "taker": float(m.get("taker", 0.001)),

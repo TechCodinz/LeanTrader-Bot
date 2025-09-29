@@ -1,11 +1,7 @@
-from __future__ import annotations
-
 import math
-from typing import Dict, List
 
 from .feeds import NewsItem
 from .ner_sentiment import sentiment_score, tag_symbols
-
 
 def score_by_symbol(items: List[NewsItem], now_ts: float) -> Dict[str, float]:
     scores: Dict[str, float] = {}

@@ -10,7 +10,6 @@ modules = [
     "bybit_smoke",
 ]
 import sys
-from pathlib import Path
 
 # Add repo root to sys.path dynamically
 ROOT = Path(__file__).resolve().parents[1]

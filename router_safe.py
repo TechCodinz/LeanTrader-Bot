@@ -1,11 +1,7 @@
-from __future__ import annotations
-
 import logging
-from typing import Any, Callable, Dict, Optional
 
 from w3guard.guards import (
     MEMPOOL_RISK,
-    FLASH_HEDGE_COUNT,
     MempoolMonitor,
     dynamic_slippage,
     private_tx_mode,
@@ -13,7 +9,6 @@ from w3guard.guards import (
     emergency_hedge,
     get_mempool_tuning,
 )
-
 
 def guarded_swap(
     *,
@@ -48,7 +43,7 @@ def guarded_swap(
         Dict with details: {route, slippage_bps, risk, ok, tx_resp, hedged}
     """
 
-    tune = get_mempool_tuning(symbol, timeframe)
+    get_mempool_tuning(symbol, timeframe)
     risk = monitor.current_risk if monitor else 0.0
 
     try:
@@ -127,7 +122,6 @@ def guarded_swap(
         "tx_resp": tx_resp,
         "hedged": hedged,
     }
-
 
 __all__ = [
     "guarded_swap",

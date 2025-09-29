@@ -1,9 +1,3 @@
-from __future__ import annotations
-
-import numpy as np  # noqa: F401  # intentionally kept
-import pandas as pd
-
-
 def compute_metrics(returns: pd.Series) -> dict:
     ret = returns.fillna(0.0)
     mu = ret.mean()
@@ -14,7 +8,6 @@ def compute_metrics(returns: pd.Series) -> dict:
     peak = eq.cummax()
     dd = (eq / peak - 1.0).min()
     return {"oos_sharpe": float(sharpe), "hit_rate": float(hit), "max_dd": float(dd)}
-
 
 def breach_daily_loss(equity_curve_today: pd.Series, max_daily_loss_pct: float) -> bool:
     if equity_curve_today.empty:

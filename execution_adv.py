@@ -1,7 +1,26 @@
 # execution_adv.py
 from typing import Any, Dict
 
-from order_utils import place_market, safe_create_order
+
+def safe_create_order(ex, type_: str, symbol: str, side: str, amount: float, price: float, params: Dict[str, Any] | None = None):
+    try:
+        params = params or {}
+        return ex.create_order(symbol, type_, side, amount, price, params)
+    except Exception:
+        return None
+
+
+def place_market(ex, symbol: str, side: str, amount: float):
+    try:
+        if hasattr(ex, "safe_place_order"):
+            return ex.safe_place_order(symbol, side, amount)
+        if hasattr(ex, "create_market_order"):
+            return ex.create_market_order(symbol, side, amount)
+        if hasattr(ex, "create_order"):
+            return ex.create_order(symbol, "market", side, amount)
+    except Exception:
+        pass
+    return {"ok": False, "error": "market order unavailable"}
 
 
 class LimitMakerExecutor:
@@ -32,7 +51,9 @@ class LimitMakerExecutor:
                     order = None
             elif hasattr(self.ex, "create_order"):
                 try:
-                    order = safe_create_order(self.ex, "limit", symbol, "buy", amount, price, params=params)
+                    order = safe_create_order(
+                        self.ex, "limit", symbol, "buy", amount, price, params=params
+                    )
                 except Exception:
                     order = None
             else:
@@ -78,7 +99,9 @@ class LimitMakerExecutor:
                     order = None
             elif hasattr(self.ex, "create_order"):
                 try:
-                    order = safe_create_order(self.ex, "limit", symbol, "sell", amount, price, params=params)
+                    order = safe_create_order(
+                        self.ex, "limit", symbol, "sell", amount, price, params=params
+                    )
                 except Exception:
                     order = None
             else:

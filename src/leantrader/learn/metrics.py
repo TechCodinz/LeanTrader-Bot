@@ -1,14 +1,8 @@
-from __future__ import annotations
-
 import csv
 import os
-from dataclasses import dataclass
-from pathlib import Path
-from typing import List
 
 LOG_DIR = Path(os.getenv("LEARN_LOG_DIR", "logs/learn"))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
-
 
 @dataclass
 class Trade:
@@ -16,7 +10,6 @@ class Trade:
     symbol: str
     side: str
     r_mult: float
-
 
 def write_trade(tr: Trade) -> None:
     p = LOG_DIR / "trades.csv"
@@ -26,7 +19,6 @@ def write_trade(tr: Trade) -> None:
         if new:
             w.writerow(["ts", "symbol", "side", "r_mult"])
         w.writerow([tr.ts, tr.symbol, tr.side, tr.r_mult])
-
 
 def summarize(trades: List[Trade]) -> dict:
     if not trades:

@@ -1,5 +1,4 @@
 # brain.py
-from __future__ import annotations
 
 import json
 import os  # noqa: F401
@@ -11,7 +10,6 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
-
 # ---------- small utils ----------
 def envf(name: str, default: float) -> float:
     try:
@@ -19,26 +17,21 @@ def envf(name: str, default: float) -> float:
     except Exception:
         return float(default)
 
-
 def envs(name: str, default: str) -> str:
     return os.getenv(name, default)
-
 
 def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
-
 # ---------- features ----------
 def ema(series: pd.Series, n: int) -> pd.Series:
     return series.ewm(span=n, adjust=False).mean()
-
 
 def atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
     h, low, c = df["high"], df["low"], df["close"]
     prev_c = c.shift(1)
     tr = pd.concat([(h - low), (h - prev_c).abs(), (low - prev_c).abs()], axis=1).max(axis=1)
     return tr.rolling(n).mean()
-
 
 def regime(df: pd.DataFrame) -> str:
     """Very light regime tag: 'trend' vs 'range' + 'volatile' flag."""
@@ -54,7 +47,6 @@ def regime(df: pd.DataFrame) -> str:
         return "range_volatile"
     return "range"
 
-
 def session_weight(ts: datetime) -> float:
     # simple UTC windows; tweak per venue if you want
     hh = ts.hour
@@ -63,7 +55,6 @@ def session_weight(ts: datetime) -> float:
     if 7 <= hh < 13:  # London
         return envf("SESSION_LONDON", 1.0)
     return envf("SESSION_NEWYORK", 1.2)  # NY
-
 
 # ---------- memory (experience replay lite) ----------
 class Memory:
@@ -101,7 +92,6 @@ class Memory:
     def losers(self) -> int:
         return int(self.mem.get("losers", 0))
 
-
 # ---------- sizing ----------
 class VolSizer:
     def __init__(self, balance_usd: float) -> None:
@@ -125,7 +115,6 @@ class VolSizer:
             return self.vol_target_usd(df)
         return self.fixed_usd()
 
-
 # ---------- advice ----------
 @dataclass
 class Advice:
@@ -133,7 +122,6 @@ class Advice:
     sl: Optional[float]
     tp: Optional[float]
     reason: str
-
 
 class Brain:
     def __init__(self) -> None:
@@ -182,7 +170,6 @@ class Brain:
             return max(entry - self.slm * a, price - self.slm * a), price + self.tpm * a
         else:
             return min(entry + self.slm * a, price + self.slm * a), price - self.tpm * a
-
 
 # ---------- guards ----------
 class Guards:

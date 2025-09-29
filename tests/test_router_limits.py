@@ -1,7 +1,5 @@
 import os  # noqa: F401  # intentionally kept
-
 from router import ExchangeRouter
-
 
 def test_live_order_usd_cap(monkeypatch):
     # Use paper backend to avoid real orders
@@ -16,8 +14,9 @@ def test_live_order_usd_cap(monkeypatch):
     # simulate place order where price * amount > LIVE_ORDER_USD
     # choose symbol that exists in paper markets (paper broker uses simple mapping)
     res = r.safe_place_order("BTC/USDT", "buy", 1.0, price=100.0)
-    assert res.get("ok") is False or res.get("error"), "Orders exceeding LIVE_ORDER_USD must be blocked"
-
+    assert res.get("ok") is False or res.get(
+        "error"
+    ), "Orders exceeding LIVE_ORDER_USD must be blocked"
 
 def test_max_order_size_enforced(monkeypatch):
     monkeypatch.setenv("EXCHANGE_ID", "paper")
@@ -29,4 +28,6 @@ def test_max_order_size_enforced(monkeypatch):
 
     r = ExchangeRouter()
     res = r.safe_place_order("BTC/USDT", "buy", 1.0)
-    assert res.get("ok") is False or res.get("error"), "Orders exceeding MAX_ORDER_SIZE must be blocked"
+    assert res.get("ok") is False or res.get(
+        "error"
+    ), "Orders exceeding MAX_ORDER_SIZE must be blocked"

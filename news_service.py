@@ -1,5 +1,4 @@
 # news_service.py
-from __future__ import annotations
 
 import csv
 import html
@@ -8,11 +7,10 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
-import feedparser
 import pandas as pd
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-from regional_utils import regional_crypto_feeds, regional_fx_feeds
+import feedparser
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -65,10 +63,8 @@ FX_WORDS = {
 
 SIA = SentimentIntensityAnalyzer()
 
-
 def _ts() -> int:
     return int(time.time())
-
 
 def _ensure_files():
     if not RAW_PATH.exists():
@@ -76,14 +72,15 @@ def _ensure_files():
             csv.writer(f).writerow(["ts", "source", "title", "summary", "link"])
     if not CLEAN_PATH.exists():
         with open(CLEAN_PATH, "w", newline="", encoding="utf-8") as f:
-            csv.writer(f).writerow(["ts", "source", "title", "summary", "link", "score", "sent", "hits"])
-
+            csv.writer(f).writerow(
+                ["ts", "source", "title", "summary", "link", "score", "sent", "hits"]
+            )
 
 def harvest_rss(sources: List[str] | None = None, limit_per_feed: int = 80) -> int:
     _ensure_files()
     if sources is None:
-        # mix both lists; duplicates are okay
-        sources = regional_crypto_feeds() + regional_fx_feeds()
+        # Default sources when no region-specific functions available
+        sources = DEFAULT_RSS
     # ... (rest of function unchanged)
     seen = set()
     try:
@@ -103,7 +100,9 @@ def harvest_rss(sources: List[str] | None = None, limit_per_feed: int = 80) -> i
                     if not link or link in seen:
                         continue
                     title = html.unescape((getattr(e, "title", "") or "").strip())
-                    summary = html.unescape((getattr(e, "summary", "") or getattr(e, "description", "") or "").strip())
+                    summary = html.unescape(
+                        (getattr(e, "summary", "") or getattr(e, "description", "") or "").strip()
+                    )
                     w.writerow([_ts(), url, title, summary, link])
                     added += 1
                     seen.add(link)
@@ -111,10 +110,8 @@ def harvest_rss(sources: List[str] | None = None, limit_per_feed: int = 80) -> i
                 continue
     return added
 
-
 def _tokenize(text: str) -> List[str]:
     return [t.lower() for t in RE_WORD.findall(text.lower())]
-
 
 def _kw_for(symbol: str, is_fx: bool) -> List[str]:
     if is_fx:
@@ -127,7 +124,6 @@ def _kw_for(symbol: str, is_fx: bool) -> List[str]:
     base = symbol.split("/")[0].upper()
     return list(dict.fromkeys(CRYPTO_TICKER_WORDS.get(base, []) + [base.lower()]))
 
-
 def _score_row(title: str, summary: str, kws: List[str]) -> tuple[float, float, list[str]]:
     text = f"{title} {summary}"
     toks = _tokenize(text)
@@ -137,7 +133,6 @@ def _score_row(title: str, summary: str, kws: List[str]) -> tuple[float, float, 
     brev = max(0.8, min(1.2, 50.0 / max(10.0, len(title))))
     score = rel * brev * (1.0 + abs(sent))  # prefer strong sentiment + relevance
     return score, sent, sorted(hits)
-
 
 def build_clean() -> int:
     """Recompute scores/sentiment and write CLEAN_PATH."""
@@ -158,8 +153,9 @@ def build_clean() -> int:
     raw.to_csv(CLEAN_PATH, index=False)
     return len(raw)
 
-
-def filtered_news_for(symbol: str, is_fx: bool, top_n: int = 5, min_score: float = 1.5) -> List[Dict[str, Any]]:
+def filtered_news_for(
+    symbol: str, is_fx: bool, top_n: int = 5, min_score: float = 1.5
+) -> List[Dict[str, Any]]:
     _ensure_files()
     if not CLEAN_PATH.exists():
         return []
@@ -188,7 +184,6 @@ def filtered_news_for(symbol: str, is_fx: bool, top_n: int = 5, min_score: float
     rows.sort(key=lambda x: x["score"], reverse=True)
     return rows[:top_n]
 
-
 def bullets_for(symbol: str, is_fx: bool, top_n: int = 3) -> List[str]:
     out = []
     for r in filtered_news_for(symbol, is_fx, top_n=top_n):
@@ -197,7 +192,6 @@ def bullets_for(symbol: str, is_fx: bool, top_n: int = 3) -> List[str]:
         src = r.get("source", "")
         out.append(f"{mood} {r['title']}{tag} — _{src}_")
     return out
-
 
 if __name__ == "__main__":
     n = harvest_rss()

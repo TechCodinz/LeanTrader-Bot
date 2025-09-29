@@ -1,19 +1,20 @@
-from __future__ import annotations
-
-import json
-from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from enum import Enum
+from dataclasses import dataclass, field
 from typing import Dict, Tuple
-
-from storage import kv
-
+try:
+    from storage import kv  # type: ignore
+except Exception:  # pragma: no cover
+    class _KV:
+        _s: Dict[str, Dict] = {}
+        def get(self, k, d=None): return self._s.get(k, d)
+        def set(self, k, v): self._s[k] = v
+    kv = _KV()  # type: ignore
 
 class Mode(Enum):
     PAPER = "PAPER"
     TINY_PROD = "TINY_PROD"
     FULL_PROD = "FULL_PROD"
-
 
 @dataclass
 class RampPolicy:
@@ -24,12 +25,13 @@ class RampPolicy:
     slippage_bps_max: float = 30.0
     reject_rate_max: float = 0.05
 
-
 @dataclass
 class RampState:
     mode: Mode = Mode.PAPER
     start_date: str = field(default_factory=lambda: datetime.now(timezone.utc).date().isoformat())
-    stats: Dict[str, float] = field(default_factory=lambda: dict(days=0.0, drawdown=0.0, slippage_bps_p90=0.0, reject_rate=0.0))
+    stats: Dict[str, float] = field(
+        default_factory=lambda: dict(days=0.0, drawdown=0.0, slippage_bps_p90=0.0, reject_rate=0.0)
+    )
 
     def _days_in_mode(self) -> int:
         try:
@@ -45,9 +47,19 @@ class RampState:
         slip = float(self.stats.get("slippage_bps_p90", 0.0))
         rej = float(self.stats.get("reject_rate", 0.0))
         if self.mode == Mode.PAPER:
-            return (days >= policy.min_paper_days) and (dd <= policy.max_drawdown_paper) and (slip <= policy.slippage_bps_max) and (rej <= policy.reject_rate_max)
+            return (
+                (days >= policy.min_paper_days)
+                and (dd <= policy.max_drawdown_paper)
+                and (slip <= policy.slippage_bps_max)
+                and (rej <= policy.reject_rate_max)
+            )
         if self.mode == Mode.TINY_PROD:
-            return (days >= policy.min_tiny_days) and (dd <= policy.max_drawdown_tiny) and (slip <= policy.slippage_bps_max) and (rej <= policy.reject_rate_max)
+            return (
+                (days >= policy.min_tiny_days)
+                and (dd <= policy.max_drawdown_tiny)
+                and (slip <= policy.slippage_bps_max)
+                and (rej <= policy.reject_rate_max)
+            )
         return False
 
     def consider_rollback(self, policy: RampPolicy) -> Tuple[bool, str]:
@@ -64,9 +76,7 @@ class RampState:
             return True, f"reject_rate_exceeded:{rej:.4f}>{policy.reject_rate_max:.4f}"
         return False, ""
 
-
 KV_KEY_STATE = "ops_ramp_state"
-
 
 def load_state() -> RampState:
     raw = kv.get(KV_KEY_STATE, None)
@@ -74,16 +84,16 @@ def load_state() -> RampState:
         return RampState()
     try:
         m = Mode(raw.get("mode", Mode.PAPER.value)) if isinstance(raw, dict) else Mode.PAPER
-        start = (raw.get("start_date") if isinstance(raw, dict) else None) or datetime.now(timezone.utc).date().isoformat()
+        start = (raw.get("start_date") if isinstance(raw, dict) else None) or datetime.now(
+            timezone.utc
+        ).date().isoformat()
         stats = (raw.get("stats") if isinstance(raw, dict) else {}) or {}
         return RampState(mode=m, start_date=start, stats=stats)
     except Exception:
         return RampState()
 
-
 def save_state(st: RampState) -> None:
     kv.set(KV_KEY_STATE, {"mode": st.mode.value, "start_date": st.start_date, "stats": st.stats})
-
 
 def promote(st: RampState) -> RampState:
     if st.mode == Mode.PAPER:
@@ -94,7 +104,6 @@ def promote(st: RampState) -> RampState:
     save_state(st)
     return st
 
-
 def demote(st: RampState) -> RampState:
     if st.mode == Mode.FULL_PROD:
         st.mode = Mode.TINY_PROD
@@ -103,7 +112,6 @@ def demote(st: RampState) -> RampState:
     st.start_date = datetime.now(timezone.utc).date().isoformat()
     save_state(st)
     return st
-
 
 __all__ = [
     "Mode",
@@ -114,4 +122,3 @@ __all__ = [
     "promote",
     "demote",
 ]
-

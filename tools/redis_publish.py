@@ -10,13 +10,11 @@ Env:
   SCHEDULER_REDIS_CHANNEL   (default: lt:scan)
   SIGNAL_REDIS_CHANNEL      (default: lt:signal)
 """
-from __future__ import annotations
 
 import argparse
 import json
 import os
 import sys
-
 
 def _redis():
     try:
@@ -31,7 +29,6 @@ def _redis():
         print("redis import/connection failed:", e, file=sys.stderr)
         sys.exit(2)
 
-
 def pub_scan(args):
     r = _redis()
     chan = os.getenv("SCHEDULER_REDIS_CHANNEL", "lt:scan")
@@ -44,7 +41,6 @@ def pub_scan(args):
     r.publish(chan, json.dumps(payload))
     print("published scan:", chan, payload)
 
-
 def pub_signal(args):
     r = _redis()
     chan = os.getenv("SIGNAL_REDIS_CHANNEL", "lt:signal")
@@ -56,7 +52,6 @@ def pub_signal(args):
     }
     r.publish(chan, json.dumps(payload))
     print("published signal:", chan, payload)
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -77,7 +72,6 @@ def main():
 
     args = ap.parse_args()
     args.func(args)
-
 
 if __name__ == "__main__":
     main()

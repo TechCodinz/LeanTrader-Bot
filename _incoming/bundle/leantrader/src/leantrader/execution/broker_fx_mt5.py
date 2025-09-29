@@ -1,12 +1,9 @@
-import os
-
 # MetaTrader5 connector stub. Requires `pip install MetaTrader5` and MT5 terminal running.
 
 try:
     import MetaTrader5 as mt5
 except Exception:
     mt5 = None
-
 
 class MT5Broker:
     def __init__(self):

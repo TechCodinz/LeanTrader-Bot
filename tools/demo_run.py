@@ -2,21 +2,14 @@
 Respects ENABLE_LIVE env var; will not place real mainnet orders unless ENABLE_LIVE=true and other guards are set.
 """
 
-from __future__ import annotations
-
 import os
 import time
 from typing import Any, List
 
-from futures_signals import fut_side_from_ema
-from signals_publisher import publish_signal
-
 # avoid top-level mt5_signals import (may fail in env without MT5); import lazily
-
 
 def _csv(s: str) -> List[str]:
     return [x.strip() for x in (s or "").split(",") if x.strip()]
-
 
 def make_fx_signal(sym: str, tf: str, core: Any):
     df = core.mt5 and core.mt5  # placeholder to show mt5 is initialized
@@ -60,7 +53,6 @@ def make_fx_signal(sym: str, tf: str, core: Any):
         "context": ["demo_run", "mt5"],
     }
 
-
 def make_crypto_signal(sym: str, tf: str, core: Any):
     try:
         m = core.router._resolve_symbol(sym, futures=False)
@@ -91,7 +83,6 @@ def make_crypto_signal(sym: str, tf: str, core: Any):
         "context": ["demo_run", "ccxt"],
     }
 
-
 def main():
     enable_live = os.getenv("ENABLE_LIVE", "false").lower() in ("1", "true", "yes")
     fx_syms = _csv(os.getenv("FX_SYMBOLS", "EURUSD,GBPUSD"))
@@ -101,7 +92,8 @@ def main():
 
     # import TraderCore lazily so missing optional modules don't crash the process
     try:
-        from trader_core import TraderCore
+        from trader_core import TraderCore  # type: ignore
+        from traders_core.features.ta import fut_side_from_ema  # type: ignore
     except Exception:
         # last-resort shim: minimal core with router None and mt5 None
         class TraderCore:  # type: ignore
@@ -165,7 +157,6 @@ def main():
                 print("order error:", e)
     else:
         print("ENABLE_LIVE not true; skipping order placement (dry-run demo only)")
-
 
 if __name__ == "__main__":
     main()

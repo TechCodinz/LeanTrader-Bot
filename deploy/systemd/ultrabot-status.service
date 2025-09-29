@@ -1,0 +1,15 @@
+[Unit]
+Description=Ultra Status Daemon
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/ultrabot
+EnvironmentFile=/opt/ultrabot/.env
+ExecStart=/opt/ultrabot/.venv/bin/python /opt/ultrabot/services/status_daemon.py
+Restart=always
+RestartSec=30
+User=ultrabot
+
+[Install]
+WantedBy=multi-user.target

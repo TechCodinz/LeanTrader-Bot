@@ -4,7 +4,6 @@
 from dotenv import load_dotenv
 
 from router import ExchangeRouter
-from ultra_core import UltraCore
 
 load_dotenv()
 

@@ -1,15 +1,10 @@
 # session_filter.py
 # Tags current market session and returns weights for decision making.
 
-from __future__ import annotations
-
 import datetime as dt
-from typing import Tuple
-
 
 def _utcnow() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
-
 
 def fx_session_weight(symbol: str) -> Tuple[str, float]:
     """
@@ -48,7 +43,6 @@ def fx_session_weight(symbol: str) -> Tuple[str, float]:
             w *= 1.1
 
     return (sess, max(0.3, min(1.2, w)))
-
 
 def crypto_session_weight(symbol: str) -> Tuple[str, float]:
     """

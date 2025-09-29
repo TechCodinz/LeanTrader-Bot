@@ -1,11 +1,8 @@
-from __future__ import annotations
-
 import json
 import os
-import sys
-from typing import Any, Dict, List, Optional, Tuple
 
 import click
+from typing import Any, Dict, List, Optional, Tuple
 
 # Try to load repo config for defaults
 try:
@@ -13,10 +10,8 @@ try:
 except Exception:
     _cfg = None  # type: ignore
 
-
 def _singleline(obj: Dict[str, Any]) -> str:
     return json.dumps(obj, separators=(",", ":"))
-
 
 def _backend_info(b) -> Tuple[Optional[str], Optional[int], bool]:
     name = None
@@ -43,7 +38,6 @@ def _backend_info(b) -> Tuple[Optional[str], Optional[int], bool]:
     except Exception:
         sim = False
     return name, (int(nq) if isinstance(nq, (int, float)) else None), bool(sim)
-
 
 def run_ibm_check(
     api_key: Optional[str],
@@ -79,7 +73,7 @@ def run_ibm_check(
         QuantumCircuit = None  # type: ignore
 
     # Step 2: resolve API key
-    key = (api_key or os.getenv("IBM_QUANTUM_API_KEY", "").strip())
+    key = api_key or os.getenv("IBM_QUANTUM_API_KEY", "").strip()
     if not key:
         res = {
             "ok": False,
@@ -199,7 +193,6 @@ def run_ibm_check(
     }
     return res, (0 if ok else 1)
 
-
 @click.command()
 @click.option("--api-key", "api_key", default=None, help="IBM Quantum API Key")
 @click.option("--instance", default=None, help="IBM Quantum instance name")
@@ -207,17 +200,36 @@ def run_ibm_check(
 @click.option("--min-qubits", default=127, type=int, help="Minimum qubits for least-busy selection")
 @click.option("--resilience-level", default=1, type=int, help="Resilience level (0..3)")
 @click.option("--timeout", default=30, type=int, help="Timeout seconds for result")
-def cli(api_key: Optional[str], instance: Optional[str], region: Optional[str], min_qubits: int, resilience_level: int, timeout: int) -> None:
+def cli(
+    api_key: Optional[str],
+    instance: Optional[str],
+    region: Optional[str],
+    min_qubits: int,
+    resilience_level: int,
+    timeout: int,
+) -> None:
     # Resolve from args or config module/env
-    resolved_instance = instance or (getattr(_cfg, "IBM_QUANTUM_INSTANCE", None) if _cfg else None) or os.getenv("IBM_QUANTUM_INSTANCE", None)
-    resolved_region = region or (getattr(_cfg, "IBM_QUANTUM_REGION", None) if _cfg else None) or os.getenv("IBM_QUANTUM_REGION", None)
-    resolved_api_key = api_key or (getattr(_cfg, "IBM_QUANTUM_API_KEY", None) if _cfg else None) or os.getenv("IBM_QUANTUM_API_KEY", None)
+    resolved_instance = (
+        instance
+        or (getattr(_cfg, "IBM_QUANTUM_INSTANCE", None) if _cfg else None)
+        or os.getenv("IBM_QUANTUM_INSTANCE", None)
+    )
+    resolved_region = (
+        region
+        or (getattr(_cfg, "IBM_QUANTUM_REGION", None) if _cfg else None)
+        or os.getenv("IBM_QUANTUM_REGION", None)
+    )
+    resolved_api_key = (
+        api_key
+        or (getattr(_cfg, "IBM_QUANTUM_API_KEY", None) if _cfg else None)
+        or os.getenv("IBM_QUANTUM_API_KEY", None)
+    )
 
-    res, code = run_ibm_check(resolved_api_key, resolved_instance, resolved_region, min_qubits, resilience_level, timeout)
+    res, code = run_ibm_check(
+        resolved_api_key, resolved_instance, resolved_region, min_qubits, resilience_level, timeout
+    )
     print(_singleline(res))
     raise SystemExit(code)
 
-
 if __name__ == "__main__":
     cli(standalone_mode=False)
-

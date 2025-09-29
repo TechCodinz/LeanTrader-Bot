@@ -1,10 +1,11 @@
 import py_compile
-from pathlib import Path
 
 errs = []
 for p in Path(".").rglob("*.py"):
     # skip virtualenvs or common env dirs
-    if any(part.startswith(".") or part in ("venv", "__pycache__", "node_modules") for part in p.parts):
+    if any(
+        part.startswith(".") or part in ("venv", "__pycache__", "node_modules") for part in p.parts
+    ):
         continue
     try:
         py_compile.compile(str(p), doraise=True)

@@ -1,14 +1,9 @@
-from __future__ import annotations
-
 import argparse
 import datetime as dt
 import json
 import os
-from pathlib import Path
-from typing import Dict, List
 
 import requests
-
 
 def search_counts(query: str, token: str, minutes: int = 60) -> int:
     # Twitter API v2 recent counts endpoint
@@ -24,10 +19,13 @@ def search_counts(query: str, token: str, minutes: int = 60) -> int:
     except Exception:
         return 0
 
-
 def main() -> int:
-    p = argparse.ArgumentParser(description="Collect Twitter mention rates and write TWITTER_RATES_PATH JSON")
-    p.add_argument("--assets", required=True, help="comma-separated asset tickers, e.g., BTC,ETH,SOL")
+    p = argparse.ArgumentParser(
+        description="Collect Twitter mention rates and write TWITTER_RATES_PATH JSON"
+    )
+    p.add_argument(
+        "--assets", required=True, help="comma-separated asset tickers, e.g., BTC,ETH,SOL"
+    )
     p.add_argument("--out", default=os.getenv("TWITTER_RATES_PATH", "runtime/twitter_rates.json"))
     p.add_argument("--minutes", type=int, default=int(os.getenv("TWITTER_WINDOW_MIN", "60")))
     args = p.parse_args()
@@ -49,7 +47,5 @@ def main() -> int:
     print(json.dumps({"count": len(out)}))
     return 0
 
-
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-

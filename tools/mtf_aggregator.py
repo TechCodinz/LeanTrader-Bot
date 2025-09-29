@@ -13,14 +13,9 @@ This is intentionally conservative: you can configure `REQUIRED_TFS` via env var
 to control the TFs to require (comma-separated, e.g., '1m,5m,1h,4h').
 """
 
-from __future__ import annotations
-
 import json
 import os
-from collections import defaultdict
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Tuple
 
 # Load .env if present so CLI/script runs pick up configuration without shell export
 try:
@@ -33,9 +28,10 @@ except Exception:
 ROOT = Path(__file__).resolve().parent.parent
 RUNTIME = ROOT / "runtime"
 
-DEFAULT_TFS = [t.strip().lower() for t in os.getenv("MTF_REQUIRED_TFS", "1m,5m,1h,4h").split(",") if t.strip()]
+DEFAULT_TFS = [
+    t.strip().lower() for t in os.getenv("MTF_REQUIRED_TFS", "1m,5m,1h,4h").split(",") if t.strip()
+]
 THRESHOLD = float(os.getenv("MTF_THRESHOLD", "1.0"))
-
 
 def _read_ndjson(path: Path) -> List[Dict]:
     out = []
@@ -48,7 +44,6 @@ def _read_ndjson(path: Path) -> List[Dict]:
             except Exception:
                 continue
     return out
-
 
 def aggregate_signals(signals: List[Dict]) -> List[Dict]:
     # normalize tfs and group
@@ -78,7 +73,6 @@ def aggregate_signals(signals: List[Dict]) -> List[Dict]:
             out.append(rep)
     return out
 
-
 def read_and_aggregate(queue_dir: str | Path = None) -> List[Dict]:
     qd = Path(queue_dir) if queue_dir else RUNTIME
     day = datetime.utcnow().strftime("%Y%m%d")
@@ -90,7 +84,6 @@ def read_and_aggregate(queue_dir: str | Path = None) -> List[Dict]:
             break
     signals = _read_ndjson(p)
     return aggregate_signals(signals)
-
 
 if __name__ == "__main__":
     import sys

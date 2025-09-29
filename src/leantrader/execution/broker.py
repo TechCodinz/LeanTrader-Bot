@@ -1,6 +1,4 @@
 import time
-from dataclasses import dataclass
-
 
 @dataclass
 class Order:
@@ -11,7 +9,6 @@ class Order:
     price: float
     status: str
 
-
 class PaperBroker:
     def __init__(self, starting_balance: float = 10000.0):
         self.balance = starting_balance
@@ -21,15 +18,20 @@ class PaperBroker:
         oid = f"paper-{int(time.time()*1000)}"
         return Order(id=oid, symbol=symbol, side=side, qty=qty, price=price, status="filled")
 
-
 try:
     import ccxt
 except Exception:
     ccxt = None
 
-
 class CcxtBroker:
-    def __init__(self, exchange: str, api_key: str = "", secret: str = "", password: str = "", sandbox: bool = False):
+    def __init__(
+        self,
+        exchange: str,
+        api_key: str = "",
+        secret: str = "",
+        password: str = "",
+        sandbox: bool = False,
+    ):
         assert ccxt is not None, "ccxt not installed"
         ex = getattr(ccxt, exchange)({"apiKey": api_key, "secret": secret, "password": password})
         if sandbox and hasattr(ex, "set_sandbox_mode"):
@@ -42,7 +44,6 @@ class CcxtBroker:
         else:
             o = self.ex.create_order(symbol, "market", "sell", qty)
         return o
-
 
 class FxBroker:
     """Placeholder for a real FX broker (e.g., Oanda, MT5 gateway).

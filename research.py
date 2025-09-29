@@ -1,6 +1,3 @@
-# research_optuna.py
-from __future__ import annotations
-
 import argparse
 import json
 import math
@@ -10,23 +7,29 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import ccxt
-import numpy as np
 import optuna
-import pandas as pd
 from optuna.pruners import MedianPruner
+import numpy as np
+import pandas as pd
 
-from data_sources import (
-    EconomicCalendarSource,
-    FundingRateSource,
-    NewsSentimentSource,
-    OnchainMetricSource,
-    merge_externals,
-)
-from strategy_zoo import REGISTRY, get_strategy
+try:
+    from tools.market_data import (
+        EconomicCalendarSource,
+        FundingRateSource,
+        NewsSentimentSource,
+        OnchainMetricSource,
+        merge_externals,
+    )
+except Exception:
+    def merge_externals(df, **kwargs):
+        return df
+    class EconomicCalendarSource:  # type: ignore
+        def __init__(self, *a, **k):
+            pass
+    FundingRateSource = NewsSentimentSource = OnchainMetricSource = EconomicCalendarSource
 
 REPORTS = Path("reports")
 REPORTS.mkdir(exist_ok=True)
-
 
 # --------------------- data utils ---------------------
 def fetch_ohlcv_range(ex, symbol: str, timeframe: str, start_ms: int, end_ms: int, limit=1000) -> pd.DataFrame:
@@ -68,7 +71,6 @@ def fetch_ohlcv_range(ex, symbol: str, timeframe: str, start_ms: int, end_ms: in
     df["timestamp"] = pd.to_datetime(df["ts"], unit="ms", utc=True)
     return df
 
-
 def build_rolling_windows(
     df: pd.DataFrame, train_days=30, test_days=7, step_days=7
 ) -> List[Tuple[pd.Timestamp, pd.Timestamp, pd.Timestamp, pd.Timestamp]]:
@@ -91,7 +93,6 @@ def build_rolling_windows(
         cur_train_start = cur_train_start + pd.Timedelta(days=step_days)
     return windows
 
-
 # --------------------- regime/session features ---------------------
 def add_session_cols(df: pd.DataFrame) -> pd.DataFrame:
     d = df.copy()
@@ -101,14 +102,12 @@ def add_session_cols(df: pd.DataFrame) -> pd.DataFrame:
     d["ny"] = ((utc_hour >= 12) & (utc_hour < 21)).astype(int)
     return d
 
-
 def add_regime_cols(df: pd.DataFrame, vol_n=60) -> pd.DataFrame:
     d = df.copy()
     ret = d["close"].pct_change()
     d["rv"] = (ret.rolling(vol_n).std(ddof=0) * np.sqrt(60)).fillna(0)
     d["high_vol"] = (d["rv"] > d["rv"].rolling(1000, min_periods=10).median()).astype(int)
     return d
-
 
 # --------------------- guards / scoring ---------------------
 def simple_backtest_long_only(d: pd.DataFrame, fee_bps=10, slip_bps=3, atr_stop_mult=2.0) -> Dict[str, float]:
@@ -151,11 +150,9 @@ def simple_backtest_long_only(d: pd.DataFrame, fee_bps=10, slip_bps=3, atr_stop_
         "ret_sum": float(ret.sum()),
     }
 
-
 def score_metrics(m: Dict[str, float]) -> float:
     # higher is better; penalize drawdown
     return m["sharpe"] - 3.0 * m["max_dd"]
-
 
 # --------------------- Optuna objective ---------------------
 def make_objective(
@@ -270,7 +267,6 @@ def make_objective(
 
     return objective
 
-
 # --------------------- top-level ---------------------
 def optimize_symbol(
     ex,
@@ -338,7 +334,6 @@ def optimize_symbol(
     assert best_overall is not None
     return best_overall
 
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--exchange", default="binanceus")
@@ -400,7 +395,6 @@ def main():
         json.dump(out, f, indent=2, default=float)
     print("Saved:", REPORTS / "best_params.json")
     print("Best:", out)
-
 
 if __name__ == "__main__":
     main()

@@ -9,7 +9,6 @@ Usage:
 
 import importlib
 import sys
-from pathlib import Path
 
 # Ensure repository root (parent of tools/) is on sys.path so imports like
 # `import router` resolve when the script is executed as `python tools/import_smoke.py`.

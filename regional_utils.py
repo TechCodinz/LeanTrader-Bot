@@ -1,13 +1,10 @@
 # regional_utils.py — region-aware feeds & exchange fallback
-from __future__ import annotations
 
 import os
-
 
 def region() -> str:
     # allow override; default 'US'
     return (os.getenv("REGION") or os.getenv("GEO_COUNTRY") or "US").upper()
-
 
 def regional_crypto_feeds() -> list[str]:
     r = region()
@@ -23,7 +20,6 @@ def regional_crypto_feeds() -> list[str]:
         "https://www.fxstreet.com/cryptocurrencies/latest-news/rss",
         "https://cryptoslate.com/feed/",
     ]
-
 
 def regional_fx_feeds() -> list[str]:
     r = region()
@@ -41,7 +37,6 @@ def regional_fx_feeds() -> list[str]:
         base.append("https://www.ecb.europa.eu/press/govcdec/html/index.en.html")
     return base
 
-
 def primary_exchange() -> str:
     r = region()
     # prefer accessible venues per region; override with EXCHANGE_ID
@@ -53,13 +48,11 @@ def primary_exchange() -> str:
     # elsewhere bybit/binance may be ok
     return "bybit"
 
-
 def fallback_exchange(curr: str) -> str:
     r = region()
     # rotate among a few that are typically available
     if r in {"US"}:
         return "kraken"
     return "okx"
-
 
 # regional_utils.py

@@ -1,12 +1,12 @@
-from typing import Dict, Literal
-
+from typing import Any, Dict, Literal
 import pandas as pd
 
+from typing import Dict, Literal
+import pandas as pd
 from ..learners.bandit import ContextBandit
 from ..learners.replay import ReplayBuffer, TradeRecord
 from ..sessions.manager import SessionBook, update_session_stats, which_session
 from .signal_service import generate_signals
-
 
 class MicroManager:
     def __init__(self, pair: str):
@@ -15,7 +15,9 @@ class MicroManager:
         self.bandit = ContextBandit()
         self.replay = ReplayBuffer()
 
-    def step(self, frames: Dict[str, pd.DataFrame], regime: Literal["trend", "range", "news"] = "trend"):
+    def step(
+        self, frames: Dict[str, pd.DataFrame], regime: Literal["trend", "range", "news"] = "trend"
+    ):
         sigs = generate_signals(frames, self.pair)
         if len(sigs) == 0:
             return None
@@ -35,7 +37,11 @@ class MicroManager:
                 session=sess,
                 regime=regime,
                 policy=pol,
-                features={"adx_14": float(frames["M15"].get("adx_14", 0).iloc[-1]) if "M15" in frames else 0.0},
+                features={
+                    "adx_14": (
+                        float(frames["M15"].get("adx_14", 0).iloc[-1]) if "M15" in frames else 0.0
+                    )
+                },
                 outcome=0.0,
                 costs=0.0,
             )

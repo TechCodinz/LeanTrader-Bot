@@ -8,12 +8,10 @@ Provides:
 This module is intentionally minimal and opt-in. It does NOT place trades.
 """
 
-from __future__ import annotations
-
 import json
 import time
 from pathlib import Path
-from typing import Dict, List
+from typing import List, Dict
 
 try:
     import requests
@@ -30,12 +28,10 @@ try:
 except Exception:
     feedparser = None
 
-
 def _ensure_dir() -> Path:
     p = Path("runtime") / "news"
     p.mkdir(parents=True, exist_ok=True)
     return p
-
 
 def fetch_rss(urls: List[str], max_items: int = 50) -> int:
     if feedparser is None:
@@ -60,7 +56,6 @@ def fetch_rss(urls: List[str], max_items: int = 50) -> int:
         except Exception:
             continue
     return count
-
 
 def fetch_html_posts(urls: List[str], css_selector: str = "article, .post, .entry", max_items: int = 50) -> int:
     """Fetch HTML pages and extract posts using a CSS selector. Conservative extractor.
@@ -100,7 +95,6 @@ def fetch_html_posts(urls: List[str], css_selector: str = "article, .post, .entr
         except Exception:
             continue
     return count
-
 
 def list_sources() -> Dict[str, int]:
     p = _ensure_dir()

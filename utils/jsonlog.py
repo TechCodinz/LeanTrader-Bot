@@ -1,11 +1,6 @@
-from __future__ import annotations
-
 import json
-import os
 import sys
 import time
-from typing import Any, Dict
-
 
 def jlog(level: str, svc: str, event: str, **fields: Any) -> None:
     rec: Dict[str, Any] = {
@@ -21,4 +16,3 @@ def jlog(level: str, svc: str, event: str, **fields: Any) -> None:
     except Exception:
         # last resort
         print(f"[{svc}] {event} {fields}")
-

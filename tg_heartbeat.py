@@ -1,5 +1,4 @@
 # tg_heartbeat.py
-from __future__ import annotations
 
 import argparse
 import datetime as dt
@@ -7,7 +6,6 @@ import json
 import os
 import pathlib
 import time
-from typing import TYPE_CHECKING, Any, Dict, List
 
 if TYPE_CHECKING:
     from notifier import TelegramNotifier
@@ -21,13 +19,11 @@ RUNTIME = pathlib.Path("runtime")
 RUNTIME.mkdir(exist_ok=True)
 OPEN_TRADES = RUNTIME / "open_trades.json"
 
-
 def _read_json(p: pathlib.Path, default):
     try:
         return json.loads(p.read_text(encoding="utf-8"))
     except Exception:
         return default
-
 
 def _fmt_usd(x: float) -> str:
     s = "-" if x < 0 else ""
@@ -37,7 +33,6 @@ def _fmt_usd(x: float) -> str:
     if v >= 1_000:
         return f"{s}${v:,.0f}"
     return f"{s}${v:,.2f}"
-
 
 def _equity(router: ExchangeRouter) -> float:
     acc = router.account()
@@ -49,7 +44,6 @@ def _equity(router: ExchangeRouter) -> float:
         if k.upper() in ("USD", "USDT", "USDC"):
             eq += float(v or 0)
     return eq
-
 
 def _open_pnl(router: ExchangeRouter, rows: List[Dict[str, Any]]) -> float:
     pnl = 0.0
@@ -75,11 +69,14 @@ def _open_pnl(router: ExchangeRouter, rows: List[Dict[str, Any]]) -> float:
                 or 0
             )
             side = 1 if t["side"] == "buy" else -1
-            pnl += (last - float(t["entry"])) * side * (float(t["amount"]) if t.get("mode") == "spot" else 1.0)
+            pnl += (
+                (last - float(t["entry"]))
+                * side
+                * (float(t["amount"]) if t.get("mode") == "spot" else 1.0)
+            )
         except Exception:
             continue
     return pnl
-
 
 def heartbeat_once(router: ExchangeRouter, notif: TelegramNotifier):
     rows = _read_json(OPEN_TRADES, [])
@@ -97,7 +94,6 @@ def heartbeat_once(router: ExchangeRouter, notif: TelegramNotifier):
         if len(rows) > 6:
             lines.append(f"… and {len(rows)-6} more")
     notif.note("\n".join(lines))
-
 
 def main():
     load_dotenv()
@@ -120,7 +116,6 @@ def main():
         except Exception as e:
             print("[heartbeat error]", e)
         time.sleep(max(1, args.interval) * 60)
-
 
 if __name__ == "__main__":
     main()

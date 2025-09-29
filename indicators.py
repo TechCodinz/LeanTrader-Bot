@@ -1,6 +1,4 @@
 # indicators.py
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 
@@ -8,13 +6,11 @@ import pandas as pd
 def ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=n, adjust=False).mean()
 
-
 def atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
     h, low, c = df["high"], df["low"], df["close"]
     pc = c.shift(1)
     tr = pd.concat([(h - low), (h - pc).abs(), (low - pc).abs()], axis=1).max(axis=1)
     return tr.rolling(n).mean()
-
 
 def rsi(s: pd.Series, n: int = 14) -> pd.Series:
     d = s.diff()
@@ -23,13 +19,11 @@ def rsi(s: pd.Series, n: int = 14) -> pd.Series:
     rs = up / dn.replace(0, np.nan)
     return 100 - 100 / (1 + rs)
 
-
 def macd(s: pd.Series, fast=12, slow=26, sig=9):
     macd = ema(s, fast) - ema(s, slow)
     signal = ema(macd, sig)
     hist = macd - signal
     return macd, signal, hist
-
 
 def supertrend(df: pd.DataFrame, period=10, mult=3.0) -> pd.Series:
     # simple supertrend direction: True=up, False=down
@@ -43,6 +37,5 @@ def supertrend(df: pd.DataFrame, period=10, mult=3.0) -> pd.Series:
     dir_dn = df["close"] < lower.shift(1)
     regime = dir_up.astype(int) - dir_dn.astype(int)
     return regime >= 0
-
 
 # indicators.py

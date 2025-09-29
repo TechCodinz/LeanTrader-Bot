@@ -1,17 +1,10 @@
-from __future__ import annotations
-
 import argparse
 import json
 import os
 import statistics
 import time
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
-
 
 try:
-    from prometheus_client import Gauge  # type: ignore
 
     MOON_RADAR_SCORE = Gauge(
         "moon_radar_score",
@@ -19,6 +12,7 @@ try:
         ["asset", "category"],
     )
 except Exception:  # pragma: no cover
+
     class _Noop:
         def labels(self, *_: Any, **__: Any) -> "_Noop":
             return self
@@ -27,7 +21,6 @@ except Exception:  # pragma: no cover
             pass
 
     MOON_RADAR_SCORE = _Noop()  # type: ignore
-
 
 # Data inputs (file-based; no network here)
 ENV_VOL = "MOON_VOL_PATH"  # {asset:{value,ts}}
@@ -39,7 +32,6 @@ ENV_CATMAP = "MOON_CATEGORY_MAP_PATH"  # {asset: 'L2'|'RWA'|'MEME'|'AI'|'GAME'|.
 ENV_CATBOOST = "MOON_CATEGORY_BOOSTS_PATH"  # {category: boost_multiplier}
 
 HISTORY = Path("runtime/moon_radar.json")
-
 
 def _load_value_map(path: Optional[str]) -> Dict[str, Dict[str, float]]:
     if not path:
@@ -66,7 +58,6 @@ def _load_value_map(path: Optional[str]) -> Dict[str, Dict[str, float]]:
                 continue
     return out
 
-
 def _zscore(values: Mapping[str, float]) -> Dict[str, float]:
     xs = [float(v) for v in values.values()]
     if len(xs) < 2:
@@ -77,7 +68,6 @@ def _zscore(values: Mapping[str, float]) -> Dict[str, float]:
         return {k: 0.0 for k in values.keys()}
     return {k: (float(v) - mean) / st for k, v in values.items()}
 
-
 DEFAULT_WEIGHTS = {
     "volume": 0.30,
     "wallets": 0.25,
@@ -85,7 +75,6 @@ DEFAULT_WEIGHTS = {
     "stars": 0.15,
     "listings": 0.10,
 }
-
 
 DEFAULT_CATMAP = {
     "BTC": "L1",
@@ -97,7 +86,6 @@ DEFAULT_CATMAP = {
     "DOGE": "MEME",
     "TAO": "AI",
 }
-
 
 def _load_catmap(path: Optional[str]) -> Dict[str, str]:
     cm = dict(DEFAULT_CATMAP)
@@ -111,7 +99,6 @@ def _load_catmap(path: Optional[str]) -> Dict[str, str]:
         pass
     return cm
 
-
 def _load_catboosts(path: Optional[str]) -> Dict[str, float]:
     if not path:
         return {}
@@ -121,14 +108,12 @@ def _load_catboosts(path: Optional[str]) -> Dict[str, float]:
     except Exception:
         return {}
 
-
 def _persist(history: Dict[str, Any]) -> None:
     try:
         HISTORY.parent.mkdir(parents=True, exist_ok=True)
         HISTORY.write_text(json.dumps(history, ensure_ascii=False), encoding="utf-8")
     except Exception:
         pass
-
 
 def _load_history() -> Dict[str, Any]:
     try:
@@ -138,11 +123,9 @@ def _load_history() -> Dict[str, Any]:
         return {}
     return {}
 
-
 def _confidence(sources_present: int) -> float:
     # scale confidence by number of sources with non-zero zscore
     return min(1.0, 0.3 + 0.2 * max(0, sources_present))
-
 
 def scan_moon_radar() -> Dict[str, Any]:
     vol = _load_value_map(os.getenv(ENV_VOL, ""))
@@ -154,7 +137,9 @@ def scan_moon_radar() -> Dict[str, Any]:
     catboost = _load_catboosts(os.getenv(ENV_CATBOOST, ""))
 
     # unify asset space
-    assets = set().union(vol.keys(), wallets.keys(), stars.keys(), trends.keys(), listings.keys(), catmap.keys())
+    assets = set().union(
+        vol.keys(), wallets.keys(), stars.keys(), trends.keys(), listings.keys(), catmap.keys()
+    )
     # compute zscores across assets for each source
     z_vol = _zscore({a: vol.get(a, {}).get("value", 0.0) for a in assets})
     z_wallets = _zscore({a: wallets.get(a, {}).get("value", 0.0) for a in assets})
@@ -164,7 +149,7 @@ def scan_moon_radar() -> Dict[str, Any]:
 
     w = DEFAULT_WEIGHTS
     history = _load_history()
-    prev_scores: Dict[str, float] = (history.get("scores") or {})
+    prev_scores: Dict[str, float] = history.get("scores") or {}
 
     scores: Dict[str, float] = {}
     detail: Dict[str, Dict[str, float]] = {}
@@ -207,7 +192,7 @@ def scan_moon_radar() -> Dict[str, Any]:
 
     ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
     watch: List[Dict[str, Any]] = []
-    for a, s in ranked[: 20]:
+    for a, s in ranked[:20]:
         parts = detail.get(a, {})
         nsrc = sum(1 for v in parts.values() if abs(float(v)) > 0.5)
         conf = _confidence(nsrc)
@@ -224,7 +209,7 @@ def scan_moon_radar() -> Dict[str, Any]:
         watch.append(item)
 
     # category persistence
-    prev_cats: Dict[str, float] = (history.get("categories") or {})
+    prev_cats: Dict[str, float] = history.get("categories") or {}
     cats_ema: Dict[str, float] = {}
     for k, v in cat_scores.items():
         p = float(prev_cats.get(k, 0.0))
@@ -240,33 +225,39 @@ def scan_moon_radar() -> Dict[str, Any]:
     _persist(out)
     return out
 
-
-def propose_pilots_from_moon(top_k: int = 5, per_asset_cap_usd: float = 500.0, total_cap_usd: float = 2000.0) -> List[Dict[str, Any]]:
+def propose_pilots_from_moon(
+    top_k: int = 5, per_asset_cap_usd: float = 500.0, total_cap_usd: float = 2000.0
+) -> List[Dict[str, Any]]:
     try:
         from scanners.hype_radar import propose_pilots  # type: ignore
 
         data = _load_history() or {}
         scores = data.get("scores") or {}
-        return propose_pilots(scores, top_k=top_k, per_asset_cap_usd=per_asset_cap_usd, total_cap_usd=total_cap_usd)
+        return propose_pilots(
+            scores, top_k=top_k, per_asset_cap_usd=per_asset_cap_usd, total_cap_usd=total_cap_usd
+        )
     except Exception:
         return []
 
-
 def main() -> int:
-    p = argparse.ArgumentParser(description="Moon Radar: anomaly-driven emerging category watchlist")
+    p = argparse.ArgumentParser(
+        description="Moon Radar: anomaly-driven emerging category watchlist"
+    )
     p.add_argument("--once", action="store_true")
     p.add_argument("--pilots", action="store_true")
     args = p.parse_args()
     out = scan_moon_radar()
-    print(json.dumps({"top": list(sorted(out["scores"].items(), key=lambda kv: kv[1], reverse=True)[:10])}))
+    print(
+        json.dumps(
+            {"top": list(sorted(out["scores"].items(), key=lambda kv: kv[1], reverse=True)[:10])}
+        )
+    )
     if args.pilots:
         picks = propose_pilots_from_moon()
         print(json.dumps({"pilots": picks}))
     return 0
 
-
 __all__ = ["MOON_RADAR_SCORE", "scan_moon_radar", "propose_pilots_from_moon"]
-
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

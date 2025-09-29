@@ -1,8 +1,4 @@
 import random
-from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Dict, Tuple
-
 
 @dataclass
 class BetaArm:
@@ -24,11 +20,12 @@ class BetaArm:
         else:
             self.beta += 1.0
 
-
 @dataclass
 class ContextBandit:
     # context key: (session, regime)
-    arms: Dict[Tuple[str, str], Dict[str, BetaArm]] = field(default_factory=lambda: defaultdict(dict))
+    arms: Dict[Tuple[str, str], Dict[str, BetaArm]] = field(
+        default_factory=lambda: defaultdict(dict)
+    )
 
     def choose(self, session: str, regime: str, policies) -> str:
         key = (session, regime)

@@ -10,8 +10,6 @@ Behavior:
  - writes a PID file runtime/supervisor.pid
 """
 
-from __future__ import annotations
-
 import importlib.util
 import logging
 import os
@@ -19,7 +17,6 @@ import signal
 import subprocess
 import sys
 import time
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RUNTIME = ROOT / "runtime"
@@ -77,7 +74,6 @@ CHILDREN = [
 PROCS = {}
 STOP = False
 
-
 def _start(child):
     name = child["name"]
     # If the child is invoked with -m <module>, check the module is importable first.
@@ -106,12 +102,13 @@ def _start(child):
     f_out = open(logfile, "a", buffering=1, encoding="utf-8")
     f_err = open(errfile, "a", buffering=1, encoding="utf-8")
     try:
-        p = subprocess.Popen(child["cmd"], cwd=str(ROOT), stdout=f_out, stderr=f_err, stdin=subprocess.DEVNULL)
+        p = subprocess.Popen(
+            child["cmd"], cwd=str(ROOT), stdout=f_out, stderr=f_err, stdin=subprocess.DEVNULL
+        )
         PROCS[name] = (p, f_out, f_err)
         logging.info(f"started {name} pid={p.pid}")
     except Exception as e:
         logging.exception(f"failed to start {name}: {e}")
-
 
 def _stop_all():
     logging.info("stopping children")
@@ -129,7 +126,6 @@ def _stop_all():
             logging.exception("error stopping process")
     PROCS.clear()
 
-
 def _write_pid():
     try:
         pidfile = RUNTIME / "supervisor.pid"
@@ -137,12 +133,10 @@ def _write_pid():
     except Exception:
         logging.exception("failed to write pid file")
 
-
 def _signal_handler(signum, frame):
     global STOP
     logging.info(f"received signal {signum}, stopping supervisor")
     STOP = True
-
 
 def main():
     signal.signal(signal.SIGINT, _signal_handler)
@@ -175,7 +169,6 @@ def main():
     finally:
         _stop_all()
         logging.info("supervisor exiting")
-
 
 if __name__ == "__main__":
     main()

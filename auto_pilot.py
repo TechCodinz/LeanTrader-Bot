@@ -1,21 +1,22 @@
 # auto_pilot.py
+
 from __future__ import annotations
 
 import os  # noqa: F401
 import time
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import Any, Dict, List, TYPE_CHECKING
+
+import pandas as pd
 
 if TYPE_CHECKING:
     # avoid runtime import cycles; used only for type checking / annotations
     from router import ExchangeRouter
 
-import pandas as pd
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # imports moved into main() to avoid top-level E402 annotations
-
 
 def to_df(ohlcv: List[List[float]]) -> pd.DataFrame:
     if not ohlcv:
@@ -24,8 +25,7 @@ def to_df(ohlcv: List[List[float]]) -> pd.DataFrame:
     df["time"] = pd.to_datetime(df["time"], unit="ms", utc=True)
     return df
 
-
-def fetch_df(r: ExchangeRouter, symbol: str, tf: str, limit: int = 240) -> pd.DataFrame:
+def fetch_df(r: "ExchangeRouter", symbol: str, tf: str, limit: int = 240) -> pd.DataFrame:
     try:
         o = r.safe_fetch_ohlcv(symbol, timeframe=tf, limit=limit)
         return to_df(o)
@@ -33,8 +33,7 @@ def fetch_df(r: ExchangeRouter, symbol: str, tf: str, limit: int = 240) -> pd.Da
         print(f"[data] {symbol} {tf} error: {e}")
         return pd.DataFrame()
 
-
-def account_balance_usd(r: ExchangeRouter) -> float:
+def account_balance_usd(r: "ExchangeRouter") -> float:
     try:
         acc = r.account()
         if acc.get("mode") == "paper":
@@ -45,10 +44,9 @@ def account_balance_usd(r: ExchangeRouter) -> float:
     except Exception:
         return 0.0
 
-
 def main() -> None:
-    from brain import Brain, Guards, Memory, VolSizer
     from router import ExchangeRouter
+    from brain import Brain, Memory, VolSizer, Guards
 
     r = ExchangeRouter()
     b = Brain()
@@ -57,7 +55,9 @@ def main() -> None:
 
     tf = os.getenv("BRAIN_TF", "1m")
     mode = r.mode
-    print(f"router={{'paper': {r.paper}, 'testnet': {r.testnet}, 'mode': '{mode}', 'live': {r.live}}}")
+    print(
+        f"router={{'paper': {r.paper}, 'testnet': {r.testnet}, 'mode': '{mode}', 'live': {r.live}}}"
+    )
 
     # choose symbols (USDT majors)
     symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT"]
@@ -156,7 +156,6 @@ def main() -> None:
 
         time.sleep(20)
 
-
 def _close(r: ExchangeRouter, sym: str, st: Dict[str, Any], price_now: float) -> Dict[str, Any]:
     side = st["side"]
     entry = st["entry"]
@@ -171,7 +170,6 @@ def _close(r: ExchangeRouter, sym: str, st: Dict[str, Any], price_now: float) ->
     res["pnl"] = float(pnl)
     print(f"[close] {sym} {side} pnl≈{pnl:.4f} @ {price_now:.4f}")
     return res
-
 
 if __name__ == "__main__":
     main()

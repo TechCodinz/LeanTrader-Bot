@@ -1,11 +1,9 @@
-import math  # noqa: F401
 import os
 import time  # noqa: F401
 
 import oandapyV20
 from dotenv import load_dotenv
 from oandapyV20.endpoints import instruments, orders, pricing
-
 
 class OandaBroker:
     def __init__(self):
@@ -31,7 +29,9 @@ class OandaBroker:
         gran = tf_map.get(timeframe, "M5")
         params = {"granularity": gran, "count": limit, "price": "M"}
         try:
-            r = instruments.InstrumentsCandles(instrument=self.normalize(symbol).replace("/", "_"), params=params)
+            r = instruments.InstrumentsCandles(
+                instrument=self.normalize(symbol).replace("/", "_"), params=params
+            )
             data = self.client.request(r)
             rows = []
             for c in data.get("candles", []):

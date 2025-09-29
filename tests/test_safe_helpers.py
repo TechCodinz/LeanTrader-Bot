@@ -3,7 +3,6 @@ import os
 from order_utils import safe_create_order
 from paper_broker import PaperBroker
 
-
 def test_safe_create_order_market():
     ex = PaperBroker(1000.0)
     res = safe_create_order(ex, "market", "BTC/USDT", "buy", 0.001)
@@ -12,7 +11,6 @@ def test_safe_create_order_market():
     assert res.get("symbol") == "BTC/USDT"
     assert res.get("side") == "buy"
     assert "id" in res
-
 
 def test_exchange_router_paper_mode_fetch_and_order():
     # exercise the ExchangeRouter in paper mode: fetch_ohlcv fallback and create_order
@@ -28,7 +26,6 @@ def test_exchange_router_paper_mode_fetch_and_order():
     res = ex.safe_place_order("BTC/USDT", "buy", 0.001)
     assert isinstance(res, dict)
     assert res.get("symbol") == "BTC/USDT"
-
 
 def test_tg_notifier_mocked(monkeypatch):
     # ensure notifier will call Telegram endpoints; mock requests.post to avoid network
@@ -61,7 +58,6 @@ def test_tg_notifier_mocked(monkeypatch):
     tn._send("test message")
     assert called.get("url") is not None
 
-
 def test_fetch_ohlcv_synthetic_fallback():
     # force the router into 'malformed' mode to exercise the synthetic fallback
     import os
@@ -77,7 +73,6 @@ def test_fetch_ohlcv_synthetic_fallback():
     for r in bars:
         assert isinstance(r, list)
         assert len(r) >= 6
-
 
 def test_place_oco_with_paper_broker():
     from order_utils import place_oco_ccxt

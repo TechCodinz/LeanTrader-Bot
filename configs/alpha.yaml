@@ -1,0 +1,13 @@
+features:
+  ta_basic: true
+  ultra_advanced: true
+  orderbook_topn: 10
+signals:
+  buy_threshold: 0.60
+  sell_threshold: 0.40
+risk:
+  max_dd_pct: 0.08
+  risk_per_trade: 0.005
+  cooldown_s: 30
+
+

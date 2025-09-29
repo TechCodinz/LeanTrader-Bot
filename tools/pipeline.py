@@ -4,8 +4,6 @@ This script only performs actions when ENABLE_LEARNING env var is truthy.
 It is conservative and does not perform any live trading.
 """
 
-from __future__ import annotations
-
 import os
 import sys
 import time
@@ -40,10 +38,8 @@ except Exception:
         print("pipeline import error", e)
         sys.exit(2)
 
-
 def _env_true(k: str) -> bool:
     return os.getenv(k, "").strip().lower() in ("1", "true", "yes", "y", "on")
-
 
 def run_pipeline():
     if not _env_true("ENABLE_LEARNING"):
@@ -89,7 +85,9 @@ def run_pipeline():
         DEFAULT_CRAWL_SEEDS = []
 
     feeds_env = os.getenv("LEARNING_FEEDS")
-    feeds: List[str] = [s.strip() for s in feeds_env.split(",") if s.strip()] if feeds_env else NEWS_FEEDS
+    feeds: List[str] = (
+        [s.strip() for s in feeds_env.split(",") if s.strip()] if feeds_env else NEWS_FEEDS
+    )
     try:
         print("fetching news feeds...")
         ncount = fetch_feeds(feeds, max_items=10)
@@ -202,9 +200,17 @@ def run_pipeline():
         except Exception as e:
             print("fx mt5 fetch failed:", e)
     # Fallback: OANDA
-    if (not fx_csv_ready) and os.getenv("ENABLE_FX_LEARNING_OANDA", "false").strip().lower() in ("1", "true", "yes", "on"):
+    if (not fx_csv_ready) and os.getenv("ENABLE_FX_LEARNING_OANDA", "false").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    ):
         try:
-            from tools.fx_fetcher_oanda import fetch_fx_full as fetch_fx_oa_full, save_csv as save_csv_oa
+            from tools.fx_fetcher_oanda import (
+                fetch_fx_full as fetch_fx_oa_full,
+                save_csv as save_csv_oa,
+            )
 
             for sym in fx_syms:
                 # OANDA instrument format uses underscore
@@ -226,7 +232,6 @@ def run_pipeline():
     # 3) Train on CSV produced by market_data.fetch_ohlcv (persisted at runtime/data)
     # 3) Train + evaluate for every fetched crypto CSV
     data_dir = Path("runtime") / "data"
-    any_trained = False
     for tf in tfs:
         for sym in crypto_syms:
             csv_path = data_dir / f"{ex}_{sym.replace('/', '_')}_{tf}.csv"
@@ -236,7 +241,7 @@ def run_pipeline():
                 print("training model from", csv_path)
                 out = train_dummy_classifier(str(csv_path))
                 print("training output:", out)
-                any_trained = True
+                # trained successfully
             except Exception as e:
                 print("training failed:", e)
                 continue
@@ -260,7 +265,7 @@ def run_pipeline():
                 print("training model from", csv_path)
                 out = train_dummy_classifier(str(csv_path))
                 print("training output:", out)
-                any_trained = True
+                # trained successfully
             except Exception as e:
                 print("training failed:", e)
                 continue
@@ -276,7 +281,6 @@ def run_pipeline():
         print("no data fetched; nothing to train")
 
     return 0
-
 
 if __name__ == "__main__":
     rc = run_pipeline()

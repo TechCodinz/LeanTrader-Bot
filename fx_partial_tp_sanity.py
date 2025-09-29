@@ -1,22 +1,19 @@
 # fx_partial_tp_sanity.py
 # Simulates TP1/TP2/runner + trailing math using live MT5 bars, but DOES NOT send orders.
 
-from __future__ import annotations
-
 import argparse
 import os
 import time
-from typing import Any, Dict
 
-import pandas as pd
 from dotenv import load_dotenv
+import pandas as pd
+from typing import Any, Dict
 
 load_dotenv()
 try:
     import MetaTrader5 as mt5  # noqa: E402
 except Exception:
     mt5 = None
-
 
 # --- tiny copies of helpers from your live loop ---
 def mt5_init():
@@ -35,7 +32,6 @@ def mt5_init():
             raise RuntimeError(f"mt5.login failed: ({code}) {desc}")
     return mt5
 
-
 def ensure_symbol(symbol: str):
     info = mt5.symbol_info(symbol)
     if info is None:
@@ -44,10 +40,8 @@ def ensure_symbol(symbol: str):
         if not mt5.symbol_select(symbol, True):
             raise RuntimeError(f"symbol_select({symbol}) failed")
 
-
 def ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=n, adjust=False).mean()
-
 
 def atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
     c = df["close"]
@@ -60,7 +54,6 @@ def atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
         axis=1,
     ).max(axis=1)
     return tr.rolling(n).mean()
-
 
 def bars_df(symbol: str, timeframe: str, limit: int = 400) -> pd.DataFrame:
     tf_map = {
@@ -79,7 +72,6 @@ def bars_df(symbol: str, timeframe: str, limit: int = 400) -> pd.DataFrame:
     df.rename(columns={"time": "ts", "tick_volume": "vol"}, inplace=True)
     df["timestamp"] = pd.to_datetime(df["ts"], unit="s")
     return df[["timestamp", "open", "high", "low", "close", "vol"]]
-
 
 def make_signal(df: pd.DataFrame, atr_mult=2.0) -> Dict[str, Any]:
     d = df.copy()
@@ -110,7 +102,6 @@ def make_signal(df: pd.DataFrame, atr_mult=2.0) -> Dict[str, Any]:
             "tp3": price - 5 * vol,
         }
     return {"side": "flat", "price": price}
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -209,7 +200,6 @@ def main():
             if price >= st["sl"]:
                 print(f"🛑 STOP @ {price:.5f} — done")
                 break
-
 
 if __name__ == "__main__":
     main()

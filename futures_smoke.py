@@ -1,12 +1,8 @@
 # futures_smoke.py
-from __future__ import annotations
 
 from dotenv import load_dotenv
 
-from router import ExchangeRouter
-
 load_dotenv()
-
 
 def main():
     r = ExchangeRouter()
@@ -27,7 +23,6 @@ def main():
             sl=None,  # e.g. 62000
         )
     )
-
 
 if __name__ == "__main__":
     main()

@@ -1,3 +1,4 @@
+
 """CLI wrapper for research.backtest.quantum_ab.run_ab_backtest.
 
 Usage:
@@ -5,21 +6,18 @@ Usage:
 Prints a single-line JSON result and exits 0 on success, 1 on error.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import sys
 
-import pandas as pd
-
 from research.backtest.quantum_ab import run_ab_backtest
+
 try:
     from risk.tails import classical_var_cvar
 except Exception:
+
     def classical_var_cvar(x, alpha=0.95):
         return 0.0, 0.0
-
 
 def main():
     import argparse
@@ -40,6 +38,7 @@ def main():
             # synthetic fallback
             from numpy.random import default_rng
             import numpy as np
+
             rng = default_rng(args.seed)
             cols = [f"A{i}" for i in range(6)]
             data = {}
@@ -66,7 +65,6 @@ def main():
     except Exception as e:
         print(json.dumps({"error": str(e)}))
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

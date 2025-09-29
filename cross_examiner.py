@@ -1,14 +1,11 @@
 # cross_examiner.py
-from __future__ import annotations
 
 import statistics
 from dataclasses import dataclass
 from typing import Dict, Tuple
 
-
 def _clip(x, lo, hi):
     return max(lo, min(hi, x))
-
 
 _TF_ORDER = {
     "1m": 1,
@@ -22,10 +19,8 @@ _TF_ORDER = {
     "1d": 9,
 }
 
-
 def _rank(tf: str) -> int:
     return _TF_ORDER.get(tf.lower(), 99)
-
 
 def _hold_bins(tf: str) -> Tuple[str, str]:
     """Return (label, range) default hold per timeframe."""
@@ -50,13 +45,11 @@ def _hold_bins(tf: str) -> Tuple[str, str]:
         return ("position", "2–7d")
     return ("intra", "1–4h")
 
-
 @dataclass
 class FrameView:
     tf: str
     prob: float  # 0..1
     side: str | None  # "buy" or None
-
 
 def cross_examine(
     frame_probs: Dict[str, float], frame_sides: Dict[str, str | None], focus_tf: str

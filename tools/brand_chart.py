@@ -5,13 +5,6 @@ brand_chart(base_path, title, bullets) -> out_path
 - overlays repo logo.png at bottom-right if present
 """
 
-from __future__ import annotations
-
-from pathlib import Path
-
-from PIL import Image, ImageDraw, ImageFont
-
-
 def brand_chart(base_path: str, title: str, bullets: list[str]) -> str:
     p = Path(base_path)
     if not p.exists():

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os  # noqa: F401  # intentionally kept
 
 from dotenv import load_dotenv
@@ -7,9 +5,11 @@ from dotenv import load_dotenv
 from traders_core.features.pipeline import make_features, rates_to_df
 from traders_core.mt5_adapter import copy_rates_days, market_buy, symbol_info
 from traders_core.observability.metrics import METRICS
+
 try:
     from observability.metrics import record_slippage, record_order_sent, record_order_reject
 except Exception:
+
     def record_slippage(_: float):
         return None
 
@@ -18,12 +18,12 @@ except Exception:
 
     def record_order_reject(n: int = 1):
         return None
+
 from traders_core.storage.registry import load_latest
 from traders_core.utils.ta import atr
 
 load_dotenv()
 TRADING_MODE = os.getenv("TRADING_MODE", "paper").lower()  # paper | live
-
 
 def _round_lot(volume: float, min_lot: float, lot_step: float, max_lot: float) -> float:
     steps = round(volume / lot_step)
@@ -31,12 +31,10 @@ def _round_lot(volume: float, min_lot: float, lot_step: float, max_lot: float) -
     v = max(min_lot, min(max_lot, v))
     return round(v, 2)
 
-
 def value_per_price_unit(si) -> float:
     if si.trade_tick_size <= 0:
         return 0.0
     return si.trade_tick_value / si.trade_tick_size
-
 
 def decide_and_execute_mt5(
     symbol: str,
@@ -51,7 +49,9 @@ def decide_and_execute_mt5(
 
     rates = copy_rates_days(symbol, timeframe, research_lookback_days)
     df = rates_to_df(rates)
-    feats = make_features(df, rsi_window=cfg["risk"]["atr_window"], atr_window=cfg["risk"]["atr_window"])
+    feats = make_features(
+        df, rsi_window=cfg["risk"]["atr_window"], atr_window=cfg["risk"]["atr_window"]
+    )
     X_live = feats[meta["features"]].iloc[[-1]]
 
     prob = float(model.predict_proba(X_live)[0, 1])
@@ -150,7 +150,9 @@ def decide_and_execute_mt5(
     record_order_sent(1)
     res = market_buy(symbol, float(vol), sl, tp)
     ok = (res is not None) and (getattr(res, "retcode", None) in (10009, 10008, 0))
-    METRICS.orders_total.labels(venue="mt5", symbol=symbol, status=("live_sent" if ok else "live_error")).inc()
+    METRICS.orders_total.labels(
+        venue="mt5", symbol=symbol, status=("live_sent" if ok else "live_error")
+    ).inc()
     if not ok:
         record_order_reject(1)
     result = {

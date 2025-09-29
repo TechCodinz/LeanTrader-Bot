@@ -1,12 +1,8 @@
-from __future__ import annotations
-
 import os
-from typing import Any, Dict
 
 from .broker_ccxt import BrokerCCXT
 from .broker_emulator import BrokerEmulator
 from .broker_fx import BrokerFX
-
 
 def route_order(payload: Dict[str, Any], mode: str = None) -> Dict[str, Any]:
     """Route an order dict to the selected backend.

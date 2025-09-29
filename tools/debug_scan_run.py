@@ -1,6 +1,6 @@
 import json
 import os  # noqa: F401  # intentionally kept
-from types import SimpleNamespace
+import sys
 
 os.environ["EXCHANGE_ID"] = os.environ.get("EXCHANGE_ID", "paper")
 os.environ["ENABLE_LIVE"] = "false"

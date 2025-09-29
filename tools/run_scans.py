@@ -4,7 +4,6 @@ import json
 import os
 import sys
 
-
 def main(argv=None):
     p = argparse.ArgumentParser(description="Run repo scans and emit JSON report")
     p.add_argument("--root", "-r", default=".", help="Project root")
@@ -60,7 +59,6 @@ def main(argv=None):
     with open(args.out, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
     print(f"Wrote scan report to {args.out}")
-
 
 if __name__ == "__main__":
     main()

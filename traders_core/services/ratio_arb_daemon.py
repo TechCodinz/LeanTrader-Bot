@@ -2,12 +2,10 @@ import os
 import threading
 import time
 import logging
-from typing import Callable, Dict, List
 
 from strategies.loader import create as create_strategy, load_config
 from traders_core.connectors.crypto_ccxt import ticker_price, market_buy, market_sell
 from traders_core.execution.fills_adapter import record_fill
-
 
 def _to_pair(sym: str) -> str:
     s = sym.strip().upper()
@@ -20,11 +18,9 @@ def _to_pair(sym: str) -> str:
     # fallback: try to split base/quote roughly
     return s.replace("_", "/").replace("-", "/")
 
-
 class _Tick:
     def __init__(self, last: float):
         self.last = last
-
 
 class MarketDataPoller:
     def __init__(self, ex_id: str, testnet: bool, symbols: List[str], interval: float = 1.0):
@@ -69,7 +65,6 @@ class MarketDataPoller:
             except Exception:
                 time.sleep(self.interval)
 
-
 class BrokerAdapter:
     def __init__(self, ex_id: str, testnet: bool):
         self.ex_id = ex_id
@@ -103,7 +98,6 @@ class BrokerAdapter:
         except Exception:
             pass
         return resp
-
 
 def start():
     """Start the ratio-arb daemon with minimal dependencies.

@@ -1,10 +1,9 @@
 # mt5_adapter.py
-from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
+import pandas as pd
 
 # MetaTrader5 binding (graceful message if missing)
 try:
@@ -14,9 +13,7 @@ except Exception:  # pragma: no cover
 
 load_dotenv()
 
-
 # ----------------------------- env helpers -----------------------------
-
 
 def _envs() -> Dict[str, str]:
     """Read MT5 settings from environment (.env)."""
@@ -27,9 +24,7 @@ def _envs() -> Dict[str, str]:
         "SERVER": (os.getenv("MT5_SERVER") or "").strip(),
     }
 
-
 # ------------------------------ init ----------------------------------
-
 
 def mt5_init(path: Optional[str] = None):
     """
@@ -59,9 +54,7 @@ def mt5_init(path: Optional[str] = None):
 
     return mt5
 
-
 # --------------------------- symbol utilities --------------------------
-
 
 def ensure_symbol(symbol: str) -> None:
     """Ensure symbol exists and is visible."""
@@ -71,7 +64,6 @@ def ensure_symbol(symbol: str) -> None:
     if not info.visible:
         if not mt5.symbol_select(symbol, True):
             raise RuntimeError(f"symbol_select({symbol}) failed")
-
 
 def symbol_trade_specs(symbol: str) -> Dict[str, Any]:
     """Return broker trade constraints for a symbol."""
@@ -90,7 +82,6 @@ def symbol_trade_specs(symbol: str) -> Dict[str, Any]:
         "trade_tick_value": float(getattr(info, "trade_tick_value", 0)),
     }
 
-
 def normalize_volume(symbol: str, lots: float) -> float:
     """Clamp & round lots to broker step/min/max."""
     s = symbol_trade_specs(symbol)
@@ -98,15 +89,12 @@ def normalize_volume(symbol: str, lots: float) -> float:
     v = round(max(s["volume_min"], min(lots, s["volume_max"])) / step) * step
     return max(s["volume_min"], min(v, s["volume_max"]))
 
-
 def min_stop_distance_points(symbol: str) -> int:
     """Minimum stop distance in *points* enforced by the broker."""
     s = symbol_trade_specs(symbol)
     return max(int(s["trade_stops_level"]), int(s["freeze_level"]))
 
-
 # ------------------------------ market data ----------------------------
-
 
 def bars_df(symbol: str, timeframe_str: str, limit: int = 200):
     """
@@ -114,7 +102,6 @@ def bars_df(symbol: str, timeframe_str: str, limit: int = 200):
     ['time','open','high','low','close','tick_volume','spread','real_volume'].
     Handles installs where pandas creates numeric column names (0..N-1).
     """
-    import pandas as pd  # noqa: E402
 
     ensure_symbol(symbol)
 
@@ -169,9 +156,7 @@ def bars_df(symbol: str, timeframe_str: str, limit: int = 200):
 
     return df
 
-
 # --------------------------- account snapshot --------------------------
-
 
 def account_summary_lines() -> List[str]:
     info = mt5.account_info()
@@ -192,9 +177,7 @@ def account_summary_lines() -> List[str]:
         f"Margin:  {float(info.margin):.2f}  Positions: {pos_n}  (uPnL {profit:.2f})",
     ]
 
-
 # ------------------------------- orders --------------------------------
-
 
 def order_send_market(
     symbol: str,

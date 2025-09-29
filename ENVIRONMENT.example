@@ -1,0 +1,19 @@
+# Runtime flags
+DAILY_RUN=true
+NEWS_EVERY_SECS=900
+METRICS_PORT=9300
+TELEGRAM_HEARTBEAT=false
+HEARTBEAT_SECS=1800
+
+# Telegram (optional)
+# TELEGRAM_BOT_TOKEN=
+# TELEGRAM_CHAT_ID=
+
+# Exchange keys (optional for live)
+# API_KEY=
+# API_SECRET=
+# PASS_PHRASE=
+
+# Misc
+LOG_LEVEL=INFO
+EXPL_DIR=out/explanations

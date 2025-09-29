@@ -1,5 +1,4 @@
 # outcome_logger.py
-from __future__ import annotations
 
 import csv
 import hashlib
@@ -26,20 +25,16 @@ LEDGER_CSV = DATA_DIR / "ledger.csv"  # append all closed trades
 MEMORY_CSV = DATA_DIR / "pattern_memory.csv"  # features + outcome/label
 TRADES_ROLL = REPORTS  # NDJSON per day: trades-YYYYMMDD.ndjson
 
-
 # ----------------- utils -----------------
 def _utc_ts() -> int:
     return int(time.time())
-
 
 def _day_key(ts: Optional[int] = None) -> str:
     dt = datetime.fromtimestamp(ts or _utc_ts(), tz=timezone.utc)
     return dt.strftime("%Y%m%d")
 
-
 def _now_iso() -> str:
     return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-
 
 def _ensure_ledgers():
     if not LEDGER_CSV.exists():
@@ -95,11 +90,9 @@ def _ensure_ledgers():
                 ]
             )
 
-
 def _hash(obj: Dict[str, Any]) -> str:
     s = json.dumps(obj, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
-
 
 # ----------------- tiny feature snapshot (cheap, matches your pattern_memory schema) -----------------
 def _features_from_df(df) -> Dict[str, float]:
@@ -135,19 +128,19 @@ def _features_from_df(df) -> Dict[str, float]:
         "atr": float((atr.iloc[-1] or 0.0) / max(1e-9, d["close"].iloc[-1])),
         "rsi": float(rsi.iloc[-1] if pd.notna(rsi.iloc[-1]) else 50.0),
         "bb_bw": float(bbw.iloc[-1]),
-        "ema_slope": float((ema.iloc[-1] or 0.0) - (ema.iloc[-5] if len(ema) >= 5 else ema.iloc[-1] or 0.0)),
+        "ema_slope": float(
+            (ema.iloc[-1] or 0.0) - (ema.iloc[-5] if len(ema) >= 5 else ema.iloc[-1] or 0.0)
+        ),
     }
     for k, v in out.items():
         if v is None or math.isnan(v) or math.isinf(v):
             out[k] = 0.0
     return out
 
-
 def _append_ndjson(day: str, payload: Dict[str, Any]) -> None:
     path = TRADES_ROLL / f"trades-{day}.ndjson"
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(payload, ensure_ascii=False) + "\n")
-
 
 # ----------------- main logger -----------------
 class OutcomeLogger:
@@ -201,7 +194,9 @@ class OutcomeLogger:
             "qty": float(qty or 0.0),
             "meta": meta or {},
         }
-        tid = _hash({k: base[k] for k in ("market", "venue", "symbol", "tf", "side", "entry", "ts")})
+        tid = _hash(
+            {k: base[k] for k in ("market", "venue", "symbol", "tf", "side", "entry", "ts")}
+        )
         base["id"] = tid
 
         # optional: snapshot features + write a pending memory row
@@ -336,7 +331,9 @@ class OutcomeLogger:
         }
 
     # ---------- memory updater ----------
-    def _update_memory_outcome(self, symbol: str, tf: str, ts: int, outcome: float, label: str) -> None:
+    def _update_memory_outcome(
+        self, symbol: str, tf: str, ts: int, outcome: float, label: str
+    ) -> None:
         try:
             # load all, update the matching row, rewrite
             rows: List[List[str]] = []
@@ -394,7 +391,6 @@ class OutcomeLogger:
         avg_r = (r_sum / n) if n > 0 else 0.0
         avg_hold = (hold_sum / n) if n > 0 else 0
         return f"Day {day}: trades={n}, W/L={wl}, ΣPnL={pnl_sum:.2f}, avgR={avg_r:.2f}, avgHold={avg_hold//60}m"
-
 
 # convenience singleton (optional)
 LOGGER = OutcomeLogger()

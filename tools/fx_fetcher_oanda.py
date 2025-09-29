@@ -10,29 +10,24 @@ Outputs CSV to runtime/data/fx_<SYMBOL>_<TF>.csv
 Supported TF map: M1,M5,M15,M30,H1,H4,D1 -> M1,M5,M15,M30,H1,H4,D
 """
 
-from __future__ import annotations
-
 import csv
 import os
-from pathlib import Path
-from typing import List
 
 import oandapyV20
 from oandapyV20.endpoints.instruments import InstrumentsCandles
 
-
 _TF_MAP = {"M1": "M1", "M5": "M5", "M15": "M15", "M30": "M30", "H1": "H1", "H4": "H4", "D1": "D"}
-
 
 def _client():
     tok = os.getenv("OANDA_API_TOKEN", "").strip()
     if not tok:
         return None
-    env = (os.getenv("OANDA_ENV", "practice").strip().lower())
+    env = os.getenv("OANDA_ENV", "practice").strip().lower()
     practice = env != "live"
     host = "api-fxpractice.oanda.com" if practice else "api-fxtrade.oanda.com"
-    return oandapyV20.API(access_token=tok, environment="practice" if practice else "live", headers={"Host": host})
-
+    return oandapyV20.API(
+        access_token=tok, environment="practice" if practice else "live", headers={"Host": host}
+    )
 
 def fetch_fx(symbol: str, tf: str, count: int = 400) -> List[List[float]]:
     api = _client()
@@ -52,17 +47,20 @@ def fetch_fx(symbol: str, tf: str, count: int = 400) -> List[List[float]]:
     for c in resp.get("candles", []):
         try:
             ts = c.get("time")
-            o = c["mid"]["o"]; h = c["mid"]["h"]; l = c["mid"]["l"]; cl = c["mid"]["c"]
+            o = c["mid"]["o"]
+            h = c["mid"]["h"]
+            l = c["mid"]["l"]
+            cl = c["mid"]["c"]
             v = c.get("volume", 0)
             # convert RFC3339 to ms
             import datetime as _dt
+
             t = _dt.datetime.fromisoformat(ts.replace("Z", "+00:00"))
             ms = int(t.timestamp() * 1000)
             out.append([ms, float(o), float(h), float(l), float(cl), float(v)])
         except Exception:
             continue
     return out
-
 
 def fetch_fx_full(symbol: str, tf: str, total: int = 2000) -> List[List[float]]:
     api = _client()
@@ -99,7 +97,16 @@ def fetch_fx_full(symbol: str, tf: str, total: int = 2000) -> List[List[float]]:
                 t = _dt.datetime.fromisoformat(tsr.replace("Z", "+00:00"))
                 ms = int(t.timestamp() * 1000)
                 last_ts = tsr
-                page_rows.append([ms, float(mid["o"]), float(mid["h"]), float(mid["l"]), float(mid["c"]), float(c.get("volume", 0))])
+                page_rows.append(
+                    [
+                        ms,
+                        float(mid["o"]),
+                        float(mid["h"]),
+                        float(mid["l"]),
+                        float(mid["c"]),
+                        float(c.get("volume", 0)),
+                    ]
+                )
             if not page_rows:
                 break
             out.extend(page_rows)
@@ -115,7 +122,6 @@ def fetch_fx_full(symbol: str, tf: str, total: int = 2000) -> List[List[float]]:
         pass
     return out
 
-
 def save_csv(symbol: str, tf: str, rows: List[List[float]]) -> str:
     p = Path("runtime") / "data"
     p.mkdir(parents=True, exist_ok=True)
@@ -126,7 +132,6 @@ def save_csv(symbol: str, tf: str, rows: List[List[float]]) -> str:
         for r in rows:
             w.writerow(r)
     return str(path)
-
 
 if __name__ == "__main__":
     import sys

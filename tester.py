@@ -1,12 +1,6 @@
 # tester.py
-from __future__ import annotations
-
-from pathlib import Path
 
 import pandas as pd  # noqa: F401  # intentionally kept
-
-from alpha_engines import ensemble_long_signal
-
 
 def evaluate(df: pd.DataFrame):
     gate, score = ensemble_long_signal(df, 0.72)
@@ -14,7 +8,6 @@ def evaluate(df: pd.DataFrame):
     ret = df["close"].pct_change().fillna(0)
     pnl = (ret * longs.astype(int)).cumsum()
     return pnl.iloc[-1], score.iloc[-200:].mean()
-
 
 # Usage:
 # df must have columns: open,high,low,close,vol

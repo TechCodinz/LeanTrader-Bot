@@ -1,7 +1,3 @@
-import numpy as np
-import pandas as pd
-
-
 def rsi(series: pd.Series, window: int = 14):
     delta = series.diff()
     up = np.where(delta > 0, delta, 0.0)
@@ -10,7 +6,6 @@ def rsi(series: pd.Series, window: int = 14):
     roll_down = pd.Series(down, index=series.index).ewm(alpha=1 / window, adjust=False).mean()
     rs = roll_up / (roll_down + 1e-12)
     return 100 - (100 / (1 + rs))
-
 
 def atr(df: pd.DataFrame, window: int = 14):
     hl = df["high"] - df["low"]

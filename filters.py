@@ -1,9 +1,6 @@
 # filters.py
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Dict
-
 import pandas as pd
 
 
@@ -16,7 +13,6 @@ class EventRiskFilter:
     def allow(self, row: Dict) -> bool:
         v = row.get(self.col, 0)
         return int(v) == 0
-
 
 @dataclass
 class SpreadVolFilter:
@@ -35,7 +31,6 @@ class SpreadVolFilter:
         r = atr / px
         return (r >= self.min_ratio) and (r <= self.max_ratio)
 
-
 @dataclass
 class SentimentGate:
     """Blocks (or requires) certain sentiment direction."""
@@ -47,7 +42,6 @@ class SentimentGate:
     def allow(self, row: Dict) -> bool:
         s = float(row.get(self.col, 0.0))
         return (s >= self.min_score) and (s <= self.max_score)
-
 
 # ---------- Multi-timeframe ensemble ----------
 def resample_for_tf(df: pd.DataFrame, tf: str) -> pd.DataFrame:
@@ -76,7 +70,6 @@ def resample_for_tf(df: pd.DataFrame, tf: str) -> pd.DataFrame:
     )
     return out
 
-
 def vote_long_signal(signals: Dict[str, pd.DataFrame]) -> pd.Series:
     """signals: tf -> df_with_long_signal; returns aligned 1m votes."""
     # align on the smallest TF index
@@ -90,4 +83,6 @@ def vote_long_signal(signals: Dict[str, pd.DataFrame]) -> pd.Series:
         s = d.set_index("timestamp")["long_signal"].astype(int)
         s = s.reindex(votes.index, method="ffill").fillna(0)
         votes[tf] = s
-    return (votes.sum(axis=1) >= max(2, int(0.6 * len(signals)))).astype(int)  # majority (>=60%) vote
+    return (votes.sum(axis=1) >= max(2, int(0.6 * len(signals)))).astype(
+        int
+    )  # majority (>=60%) vote

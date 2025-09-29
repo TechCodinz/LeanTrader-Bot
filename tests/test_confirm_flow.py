@@ -2,9 +2,9 @@ import json
 import os
 import sys
 import time
-from pathlib import Path
 
 from fastapi.testclient import TestClient
+from pathlib import Path
 
 import runtime.webhook_server as ws
 from tools import user_pins
@@ -13,7 +13,6 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 TEST_UID = "5329503447"
-
 
 def write_test_signal(signal_id: str) -> None:
     pdir = ROOT / "runtime"
@@ -32,7 +31,6 @@ def write_test_signal(signal_id: str) -> None:
     with open(f, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(sig, ensure_ascii=False) + "\n")
 
-
 def test_confirm_execute_roundtrip(tmp_path):
     os.environ.setdefault("PREMIUM_USERS", TEST_UID)
     # ensure ALLOW_DIRECT_EXEC disabled for normal flow test
@@ -46,7 +44,13 @@ def test_confirm_execute_roundtrip(tmp_path):
     client = TestClient(ws.app)
 
     # post confirm callback
-    payload = {"callback_query": {"id": "cb-py", "from": {"id": int(TEST_UID)}, "data": f"confirm:{signal_id}"}}
+    payload = {
+        "callback_query": {
+            "id": "cb-py",
+            "from": {"id": int(TEST_UID)},
+            "data": f"confirm:{signal_id}",
+        }
+    }
     r = client.post("/telegram_webhook", json=payload)
     assert r.status_code == 200
 

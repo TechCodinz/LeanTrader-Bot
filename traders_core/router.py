@@ -1,13 +1,8 @@
 # router.py
 import os
 from pprint import pprint
-from typing import Any, Dict, List
 
 import ccxt
-
-from order_utils import place_market, safe_create_order
-from paper_broker import PaperBroker  # already in your repo
-
 
 class ExchangeRouter:
     def __init__(self):
@@ -232,7 +227,6 @@ class ExchangeRouter:
             reverse=True,
         )
         return movers[:topn]
-
 
 if __name__ == "__main__":
     r = ExchangeRouter()

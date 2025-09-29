@@ -3,22 +3,20 @@ import importlib
 import numpy as np
 import pandas as pd
 
-
 def reload_all():
     try:
         import config as _cfg
-
         importlib.reload(_cfg)
     except Exception:
         pass
     import features.pipeline as fp
-    import strategies.pipeline as sp
     import research.regime as rr
+
     importlib.reload(fp)
+    import strategies.pipeline as sp
     importlib.reload(sp)
     importlib.reload(rr)
     return fp, sp, rr
-
 
 def test_regime_gates():
     from research.regime import quantum_allowed_for_regime, select_quantum_mode
@@ -35,7 +33,6 @@ def test_regime_gates():
     assert select_quantum_mode(None, default_on=True) is False
     assert select_quantum_mode("storm", default_on=True) is False
 
-
 def _make_df(n=300, m=6):
     rng = np.random.default_rng(123)
     data = {}
@@ -45,9 +42,8 @@ def _make_df(n=300, m=6):
     idx = pd.date_range(end=pd.Timestamp.utcnow().floor("min"), periods=n, freq="1min")
     return pd.DataFrame(data, index=idx)
 
-
 def test_compute_mu_cov_shapes_psd():
-    from features.pipeline import compute_mu_cov, ensure_psd
+    from features.pipeline import compute_mu_cov
 
     df = _make_df(300, 6)
     mu, Sigma = compute_mu_cov(df, window=252, min_history=126)
@@ -57,7 +53,6 @@ def test_compute_mu_cov_shapes_psd():
     # PSD check via eigenvalues
     vals = np.linalg.eigvalsh(Sigma)
     assert np.all(vals >= -1e-8)
-
 
 def test_daily_rebalance_job_regime_gate():
     os.environ["Q_ENABLE_QUANTUM"] = "true"
@@ -72,4 +67,3 @@ def test_daily_rebalance_job_regime_gate():
     res2 = sp.daily_rebalance_job(df, latest_regime=None, budget=4)
     assert res2.get("ok") is True
     assert res2.get("q_enabled") is False
-

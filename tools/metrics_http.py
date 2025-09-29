@@ -1,10 +1,6 @@
-from __future__ import annotations
-
 import argparse
 import os
 import time
-from prometheus_client import start_http_server  # type: ignore
-
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Start Prometheus HTTP metrics exporter")
@@ -20,7 +16,5 @@ def main() -> int:
     except KeyboardInterrupt:
         return 0
 
-
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-

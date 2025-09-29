@@ -1,5 +1,4 @@
 # bybit_adapter.py
-from __future__ import annotations
 
 import math
 import os  # noqa: F401
@@ -13,7 +12,6 @@ except Exception:  # pragma: no cover
     ccxt = None
 
 load_dotenv()
-
 
 # -------------------------------------------------
 # Exchange init
@@ -52,7 +50,6 @@ def bybit_init(
     # router.ex.set_sandbox_mode(True)
     return router
 
-
 # -------------------------------------------------
 # Market helpers
 # -------------------------------------------------
@@ -60,7 +57,6 @@ def _load_markets(ex) -> Dict[str, Any]:
     if not getattr(ex, "markets", None):
         return ex.load_markets()
     return ex.markets
-
 
 def map_symbol(symbol: str) -> str:
     """
@@ -70,7 +66,6 @@ def map_symbol(symbol: str) -> str:
     if s.endswith("/USD"):
         s = s.replace("/USD", "/USDT")
     return s
-
 
 def price_amount_precisions(ex, symbol: str) -> Tuple[int, int, float, float]:
     """
@@ -98,7 +93,6 @@ def price_amount_precisions(ex, symbol: str) -> Tuple[int, int, float, float]:
 
     return price_prec, amt_prec, min_cost, step_amt or 0.0
 
-
 def floor_to_step(x: float, step: float, digits: int) -> float:
     if step and step > 0:
         n = math.floor(x / step) * step
@@ -110,7 +104,6 @@ def floor_to_step(x: float, step: float, digits: int) -> float:
     # round to precision digits
     return float(f"{n:.{digits}f}")
 
-
 # -------------------------------------------------
 # Data & balances
 # -------------------------------------------------
@@ -118,7 +111,6 @@ def fetch_ohlcv(ex, symbol: str, timeframe: str = "1m", limit: int = 200) -> Lis
     # Use router safe wrapper
     s = map_symbol(symbol)
     return ex.safe_fetch_ohlcv(s, timeframe=timeframe, limit=limit)
-
 
 def account_summary_lines(ex, quote: str = "USDT") -> List[str]:
     try:
@@ -156,7 +148,6 @@ def account_summary_lines(ex, quote: str = "USDT") -> List[str]:
     lines.append(f"— estimated total: {total:,.2f} {quote}")
     return lines
 
-
 # -------------------------------------------------
 # Orders (SPOT, market)
 # -------------------------------------------------
@@ -185,7 +176,6 @@ def ensure_can_trade(ex, symbol: str, side: str, usd_stake: float) -> Tuple[str,
         raise RuntimeError(f"Stake too small: need ≥ {notional} notional (~{need:.6f} units)")
 
     return ccxt_sym, qty
-
 
 def order_market(
     ex,

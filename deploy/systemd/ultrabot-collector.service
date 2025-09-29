@@ -1,0 +1,15 @@
+[Unit]
+Description=Ultra EU OHLCV Collector
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/ultrabot
+EnvironmentFile=/opt/ultrabot/.env
+ExecStart=/opt/ultrabot/.venv/bin/python /opt/ultrabot/tools/eu_collector.py
+Restart=always
+RestartSec=300
+User=ultrabot
+
+[Install]
+WantedBy=multi-user.target

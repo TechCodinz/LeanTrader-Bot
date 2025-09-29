@@ -1,6 +1,5 @@
 # Emulate test order: import ws first, then set env, then proceed
 import sys
-from pathlib import Path
 import os
 import time
 
@@ -11,7 +10,6 @@ sys.path.insert(0, str(ROOT))
 from fastapi.testclient import TestClient  # noqa: E402
 
 import runtime.webhook_server as ws  # noqa: E402
-from tools import user_pins  # noqa: E402
 
 TEST_UID = "5329503447"
 # set env after import
@@ -39,7 +37,9 @@ with open(f, "a", encoding="utf-8") as fh:
 pin = user_pins.generate_pin(TEST_UID)
 client = TestClient(ws.app)
 
-payload = {"callback_query": {"id": "cb-py", "from": {"id": int(TEST_UID)}, "data": f"confirm:{signal_id}"}}
+payload = {
+    "callback_query": {"id": "cb-py", "from": {"id": int(TEST_UID)}, "data": f"confirm:{signal_id}"}
+}
 r = client.post("/telegram_webhook", json=payload)
 print("webhook status", r.status_code, r.text)
 print("CONFIRM_STORE after webhook:", ws._CONFIRM_STORE)

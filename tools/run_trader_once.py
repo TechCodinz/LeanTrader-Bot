@@ -2,12 +2,7 @@
 This runner respects ENABLE_LIVE and will not place live orders unless ENABLE_LIVE=true
 """
 
-from __future__ import annotations
-
 import os
-
-from trader_core import TraderCore
-
 
 def main():
     fx = [s for s in os.getenv("FX_SYMBOLS", "XAUUSD,EURUSD,USDJPY").split(",") if s]
@@ -26,7 +21,6 @@ def main():
         core._poll_crypto_spot()
     if fu:
         core._poll_crypto_futures()
-
 
 if __name__ == "__main__":
     main()

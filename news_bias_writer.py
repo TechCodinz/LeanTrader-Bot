@@ -3,11 +3,9 @@ import json  # noqa: F401  # intentionally kept
 import pathlib
 import time
 
-from news_service import build_clean, filtered_news_for, harvest_rss
 
 OUT = pathlib.Path("runtime/news_risk.json")
 OUT.parent.mkdir(exist_ok=True)
-
 
 def compute_bias() -> float:
     # crude: BTC & USD headlines sentiment → bias in [-1,+1]
@@ -25,7 +23,6 @@ def compute_bias() -> float:
     # risk-on if BTC positive and USD negative (loosely)
     bias = 0.6 * agg(btc) - 0.3 * agg(usd)
     return max(-1.0, min(1.0, bias))
-
 
 if __name__ == "__main__":
     b = compute_bias()

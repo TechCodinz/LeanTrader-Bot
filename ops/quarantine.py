@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Dict, List, Tuple
 
 
@@ -15,6 +13,4 @@ def should_quarantine(validation: Dict[str, object], max_issues: int = 3) -> Tup
     except Exception:
         return True, ["validation_parse_error"]
 
-
 __all__ = ["should_quarantine"]
-

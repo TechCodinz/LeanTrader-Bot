@@ -1,5 +1,4 @@
 # run_live_meme.py
-from __future__ import annotations
 
 import argparse
 import datetime as dt  # noqa: F401  # intentionally kept
@@ -7,13 +6,11 @@ import json
 import os
 import sys
 import time
-from pathlib import Path
-from pprint import pformat  # noqa: F401
 
-import pandas as pd  # noqa: F401  # intentionally kept
 from dotenv import load_dotenv
 from traders_core.services.web3_bias_daemon import start as start_bias
 from traders_core.services.pnl_daemon import start as start_pnl
+
 try:
     from traders_core.services.ratio_arb_daemon import start as start_ratio_arb
 except Exception:
@@ -42,14 +39,12 @@ MEME_DEFAULTS = [
 # ---- error throttle (in-memory) ----
 _ERROR_MUTE = {}  # key -> next_allowed_ts
 
-
 def notify_once(notifier, key: str, message: str, cooldown_sec: int = 900):
     now = time.time()
     nxt = _ERROR_MUTE.get(key, 0)
     if now >= nxt:
         notifier.note(message)
         _ERROR_MUTE[key] = now + cooldown_sec
-
 
 def _normalize_symbols_for_venue(symbols, venue_id: str):
     # BinanceUS tends to use /USD instead of /USDT for some pairs
@@ -64,7 +59,6 @@ def _normalize_symbols_for_venue(symbols, venue_id: str):
         return out
     return symbols
 
-
 # --------- minimal CCXT factory ----------
 # ---- exchange factory with optional proxy & sane timeout/backoff ----
 def make_exchange(exchange_id: str, api_key=None, api_secret=None):
@@ -73,7 +67,10 @@ def make_exchange(exchange_id: str, api_key=None, api_secret=None):
         from router import ExchangeRouter
 
         router = ExchangeRouter()
-        if getattr(router, "ex", None) and getattr(router.ex, "id", "").lower() == exchange_id.lower():
+        if (
+            getattr(router, "ex", None)
+            and getattr(router.ex, "id", "").lower() == exchange_id.lower()
+        ):
             return router
     except Exception:
         pass
@@ -96,9 +93,7 @@ def make_exchange(exchange_id: str, api_key=None, api_secret=None):
     )
     return ex
 
-
 # _consume_commands will be defined inside live_loop where CMD_INBOX is available
-
 
 def _parse_qty(s: str, default: float) -> float:
     try:
@@ -107,9 +102,7 @@ def _parse_qty(s: str, default: float) -> float:
     except Exception:
         return default
 
-
 # startup message removed to keep imports at module top for static analysis
-
 
 def live_loop(
     exchange_id: str,
@@ -132,8 +125,6 @@ def live_loop(
     except Exception:
         pass
     # local imports to avoid top-level E402 issues
-    from acct_portfolio import ccxt_summary  # noqa: F401
-    from guardrails import GuardConfig, TradeGuard  # noqa: F401
     from ledger import daily_pnl_text, log_entry, log_exit  # noqa: F401
     from notifier import CMD_INBOX, TelegramNotifier  # noqa: F401
     from risk import RiskConfig  # noqa: F401
@@ -188,7 +179,9 @@ def live_loop(
         # exchange connectivity
         try:
             info = router.info()
-            msgs.append(f"Router info OK: {info.get('id') if isinstance(info, dict) else str(info)[:80]}")
+            msgs.append(
+                f"Router info OK: {info.get('id') if isinstance(info, dict) else str(info)[:80]}"
+            )
         except Exception as e:
             msgs.append(f"Router connectivity FAILED: {e}")
             ok = False
@@ -209,7 +202,9 @@ def live_loop(
             except Exception:
                 msgs.append("Could not parse runtime/ultra_plans.json")
         else:
-            msgs.append("No runtime/ultra_plans.json found (dry-run may not have produced plans yet).")
+            msgs.append(
+                "No runtime/ultra_plans.json found (dry-run may not have produced plans yet)."
+            )
         return ok, msgs
 
     # helper: summarize plan files and price debug entries
@@ -238,7 +233,9 @@ def live_loop(
                 if lines:
                     try:
                         js = json.loads(lines[-1])
-                        summary.append(f"Last debug: {js.get('market')} {js.get('entry')} qty={js.get('qty')}")
+                        summary.append(
+                            f"Last debug: {js.get('market')} {js.get('entry')} qty={js.get('qty')}"
+                        )
                     except Exception:
                         summary.append("Could not parse last debug row")
             else:
@@ -277,7 +274,6 @@ def live_loop(
         log.exception("Notifier diagnostic failed")
 
     from router import ExchangeRouter
-    from ultra_core import UltraCore
 
     ex = ExchangeRouter()
     # Diagnostic: show router info and a small market sample to help debugging startup
@@ -308,7 +304,11 @@ def live_loop(
                 resolved.append(s)
             else:
                 # try swapping USD/USDT
-                alt = s.replace("/USDT", "/USD") if s.endswith("/USDT") else s.replace("/USD", "/USDT")
+                alt = (
+                    s.replace("/USDT", "/USD")
+                    if s.endswith("/USDT")
+                    else s.replace("/USD", "/USDT")
+                )
                 if alt in ex.markets:
                     resolved.append(alt)
                 else:
@@ -353,7 +353,9 @@ def live_loop(
 
                 setattr(ex, "_orig_safe_place_order", _orig)
                 setattr(ex, "safe_place_order", _stub_safe_place_order)
-                nfy.note("Safety: ENABLE_LIVE not set to 'true' — live order sending disabled on router.")
+                nfy.note(
+                    "Safety: ENABLE_LIVE not set to 'true' — live order sending disabled on router."
+                )
         except Exception:
             log.exception("Could not apply live-order safety overlay")
 
@@ -425,7 +427,9 @@ def live_loop(
                     out = "\n".join(msgs)
                     nfy.note("Preflight self-check:\n" + out)
                     if not ok:
-                        log.warning("Preflight reported critical failures; review before enabling live trading.")
+                        log.warning(
+                            "Preflight reported critical failures; review before enabling live trading."
+                        )
                 except Exception as e:
                     log.exception("Selfcheck failed: %s", e)
                 continue
@@ -495,7 +499,6 @@ def live_loop(
             log.error("UltraCore cycle error: %s", e, exc_info=True)
 
         time.sleep(5)
-
 
 def main():
     ap = argparse.ArgumentParser()

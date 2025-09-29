@@ -1,17 +1,13 @@
-from __future__ import annotations
-
 import json
 import os
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from reporting.daily_report import build_report_payload, render_html, save_pdf
-
 
 def _load_summary(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
-
 
 def _infer_fields(summary: Dict[str, Any]) -> Dict[str, Any]:
     # Try serverless_rebalance schema first
@@ -25,8 +21,16 @@ def _infer_fields(summary: Dict[str, Any]) -> Dict[str, Any]:
     solve_hist = summary.get("solve_ms") or []
     fallbacks = summary.get("fallbacks") or 0
     notes = summary.get("notes") or ""
-    return dict(allocs=allocs, pnl_q=pnl_q, pnl_c=pnl_c, var=var, cvar=cvar, solve_hist=solve_hist, fallbacks=fallbacks, notes=notes)
-
+    return dict(
+        allocs=allocs,
+        pnl_q=pnl_q,
+        pnl_c=pnl_c,
+        var=var,
+        cvar=cvar,
+        solve_hist=solve_hist,
+        fallbacks=fallbacks,
+        notes=notes,
+    )
 
 def main():
     import argparse
@@ -53,8 +57,8 @@ def main():
         )
         # Optional: compute attribution if summary provides series
         try:
-            pnl_series = summary.get("pnl_series")
-            components = summary.get("components")
+            pnl_series = js.get("pnl_series")
+            components = js.get("components")
             if pnl_series and components and isinstance(components, dict):
                 from analytics.attribution import write_daily_attribution  # type: ignore
 
@@ -73,7 +77,6 @@ def main():
     except Exception as e:
         print(json.dumps({"error": str(e)}))
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

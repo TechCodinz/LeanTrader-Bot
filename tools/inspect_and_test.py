@@ -3,14 +3,14 @@ import os
 import subprocess
 import sys
 
-
 def run(cmd):
     try:
-        out = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, universal_newlines=True)
+        out = subprocess.check_output(
+            cmd, shell=True, stderr=subprocess.STDOUT, universal_newlines=True
+        )
         return out.strip()
     except subprocess.CalledProcessError as e:
         return f"ERR: {e.returncode} {e.output[:1000]}"
-
 
 print("BRANCH:", run("git rev-parse --abbrev-ref HEAD"))
 print("COMMIT:", run('git log -n1 --pretty=format:"%H | %an | %ad | %s"'))

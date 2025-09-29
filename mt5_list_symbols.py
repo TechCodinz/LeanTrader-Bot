@@ -1,19 +1,24 @@
 # mt5_list_symbols.py
-from __future__ import annotations
 
 import argparse
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
-import MetaTrader5 as mt5
+try:
+    import MetaTrader5 as mt5  # type: ignore
+except Exception:  # pragma: no cover
+    mt5 = None  # type: ignore
 
-from mt5_adapter_old import mt5_init
+def mt5_init():
+    try:
+        if mt5 is not None:
+            mt5.initialize()
+    except Exception:
+        pass
 
-
-def get_symbols_map() -> dict[str, mt5.SymbolInfo]:
+def get_symbols_map() -> Dict[str, "mt5.SymbolInfo"]:
     """Return a dict name -> SymbolInfo for quick lookups."""
     arr = mt5.symbols_get()
     return {s.name: s for s in (arr or [])}
-
 
 def ensure_visible(names: List[str]) -> Tuple[List[str], List[str], List[str]]:
     """
@@ -43,7 +48,6 @@ def ensure_visible(names: List[str]) -> Tuple[List[str], List[str], List[str]]:
                 else:
                     not_found.append(name)
     return shown_now, already_visible, not_found
-
 
 def main():
     ap = argparse.ArgumentParser(description="List and (optionally) auto-show MT5 symbols.")
@@ -92,7 +96,6 @@ def main():
             print("   search for each name; some brokers append suffixes like .i, .m, _pro, etc.")
 
     print("\nDone.")
-
 
 if __name__ == "__main__":
     main()

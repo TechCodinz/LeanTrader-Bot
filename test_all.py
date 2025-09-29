@@ -7,12 +7,8 @@ os.environ.setdefault("EXCHANGE_ID", "paper")
 os.environ.setdefault("EXCHANGE_MODE", "spot")
 os.environ.setdefault("ENABLE_LIVE", "false")
 
-from crypto_router import ExchangeRouter  # noqa: E402
-
-
 def hr(t):
     print("\n" + "=" * 8 + f" {t} " + "=" * 8)
-
 
 def main():
     r = ExchangeRouter()
@@ -42,7 +38,6 @@ def main():
     hr("SCAN TOP MOVERS (snap)")
     snap = r.scan_top_movers(topn=10, quote="USDT", limit=120)
     pprint(snap[:5])
-
 
 if __name__ == "__main__":
     main()

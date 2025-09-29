@@ -5,16 +5,13 @@ lightweight TradingAppBase. The real Kivy app is only created when the module
 is executed as __main__.
 """
 
-
 class TradingAppBase:
     """Lightweight base class used when Kivy isn't available (import-safe)."""
 
     def build(self):
         raise RuntimeError("Kivy not available in this environment")
 
-
 TradingApp = TradingAppBase
-
 
 if __name__ == "__main__":
 

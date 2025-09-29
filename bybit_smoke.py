@@ -1,11 +1,9 @@
 # bybit_smoke.py
-from __future__ import annotations
 
 import argparse
 
 # Import bybit_adapter lazily inside main() so importing this module
 # won't fail in environments without the adapter or network credentials.
-
 
 def parse_args():
     p = argparse.ArgumentParser(description="Bybit spot smoke test")
@@ -16,7 +14,6 @@ def parse_args():
     p.add_argument("--stake_usd", type=float, default=2.0, help="USD value to use for market order")
     p.add_argument("--side", default="buy", choices=["buy", "sell"])
     return p.parse_args()
-
 
 def main():
     args = parse_args()
@@ -79,7 +76,6 @@ def main():
     print("Placing order...")
     res = order_market(ex, args.symbol, args.side, args.stake_usd)
     print("Result:", res)
-
 
 if __name__ == "__main__":
     main()

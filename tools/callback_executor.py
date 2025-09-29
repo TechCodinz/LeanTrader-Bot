@@ -4,15 +4,10 @@ This is intentionally conservative: live execution only when `live=True` and
 ENABLE_LIVE env var is set. Otherwise it returns a simulated result.
 """
 
-from __future__ import annotations
-
 import json
 import os
-from pathlib import Path
-from typing import Any, Dict
 
 ROOT = Path(__file__).resolve().parent.parent
-
 
 def _find_signal(signal_id: str) -> Dict[str, Any] | None:
     qdir = ROOT / "runtime"
@@ -29,7 +24,6 @@ def _find_signal(signal_id: str) -> Dict[str, Any] | None:
         except Exception:
             continue
     return None
-
 
 def execute_signal_by_id(signal_id: str, user_id: str | int, live: bool = False) -> Dict[str, Any]:
     sig = _find_signal(signal_id)

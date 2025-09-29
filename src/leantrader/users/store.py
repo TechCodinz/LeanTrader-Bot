@@ -1,9 +1,6 @@
 import json
 import os
 import threading
-from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Any, Dict
 
 from ..utils.crypto import decrypt_str, encrypt_str
 
@@ -12,7 +9,6 @@ STORE_DIR.mkdir(parents=True, exist_ok=True)
 USERS_FILE = STORE_DIR / "users.json"
 
 _lock = threading.Lock()
-
 
 @dataclass
 class UserProfile:
@@ -34,7 +30,6 @@ class UserProfile:
                 d[k] = "***"
         return d
 
-
 def _read() -> Dict[str, Any]:
     if not USERS_FILE.exists():
         return {}
@@ -43,17 +38,14 @@ def _read() -> Dict[str, Any]:
     except Exception:
         return {}
 
-
 def _write(data: Dict[str, Any]):
     USERS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
 
 def upsert_profile(p: UserProfile):
     with _lock:
         data = _read()
         data[p.user_id] = asdict(p)
         _write(data)
-
 
 def get_profile(user_id: str) -> UserProfile | None:
     with _lock:
@@ -62,7 +54,6 @@ def get_profile(user_id: str) -> UserProfile | None:
         if not d:
             return None
         return UserProfile(**d)
-
 
 def set_keys(
     user_id: str,
@@ -85,14 +76,17 @@ def set_keys(
         data[user_id] = d
         _write(data)
 
-
 def get_keys(user_id: str) -> Dict[str, str]:
     with _lock:
         data = _read()
         d = data.get(user_id) or {}
         return {
             "fx_api_key": decrypt_str(d.get("fx_api_key", "")) if d.get("fx_api_key") else "",
-            "fx_api_secret": decrypt_str(d.get("fx_api_secret", "")) if d.get("fx_api_secret") else "",
+            "fx_api_secret": (
+                decrypt_str(d.get("fx_api_secret", "")) if d.get("fx_api_secret") else ""
+            ),
             "ccxt_api_key": decrypt_str(d.get("ccxt_api_key", "")) if d.get("ccxt_api_key") else "",
-            "ccxt_api_secret": decrypt_str(d.get("ccxt_api_secret", "")) if d.get("ccxt_api_secret") else "",
+            "ccxt_api_secret": (
+                decrypt_str(d.get("ccxt_api_secret", "")) if d.get("ccxt_api_secret") else ""
+            ),
         }

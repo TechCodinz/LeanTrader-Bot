@@ -4,14 +4,11 @@
 Usage: python tools/dryrun_monitor.py --minutes 30
 Writes runtime/monitor_summary_<start_ts>.json
 """
-from __future__ import annotations
 
 import argparse
 import json
 import time
 from datetime import datetime
-from pathlib import Path
-
 
 def read_json(path: Path):
     try:
@@ -19,17 +16,14 @@ def read_json(path: Path):
     except Exception:
         return {}
 
-
 def read_log(path: Path):
     try:
         return path.read_text(errors="ignore")
     except Exception:
         return ""
 
-
 def count_occurrences(text: str, needle: str) -> int:
     return text.count(needle)
-
 
 def main(minutes: int):
     repo = Path(__file__).resolve().parent.parent
@@ -89,7 +83,6 @@ def main(minutes: int):
     out = runtime / f"monitor_summary_{start_ts}.json"
     out.write_text(json.dumps(summary, indent=2))
     print("monitor finished", out)
-
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()

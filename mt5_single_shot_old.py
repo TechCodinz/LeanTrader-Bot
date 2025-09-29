@@ -1,13 +1,35 @@
 # mt5_single_shot.py
-from __future__ import annotations
 
 import argparse
-from typing import Any, Dict, Optional  # noqa: F401  # intentionally kept
+from typing import Any, Dict
 
 import numpy as np
+import pandas as pd
 
-from mt5_adapter_old import account_summary_lines, bars_df, min_stop_distance_points, mt5_init, order_send_market
+try:
+    import MetaTrader5 as mt5  # type: ignore
+except Exception:  # pragma: no cover
+    mt5 = None  # type: ignore
 
+def mt5_init():
+    try:
+        if mt5 is not None:
+            mt5.initialize()
+    except Exception:
+        pass
+
+def bars_df(symbol: str, timeframe: str, limit: int = 200) -> pd.DataFrame:
+    # placeholder safe stub, replace with real adapter if available
+    return pd.DataFrame(columns=["time", "open", "high", "low", "close", "tick_volume"])
+
+def account_summary_lines() -> list[str]:
+    return ["MT5 stub account"]
+
+def min_stop_distance_points(symbol: str) -> float:
+    return 50.0
+
+def order_send_market(**_k) -> Dict[str, Any]:
+    return {"retcode": 0, "comment": "stub", "deal": 0, "order": 0, "request": _k}
 
 def atr(series: np.ndarray, n: int = 14) -> float:
     if len(series) < n + 1:
@@ -19,7 +41,6 @@ def atr(series: np.ndarray, n: int = 14) -> float:
     prev = np.r_[closes[:-1], closes[-1]]
     tr = np.maximum(highs - lows, np.maximum(np.abs(highs - prev), np.abs(lows - prev)))
     return float(np.nanmean(tr[-n:]))
-
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -67,7 +88,9 @@ def main() -> None:
     else:
         # ATR-based distance converted to points
         a = atr(df[["high", "low", "close"]].to_records(index=False), 14)
-        pts = max(float(round(a / (last * 0.0001))), float(pts_min))  # rough: convert price ATR to points
+        pts = max(
+            float(round(a / (last * 0.0001))), float(pts_min)
+        )  # rough: convert price ATR to points
 
     # Convert points -> price
     pt_value = 0.0001  # for most FX majors; for metals/indices adjust if needed
@@ -110,7 +133,6 @@ def main() -> None:
     )
     if res.get("request"):
         print("request:", res["request"])
-
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,4 @@
 import matplotlib.pyplot as plt
-import pandas as pd
-
 
 def _candlestick_mplfinance(df: pd.DataFrame, out_path: str, title: str):
     try:
@@ -28,7 +26,6 @@ def _candlestick_mplfinance(df: pd.DataFrame, out_path: str, title: str):
     except Exception:
         return None
 
-
 def render_signal_chart(df: pd.DataFrame, out_path: str, title: str):
     # Prefer a candlestick chart with overlays; fallback to line chart
     p = _candlestick_mplfinance(df, out_path, title)
@@ -48,7 +45,6 @@ def render_signal_chart(df: pd.DataFrame, out_path: str, title: str):
     plt.savefig(out_path)
     plt.close()
     return out_path
-
 
 def render_signal_illustration(
     df: pd.DataFrame,
@@ -79,7 +75,9 @@ def render_signal_illustration(
                 tr = (d["high"] - d["low"]).rolling(14).mean()
                 upper = c + tr
                 lower = c - tr
-                plt.fill_between(c.index, lower, upper, color="#87CEFA", alpha=0.2, label="ATR band")
+                plt.fill_between(
+                    c.index, lower, upper, color="#87CEFA", alpha=0.2, label="ATR band"
+                )
             except Exception:
                 pass
             # Simple Bollinger (20)
@@ -99,7 +97,13 @@ def render_signal_illustration(
             if tps:
                 colors = ["#00aa00", "#00cc66", "#00ff99"]
                 for i, tp in enumerate(tps[:3]):
-                    plt.axhline(tp, color=colors[i % len(colors)], linestyle=":", linewidth=1, label=f"TP{i+1}")
+                    plt.axhline(
+                        tp,
+                        color=colors[i % len(colors)],
+                        linestyle=":",
+                        linewidth=1,
+                        label=f"TP{i+1}",
+                    )
             plt.title(title)
             plt.legend(loc="best")
             plt.tight_layout()
@@ -121,7 +125,9 @@ def render_signal_illustration(
         if tps:
             colors = ["#00aa00", "#00cc66", "#00ff99"]
             for i, tp in enumerate(tps[:3]):
-                plt.axhline(tp, color=colors[i % len(colors)], linestyle=":", linewidth=1, label=f"TP{i+1}")
+                plt.axhline(
+                    tp, color=colors[i % len(colors)], linestyle=":", linewidth=1, label=f"TP{i+1}"
+                )
         plt.title(title)
         plt.legend(loc="best")
         plt.tight_layout()

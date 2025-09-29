@@ -1,9 +1,6 @@
-from __future__ import annotations
-
 import json
 import os
 import urllib.request
-
 
 def notify(text: str) -> bool:
     url = os.getenv("SLACK_WEBHOOK_URL", "").strip()
@@ -17,12 +14,10 @@ def notify(text: str) -> bool:
     except Exception:
         return False
 
-
 def warn(title: str, reasons: list[str] | None = None) -> bool:
     msg = f":warning: {title}"
     if reasons:
         msg += "\n- " + "\n- ".join([str(r) for r in reasons])
     return notify(msg)
-
 
 __all__ = ["notify", "warn"]

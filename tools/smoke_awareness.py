@@ -1,16 +1,14 @@
 import sys
+import pandas as pd
+
 sys.path.insert(0, r"C:\Users\User\Downloads\LeanTrader_ForexPack")
 
 import argparse
 import json
 import os
-from typing import List
 
-import pandas as pd
 
 from awareness import AwarenessConfig, SituationalAwareness
-from router import ExchangeRouter
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -28,6 +26,7 @@ def main():
     df = pd.DataFrame(rows, columns=["time", "open", "high", "low", "close", "volume"]).tail(120)
 
     aw = SituationalAwareness(AwarenessConfig())
+
     # Patch ATR to ensure pandas rolling works (awareness.py stays unmodified by spec)
     def _atr(self, close, high, low, n=14):
         tr = (high - low).to_frame("hl")
@@ -35,20 +34,24 @@ def main():
         tr["lc"] = (low - close.shift()).abs()
         s = tr.max(axis=1)
         return s.rolling(n).mean()
+
     import types as _types
+
     aw.atr = _types.MethodType(_atr, aw)
     dec = aw.decide(df, equity=1000.0, base_conf=0.6, win_rate=args.win, payoff=args.payoff)
-    print(json.dumps({
-        "symbol": args.symbol,
-        "reason": dec.reason,
-        "allow": dec.allow,
-        "size_frac": dec.size_frac,
-        "stop_atr": dec.stop_atr,
-        "take_atr": dec.take_atr,
-    }, indent=2))
-
+    print(
+        json.dumps(
+            {
+                "symbol": args.symbol,
+                "reason": dec.reason,
+                "allow": dec.allow,
+                "size_frac": dec.size_frac,
+                "stop_atr": dec.stop_atr,
+                "take_atr": dec.take_atr,
+            },
+            indent=2,
+        )
+    )
 
 if __name__ == "__main__":
     main()
-
-

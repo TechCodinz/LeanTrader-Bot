@@ -1,12 +1,10 @@
 # cmd_reader.py
-from __future__ import annotations
 
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 INBOX = Path("reports/telegram_cmds.jsonl")
-
 
 def read_commands() -> List[str]:
     """
@@ -44,7 +42,6 @@ def read_commands() -> List[str]:
             continue
     return out
 
-
 def drain_commands(max_lines: int = 50) -> List[Dict[str, Any]]:
     """Return most recent command objects (JSON) and truncate the inbox file.
 
@@ -59,7 +56,6 @@ def drain_commands(max_lines: int = 50) -> List[Dict[str, Any]]:
     except Exception:
         return []
 
-
 def parse_command(cmd: str) -> Tuple[str, List[str]]:
     """
     Splits '/buy BTC/USDT 25' -> ('/buy', ['BTC/USDT','25'])
@@ -68,7 +64,6 @@ def parse_command(cmd: str) -> Tuple[str, List[str]]:
     if not parts:
         return "", []
     return parts[0].lower(), parts[1:]
-
 
 # cmd_reader.py — reads JSONL commands written by Telegram poller
 def read_new(max_lines: int = 100) -> List[Dict[str, Any]]:

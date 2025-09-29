@@ -1,5 +1,4 @@
 # news_harvest.py
-from __future__ import annotations
 
 import csv
 import hashlib
@@ -17,7 +16,6 @@ import feedparser  # pip install feedparser
 
 # ---------- Optional Telegram notify ----------
 import requests
-
 
 def _tg_send(text: str) -> None:
     try:
@@ -37,7 +35,6 @@ def _tg_send(text: str) -> None:
         requests.post(url, json=payload, timeout=10)
     except Exception:
         pass
-
 
 # ---------- Logging ----------
 LOG_DIR = Path(os.getenv("LOG_DIR", "logs"))
@@ -108,12 +105,12 @@ CRYPTO_HINTS = re.compile(
     r"\b(BTC|ETH|SOL|DOGE|XRP|ADA|crypto|bitcoin|ethereum|solana|defi|exchange|binance|coinbase|token|stablecoin)\b",
     re.I,
 )
-FX_HINTS = re.compile(r"\b(USD|EUR|GBP|JPY|AUD|NZD|CHF|CAD|forex|FX|pair|pips|yield|treasury)\b", re.I)
-
+FX_HINTS = re.compile(
+    r"\b(USD|EUR|GBP|JPY|AUD|NZD|CHF|CAD|forex|FX|pair|pips|yield|treasury)\b", re.I
+)
 
 def _hash_key(title: str, link: str) -> str:
     return hashlib.sha256((title.strip() + "|" + link.strip()).encode("utf-8")).hexdigest()
-
 
 def _load_seen() -> set[str]:
     if SEEN_FILE.exists():
@@ -123,13 +120,11 @@ def _load_seen() -> set[str]:
             pass
     return set()
 
-
 def _save_seen(seen: set[str]) -> None:
     try:
         SEEN_FILE.write_text(json.dumps(sorted(seen)), encoding="utf-8")
     except Exception:
         pass
-
 
 def _parse_time(dt_str: str) -> float:
     """
@@ -143,10 +138,13 @@ def _parse_time(dt_str: str) -> float:
     except Exception:
         try:
             # last resort
-            return datetime.fromisoformat(dt_str.replace("Z", "")).replace(tzinfo=timezone.utc).timestamp()
+            return (
+                datetime.fromisoformat(dt_str.replace("Z", ""))
+                .replace(tzinfo=timezone.utc)
+                .timestamp()
+            )
         except Exception:
             return time.time()
-
 
 def _sentiment(text: str) -> float:
     if not SIA:
@@ -154,7 +152,6 @@ def _sentiment(text: str) -> float:
     s = SIA.polarity_scores(text)
     # compound in [-1, 1] → rescale to [-1, 1] (already), keep as is
     return float(s.get("compound", 0.0))
-
 
 def _impact(text: str) -> float:
     t = text.lower()
@@ -164,7 +161,6 @@ def _impact(text: str) -> float:
             score += w
     return score
 
-
 def _market(text: str) -> str:
     t = text.upper()
     if CRYPTO_HINTS.search(t):
@@ -172,7 +168,6 @@ def _market(text: str) -> str:
     if FX_HINTS.search(t):
         return "fx"
     return "macro"
-
 
 def _rank_score(sent: float, imp: float, age_min: float) -> float:
     """
@@ -183,7 +178,6 @@ def _rank_score(sent: float, imp: float, age_min: float) -> float:
     """
     freshness = math.exp(-age_min / 360.0)  # 6h half-ish life
     return (abs(sent) * 2.0 + imp) * freshness
-
 
 def harvest_rss() -> int:
     """
@@ -230,7 +224,9 @@ def harvest_rss() -> int:
     # Append to RAW_FILE (create if needed)
     file_exists = RAW_FILE.exists()
     with open(RAW_FILE, "a", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["time", "published", "source", "title", "link", "summary"])
+        w = csv.DictWriter(
+            f, fieldnames=["time", "published", "source", "title", "link", "summary"]
+        )
         if not file_exists:
             w.writeheader()
         for r in sorted(new_rows, key=lambda x: x["time"], reverse=False):
@@ -239,7 +235,6 @@ def harvest_rss() -> int:
     _save_seen(seen)
     log.info("Harvested %d new rows -> %s", len(new_rows), RAW_FILE)
     return len(new_rows)
-
 
 def build_clean(min_market: str | None = None, horizon_hours: float = 48.0) -> int:
     """
@@ -339,12 +334,10 @@ def build_clean(min_market: str | None = None, horizon_hours: float = 48.0) -> i
 
     return len(out_rows)
 
-
 def main():
     added = harvest_rss()
     wrote = build_clean(None)
     print(f"[news] harvested={added}, cleaned_rows={wrote}")
-
 
 if __name__ == "__main__":
     main()

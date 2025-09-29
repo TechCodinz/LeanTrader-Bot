@@ -1,11 +1,9 @@
 import numpy as np
-
 try:
     from config import Q_ENABLE_QUANTUM, Q_USE_RUNTIME
 except Exception:
     # Safe defaults if config is not importable in some environments
     Q_ENABLE_QUANTUM, Q_USE_RUNTIME = False, True
-
 
 # Try to import a quantum optimizer if present
 quantum_portfolio_optimize = None
@@ -31,17 +29,22 @@ try:
         set_obj_q_value,
     )
 except Exception:  # pragma: no cover
+
     def record_q_selection():
         return None
 
     def record_q_fallback():
         return None
 
-    from contextlib import contextmanager
+    class _TimeBlock:
+        def __enter__(self):
+            return 0.0
 
-    @contextmanager
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
     def time_block(name: str):
-        yield 0.0
+        return _TimeBlock()
 
     def set_obj_q_value(val: float):
         return None
@@ -61,8 +64,9 @@ def _to_binary_selection(weights: np.ndarray, budget: int) -> np.ndarray:
     sel[idx] = 1
     return sel
 
-
-def choose_assets(mu, Sigma, budget, *, force_quantum: bool | None = None, force_use_runtime: bool | None = None) -> np.ndarray:
+def choose_assets(
+    mu, Sigma, budget, *, force_quantum: bool | None = None, force_use_runtime: bool | None = None
+) -> np.ndarray:
     """Return a 0/1 selection vector of length len(mu).
 
     - If quantum optimization is enabled and available, use it.

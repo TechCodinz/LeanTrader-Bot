@@ -1,12 +1,8 @@
-from __future__ import annotations
-
 import argparse
 import json
 import os
-from pathlib import Path
 
 import requests
-
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Post ideas Slack payload if SLACK_WEBHOOK_URL is set")
@@ -22,7 +18,5 @@ def main() -> int:
     print("posted", r.status_code)
     return 0
 
-
 if __name__ == "__main__":
     raise SystemExit(main())
-

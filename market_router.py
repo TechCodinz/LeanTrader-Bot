@@ -1,9 +1,7 @@
 # market_router.py
-from __future__ import annotations
-
+from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
-
 
 def _trend_score(df: pd.DataFrame) -> float:
     if len(df) < 60:
@@ -11,7 +9,6 @@ def _trend_score(df: pd.DataFrame) -> float:
     ret = pd.Series(df["close"]).pct_change().tail(60).fillna(0.0)
     z = ret.mean() / (ret.std(ddof=0) + 1e-12)
     return float(np.tanh(2.5 * z))
-
 
 def select_markets(ex, symbols, timeframe, strat, risk_dict, top_k=3, mtf_list=None):
     """

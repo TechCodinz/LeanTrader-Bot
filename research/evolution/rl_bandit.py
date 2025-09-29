@@ -1,11 +1,4 @@
-from __future__ import annotations
-
-import numpy as np
-from dataclasses import dataclass
-from typing import Dict, Tuple
-
 from strategies.meta_selector import StratPath
-
 
 @dataclass
 class LinUCB:
@@ -34,18 +27,17 @@ class LinUCB:
         self.A[a] = self.A[a] + x @ x.T
         self.b[a] = self.b[a] + float(r) * x
 
-
 def features(regime: str, vol: float, spread: float, liquidity: float) -> np.ndarray:
     # simple one-hot for regime + normalized numeric feats
     r = (regime or "").lower()
-    onehot = np.array([
-        1.0 if r == "calm" else 0.0,
-        1.0 if r == "storm" else 0.0,
-        1.0 if r == "range" else 0.0,
-    ])
+    onehot = np.array(
+        [
+            1.0 if r == "calm" else 0.0,
+            1.0 if r == "storm" else 0.0,
+            1.0 if r == "range" else 0.0,
+        ]
+    )
     x = np.concatenate([onehot, np.array([vol, spread, liquidity], dtype=float)])
     return x
 
-
 __all__ = ["LinUCB", "features"]
-

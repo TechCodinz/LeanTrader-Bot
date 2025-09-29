@@ -13,11 +13,9 @@ os.environ.setdefault("EXCHANGE_ID", "paper")
 os.environ.setdefault("PAPER_START_CASH", "10000")
 os.environ.setdefault("ENABLE_LIVE", "false")
 
-
 def run():
     out = {"errors": [], "results": {}}
     try:
-        from router import ExchangeRouter
     except Exception as e:
         out["errors"].append(f"import ExchangeRouter failed: {e}")
         print(json.dumps(out, indent=2))
@@ -54,7 +52,6 @@ def run():
         out["errors"].append(f"safe_fetch_balance failed: {e}")
 
     print(json.dumps(out, indent=2))
-
 
 if __name__ == "__main__":
     run()

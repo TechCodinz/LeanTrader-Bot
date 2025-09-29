@@ -1,3 +1,5 @@
+from pathlib import Path
+
 """Retry failed closes that failed with 'insufficient base qty'.
 
 This will:
@@ -6,14 +8,11 @@ This will:
  - if available>0, place a market close for available qty and append retry result
 """
 
-from __future__ import annotations
-
 import json
 import pathlib
 import time
 
 from dotenv import load_dotenv
-
 
 def _read(path: pathlib.Path, default):
     try:
@@ -21,11 +20,9 @@ def _read(path: pathlib.Path, default):
     except Exception:
         return default
 
-
 def _write(path: pathlib.Path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-
 
 def _get_available_qty(router, symbol: str):
     base = symbol.split("/")[0]
@@ -50,7 +47,6 @@ def _get_available_qty(router, symbol: str):
     except Exception:
         return None
     return None
-
 
 def main():
     load_dotenv()
@@ -112,7 +108,6 @@ def main():
     if retried:
         _write(CLOSED, closed)
     print(f"retry_failed_closes: retried={retried}")
-
 
 if __name__ == "__main__":
     main()

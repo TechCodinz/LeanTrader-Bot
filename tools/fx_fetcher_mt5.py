@@ -7,18 +7,12 @@ Environment:
 Outputs CSV to runtime/data/fx_<SYMBOL>_<TF>.csv with columns time,open,high,low,close,volume
 """
 
-from __future__ import annotations
-
 import os
-from datetime import datetime
-from pathlib import Path
-from typing import List
 
 try:
     import MetaTrader5 as mt5
 except Exception:  # pragma: no cover
     mt5 = None  # type: ignore
-
 
 _TF_MAP = {
     "M1": 1,
@@ -29,7 +23,6 @@ _TF_MAP = {
     "H4": 240,
     "D1": 1440,
 }
-
 
 def _mt5_tf(tf: str):
     tf = tf.upper().strip()
@@ -42,7 +35,6 @@ def _mt5_tf(tf: str):
         "H4": getattr(mt5, "TIMEFRAME_H4", None),
         "D1": getattr(mt5, "TIMEFRAME_D1", None),
     }.get(tf)
-
 
 def init_mt5() -> bool:
     """Initialize MetaTrader5 connection.
@@ -76,7 +68,6 @@ def init_mt5() -> bool:
             pass
         return False
 
-
 def fetch_fx(symbol: str, tf: str, limit: int = 200) -> List[List[float]]:
     if mt5 is None:
         return []
@@ -97,11 +88,19 @@ def fetch_fx(symbol: str, tf: str, limit: int = 200) -> List[List[float]]:
         out: List[List[float]] = []
         for r in rates:
             ts = int(r["time"]) * 1000
-            out.append([ts, float(r["open"]), float(r["high"]), float(r["low"]), float(r["close"]), float(r["tick_volume"])])
+            out.append(
+                [
+                    ts,
+                    float(r["open"]),
+                    float(r["high"]),
+                    float(r["low"]),
+                    float(r["close"]),
+                    float(r["tick_volume"]),
+                ]
+            )
         return out
     except Exception:
         return []
-
 
 def save_csv(symbol: str, tf: str, rows: List[List[float]]) -> str:
     p = Path("runtime") / "data"
@@ -118,7 +117,6 @@ def save_csv(symbol: str, tf: str, rows: List[List[float]]) -> str:
     except Exception:
         pass
     return str(path)
-
 
 if __name__ == "__main__":
     import sys

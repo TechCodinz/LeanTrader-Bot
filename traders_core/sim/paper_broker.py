@@ -1,10 +1,6 @@
-from __future__ import annotations
-
 import json
 import os  # noqa: F401  # intentionally kept
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
@@ -13,10 +9,8 @@ from traders_core.observability.metrics import METRICS
 load_dotenv()
 STATE_PATH = os.getenv("PAPER_STATE", "./runtime_paper/paper_state.json")
 
-
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
-
 
 def _load() -> Dict[str, Any]:
     p = Path(STATE_PATH)
@@ -25,10 +19,8 @@ def _load() -> Dict[str, Any]:
         p.write_text(json.dumps({"positions": [], "closed": []}, indent=2))
     return json.loads(p.read_text())
 
-
 def _save(state: Dict[str, Any]) -> None:
     Path(STATE_PATH).write_text(json.dumps(state, indent=2))
-
 
 class PaperBroker:
     """

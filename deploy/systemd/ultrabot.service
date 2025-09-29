@@ -1,0 +1,15 @@
+[Unit]
+Description=Ultra Trading Bot
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/ultrabot
+EnvironmentFile=/opt/ultrabot/.env
+ExecStart=/opt/ultrabot/.venv/bin/python /opt/ultrabot/ultra_launcher.py --mode paper --god-mode --moon-spotter --evolution --forex --telegram --telegram-token ${TELEGRAM_BOT_TOKEN} --telegram-channel ${TELEGRAM_CHAT_ID}
+Restart=always
+RestartSec=5
+User=ultrabot
+
+[Install]
+WantedBy=multi-user.target

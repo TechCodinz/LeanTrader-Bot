@@ -1,21 +1,16 @@
-from __future__ import annotations
-
-import math  # noqa: F401  # intentionally kept
-from typing import Any, Dict, List, Tuple
-
-import pandas as pd
-
-from traders_core.connectors.crypto_ccxt import market_info, ohlcv_df  # noqa: F401  # intentionally kept
-from traders_core.features.pipeline import make_features, rates_to_df  # noqa: F401  # intentionally kept
+from traders_core.connectors.crypto_ccxt import (
+    market_info,
+)  # noqa: F401  # intentionally kept
+from traders_core.features.pipeline import (
+    make_features,
+)  # noqa: F401  # intentionally kept
 from traders_core.mt5_adapter import copy_rates_days  # noqa: F401  # intentionally kept
 from traders_core.utils.ta import atr
-
 
 def _norm(x: pd.Series) -> pd.Series:
     if x.std() == 0:
         return x * 0
     return (x - x.mean()) / (x.std() + 1e-9)
-
 
 def _score_series(df: pd.DataFrame, w: Dict[str, float]) -> float:
     feats = make_features(df)
@@ -29,12 +24,14 @@ def _score_series(df: pd.DataFrame, w: Dict[str, float]) -> float:
     # naive cost proxy (we down-weight if cost high; supplied separately)
     return w["w_trend"] * float(trend) + w["w_vol"] * float(vol) + w["w_liq"] * float(liq)
 
-
-def _affordable_crypto(exchange: str, symbol: str, price: float, equity: float, min_buffer_pct: float) -> bool:
-    m = market_info(exchange, symbol, True if price == 0 else False)  # testnet flag doesn’t change min_cost typically
+def _affordable_crypto(
+    exchange: str, symbol: str, price: float, equity: float, min_buffer_pct: float
+) -> bool:
+    m = market_info(
+        exchange, symbol, True if price == 0 else False
+    )  # testnet flag doesn’t change min_cost typically
     budget = equity * (1.0 - min_buffer_pct)
     return budget >= float(m["min_cost"])
-
 
 def compute_selection(
     cfg: dict,

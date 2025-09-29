@@ -1,7 +1,6 @@
 import json
 import os
 
-import pandas as pd
 from fastapi import FastAPI, Query, Request
 
 from ..live.signal_service import generate_signals
@@ -12,16 +11,13 @@ from ..api.trade_ui import router as trade_router
 
 app.include_router(trade_router)
 
-
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
 
-
 def _csv_path(pair: str, tf: str) -> str:
     p = pair.replace("/", "")
     return f"data/ohlc/{p}_{tf}.csv"
-
 
 def _load_frames(pair: str):
     frames = {}
@@ -32,16 +28,16 @@ def _load_frames(pair: str):
             frames[tf] = df[["open", "high", "low", "close"]].sort_index()
     return frames
 
-
 @app.get("/signal")
 def signal(pair: str = Query("EURUSD")):
     frames = _load_frames(pair)
     if not frames:
-        return {"error": "No data found. Place CSVs in data/ohlc/<PAIR>_<TF>.csv with time,open,high,low,close."}
+        return {
+            "error": "No data found. Place CSVs in data/ohlc/<PAIR>_<TF>.csv with time,open,high,low,close."
+        }
     sigs = generate_signals(frames, pair)
     last = sigs.tail(1).to_dict(orient="records")[0] if len(sigs) else {}
     return {"pair": pair, "signal": last}
-
 
 @app.post("/telegram/callback")
 async def telegram_callback(req: Request):
@@ -68,18 +64,15 @@ async def telegram_callback(req: Request):
         pass
     return {"ok": True}
 
-
 from fastapi import Body
 
 from ..users.store import UserProfile, get_keys, get_profile, set_keys, upsert_profile
-
 
 @app.post("/admin/user/create")
 def admin_user_create(user_id: str = Query(...), display_name: str = Query("")):
     p = UserProfile(user_id=user_id, display_name=display_name)
     upsert_profile(p)
     return {"ok": True, "profile": p.to_public()}
-
 
 @app.post("/admin/user/setkeys")
 def admin_user_setkeys(
@@ -92,7 +85,6 @@ def admin_user_setkeys(
     set_keys(user_id, fx_key or None, fx_secret or None, ccxt_key or None, ccxt_secret or None)
     return {"ok": True}
 
-
 @app.get("/admin/user/get")
 def admin_user_get(user_id: str = Query(...)):
     p = get_profile(user_id)
@@ -103,11 +95,9 @@ def admin_user_get(user_id: str = Query(...)):
     red = {k: (len(v) if v else 0) for k, v in ks.items()}
     return {"ok": True, "profile": p.to_public(), "keys_present": red}
 
-
 import os
 
 BROKER_MODE = os.getenv("BROKER_MODE", "emu").lower()
-
 
 def _exec_market(symbol: str, side: str, qty: float, price: float):
     if BROKER_MODE == "emu":
@@ -121,7 +111,6 @@ def _exec_market(symbol: str, side: str, qty: float, price: float):
         return {"status": "todo_fx"}
     else:
         return {"status": "unknown_mode"}
-
 
 @app.post("/admin/premium/add")
 def admin_premium_add(chat_id: str = Query(...)):
@@ -137,7 +126,6 @@ def admin_premium_add(chat_id: str = Query(...)):
     open(path, "w", encoding="utf-8").write(json.dumps(data, indent=2))
     return {"ok": True, "premium_chat_ids": data["premium_chat_ids"]}
 
-
 @app.post("/admin/premium/remove")
 def admin_premium_remove(chat_id: str = Query(...)):
     path = os.getenv("PREMIUM_LIST_PATH", "data/telegram/premium.json")
@@ -146,10 +134,11 @@ def admin_premium_remove(chat_id: str = Query(...)):
     import json as _json
 
     data = _json.loads(open(path, "r", encoding="utf-8").read())
-    data["premium_chat_ids"] = [str(x) for x in data.get("premium_chat_ids", []) if str(x) != str(chat_id)]
+    data["premium_chat_ids"] = [
+        str(x) for x in data.get("premium_chat_ids", []) if str(x) != str(chat_id)
+    ]
     open(path, "w", encoding="utf-8").write(json.dumps(data, indent=2))
     return {"ok": True, "premium_chat_ids": data["premium_chat_ids"]}
-
 
 @app.get("/admin/premium/list")
 def admin_premium_list():
@@ -160,7 +149,6 @@ def admin_premium_list():
 
     data = _json.loads(open(path, "r", encoding="utf-8").read())
     return {"premium_chat_ids": data.get("premium_chat_ids", [])}
-
 
 from ..api.admin_ui import router as admin_router
 

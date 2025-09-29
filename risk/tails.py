@@ -1,10 +1,3 @@
-from __future__ import annotations
-
-from typing import Tuple, Dict, Any
-
-import numpy as np
-
-
 def classical_var_cvar(pnl_series: np.ndarray, alpha: float = 0.95) -> Tuple[float, float]:
     """Compute one-sided VaR and CVaR (Expected Shortfall) from a PnL series.
 
@@ -20,7 +13,6 @@ def classical_var_cvar(pnl_series: np.ndarray, alpha: float = 0.95) -> Tuple[flo
     tail = x[x <= q]
     cvar = float(max(0.0, -np.mean(tail))) if tail.size > 0 else var
     return var, cvar
-
 
 def quantum_tail_estimator(
     returns_vec: np.ndarray,
@@ -68,4 +60,3 @@ def quantum_tail_estimator(
         "method": "mc_fallback",
         "use_runtime": bool(use_runtime),
     }
-

@@ -1,9 +1,5 @@
 import os
 
-import matplotlib.pyplot as plt
-import pandas as pd
-
-
 def render_signal_chart(df: pd.DataFrame, out_path: str, title: str):
     # Single-figure plot: price close and simple EMA50/EMA200 overlay
     plt.figure()

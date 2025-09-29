@@ -1,10 +1,10 @@
 # crypto_cctx.py
-from __future__ import annotations
 
 # os unused at module-level
-from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
+from typing import Any, Dict, List, Optional
+import pandas as pd
 
 try:
     import ccxt  # type: ignore
@@ -13,10 +13,7 @@ except Exception:
 
 import time  # noqa: F401
 
-import pandas as pd
-
 load_dotenv()
-
 
 def make_exchange(ex_id: Optional[str] = None):
     if ccxt is None:
@@ -26,7 +23,6 @@ def make_exchange(ex_id: Optional[str] = None):
 
     router = ExchangeRouter()
     return router
-
 
 def map_symbol(ex_id: str, symbol: str) -> str:
     """
@@ -41,7 +37,6 @@ def map_symbol(ex_id: str, symbol: str) -> str:
             return f"{base}/USDT"
     return f"{base}/{quote}"
 
-
 def fetch_ohlcv_df(ex, symbol: str, timeframe: str = "1m", limit: int = 200) -> pd.DataFrame:
     sym = map_symbol(ex.id, symbol)
     rows = ex.safe_fetch_ohlcv(sym, timeframe=timeframe, limit=limit)
@@ -49,7 +44,6 @@ def fetch_ohlcv_df(ex, symbol: str, timeframe: str = "1m", limit: int = 200) -> 
     if not df.empty:
         df["time"] = pd.to_datetime(df["time"], unit="ms")
     return df
-
 
 def balance_lines(ex) -> List[str]:
     try:
@@ -82,7 +76,6 @@ def balance_lines(ex) -> List[str]:
     if not lines:
         lines = ["(no balances or all zero)"]
     return lines
-
 
 def market_order_spot(ex, symbol: str, side: str, qty: float) -> Dict[str, Any]:
     """

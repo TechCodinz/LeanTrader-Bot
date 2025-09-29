@@ -1,9 +1,6 @@
 import json
 import os
 from datetime import datetime
-from typing import Dict
-
-import pandas as pd
 
 from ..features.microstructure import engineer
 from ..live.charts import render_signal_chart
@@ -15,7 +12,6 @@ from ..risk.news_filter import NewsCalendar
 NEWS_JSON = os.getenv("NEWS_EVENTS_JSON", "data/news/events.json")
 TRADE_WEBHOOK = os.getenv("TRADE_WEBHOOK_URL", "https://example.com/trade")  # replace in production
 
-
 def _load_calendar() -> NewsCalendar:
     cal = NewsCalendar()
     if os.path.exists(NEWS_JSON):
@@ -24,11 +20,15 @@ def _load_calendar() -> NewsCalendar:
                 items = json.load(f)
             for it in items:
                 t = pd.to_datetime(it["time"])
-                cal.add_event(t.to_pydatetime(), it.get("impact", ""), it.get("currency", ""), it.get("desc", ""))
+                cal.add_event(
+                    t.to_pydatetime(),
+                    it.get("impact", ""),
+                    it.get("currency", ""),
+                    it.get("desc", ""),
+                )
         except Exception:
             pass
     return cal
-
 
 def _confluence(eng_frames: Dict[str, pd.DataFrame]) -> int:
     m15 = eng_frames["M15"]
@@ -43,7 +43,6 @@ def _confluence(eng_frames: Dict[str, pd.DataFrame]) -> int:
     if m15["fvg_score"].iloc[-1] != 0 or (m15.get("rsi_div", pd.Series([0])).iloc[-1] != 0):
         score += 1
     return score
-
 
 def _explain_signal(ts, pair, eng_frames):
     h1 = eng_frames["H1"]
@@ -61,22 +60,31 @@ def _explain_signal(ts, pair, eng_frames):
         f"- Confluence: trend + ADX + (FVG or RSI-div)"
     )
 
-
 def _buttons(pair: str, side: str, price: float):
     # Inline keyboard with quick actions and deep-links/webhooks
     data_buy = json.dumps({"action": "trade", "side": "buy", "pair": pair, "price": price})
     data_sell = json.dumps({"action": "trade", "side": "sell", "pair": pair, "price": price})
     return {
         "inline_keyboard": [
-            [{"text": "Buy ✅", "callback_data": data_buy}, {"text": "Sell 🟥", "callback_data": data_sell}],
             [
-                {"text": "Open in Broker", "url": TRADE_WEBHOOK + f"?pair={pair}&price={price:.5f}"},
+                {"text": "Buy ✅", "callback_data": data_buy},
+                {"text": "Sell 🟥", "callback_data": data_sell},
+            ],
+            [
+                {
+                    "text": "Open in Broker",
+                    "url": TRADE_WEBHOOK + f"?pair={pair}&price={price:.5f}",
+                },
                 {"text": "Set SL/TP ⚙️", "url": TRADE_WEBHOOK + f"?pair={pair}&config=sl_tp"},
             ],
-            [{"text": "Mute Pair 🔕", "callback_data": json.dumps({"action": "mute", "pair": pair})}],
+            [
+                {
+                    "text": "Mute Pair 🔕",
+                    "callback_data": json.dumps({"action": "mute", "pair": pair}),
+                }
+            ],
         ]
     }
-
 
 def to_signal_text(ts, side, pair, rule, px, conf) -> str:
     tstr = pd.to_datetime(ts).strftime("%Y-%m-%d %H:%M")
@@ -90,9 +98,12 @@ def to_signal_text(ts, side, pair, rule, px, conf) -> str:
         f"*Time:* `{tstr}`"
     )
 
-
 def generate_signals(
-    frames: Dict[str, pd.DataFrame], pair: str, post: bool = True, min_confluence: int = 3, chat_id: str = None
+    frames: Dict[str, pd.DataFrame],
+    pair: str,
+    post: bool = True,
+    min_confluence: int = 3,
+    chat_id: str = None,
 ) -> pd.DataFrame:
     # Risk lock
     if GlobalRiskLock().is_locked():
@@ -113,7 +124,9 @@ def generate_signals(
         conf = _confluence(eng)
         last = fired.iloc[-1]
         if conf >= min_confluence and post:
-            txt = to_signal_text(fired.index[-1], last["side"], pair, last["signal"], float(last["price"]), conf)
+            txt = to_signal_text(
+                fired.index[-1], last["side"], pair, last["signal"], float(last["price"]), conf
+            )
             # Render chart image for context
             img_path = "data/tmp_chart.png"
             render_signal_chart(m15.tail(200), img_path, title=f"{pair} — Latest Signal")

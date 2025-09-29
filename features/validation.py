@@ -1,15 +1,10 @@
-from __future__ import annotations
-
 import math
-from typing import Dict, Any
-
-import numpy as np
 import pandas as pd
-
+import numpy as np
+from typing import Dict, Any
 
 class FeatureValidationError(Exception):
     pass
-
 
 def _as_returns(df: pd.DataFrame) -> pd.DataFrame:
     try:
@@ -20,7 +15,6 @@ def _as_returns(df: pd.DataFrame) -> pd.DataFrame:
     except Exception:
         rets = df.copy().replace([np.inf, -np.inf], np.nan)
     return rets
-
 
 def validate_features(
     df: pd.DataFrame,
@@ -77,6 +71,4 @@ def validate_features(
     ok = len(issues) == 0
     return {"ok": ok, "issues": issues}
 
-
 __all__ = ["FeatureValidationError", "validate_features"]
-

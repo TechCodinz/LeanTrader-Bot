@@ -1,26 +1,23 @@
-from __future__ import annotations
-
 import json
 import os
 import time
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict
 
 STATE_PATH = Path(os.getenv("RISK_STATE_PATH", "runtime/risk_guard.json"))
-
 
 def _read() -> Dict:
     try:
         return json.loads(STATE_PATH.read_text(encoding="utf-8"))
     except Exception:
-        return {"dd_hit_at": 0, "equity_peak": None, "daily_loss": 0.0, "day": time.strftime("%Y-%m-%d")}
-
+        return {
+            "dd_hit_at": 0,
+            "equity_peak": None,
+            "daily_loss": 0.0,
+            "day": time.strftime("%Y-%m-%d"),
+        }
 
 def _write(d: Dict):
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     STATE_PATH.write_text(json.dumps(d, indent=2), encoding="utf-8")
-
 
 @dataclass
 class GuardConfig:
@@ -31,12 +28,13 @@ class GuardConfig:
     dd_pause_min: int = 60
     daily_loss_stop: float = 0.08
 
-
 class Guardrails:
     def __init__(self, cfg: GuardConfig | None = None):
         self.cfg = cfg or GuardConfig()
 
-    def can_trade(self, equity: float, exposure: float, open_total: int, open_for_symbol: int) -> bool:
+    def can_trade(
+        self, equity: float, exposure: float, open_total: int, open_for_symbol: int
+    ) -> bool:
         st = _read()
         now = time.time()
         if now - st.get("dd_hit_at", 0) < self.cfg.dd_pause_min * 60:

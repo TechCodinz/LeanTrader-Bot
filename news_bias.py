@@ -1,7 +1,5 @@
 import json
 import os
-from typing import Any, Dict
-
 
 def news_bias(symbol: str, market: str) -> Dict[str, Any]:
     """Read NEWS_RISK_PATH (JSON) and return a small bias in [-1,1] with reason.

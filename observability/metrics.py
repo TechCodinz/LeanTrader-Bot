@@ -1,7 +1,4 @@
-from __future__ import annotations
-
 import time
-from contextlib import contextmanager
 
 try:
     from prometheus_client import Counter, Histogram, Gauge  # type: ignore
@@ -10,6 +7,7 @@ except Exception:  # pragma: no cover
     Histogram = None  # type: ignore
     Gauge = None  # type: ignore
 
+from contextlib import contextmanager
 
 # Prometheus metrics (safe if prometheus_client unavailable)
 if Counter is not None and Histogram is not None:
@@ -113,7 +111,6 @@ else:  # pragma: no cover
     FLASH_HEDGE_COUNT = None
     LIQUIDITY_BLOCKS = None
 
-
 def record_q_selection() -> None:
     try:
         if METRIC_Q_SELECTIONS is not None:
@@ -121,14 +118,12 @@ def record_q_selection() -> None:
     except Exception:
         pass
 
-
 def record_q_fallback() -> None:
     try:
         if METRIC_Q_FALLBACKS is not None:
             METRIC_Q_FALLBACKS.inc()
     except Exception:
         pass
-
 
 @contextmanager
 def time_block(name: str):
@@ -143,14 +138,12 @@ def time_block(name: str):
         except Exception:
             pass
 
-
 def set_canary_up() -> None:
     try:
         if CANARY_UP is not None:
             CANARY_UP.set(1.0)
     except Exception:
         pass
-
 
 def set_obj_q_value(val: float) -> None:
     try:
@@ -159,14 +152,12 @@ def set_obj_q_value(val: float) -> None:
     except Exception:
         pass
 
-
 def record_ensemble_lambda(val: float) -> None:
     try:
         if ENSEMBLE_LAMBDA_G is not None:
             ENSEMBLE_LAMBDA_G.set(float(val))
     except Exception:
         pass
-
 
 def record_pnl_quantum(value: float) -> None:
     """Record quantum daily PnL (updates last and cumulative)."""
@@ -179,7 +170,6 @@ def record_pnl_quantum(value: float) -> None:
     except Exception:
         pass
 
-
 def record_pnl_classical(value: float) -> None:
     """Record classical daily PnL (updates last and cumulative)."""
     try:
@@ -191,11 +181,9 @@ def record_pnl_classical(value: float) -> None:
     except Exception:
         pass
 
-
 # ---- Order quality helpers (with local ratio cache) ----
 _sent_local = 0
 _rej_local = 0
-
 
 def record_slippage(bps: float) -> None:
     try:
@@ -203,7 +191,6 @@ def record_slippage(bps: float) -> None:
             SLIPPAGE_BPS.observe(float(bps))
     except Exception:
         pass
-
 
 def record_order_sent(n: int = 1) -> None:
     global _sent_local
@@ -216,7 +203,6 @@ def record_order_sent(n: int = 1) -> None:
     except Exception:
         pass
 
-
 def record_order_reject(n: int = 1) -> None:
     global _rej_local
     try:
@@ -228,7 +214,6 @@ def record_order_reject(n: int = 1) -> None:
     except Exception:
         pass
 
-
 def set_reject_rate(rate: float) -> None:
     try:
         if REJECT_RATE is not None:
@@ -236,14 +221,12 @@ def set_reject_rate(rate: float) -> None:
     except Exception:
         pass
 
-
 def set_mempool_risk(val: float) -> None:
     try:
         if MEMPOOL_RISK is not None:
             MEMPOOL_RISK.set(float(max(0.0, min(1.0, val))))
     except Exception:
         pass
-
 
 __all__ = [
     "METRIC_Q_SELECTIONS",

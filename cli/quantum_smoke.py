@@ -4,13 +4,9 @@ except Exception:
     click = None  # fallback to argparse in __main__
 
 import os
-import sys
-import numpy as np
-import pandas as pd
 
 from features.pipeline import compute_mu_cov
 from allocators.portfolio import choose_assets
-
 
 def _load_prices(path: str | None, n: int = 300, cols: int = 8) -> pd.DataFrame:
     if path and os.path.exists(path):
@@ -31,20 +27,20 @@ def _load_prices(path: str | None, n: int = 300, cols: int = 8) -> pd.DataFrame:
     idx = pd.date_range(end=pd.Timestamp.utcnow().floor("min"), periods=n, freq="1min")
     return pd.DataFrame(data, index=idx)
 
-
 def _run(path: str | None, budget: int, window: int, regime: str | None, quantum: bool):
     os.environ["Q_ENABLE_QUANTUM"] = "true" if quantum else "false"
     df = _load_prices(path)
     mu, Sigma = compute_mu_cov(df, window=window)
     x = choose_assets(mu, Sigma, budget=budget)
     sel_idx = list(np.where(x == 1)[0])
-    print({
-        "regime": regime,
-        "q_enabled": quantum,
-        "selected_count": int(x.sum()),
-        "selected_indices": sel_idx,
-    })
-
+    print(
+        {
+            "regime": regime,
+            "q_enabled": quantum,
+            "selected_count": int(x.sum()),
+            "selected_indices": sel_idx,
+        }
+    )
 
 if click:
 
@@ -58,6 +54,7 @@ if click:
         _run(data_csv, budget, window, regime, quantum)
 
 else:
+
     def main():  # argparse fallback
         import argparse
 
@@ -70,7 +67,5 @@ else:
         args = p.parse_args()
         _run(args.data_csv, args.budget, args.window, args.regime, args.quantum)
 
-
 if __name__ == "__main__":
     main()
-

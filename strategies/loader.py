@@ -7,13 +7,8 @@ Usage:
     strat = create_from_env(broker, marketdata, logger, metrics)
 """
 
-from __future__ import annotations
-
 import importlib
 import os
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional, Tuple
-from pathlib import Path
 import importlib.util
 
 try:
@@ -21,13 +16,11 @@ try:
 except Exception:
     yaml = None  # type: ignore
 
-
 @dataclass(frozen=True)
 class PluginSpec:
     name: str
     class_path: str
     default_config: str
-
 
 REGISTRY: Dict[str, PluginSpec] = {
     # id -> spec
@@ -37,7 +30,6 @@ REGISTRY: Dict[str, PluginSpec] = {
         default_config="strategies/ratio_arb/config.yaml",
     ),
 }
-
 
 def _import_by_path(path: str) -> Callable[..., Any]:
     mod_name, _, cls_name = path.rpartition(".")
@@ -49,13 +41,11 @@ def _import_by_path(path: str) -> Callable[..., Any]:
     except AttributeError as e:
         raise ImportError(f"class {cls_name} not found in module {mod_name}") from e
 
-
 def _load_yaml(path: str) -> Dict[str, Any]:
     if yaml is None:
         raise RuntimeError("PyYAML is required to load strategy configs (pip install pyyaml)")
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
-
 
 def load_config(name: str, path: Optional[str] = None) -> Dict[str, Any]:
     """Load YAML config for a registered strategy.
@@ -68,7 +58,6 @@ def load_config(name: str, path: Optional[str] = None) -> Dict[str, Any]:
         raise KeyError(f"strategy plugin not registered: {name}")
     cfg_path = path or spec.default_config
     return _load_yaml(cfg_path)
-
 
 def create(
     name: str,
@@ -103,7 +92,6 @@ def create(
         else:
             raise
     return klass(broker, marketdata, logger, metrics, cfg)
-
 
 def create_from_env(broker: Any, marketdata: Any, logger: Any, metrics: Any):
     """Create a strategy instance from env vars STRATEGY_PLUGIN and STRATEGY_CONFIG."""

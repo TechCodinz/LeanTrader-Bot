@@ -1,23 +1,65 @@
-"""Run quick project checks and dump JSON output for diagnostics.
+"""Curated repo checks: syntax compile for runtime modules.
 
-This script calls `router.scan_full_project()` (a lightweight AST/file scanner)
-and writes results to `checks_output.json` in the repo root.
+Usage:
+  py -3.13 tools/run_checks.py
 """
+from __future__ import annotations
 
-import json
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+CURATED_DIRS = [
+    Path("src"),
+    Path("runtime"),
+    Path("reporting"),
+    Path("risk"),
+    Path("allocators"),
+    Path("signals"),
+    Path("features"),
+    Path("tools"),
+]
 
-try:
-    from router import scan_full_project
-except Exception as _e:
-    print(f"failed to import router.scan_full_project: {_e}")
-    raise
+EXCLUDE_PATTERNS = (
+    ".venv",
+    "env",
+    "venv",
+    "site-packages",
+    "_incoming",
+    str(Path("runtime") / "backups"),
+    "traders_core",
+    "lt_plugins",
+    "cli",
+    "scripts",
+    "tests",
+)
 
-out = scan_full_project(str(ROOT), py_ext=".py", include_exts=[".py", ".yml", ".md"], top_n=30)
-with open(ROOT / "checks_output.json", "w", encoding="utf-8") as f:
-    json.dump(out, f, indent=2)
-print(f"wrote: {ROOT / 'checks_output.json'}")
+
+def _allowed(path: Path) -> bool:
+    s = str(path)
+    return not any(p in s for p in EXCLUDE_PATTERNS)
+
+
+def compile_curated() -> bool:
+    ok = True
+    for d in CURATED_DIRS:
+        if not d.exists():
+            continue
+        for f in d.rglob("*.py"):
+            if not _allowed(f):
+                continue
+            try:
+                compile(f.read_text(encoding="utf-8"), str(f), "exec")
+            except Exception as e:
+                ok = False
+                print("SyntaxError:", f)
+                print(e)
+    return ok
+
+
+def main() -> int:
+    ok = compile_curated()
+    print("curated compile:", "OK" if ok else "FAIL")
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

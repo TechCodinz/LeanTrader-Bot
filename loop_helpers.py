@@ -1,5 +1,4 @@
 # loop_helpers.py
-from __future__ import annotations
 
 import os
 import time
@@ -7,12 +6,20 @@ from typing import Any, Dict, List, Optional
 
 # We use your existing portfolio helpers (file renamed to acct_portfolio)
 from acct_portfolio import ccxt_summary, mt5_summary
-from notifier import TelegramNotifier
-
+try:
+    from notifier import TelegramNotifier  # type: ignore
+except Exception:
+    class TelegramNotifier:  # type: ignore
+        enabled = False
+        def note(self, *a, **k):
+            return None
+        def balance_snapshot(self, *a, **k):
+            return None
 
 def _has_api_keys() -> bool:
-    return bool((os.getenv("API_KEY") or "").strip()) and bool((os.getenv("API_SECRET") or "").strip())
-
+    return bool((os.getenv("API_KEY") or "").strip()) and bool(
+        (os.getenv("API_SECRET") or "").strip()
+    )
 
 def maybe_post_balance(
     notif: TelegramNotifier,

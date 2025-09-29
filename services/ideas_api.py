@@ -1,17 +1,9 @@
-from __future__ import annotations
-
 import json
 import os
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict
-
-from fastapi import FastAPI, Request
-
 
 APP = FastAPI(title="Ideas Interactive Endpoint")
 OUT = Path(os.getenv("IDEAS_APPROVALS_FILE", "runtime/ideas_approvals.json"))
-
 
 def _append(obj: Dict[str, Any]) -> None:
     try:
@@ -25,7 +17,6 @@ def _append(obj: Dict[str, Any]) -> None:
         OUT.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     except Exception:
         pass
-
 
 @APP.post("/slack/ideas/interactive")
 async def slack_interactive(req: Request):
@@ -42,6 +33,4 @@ async def slack_interactive(req: Request):
     _append(event)
     return {"ok": True}
 
-
 # Uvicorn: uvicorn services.ideas_api:APP --port 8085
-

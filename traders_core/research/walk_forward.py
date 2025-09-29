@@ -1,19 +1,12 @@
-from __future__ import annotations
-
 import os  # noqa: F401  # intentionally kept
 
-import numpy as np
-import pandas as pd
 from sklearn.ensemble import GradientBoostingClassifier  # noqa: F401  # intentionally kept
 from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import accuracy_score  # noqa: F401  # intentionally kept
 
-from traders_core.features.pipeline import build_xy, make_features, rates_to_df  # noqa: F401  # intentionally kept
 from traders_core.mt5_adapter import copy_rates_days  # noqa: F401  # intentionally kept
 from traders_core.research.cv import PurgedKFold  # noqa: F401  # intentionally kept
 from traders_core.risk.gates import compute_metrics  # noqa: F401  # intentionally kept
-from traders_core.storage.registry import save_model, save_model_tagged  # noqa: F401  # intentionally kept
-
 
 def _apply_tcost(returns: pd.Series, side: pd.Series, bps: float) -> pd.Series:
     """Subtract costs when we flip from flat->long or long->flat (entry/exit).
@@ -25,7 +18,6 @@ def _apply_tcost(returns: pd.Series, side: pd.Series, bps: float) -> pd.Series:
     # cost deducted as negative returns on those bars
     return returns - cost
 
-
 def train_evaluate(*args, **kwargs):
     """Placeholder for the train/evaluate routine.
 
@@ -36,8 +28,9 @@ def train_evaluate(*args, **kwargs):
     """
     raise NotImplementedError("train_evaluate is not implemented in this branch")
 
-
-def online_partial_fit(X: pd.DataFrame, y: pd.Series, prev: SGDClassifier | None = None) -> SGDClassifier:
+def online_partial_fit(
+    X: pd.DataFrame, y: pd.Series, prev: SGDClassifier | None = None
+) -> SGDClassifier:
     """Light online adapter you can call intraday on recent bars."""
     clf = prev or SGDClassifier(
         loss="log_loss",

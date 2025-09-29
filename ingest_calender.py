@@ -1,11 +1,10 @@
 # ingest_calendar.py
-from __future__ import annotations
 
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-
 import pandas as pd
+
 import requests
 from dotenv import load_dotenv
 
@@ -17,7 +16,6 @@ FF_URLS = [
     "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
     "https://nfs.faireconomy.media/ff_calendar_nextweek.json",
 ]
-
 
 def fetch_forexfactory() -> pd.DataFrame:
     rows = []
@@ -47,7 +45,6 @@ def fetch_forexfactory() -> pd.DataFrame:
         except Exception as e:
             print("FF fetch error:", e)
     return pd.DataFrame(rows)
-
 
 def fetch_tradingeconomics(d1: str, d2: str, apikey: str) -> pd.DataFrame:
     # Free guest key also works: guest:guest (limited)
@@ -87,7 +84,6 @@ def fetch_tradingeconomics(d1: str, d2: str, apikey: str) -> pd.DataFrame:
             ]
         )
 
-
 def main():
     load_dotenv()
     te_key = os.getenv("TRADING_ECONOMICS_KEY", "guest:guest")
@@ -119,14 +115,15 @@ def main():
 
     # Normalize
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
-    df["impact"] = df["impact"].str.title().replace({"Medium": "Medium", "High": "High"}).fillna("Low")
+    df["impact"] = (
+        df["impact"].str.title().replace({"Medium": "Medium", "High": "High"}).fillna("Low")
+    )
     df = df.sort_values("timestamp").drop_duplicates(subset=["timestamp", "event", "currency"])
 
     # Save high-impact only (what your filters expect)
     df_high = df[df["impact"] == "High"].copy()
     df_high.to_csv(OUT_CSV, index=False)
     print(f"Wrote {len(df_high)} high-impact rows to {OUT_CSV}")
-
 
 if __name__ == "__main__":
     main()

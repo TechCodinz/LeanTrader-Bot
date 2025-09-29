@@ -5,14 +5,12 @@ def pip_size(pair: str) -> float:
         return 0.01
     return 0.0001
 
-
 def normalize_pair(pair: str):
     pair = pair.replace("_", "/").replace("-", "/")
     if "/" in pair:
         a, b = pair.split("/")
         return a.upper(), b.upper()
     return pair[:3].upper(), pair[3:].upper()
-
 
 def pip_value_per_unit(pair: str, quote_to_usd: float = 1.0) -> float:
     # Approximate pip value in USD per 1 unit of base currency.
@@ -26,7 +24,6 @@ def pip_value_per_unit(pair: str, quote_to_usd: float = 1.0) -> float:
     else:
         # Cross pair: approximate via quote->USD conversion given as param
         return ps * quote_to_usd
-
 
 def units_for_risk(fixed_risk_usd: float, atr_pips: float, pip_value_unit_usd: float) -> float:
     # units = risk / (ATR_pips * pip_value_per_unit)

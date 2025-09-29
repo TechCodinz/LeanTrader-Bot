@@ -1,11 +1,8 @@
-from __future__ import annotations
-
 import argparse
 import json
 import sys
 
 from ops.auto_throttle import set_lambda_cap, get_lambda_cap, clear_lambda_cap
-
 
 def main():
     p = argparse.ArgumentParser(description="Get/Set/Clear ensemble lambda cap")
@@ -30,7 +27,5 @@ def main():
         print(json.dumps({"error": str(e)}))
         sys.exit(1)
 
-
 if __name__ == "__main__":
     main()
-

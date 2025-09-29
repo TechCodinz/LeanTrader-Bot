@@ -5,8 +5,6 @@ Telegram messages with inline action buttons (trade links). It also writes the
 signals to the NDJSON queue via signals_publisher.publish_batch for audit.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import sys
@@ -20,7 +18,6 @@ from pathlib import Path as _Path  # noqa: E402
 
 from tools.mtf_aggregator import read_and_aggregate  # noqa: E402
 
-
 def _log_pub(event: str, **kw) -> None:
     """Write a small JSON line to runtime/logs/publish_mtf.log for audit/debug."""
     try:
@@ -33,7 +30,6 @@ def _log_pub(event: str, **kw) -> None:
             df.write(json.dumps(ent, ensure_ascii=False) + "\n")
     except Exception:
         pass
-
 
 def _build_trade_buttons(sig: dict) -> list:
     """Return InlineKeyboardMarkup button rows.
@@ -60,13 +56,12 @@ def _build_trade_buttons(sig: dict) -> list:
         [{"text": "Balance", "url": bal_url}],
     ]
 
-
 def main() -> int:
     from signals_publisher import publish_batch
     from tg_utils import send_photo_with_buttons
 
     try:
-        from charting import plot_candlestick
+        from charting import plot_candlestick  # type: ignore
     except Exception:
         plot_candlestick = None
     try:
@@ -150,7 +145,6 @@ def main() -> int:
                         # standardize placeholder filename
                         prefix = symbol.replace("/", "_") or "unknown"
                         placeholder_path = charts_dir / f"{prefix}_placeholder.png"
-                        from PIL import Image, ImageDraw, ImageFont
 
                         img = Image.new("RGB", (800, 400), color=(30, 30, 30))
                         d = ImageDraw.Draw(img)
@@ -252,7 +246,6 @@ def main() -> int:
             print("Error processing promoted signal:", e)
 
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

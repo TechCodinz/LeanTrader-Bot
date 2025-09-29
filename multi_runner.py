@@ -1,5 +1,4 @@
 # multi_runner.py
-from __future__ import annotations
 
 import json
 import os  # noqa: F401  # intentionally kept
@@ -11,10 +10,7 @@ from typing import Any, Dict, List
 
 import yaml  # pip install pyyaml
 
-from geo import detect_country, preferred_exchanges
-
 PY = sys.executable or "python"
-
 
 def _read_json_list(path: str) -> List[str]:
     p = Path(path)
@@ -30,16 +26,20 @@ def _read_json_list(path: str) -> List[str]:
         pass
     return []
 
-
 def _pick_exchange(acc: Dict[str, Any], country: str) -> str:
     ex = str(acc.get("exchange", "auto")).lower()
     if ex != "auto":
         return ex
-    prefs = preferred_exchanges(country)
+    # prefer universe.pick_exchanges when available
+    try:
+        from universe import pick_exchanges
+
+        prefs = pick_exchanges()
+    except Exception:
+        prefs = ["bybit", "binanceus", "kraken"]
     # allow a per-account candidate list
     cands = [c.lower() for c in acc.get("candidates", [])] or prefs
     return cands[0]
-
 
 def _to_env(d: Dict[str, Any]) -> Dict[str, str]:
     out = {}
@@ -51,18 +51,27 @@ def _to_env(d: Dict[str, Any]) -> Dict[str, str]:
         out[str(k)] = str(v)
     return out
 
-
 def _spawn(cmd: List[str], env: Dict[str, str]):
     e = os.environ.copy()
     e.update(env)
     return subprocess.Popen(cmd, env=e)
-
 
 def run():
     """
     accounts.yml example below.
     Spawns multiple loops with per-account env + symbols.
     """
+    def preferred_exchanges(_country: str) -> List[str]:
+        try:
+            from universe import pick_exchanges
+
+            return pick_exchanges()
+        except Exception:
+            return ["bybit", "binanceus", "kraken"]
+
+    def detect_country() -> str:
+        return os.getenv("COUNTRY", "DEFAULT").upper()
+
     country = detect_country()
     print(f"[multi] country={country}")
 
@@ -76,21 +85,34 @@ def run():
     for acc in cfg.get("accounts", []):
         kind = acc.get("kind", "crypto")  # 'crypto' | 'meme' | 'fx'
         script = acc.get("script") or (
-            "run_live_meme.py" if kind == "meme" else "run_live_fx.py" if kind == "fx" else "run_live.py"
+            "run_live_meme.py"
+            if kind == "meme"
+            else "run_live_fx.py" if kind == "fx" else "run_live.py"
         )
         ex_id = _pick_exchange(acc, country)
 
         # symbols/pairs
         if kind == "fx":
-            pairs = acc.get("pairs") or _read_json_list(acc.get("universe", "")) or ["EURUSD", "GBPUSD"]
+            pairs = (
+                acc.get("pairs") or _read_json_list(acc.get("universe", "")) or ["EURUSD", "GBPUSD"]
+            )
             sym_arg = ["--pairs", ",".join(pairs)]
         else:
-            symbols = acc.get("symbols") or _read_json_list(acc.get("universe", "")) or ["BTC/USDT", "DOGE/USDT"]
+            symbols = (
+                acc.get("symbols")
+                or _read_json_list(acc.get("universe", ""))
+                or ["BTC/USDT", "DOGE/USDT"]
+            )
             sym_arg = ["--symbols", ",".join(symbols)]
 
         # shared args
         tf = acc.get("timeframe", "1m")
-        args = [PY, "-u", script] + (["--exchange", ex_id] if kind != "fx" else []) + sym_arg + ["--timeframe", tf]
+        args = (
+            [PY, "-u", script]
+            + (["--exchange", ex_id] if kind != "fx" else [])
+            + sym_arg
+            + ["--timeframe", tf]
+        )
 
         # optional cadence / balance ping
         if "balance_every" in acc:
@@ -133,7 +155,6 @@ def run():
                 p.terminate()
             except Exception:
                 pass
-
 
 if __name__ == "__main__":
     run()

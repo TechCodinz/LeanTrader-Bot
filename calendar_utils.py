@@ -1,5 +1,4 @@
 # calendar_utils.py
-from __future__ import annotations
 
 # os removed; not required in this module
 import csv
@@ -10,14 +9,12 @@ from typing import Any, Dict, List
 DATA_DIR = Path("data")
 CAL_PATH = DATA_DIR / "calendar.csv"
 
-
 # Simple currency tags for FX pairs
 def _fx_tags(symbol: str) -> List[str]:
     s = symbol.replace("/", "")
     if len(s) >= 6:
         return [s[:3].upper(), s[3:6].upper()]
     return [symbol[:3].upper()]
-
 
 def _parse_row(row: Dict[str, str]) -> Dict[str, Any]:
     # expected headers: time,currency,impact,event,forecast,previous
@@ -29,7 +26,6 @@ def _parse_row(row: Dict[str, str]) -> Dict[str, Any]:
     out["currency"] = (row.get("currency") or "").upper()
     out["impact"] = (row.get("impact") or "").upper()
     return out
-
 
 def _load_today_events() -> List[Dict[str, Any]]:
     if not CAL_PATH.exists():
@@ -44,7 +40,6 @@ def _load_today_events() -> List[Dict[str, Any]]:
             if rr["time"].date() == dt.datetime.utcnow().date():
                 out.append(rr)
     return out
-
 
 def risk_adjust_for_calendar(symbol: str, is_fx: bool) -> Dict[str, Any]:
     """

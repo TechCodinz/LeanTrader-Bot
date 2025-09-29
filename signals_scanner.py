@@ -1,12 +1,17 @@
 # signals_scanner.py
-from __future__ import annotations
 
 import argparse
 import concurrent.futures as cf  # noqa: F401  # intentionally kept
 import os
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from router import ExchangeRouter
+from ultra_core import UltraCore  # guarded internal imports assumed present
+from signals_hub import analyze_symbol_ccxt, analyze_symbol_mt5
+from pattern_memory import get_score
+from signals_publisher import publish_batch
 
 # mt5_adapter is optional in some environments (CI, headless demo).
 # Use lazy, defensive helpers so importing this module won't raise.
@@ -20,7 +25,6 @@ def _lazy_mt5_helpers():
         try:
             import importlib.util
             import sys
-            from pathlib import Path
 
             repo_root = Path(__file__).resolve().parent
             candidate = repo_root / "mt5_adapter.py"
@@ -43,28 +47,18 @@ def _lazy_mt5_helpers():
 
     return mt5_bars, mt5_init
 
-
 # Do not call _lazy_mt5_helpers() at module import time; call inside functions
 # to avoid import-time failures when mt5_adapter is missing or partially broken.
-from news_adapter import fetch_crypto_sentiment, fx_guard_for_symbol  # NEW  # noqa: F401,E402  # intentionally kept
-from pattern_memory import get_score, recall  # noqa: F401,E402  # intentionally kept
-from router import ExchangeRouter  # noqa: E402
-from signals_hub import analyze_symbol_ccxt, analyze_symbol_mt5, mtf_confirm  # noqa: F401,E402  # intentionally kept
-from signals_publisher import publish_batch  # noqa: E402
-
 
 def env_bool(k: str, d: bool) -> bool:
     return os.getenv(k, str(d)).strip().lower() in ("1", "true", "yes", "y", "on")
-
 
 def env_list(k: str, d: List[str]) -> List[str]:
     raw = os.getenv(k, "")
     return [s.strip() for s in raw.split(",") if s.strip()] if raw else d
 
-
 TF_MAP_CCXT = {"1m": "1m", "3m": "3m", "5m": "5m", "15m": "15m", "1h": "1h"}
 TF_MAP_MT5 = {"1m": "M1", "5m": "M5", "15m": "M15", "1h": "H1"}
-
 
 # ----- discovery -----
 def _discover_spot(r: ExchangeRouter, quote="USDT") -> List[str]:
@@ -79,13 +73,11 @@ def _discover_spot(r: ExchangeRouter, quote="USDT") -> List[str]:
     except Exception:
         return ["BTC/USDT", "ETH/USDT", "XRP/USDT", "SOL/USDT", "DOGE/USDT"]
 
-
 def _discover_linear(r: ExchangeRouter, quote="USDT") -> List[str]:
     try:
         return r.linear_symbols(quote) or ["BTC/USDT", "ETH/USDT"]
     except Exception:
         return ["BTC/USDT", "ETH/USDT"]
-
 
 # ----- guards -----
 def _ok_liquidity(t: Dict[str, Any], min_qv: float) -> bool:
@@ -94,8 +86,9 @@ def _ok_liquidity(t: Dict[str, Any], min_qv: float) -> bool:
     except Exception:
         return True
 
-
-def _ok_spread_atr(t: Dict[str, Any], bars: List[List[float]], max_spread_bp: float, min_atr_bp: float) -> bool:
+def _ok_spread_atr(
+    t: Dict[str, Any], bars: List[List[float]], max_spread_bp: float, min_atr_bp: float
+) -> bool:
     try:
         bid = float(t.get("bid") or 0.0)
         ask = float(t.get("ask") or 0.0)
@@ -121,7 +114,6 @@ def _ok_spread_atr(t: Dict[str, Any], bars: List[List[float]], max_spread_bp: fl
         return atr_bp >= float(min_atr_bp)
     except Exception:
         return False
-
 
 # ----- workers -----
 def _scan_ccxt(
@@ -165,7 +157,6 @@ def _scan_ccxt(
     except Exception:
         return None
 
-
 def _scan_fx(sym: str, tf: str, limit: int) -> Optional[Dict[str, Any]]:
     try:
         mt5_bars, mt5_init = _lazy_mt5_helpers()
@@ -176,11 +167,9 @@ def _scan_fx(sym: str, tf: str, limit: int) -> Optional[Dict[str, Any]]:
     except Exception:
         return None
 
-
 # ----- main one cycle -----
 def run_once(args) -> List[Dict[str, Any]]:
     # --- UltraCore god mode integration ---
-    from ultra_core import UltraCore
     from universe import Universe
 
     r = ExchangeRouter()
@@ -226,7 +215,10 @@ def run_once(args) -> List[Dict[str, Any]]:
 
     # Optional: when publishing, send Telegram messages with small chart images
     try:
-        do_publish = bool(getattr(args, "publish", False)) or os.getenv("TELEGRAM_ENABLED", "false").lower() == "true"
+        do_publish = (
+            bool(getattr(args, "publish", False))
+            or os.getenv("TELEGRAM_ENABLED", "false").lower() == "true"
+        )
         if do_publish:
             import charting
             from notifier import TelegramNotifier
@@ -311,7 +303,6 @@ def run_once(args) -> List[Dict[str, Any]]:
 
     return out[: args.top]
 
-
 # ---------- CLI ----------
 def main():
     p = argparse.ArgumentParser(description="News-aware multi-market scanner (spot + futures + FX)")
@@ -355,7 +346,6 @@ def main():
             time.sleep(args.repeat)
     else:
         cycle()
-
 
 if __name__ == "__main__":
     main()

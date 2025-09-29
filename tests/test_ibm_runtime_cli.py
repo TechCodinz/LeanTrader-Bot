@@ -1,12 +1,5 @@
-from __future__ import annotations
-
-import json
-import os
 import sys
 from types import SimpleNamespace
-
-import pytest
-
 
 def test_missing_key_with_runtime_available(monkeypatch, capsys):
     # Fake qiskit_ibm_runtime installed
@@ -38,7 +31,9 @@ def test_missing_key_with_runtime_available(monkeypatch, capsys):
         def __init__(self, *args, **kwargs):
             pass
 
-    fake_mod = SimpleNamespace(QiskitRuntimeService=DummyService, Session=DummySession, Sampler=DummySampler)
+    fake_mod = SimpleNamespace(
+        QiskitRuntimeService=DummyService, Session=DummySession, Sampler=DummySampler
+    )
     monkeypatch.setitem(sys.modules, "qiskit_ibm_runtime", fake_mod)
     # Ensure no key in env
     monkeypatch.delenv("IBM_QUANTUM_API_KEY", raising=False)
@@ -49,7 +44,6 @@ def test_missing_key_with_runtime_available(monkeypatch, capsys):
     assert code == 1
     assert res["ok"] is False
     assert "Missing IBM_QUANTUM_API_KEY" in res.get("error", "Missing")
-
 
 def test_success_path(monkeypatch):
     # Build fake qiskit_ibm_runtime
@@ -99,7 +93,9 @@ def test_success_path(monkeypatch):
         def run(self, circuits):
             return DummyJob()
 
-    fake_mod = SimpleNamespace(QiskitRuntimeService=DummyService, Session=DummySession, Sampler=DummySampler)
+    fake_mod = SimpleNamespace(
+        QiskitRuntimeService=DummyService, Session=DummySession, Sampler=DummySampler
+    )
     monkeypatch.setitem(sys.modules, "qiskit_ibm_runtime", fake_mod)
 
     # Fake qiskit.QuantumCircuit
@@ -125,4 +121,3 @@ def test_success_path(monkeypatch):
     assert res["ok"] is True
     assert res["sampler_ok"] is True
     assert res["backend"]["name"] == "ibm_fake"
-

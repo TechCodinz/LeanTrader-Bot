@@ -1,9 +1,6 @@
 # mt5_single_shot.py
-from __future__ import annotations
 
 import argparse
-from typing import Any, Dict, Optional  # noqa: F401  # intentionally kept
-
 
 # Lazy import mt5_adapter functions at runtime so importing this module
 # doesn't fail in environments without MetaTrader5 installed.
@@ -16,14 +13,17 @@ def _import_mt5_helpers():
             getattr(mod, "account_summary_lines", lambda: []),
             getattr(mod, "bars_df", lambda *a, **k: __import__("pandas").DataFrame()),
             getattr(mod, "mt5_init", lambda: None),
-            getattr(mod, "order_send_market", lambda *a, **k: {"ok": False, "comment": "mt5 unavailable"}),
+            getattr(
+                mod,
+                "order_send_market",
+                lambda *a, **k: {"ok": False, "comment": "mt5 unavailable"},
+            ),
         )
     except Exception:
         # try file-based import as a fallback
         try:
             import importlib.util
             import sys
-            from pathlib import Path
 
             repo_root = Path(__file__).resolve().parent
             candidate = repo_root / "mt5_adapter.py"
@@ -36,7 +36,11 @@ def _import_mt5_helpers():
                     getattr(mod, "account_summary_lines", lambda: []),
                     getattr(mod, "bars_df", lambda *a, **k: __import__("pandas").DataFrame()),
                     getattr(mod, "mt5_init", lambda: None),
-                    getattr(mod, "order_send_market", lambda *a, **k: {"ok": False, "comment": "mt5 unavailable"}),
+                    getattr(
+                        mod,
+                        "order_send_market",
+                        lambda *a, **k: {"ok": False, "comment": "mt5 unavailable"},
+                    ),
                 )
         except Exception:
             pass
@@ -57,7 +61,6 @@ def _import_mt5_helpers():
 
         return account_summary_lines, bars_df, mt5_init, order_send_market
 
-
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Place a single MT5 market order (demo-safe)")
     ap.add_argument("--symbol", required=True, help="e.g. EURUSD, XAUUSD")
@@ -71,7 +74,6 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--tp", type=float, default=None)
 
     return ap.parse_args()
-
 
 def print_tail(symbol: str, timeframe: str) -> None:
     try:
@@ -97,7 +99,6 @@ def print_tail(symbol: str, timeframe: str) -> None:
     except Exception as e:
         print(f"[warn] bars df error: {e}")
 
-
 def main() -> None:
     args = parse_args()
     account_summary_lines, _, mt5_init, _ = _import_mt5_helpers()
@@ -109,7 +110,10 @@ def main() -> None:
 
     # Build and (optionally) send order
     print("\nRequest:", end=" ")
-    print(f"{args.side.upper()} {args.symbol} lots={args.lots:.2f} " f"SL={args.sl or '-'}  TP={args.tp or '-'}")
+    print(
+        f"{args.side.upper()} {args.symbol} lots={args.lots:.2f} "
+        f"SL={args.sl or '-'}  TP={args.tp or '-'}"
+    )
 
     if str(args.dry_run).lower() in ("yes", "y", "true", "1"):
         print("[dry-run] not sending order.")
@@ -136,7 +140,6 @@ def main() -> None:
         "order:",
         res.get("order"),
     )
-
 
 if __name__ == "__main__":
     main()

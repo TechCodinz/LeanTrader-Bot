@@ -1,11 +1,8 @@
 # tf_brains.py
-from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Optional, Tuple  # noqa: F401  # intentionally kept
-
+from typing import Any, Dict, List, Optional
 import pandas as pd
-
 
 class TFBrain:
     def __init__(self, tf: str, strat, risk_cfg, news_fn=None):
@@ -50,6 +47,5 @@ class TFBrain:
                 "df": d,
             }
         return None
-
 
 # Example risk_cfg: atr_stop_mult=1.5, atr_trail_mult=3.0

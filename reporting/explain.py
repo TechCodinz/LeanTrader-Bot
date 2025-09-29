@@ -1,25 +1,27 @@
-from __future__ import annotations
-
 import datetime as _dt
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
-
+from typing import Any, Dict, Mapping, Optional, List
 
 try:
     from prometheus_client import Counter  # type: ignore
-
-    EXPL_FILES_WRITTEN = Counter(
-        "expl_files_written_total", "Trade explanation files written", []
-    )
 except Exception:  # pragma: no cover
+    Counter = None  # type: ignore
+try:
+    from jinja2 import Environment, FileSystemLoader  # type: ignore
+except Exception:  # pragma: no cover
+    Environment = None  # type: ignore
+    FileSystemLoader = None  # type: ignore
+
+if Counter is not None:
+    EXPL_FILES_WRITTEN = Counter("expl_files_written_total", "Trade explanation files written", [])
+else:
     class _Noop:
         def inc(self, *_: Any, **__: Any) -> None:
             pass
 
     EXPL_FILES_WRITTEN = _Noop()  # type: ignore
-
 
 def build_trade_explanation(order: Mapping[str, Any], context: Mapping[str, Any]) -> Dict[str, Any]:
     """Assemble a normalized explanation payload for a trade.
@@ -37,7 +39,9 @@ def build_trade_explanation(order: Mapping[str, Any], context: Mapping[str, Any]
       - route: public|private|futures|spot|dex
     """
     # Extract basics from order
-    oid = str(order.get("id") or order.get("orderId") or order.get("tx_hash") or context.get("id") or "")
+    oid = str(
+        order.get("id") or order.get("orderId") or order.get("tx_hash") or context.get("id") or ""
+    )
     sym = str(order.get("symbol") or context.get("symbol") or "").upper()
     side = str(order.get("side") or context.get("side") or "").lower()
     qty = order.get("qty") or order.get("size") or context.get("qty")
@@ -47,7 +51,9 @@ def build_trade_explanation(order: Mapping[str, Any], context: Mapping[str, Any]
 
     # Heuristics / passthrough context
     regime = context.get("regime") or context.get("regime_now") or "unknown"
-    selector = context.get("selector") or context.get("model") or context.get("strategy") or "unknown"
+    selector = (
+        context.get("selector") or context.get("model") or context.get("strategy") or "unknown"
+    )
     key_signals = context.get("key_signals") or context.get("signals") or []
     if isinstance(key_signals, dict):
         key_signals = [
@@ -88,16 +94,15 @@ def build_trade_explanation(order: Mapping[str, Any], context: Mapping[str, Any]
         "alternatives_rejected": alt if isinstance(alt, list) else [alt],
     }
 
-
 def render_markdown(expl: Mapping[str, Any]) -> str:
     items = [
-        f"# Trade Explanation — {expl.get('symbol','')} {expl.get('side','')}\n",
-        f"- ID: {expl.get('id','')}\n",
-        f"- Route: {expl.get('route','')}\n",
-        f"- Qty/Price: {expl.get('qty','?')} @ {expl.get('price','?')}\n",
-        f"- Regime: {expl.get('regime','unknown')}\n",
-        f"- Selector: {expl.get('selector','unknown')}\n",
-        f"- Expected Slippage: {expl.get('expected_slippage_bps',0):.2f} bps\n",
+        f"# Trade Explanation — {expl.get('symbol', '')} {expl.get('side', '')}\n",
+        f"- ID: {expl.get('id', '')}\n",
+        f"- Route: {expl.get('route', '')}\n",
+        f"- Qty/Price: {expl.get('qty', '?')} @ {expl.get('price', '?')}\n",
+        f"- Regime: {expl.get('regime', 'unknown')}\n",
+        f"- Selector: {expl.get('selector', 'unknown')}\n",
+        f"- Expected Slippage: {expl.get('expected_slippage_bps', 0):.2f} bps\n",
     ]
     # Key signals
     ks = expl.get("key_signals") or []
@@ -107,7 +112,7 @@ def render_markdown(expl: Mapping[str, Any]) -> str:
             name = str(s.get("name") or s.get("id") or "?")
             sc = s.get("score")
             reason = s.get("reason")
-            items.append(f"- {name}: {sc} {('— '+reason) if reason else ''}\n")
+            items.append(f"- {name}: {sc} {('— ' + reason) if reason else ''}\n")
     # Sentiment
     sent = expl.get("sentiment") or {}
     items.append("\n## Sentiment Snapshot\n")
@@ -131,17 +136,15 @@ def render_markdown(expl: Mapping[str, Any]) -> str:
             items.append(f"- {e}\n")
     return "".join(items)
 
-
 def render_html(expl: Mapping[str, Any]) -> str:
     # Prefer Jinja template if present
     try:
-        from jinja2 import Environment, FileSystemLoader  # type: ignore
-
-        tmpl_path = os.path.join("templates", "expl_trade.html.j2")
-        if os.path.exists(tmpl_path):
-            env = Environment(loader=FileSystemLoader("templates"), autoescape=True)
-            tmpl = env.get_template("expl_trade.html.j2")
-            return tmpl.render(**expl)
+        if Environment is not None and FileSystemLoader is not None:
+            tmpl_path = os.path.join("templates", "expl_trade.html.j2")
+            if os.path.exists(tmpl_path):
+                env = Environment(loader=FileSystemLoader("templates"), autoescape=True)
+                tmpl = env.get_template("expl_trade.html.j2")
+                return tmpl.render(**expl)
     except Exception:
         pass
     # Fallback simple HTML from markdown
@@ -149,7 +152,6 @@ def render_html(expl: Mapping[str, Any]) -> str:
     html = md.replace("\n# ", "\n<h1>").replace("\n## ", "\n<h2>")
     html = html.replace("\n", "<br/>")
     return f"<!DOCTYPE html><html><head><meta charset='utf-8'><title>Trade Explanation</title></head><body>{html}</body></html>"
-
 
 def write_explanation_markdown(
     order: Mapping[str, Any],
@@ -159,10 +161,10 @@ def write_explanation_markdown(
     """Write per-trade markdown explanation to date folder. Returns path or None."""
     try:
         expl = build_trade_explanation(order, context)
-        date = _dt.datetime.utcfromtimestamp(int(expl.get("ts") or 0) or int(_dt.datetime.utcnow().timestamp())).strftime(
-            "%Y-%m-%d"
-        )
-        oid = expl.get("id") or f"{expl.get('symbol','')}-{int(_dt.datetime.utcnow().timestamp())}"
+        date = _dt.datetime.utcfromtimestamp(
+            int(expl.get("ts") or 0) or int(_dt.datetime.utcnow().timestamp())
+        ).strftime("%Y-%m-%d")
+        oid = expl.get("id") or f"{expl.get('symbol', '')}-{int(_dt.datetime.utcnow().timestamp())}"
         folder = Path(base_dir) / date
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / f"{oid}.md"
@@ -195,13 +197,11 @@ def write_explanation_markdown(
     except Exception:
         return None
 
-
 def scan_explanations_for_date(date: str, base_dir: str = "out/explanations") -> List[str]:
     d = Path(base_dir) / date
     if not d.exists():
         return []
     return [str(p) for p in sorted(d.glob("*.md"))]
-
 
 __all__ = [
     "EXPL_FILES_WRITTEN",

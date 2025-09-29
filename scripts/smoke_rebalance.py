@@ -1,10 +1,8 @@
-import pandas as pd
-import numpy as np
-
 from strategies.pipeline import daily_rebalance_job
 
-
-def _make_sample_df(n=200, cols=("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "BNBUSDT")):
+def _make_sample_df(
+    n=200, cols=("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "BNBUSDT")
+):
     rng = np.random.default_rng(0)
     prices = {}
     for i, c in enumerate(cols):
@@ -15,13 +13,10 @@ def _make_sample_df(n=200, cols=("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DO
     idx = pd.date_range(end=pd.Timestamp.utcnow().floor("min"), periods=n, freq="1min")
     return pd.DataFrame(prices, index=idx)
 
-
 def main():
     df = _make_sample_df()
     res = daily_rebalance_job(df)
     print("rebalance result:", res)
 
-
 if __name__ == "__main__":
     main()
-

@@ -2,7 +2,6 @@ import logging
 
 from router import ExchangeRouter
 
-
 def test_apply_runtime_order_block_blocks_methods(monkeypatch, caplog):
     # Ensure env disables live
     monkeypatch.setenv("ENABLE_LIVE", "false")
@@ -41,7 +40,6 @@ def test_apply_runtime_order_block_blocks_methods(monkeypatch, caplog):
     msgs = "\n".join([rec.message for rec in caplog.records])
     assert "blocked" in msgs.lower() or "live disabled" in msgs.lower()
 
-
 def test_paper_mode_is_dry_run(monkeypatch):
     # Force paper exchange
     monkeypatch.setenv("EXCHANGE_ID", "paper")
@@ -51,7 +49,6 @@ def test_paper_mode_is_dry_run(monkeypatch):
     # safe_place_order should return dry_run when not live
     out = r.safe_place_order("BTC/USDT", "buy", 0.001)
     assert out.get("dry_run", False) is True
-
 
 def test_live_requires_allow_and_confirm(monkeypatch):
     # Ensure that ENABLE_LIVE without ALLOW_LIVE and LIVE_CONFIRM stays dry-run

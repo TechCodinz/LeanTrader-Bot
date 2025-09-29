@@ -1,10 +1,6 @@
-from __future__ import annotations
-
-from typing import Any, Dict, List
-
-from w3guard.guards import MempoolMonitor, dynamic_slippage, private_tx_mode
-from router_safe import guarded_swap
-
+from w3guard.guards import MempoolMonitor, dynamic_slippage
+from typing import Dict, Any, List
+from w3guard.guards import guarded_swap
 
 def _mk_tx(ts: float, pair: str, gas: float, usd: float, sender: str) -> Dict[str, Any]:
     return {
@@ -15,7 +11,6 @@ def _mk_tx(ts: float, pair: str, gas: float, usd: float, sender: str) -> Dict[st
         "from": sender,
         "hash": f"{pair}:{ts}:{sender}",
     }
-
 
 def test_mempool_monitor_risk_increases_on_staircase():
     mon = MempoolMonitor(symbol="ETH/USDC", timeframe="M1", window_ms=5000, drop_bps=12)
@@ -31,10 +26,8 @@ def test_mempool_monitor_risk_increases_on_staircase():
     assert mon.current_risk > 0.0
     assert ev is None or ev.get("type") == "mempool_sandwich_pattern"
 
-
 def test_dynamic_slippage_reduces_with_risk():
     assert dynamic_slippage(30, 0.0) >= dynamic_slippage(30, 0.5) >= dynamic_slippage(30, 1.0)
-
 
 def test_guarded_swap_prefers_private_and_hedges_on_fail():
     calls: List[str] = []
@@ -55,7 +48,9 @@ def test_guarded_swap_prefers_private_and_hedges_on_fail():
         def __init__(self):
             self.calls: List[str] = []
 
-        def hedge(self, symbol: str, side: str, notional_usd: float, leverage: float = 1.0, **kwargs):
+        def hedge(
+            self, symbol: str, side: str, notional_usd: float, leverage: float = 1.0, **kwargs
+        ):
             self.calls.append(f"hedge:{symbol}:{side}:{int(notional_usd)}")
             return {"ok": True}
 

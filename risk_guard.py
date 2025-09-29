@@ -1,17 +1,12 @@
 # risk_guard.py
-from __future__ import annotations
 
 import json
 import os as _os
 import time
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict
 
 STATE_PATH = Path("runtime/risk_state.json")
 # Ultra Pro tighter defaults (opt-in via env ULTRA_PRO_MODE=true)
 _ULTRA = _os.getenv("ULTRA_PRO_MODE", "false").strip().lower() in ("1", "true", "yes")
-
 
 def _read() -> Dict:
     try:
@@ -19,10 +14,8 @@ def _read() -> Dict:
     except Exception:
         return {"dd_hit_at": 0, "equity_peak": None}
 
-
 def _write(d: Dict):
     STATE_PATH.write_text(json.dumps(d, indent=2), encoding="utf-8")
-
 
 class RiskGuard:
     def __init__(
@@ -36,7 +29,9 @@ class RiskGuard:
         if _ULTRA:
             # tighten defaults in Ultra Pro mode unless explicitly overridden by caller
             max_positions = int(_os.getenv("ULTRA_MAX_POS", max_positions if max_positions else 6))
-            max_per_symbol = int(_os.getenv("ULTRA_MAX_PER_SYMBOL", max_per_symbol if max_per_symbol else 1))
+            max_per_symbol = int(
+                _os.getenv("ULTRA_MAX_PER_SYMBOL", max_per_symbol if max_per_symbol else 1)
+            )
             max_exposure_frac = float(_os.getenv("ULTRA_MAX_EXPOSURE", 0.2))
             dd_limit_pct = float(_os.getenv("ULTRA_DD_LIMIT", 0.04))
             dd_pause_min = int(_os.getenv("ULTRA_DD_PAUSE_MIN", 120))
@@ -46,7 +41,9 @@ class RiskGuard:
         self.dd_limit_pct = dd_limit_pct
         self.dd_pause_min = dd_pause_min
 
-    def can_trade(self, equity: float, exposure: float, open_total: int, open_for_symbol: int) -> bool:
+    def can_trade(
+        self, equity: float, exposure: float, open_total: int, open_for_symbol: int
+    ) -> bool:
         st = _read()
         now = time.time()
         # enforce DD pause
@@ -83,9 +80,7 @@ class RiskGuard:
         st["dd_hit_at"] = 0
         _write(st)
 
-
 # Compatibility shims -------------------------------------------------------
-
 
 @dataclass
 class RiskConfig:
@@ -95,7 +90,6 @@ class RiskConfig:
     max_exposure_frac: float = 0.35
     dd_limit_pct: float = 0.06
     dd_pause_min: int = 60
-
 
 class RiskManager:
     """Thin compatibility wrapper exposing the methods expected by older
@@ -131,7 +125,6 @@ class RiskManager:
             return max(0.0, usd / 1000.0)
         except Exception:
             return 0.001
-
 
 # Import-time trace to help diagnose supervisor child import issues
 try:

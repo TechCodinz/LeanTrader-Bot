@@ -3,7 +3,6 @@ import json
 import re
 import shutil
 import time
-from pathlib import Path
 
 # Try import the analyzer from tools/static_check or load by path
 try:
@@ -21,14 +20,12 @@ ROOT = Path(".").resolve()
 OUTDIR = Path("runtime")
 OUTDIR.mkdir(parents=True, exist_ok=True)
 
-
 def try_parse(src: str):
     try:
         ast.parse(src)
         return True, None
     except Exception as e:
         return False, str(e)
-
 
 def safe_autofix_text(path: Path, src: str):
     """Apply conservative text-only heuristics to fix common paste/layout issues."""
@@ -57,14 +54,12 @@ def safe_autofix_text(path: Path, src: str):
     src2 = "\n".join(new_lines) + ("\n" if src.endswith("\n") else "")
     return src2, changed
 
-
 def backup_and_write(path: Path, new_src: str):
     bak = path.with_suffix(path.suffix + ".bak")
     if not bak.exists():
         shutil.copyfile(path, bak)
     with open(path, "w", encoding="utf-8") as f:
         f.write(new_src)
-
 
 def run_autofix(root: Path = ROOT):
     report = {"ts": int(time.time()), "root": str(root), "files": {}}
@@ -95,7 +90,9 @@ def run_autofix(root: Path = ROOT):
                 # try one more pass: add missing colons on common keywords if they look missing
                 src_lines = new_src.splitlines()
                 for i, ln in enumerate(src_lines):
-                    if re.search(r"\b(for|if|while|def|class)\b.*\)\s*$", ln) and not ln.rstrip().endswith(":"):
+                    if re.search(
+                        r"\b(for|if|while|def|class)\b.*\)\s*$", ln
+                    ) and not ln.rstrip().endswith(":"):
                         src_lines[i] = ln + ":"
                 new_src2 = "\n".join(src_lines) + ("\n" if new_src.endswith("\n") else "")
                 ok2, err2 = try_parse(new_src2)
@@ -115,7 +112,6 @@ def run_autofix(root: Path = ROOT):
         json.dump(report, fh, indent=2)
     print(f"Auto-fix report written to {out}")
     return out
-
 
 if __name__ == "__main__":
     run_autofix(ROOT)

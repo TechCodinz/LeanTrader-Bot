@@ -3,7 +3,6 @@ import ast
 import json
 import os
 import re
-from typing import Dict, List
 
 EXCLUDE_DIRS = {
     ".git",
@@ -27,7 +26,6 @@ FIX_PATTERNS = [
     # Remove duplicated consecutive identical lines (handled separately)
 ]
 
-
 def remove_consecutive_duplicates(text: str) -> str:
     out_lines: List[str] = []
     prev = None
@@ -40,7 +38,6 @@ def remove_consecutive_duplicates(text: str) -> str:
         prev = line
     # preserve trailing newline if present originally
     return "\n".join(out_lines) + ("\n" if text.endswith("\n") else "")
-
 
 def apply_fixes(text: str) -> (str, List[str]):
     applied = []
@@ -58,10 +55,8 @@ def apply_fixes(text: str) -> (str, List[str]):
         new = new2
     return new, applied
 
-
 def is_python_file(path: str) -> bool:
     return path.endswith(".py")
-
 
 def safe_parse(src: str) -> (bool, str):
     try:
@@ -69,7 +64,6 @@ def safe_parse(src: str) -> (bool, str):
         return True, ""
     except Exception as e:
         return False, str(e)
-
 
 def scan_and_fix(root: str, apply: bool = False) -> Dict[str, Dict]:
     report: Dict[str, Dict] = {}
@@ -127,7 +121,6 @@ def scan_and_fix(root: str, apply: bool = False) -> Dict[str, Dict]:
             report[rel] = entry
     return report
 
-
 def main(argv: List[str] = None):
     p = argparse.ArgumentParser(description="Conservative auto-fixer for common Python repo issues")
     p.add_argument("--root", "-r", default=".", help="Project root")
@@ -151,7 +144,6 @@ def main(argv: List[str] = None):
     parsed_fail_after = sum(1 for v in report.values() if not v.get("ok_after"))
     print(f"Files scanned: {total}, files with attempted fixes: {fixes}, files written: {written}")
     print(f"Parse failures before: {parsed_fail_before}, after: {parsed_fail_after}")
-
 
 if __name__ == "__main__":
     main()

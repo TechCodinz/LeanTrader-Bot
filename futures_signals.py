@@ -1,16 +1,11 @@
 # futures_signals.py
-from __future__ import annotations
-
-from typing import Any, Dict  # noqa: F401  # intentionally kept
-
+from typing import Optional
 import pandas as pd
-
 
 def ema(series: pd.Series, n: int) -> pd.Series:
     return series.ewm(span=n, adjust=False).mean()
 
-
-def fut_side_from_ema(df: pd.DataFrame) -> str | None:
+def fut_side_from_ema(df: pd.DataFrame) -> Optional[str]:
     if df.empty or "close" not in df or len(df) < 30:
         return None
     c = df["close"]
@@ -22,7 +17,6 @@ def fut_side_from_ema(df: pd.DataFrame) -> str | None:
     if dn:
         return "sell"
     return None
-
 
 def calc_contract_qty_usdt(
     px: float,

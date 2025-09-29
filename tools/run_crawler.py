@@ -6,7 +6,6 @@ Usage:
 
 This is intentionally conservative and opt-in.
 """
-from __future__ import annotations
 
 import os
 import sys
@@ -40,7 +39,9 @@ if __name__ == "__main__":
         print("RSS fetch failed:", e)
     print("Fetching HTML posts...")
     try:
-        n = crawler.fetch_html_posts(HTML_SOURCES, css_selector=".Post, .thing, article", max_items=20)
+        n = crawler.fetch_html_posts(
+            HTML_SOURCES, css_selector=".Post, .thing, article", max_items=20
+        )
         print(f"HTML items written: {n}")
     except Exception as e:
         print("HTML fetch failed:", e)

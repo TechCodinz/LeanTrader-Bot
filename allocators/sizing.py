@@ -1,14 +1,9 @@
-from __future__ import annotations
-
-from typing import Dict, Optional
-
 import numpy as np
-
+from typing import Optional, Dict
 
 def _l1_normalize(w: np.ndarray) -> np.ndarray:
     s = float(np.sum(np.abs(w)))
     return (w / s) if s > 0 else w * 0.0
-
 
 def vol_scaled_weights(
     mu: np.ndarray,
@@ -51,7 +46,7 @@ def vol_scaled_weights(
             over = w > cap
             if not np.any(over):
                 break
-            excess = float(np.sum(w[over]) - np.sum(np.minimum(w[over], cap)))
+            float(np.sum(w[over]) - np.sum(np.minimum(w[over], cap)))
             w[over] = cap
             remain = np.sum(w[~over])
             if remain > 0:
@@ -69,7 +64,6 @@ def vol_scaled_weights(
     except Exception:
         pass
     return w
-
 
 def apply_exposure_caps(
     w: np.ndarray,
@@ -90,27 +84,26 @@ def apply_exposure_caps(
     out = w.copy()
     sector_cap = float(max(0.0, min(1.0, sector_cap)))
 
-    for _ in range(10):
-        changed = False
-        # Scale down overweight sectors
+    for _ in range(100):
+        # Identify overweight sectors and cap them exactly
+        capped_mask = np.zeros_like(out, dtype=bool)
         for s, idxs in sectors.items():
             ssum = float(np.sum(out[idxs]))
-            if ssum > sector_cap and ssum > 0:
+            if ssum > sector_cap + 1e-9 and ssum > 0:
                 factor = sector_cap / ssum
                 out[idxs] *= factor
-                changed = True
-        # Renormalize
-        out = _l1_normalize(out)
-        # Check again
-        ok = True
-        for s, idxs in sectors.items():
-            if float(np.sum(out[idxs])) > sector_cap + 1e-6:
-                ok = False
-                break
-        if ok and not changed:
+                capped_mask[idxs] = True
+        # Renormalize only non-capped weights to fill remaining mass
+        total_capped = float(np.sum(out[capped_mask]))
+        target_remaining = max(0.0, 1.0 - total_capped)
+        current_remaining = float(np.sum(out[~capped_mask]))
+        if current_remaining > 0 and target_remaining >= 0:
+            out[~capped_mask] *= (target_remaining / current_remaining)
+        # Check if all sectors within cap with tight tolerance
+        if all(float(np.sum(out[idxs])) <= sector_cap + 1e-6 for idxs in sectors.values()):
+            # Ensure exact L1 normalization
+            out = _l1_normalize(out)
             break
     return out
 
-
 __all__ = ["vol_scaled_weights", "apply_exposure_caps"]
-

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 """Compile all .py files under the workspace, excluding backup folders that
 may contain malformed snippets (_incoming, runtime/backups). This mirrors
 `python -m compileall` but with filter control for faster diagnostics.
@@ -9,7 +11,6 @@ import sys
 
 EXCLUDE = {"_incoming", "runtime/backups"}
 
-
 def should_skip(p: pathlib.Path) -> bool:
     # Skip if path contains any excluded segment or subfolder
     s = str(p)
@@ -19,7 +20,6 @@ def should_skip(p: pathlib.Path) -> bool:
     if "runtime/backups" in s or "runtime\\backups" in s:
         return True
     return False
-
 
 def main(root: str = ".") -> int:
     root_p = pathlib.Path(root).resolve()
@@ -42,7 +42,6 @@ def main(root: str = ".") -> int:
         return 2
     print("All scanned python files compiled successfully.")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main("."))

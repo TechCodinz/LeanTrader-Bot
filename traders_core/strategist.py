@@ -1,6 +1,4 @@
 # strategist.py
-from typing import Any, Dict, List, Tuple  # noqa: F401  # intentionally kept
-
 
 def ema(vals: List[float], n: int) -> List[float]:
     if not vals:
@@ -11,7 +9,6 @@ def ema(vals: List[float], n: int) -> List[float]:
         e = a * v + (1 - a) * e
         out.append(e)
     return out
-
 
 def breakout_signal(bars: List[List[float]]) -> Dict[str, Any]:
     """

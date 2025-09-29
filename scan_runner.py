@@ -4,13 +4,11 @@ import os
 import sys
 from datetime import datetime
 
-
 def _ensure_cwd_in_path(root: str):
     # ensure imports resolve when running from other dirs
     p = os.path.abspath(root)
     if p not in sys.path:
         sys.path.insert(0, p)
-
 
 def run_scans(root: str, out_dir: str, pretty: bool = True):
     _ensure_cwd_in_path(root)
@@ -77,16 +75,16 @@ def run_scans(root: str, out_dir: str, pretty: bool = True):
     print(f"[scan_runner] wrote summary to {fp}")
     return results
 
-
 def main(argv=None):
-    p = argparse.ArgumentParser(description="Run project scans (router + strategy) and save JSON outputs")
+    p = argparse.ArgumentParser(
+        description="Run project scans (router + strategy) and save JSON outputs"
+    )
     p.add_argument("--root", "-r", default=".", help="Project root to scan")
     p.add_argument("--out", "-o", default=".", help="Output directory for JSON results")
     p.add_argument("--no-pretty", dest="pretty", action="store_false", help="Disable pretty JSON")
     args = p.parse_args(argv)
     os.makedirs(args.out, exist_ok=True)
     run_scans(args.root, args.out, pretty=args.pretty)
-
 
 if __name__ == "__main__":
     main()

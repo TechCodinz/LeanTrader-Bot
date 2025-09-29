@@ -1,10 +1,7 @@
-from __future__ import annotations
-
 import json
 import sys
 
 from execution.quantum_exec import quantum_exec_plan
-
 
 def main():
     import argparse
@@ -37,7 +34,5 @@ def main():
         print(json.dumps({"error": str(e)}))
         sys.exit(1)
 
-
 if __name__ == "__main__":
     main()
-

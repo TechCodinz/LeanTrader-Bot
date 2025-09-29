@@ -1,12 +1,9 @@
 # geo.py
-from __future__ import annotations
 
 import os
 import socket
-from typing import List
 
 import requests
-
 
 # --- simple, robust geo detection ---
 def detect_country() -> str:
@@ -27,7 +24,6 @@ def detect_country() -> str:
         except Exception:
             pass
     return "US"
-
 
 # --- regional news feeds (you can merge into news_service if you prefer) ---
 REGIONAL_FEEDS = {
@@ -68,7 +64,6 @@ REGIONAL_FEEDS = {
     ],
 }
 
-
 def regional_feeds(country: str) -> List[str]:
     country = (country or "US").upper()
     if country in ("US", "CA", "MX"):
@@ -96,7 +91,6 @@ def regional_feeds(country: str) -> List[str]:
         return REGIONAL_FEEDS["AF"]
     return REGIONAL_FEEDS["DEFAULT"]
 
-
 # --- exchange preferences by region (very rough defaults) ---
 PREFS = {
     "US": ["binanceus", "coinbase", "kraken"],
@@ -105,7 +99,6 @@ PREFS = {
     "AF": ["bybit", "kraken"],
     "DEFAULT": ["bybit", "kraken"],
 }
-
 
 def preferred_exchanges(country: str) -> List[str]:
     c = (country or "US").upper()
@@ -133,7 +126,6 @@ def preferred_exchanges(country: str) -> List[str]:
     if c in ("NG", "ZA", "KE", "EG", "MA", "GH", "ET", "TZ", "UG", "DZ"):
         return PREFS["AF"]
     return PREFS["DEFAULT"]
-
 
 # --- simple hostname-based environment detection ---
 def detect_environment() -> str:

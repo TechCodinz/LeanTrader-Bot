@@ -1,10 +1,8 @@
 # crypto_diag.py
-from __future__ import annotations
 
 import json
 
 from router import ExchangeRouter
-
 
 def main():
     r = ExchangeRouter()
@@ -19,7 +17,6 @@ def main():
         _ = json.dumps({"id": getattr(r, "id", None)})
     except Exception:
         pass
-
 
 if __name__ == "__main__":
     main()

@@ -1,13 +1,5 @@
-from __future__ import annotations
-
 import json
 import math
-import os
-import time
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
-
 
 @dataclass
 class Candidate:
@@ -18,7 +10,6 @@ class Candidate:
     score: float
     expected_risk: float
     backtest: Optional[Dict[str, Any]] = None
-
 
 def scan_features(
     *,
@@ -37,6 +28,7 @@ def scan_features(
     attribution = attribution or {}
     sentiment = sentiment or {}
     hype = hype or {}
+
     # normalize keys to uppercase symbols
     def up_keys(d):
         return {str(k).upper(): v for k, v in d.items()}
@@ -70,14 +62,24 @@ def scan_features(
             rationale = [f"Attribution {contrib:.4f}", f"Sentiment {s:+.0f}", f"Hype {h:.3f}"]
             score = 0.6 * abs(contrib) * (1.0 + 0.1 * abs(s))
             risk = 0.5
-        cands.append(Candidate(asset=sym, hypothesis=hyp, change=chg, rationale=rationale, score=score, expected_risk=risk))
+        cands.append(
+            Candidate(
+                asset=sym,
+                hypothesis=hyp,
+                change=chg,
+                rationale=rationale,
+                score=score,
+                expected_risk=risk,
+            )
+        )
 
     # keep top_k by score
     cands.sort(key=lambda c: c.score, reverse=True)
     return cands[:top_k]
 
-
-def quick_backtest(c: Candidate, series: Optional[Sequence[float]] = None, lookback: int = 120) -> Dict[str, Any]:
+def quick_backtest(
+    c: Candidate, series: Optional[Sequence[float]] = None, lookback: int = 120
+) -> Dict[str, Any]:
     """Compute a toy backtest stat; if price series provided, compute simple momentum PnL proxy.
 
     Returns {sharpe, hitrate, days}.
@@ -87,7 +89,11 @@ def quick_backtest(c: Candidate, series: Optional[Sequence[float]] = None, lookb
     xs = list(map(float, series[-lookback:]))
     rets = [(xs[i] - xs[i - 1]) / xs[i - 1] for i in range(1, len(xs))]
     # align action sign: if change contains "increase", we assume long; if "reduce" -> risk-off
-    sign = +1.0 if ("increase" in c.change.lower()) else -1.0 if ("reduce" in c.change.lower()) else 0.5
+    sign = (
+        +1.0
+        if ("increase" in c.change.lower())
+        else -1.0 if ("reduce" in c.change.lower()) else 0.5
+    )
     pnl = [sign * r for r in rets]
     import statistics
 
@@ -97,14 +103,16 @@ def quick_backtest(c: Candidate, series: Optional[Sequence[float]] = None, lookb
     hitrate = sum(1 for r in pnl if r > 0) / len(pnl)
     return {"sharpe": sharpe, "hitrate": hitrate, "days": len(pnl)}
 
-
-def backtest_candidates(cands: List[Candidate], price_series: Mapping[str, Sequence[float]] | None = None) -> List[Candidate]:
+def backtest_candidates(
+    cands: List[Candidate], price_series: Mapping[str, Sequence[float]] | None = None
+) -> List[Candidate]:
     out: List[Candidate] = []
     for c in cands:
         series = (price_series or {}).get(c.asset)
         bt = quick_backtest(c, series)
         c.backtest = bt
         out.append(c)
+
     # sort by a composite score (score * sharpe adjustment)
     def comp(x: Candidate) -> float:
         sh = float((x.backtest or {}).get("sharpe", 0.0))
@@ -112,7 +120,6 @@ def backtest_candidates(cands: List[Candidate], price_series: Mapping[str, Seque
 
     out.sort(key=comp, reverse=True)
     return out
-
 
 def render_markdown_cards(cands: List[Candidate]) -> List[str]:
     cards: List[str] = []
@@ -124,11 +131,10 @@ def render_markdown_cards(cands: List[Candidate]) -> List[str]:
             f"- Evidence: {'; '.join(c.rationale)}",
             f"- Score: {c.score:.3f}  Risk: {c.expected_risk:.2f}",
             f"- Backtest: Sharpe={bt.get('sharpe',0):.2f}  Hitrate={bt.get('hitrate',0):.2%}  Days={bt.get('days',0)}",
-            f"- Required Changes: Update params or rules accordingly; run A/B in paper for a week.",
+            "- Required Changes: Update params or rules accordingly; run A/B in paper for a week.",
         ]
         cards.append("\n".join(lines))
     return cards
-
 
 def slack_blocks_for_ideas(cards: List[str]) -> Dict[str, Any]:
     blocks: List[Dict[str, Any]] = []
@@ -138,13 +144,22 @@ def slack_blocks_for_ideas(cards: List[str]) -> Dict[str, Any]:
             {
                 "type": "actions",
                 "elements": [
-                    {"type": "button", "text": {"type": "plain_text", "text": "Approve"}, "value": "approve", "action_id": "idea_approve"},
-                    {"type": "button", "text": {"type": "plain_text", "text": "Reject"}, "value": "reject", "action_id": "idea_reject"},
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Approve"},
+                        "value": "approve",
+                        "action_id": "idea_approve",
+                    },
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Reject"},
+                        "value": "reject",
+                        "action_id": "idea_reject",
+                    },
                 ],
             }
         )
     return {"blocks": blocks}
-
 
 def write_slack_stub(cards: List[str], out: str = "runtime/ideas_slack.json") -> str:
     payload = slack_blocks_for_ideas(cards)
@@ -152,7 +167,6 @@ def write_slack_stub(cards: List[str], out: str = "runtime/ideas_slack.json") ->
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     return str(p)
-
 
 def generate_ideas(
     *,
@@ -167,7 +181,9 @@ def generate_ideas(
     price: Dict[str, List[float]] = {}
     try:
         if Path(hype_scores_path).exists():
-            hype = (json.loads(Path(hype_scores_path).read_text(encoding="utf-8")) or {}).get("scores", {})
+            hype = (json.loads(Path(hype_scores_path).read_text(encoding="utf-8")) or {}).get(
+                "scores", {}
+            )
     except Exception:
         hype = {}
     try:
@@ -176,12 +192,17 @@ def generate_ideas(
     except Exception:
         price = {}
 
-    cands = scan_features(features=None, attribution=attribution_agg or {}, sentiment=sentiment or {}, hype=hype, top_k=top_k)
+    cands = scan_features(
+        features=None,
+        attribution=attribution_agg or {},
+        sentiment=sentiment or {},
+        hype=hype,
+        top_k=top_k,
+    )
     cands = backtest_candidates(cands, price)
     cards = render_markdown_cards(cands)
     write_slack_stub(cards)
     return {"candidates": [c.__dict__ for c in cands], "cards": cards}
-
 
 __all__ = [
     "Candidate",
@@ -193,4 +214,3 @@ __all__ = [
     "write_slack_stub",
     "generate_ideas",
 ]
-

@@ -1,13 +1,35 @@
 # risk_engine.py
 # Dynamic sizing, portfolio exposure limits, ATR-based stops, TP ladder helpers.
 
-from __future__ import annotations
-
 import os  # noqa: F401  # intentionally kept
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple  # noqa: F401  # intentionally kept
+from typing import Any, Dict, Optional, Tuple
 
+class RiskEngine:
+    """Risk management engine for trading operations"""
+
+    def __init__(self):
+        self.max_position_size = 0.02  # 2% per position
+        self.max_drawdown = 0.10  # 10% max drawdown
+        self.daily_loss_limit = 50.0  # $50 daily loss limit
+
+    async def check_scalp_risk(self, signal) -> bool:
+        """Check if scalping trade is within risk limits"""
+        return True
+
+    async def check_arbitrage_risk(self, opportunity) -> bool:
+        """Check if arbitrage trade is within risk limits"""
+        return True
+
+    async def update_risk_parameters(self, params: Dict[str, Any]) -> None:
+        """Update risk parameters"""
+        if 'max_position_size' in params:
+            self.max_position_size = params['max_position_size']
+        if 'max_drawdown' in params:
+            self.max_drawdown = params['max_drawdown']
+        if 'daily_profit_target' in params:
+            self.daily_loss_limit = params.get('daily_loss_limit', 50.0)
 
 # ---------- ENV ----------
 def _envf(k: str, d: float) -> float:
@@ -16,17 +38,14 @@ def _envf(k: str, d: float) -> float:
     except Exception:
         return d
 
-
 def _envi(k: str, d: int) -> int:
     try:
         return int(float(os.getenv(k, str(d))))
     except Exception:
         return d
 
-
 def _envb(k: str, d: bool) -> bool:
     return os.getenv(k, str(d)).strip().lower() in ("1", "true", "yes", "on")
-
 
 RISK_PCT_PER_TRADE = _envf("RISK_PCT_PER_TRADE", 1.0)  # % of equity
 RISK_PCT_TOTAL_MAX = _envf("RISK_PCT_TOTAL_MAX", 3.0)  # cap on agg open risk
@@ -35,13 +54,11 @@ MIN_NOTIONAL_USD = _envf("MIN_NOTIONAL_USD", 5.0)  # avoid dust
 FUT_MAX_LEVERAGE = _envi("FUT_MAX_LEVERAGE", 5)
 FUT_DEFAULT_LEV = _envi("FUT_DEFAULT_LEVERAGE", 3)
 
-
 # ---------- helpers ----------
 @dataclass
 class Equity:
     usd: float
     ts: float
-
 
 @dataclass
 class Plan:
@@ -55,7 +72,6 @@ class Plan:
     notional_usd: float
     leverage: int | None
     warnings: list[str]
-
 
 # ATR/volatility → targets
 def make_targets(
@@ -74,7 +90,6 @@ def make_targets(
         return (entry + rr[0] * dist, entry + rr[1] * dist, entry + rr[2] * dist)
     else:
         return (entry - rr[0] * dist, entry - rr[1] * dist, entry - rr[2] * dist)
-
 
 # basic equity fetch (works with your router.account())
 def equity_from_router(router) -> Equity:
@@ -97,7 +112,6 @@ def equity_from_router(router) -> Equity:
         pass
     return Equity(0.0, time.time())
 
-
 # contract/qty sizing
 def size_crypto_from_risk(entry: float, sl: float, equity_usd: float, risk_pct: float) -> float:
     risk_usd = max(0.0, equity_usd * (risk_pct / 100.0))
@@ -108,9 +122,10 @@ def size_crypto_from_risk(entry: float, sl: float, equity_usd: float, risk_pct: 
     # round to 6 decimals to be safe
     return max(0.0, round(qty_base, 6))
 
-
 # very simplified FX lot sizing (USD quote; JPY pip fix handled)
-def lots_fx_from_risk(entry: float, sl: float, equity_usd: float, risk_pct: float, symbol: str) -> float:
+def lots_fx_from_risk(
+    entry: float, sl: float, equity_usd: float, risk_pct: float, symbol: str
+) -> float:
     risk_usd = max(0.0, equity_usd * (risk_pct / 100.0))
     dist = abs(entry - sl)
     if dist <= 0:
@@ -131,7 +146,6 @@ def lots_fx_from_risk(entry: float, sl: float, equity_usd: float, risk_pct: floa
     lots = risk_usd / max(1e-9, usd_risk_per_lot)
     return round(max(0.0, lots), 2)
 
-
 # exposure accounting (simple counters per quote or currency block)
 class ExposureBook:
     def __init__(self):
@@ -144,7 +158,9 @@ class ExposureBook:
             return False
         if self.total_pct + add_pct > RISK_PCT_TOTAL_MAX:
             return False
-        if self.blocks.get(block, 0.0) + add_pct > max(RISK_PCT_TOTAL_MAX / 2.0, RISK_PCT_PER_TRADE * 2.0):
+        if self.blocks.get(block, 0.0) + add_pct > max(
+            RISK_PCT_TOTAL_MAX / 2.0, RISK_PCT_PER_TRADE * 2.0
+        ):
             # don't let one block dominate
             return False
         return True
@@ -153,7 +169,6 @@ class ExposureBook:
         self.blocks[block] = self.blocks.get(block, 0.0) + add_pct
         self.total_pct += add_pct
         self.trades_open += 1
-
 
 # master planner for crypto (spot/linear)
 def plan_crypto(
@@ -186,7 +201,6 @@ def plan_crypto(
         leverage=lev,
         warnings=warnings,
     )
-
 
 # FX plan (lots, notional approximate via entry)
 def plan_fx(

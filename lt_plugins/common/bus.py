@@ -1,5 +1,6 @@
-import os, json
-from typing import Optional
+import os
+import json
+
 try:
     import redis
 except Exception:
@@ -27,4 +28,3 @@ class Bus:
             self._client.publish(self.channel, payload)
         else:
             print(f"[PUB {self.channel}] {payload}")
-

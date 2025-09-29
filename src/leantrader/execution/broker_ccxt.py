@@ -1,8 +1,4 @@
-from __future__ import annotations
-
 import os
-from typing import Any, Dict
-
 
 class BrokerCCXT:
     """Thin CCXT wrapper with strong safety guards.
@@ -13,14 +9,26 @@ class BrokerCCXT:
     """
 
     def __init__(self) -> None:
-        self.exchange_id = (os.getenv("CCXT_EXCHANGE") or os.getenv("EXCHANGE_ID") or "bybit").lower()
+        self.exchange_id = (
+            os.getenv("CCXT_EXCHANGE") or os.getenv("EXCHANGE_ID") or "bybit"
+        ).lower()
         self.mode = (os.getenv("EXCHANGE_MODE") or "spot").lower()
         self.enable_live = os.getenv("ENABLE_LIVE", "false").lower() in ("1", "true", "yes")
         self.allow_live = os.getenv("ALLOW_LIVE", "false").lower() in ("1", "true", "yes")
         self.live_confirm = os.getenv("LIVE_CONFIRM", "").strip().upper() == "YES"
-        self.api_key = os.getenv("API_KEY") or os.getenv(f"{self.exchange_id.upper()}_API_KEY") or ""
-        self.api_secret = os.getenv("API_SECRET") or os.getenv(f"{self.exchange_id.upper()}_API_SECRET") or ""
-        self.live = self.enable_live and self.allow_live and self.live_confirm and self.api_key and self.api_secret
+        self.api_key = (
+            os.getenv("API_KEY") or os.getenv(f"{self.exchange_id.upper()}_API_KEY") or ""
+        )
+        self.api_secret = (
+            os.getenv("API_SECRET") or os.getenv(f"{self.exchange_id.upper()}_API_SECRET") or ""
+        )
+        self.live = (
+            self.enable_live
+            and self.allow_live
+            and self.live_confirm
+            and self.api_key
+            and self.api_secret
+        )
         # lazy import ccxt and init only if live is explicitly allowed or for ticker fetch
         self._ccxt = None
         self._ex = None

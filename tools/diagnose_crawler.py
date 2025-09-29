@@ -1,7 +1,5 @@
 """Diagnostic helper for crawler: prints module availability and runs one crawl."""
 
-from __future__ import annotations
-
 import importlib
 import os
 import sys
@@ -12,7 +10,6 @@ proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if proj_root not in sys.path:
     sys.path.insert(0, proj_root)
 
-
 def check_mod(name: str):
     try:
         m = importlib.import_module(name)
@@ -22,7 +19,6 @@ def check_mod(name: str):
     except Exception as e:
         print(f"MISSING: {name} -> {e}")
         return False
-
 
 def main():
     print("Python:", sys.version.splitlines()[0])
@@ -38,7 +34,6 @@ def main():
     except Exception:
         print("crawl exception:")
         traceback.print_exc()
-
 
 if __name__ == "__main__":
     main()

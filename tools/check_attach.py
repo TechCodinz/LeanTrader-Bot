@@ -1,6 +1,5 @@
 import importlib
 import inspect
-import sys  # noqa: F401  # intentionally kept
 
 print("PYTHONPATH", __import__("os").environ.get("PYTHONPATH"))
 try:

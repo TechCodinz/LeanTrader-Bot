@@ -1,8 +1,5 @@
-import pandas as pd
-
 from ..execution.tcost import expected_cost
 from ..risk.guardrails import position_size
-
 
 def backtest(df: pd.DataFrame, signals: pd.DataFrame, risk_cfg, spread_pts: float = 0.0002):
     equity = 1.0

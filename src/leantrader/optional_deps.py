@@ -5,18 +5,12 @@ Always import these flags instead of importing the libraries at top-level
 in business logic.
 """
 
-from __future__ import annotations
-
-from typing import Optional
-
-
 def _has(mod: str) -> bool:
     try:
         __import__(mod)
         return True
     except Exception:
         return False
-
 
 TORCH_AVAILABLE = _has("torch")
 TENSORFLOW_AVAILABLE = _has("tensorflow")
@@ -30,7 +24,6 @@ XGBOOST_AVAILABLE = _has("xgboost")
 OPTUNA_AVAILABLE = _has("optuna")
 PROM_AVAILABLE = _has("prometheus_client")
 REDIS_AVAILABLE = _has("redis")
-
 
 def check_or_raise(name: str, installed: bool, extra: Optional[str] = None) -> None:
     if not installed:

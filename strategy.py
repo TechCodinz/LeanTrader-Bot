@@ -1,5 +1,4 @@
 # strategy.py
-from __future__ import annotations
 
 import json
 import math
@@ -11,11 +10,9 @@ import pandas as pd
 
 BEST_PATH = os.path.join("reports", "best_params.json")
 
-
 # ---------- utilities ----------
 def _ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=int(n), adjust=False).mean()
-
 
 def _atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
     high, low, close = df["high"], df["low"], df["close"]
@@ -23,14 +20,11 @@ def _atr(df: pd.DataFrame, n: int = 14) -> pd.Series:
     tr = pd.concat([(high - low), (high - prev).abs(), (low - prev).abs()], axis=1).max(axis=1)
     return tr.rolling(int(n)).mean()
 
-
 def _roll_max(s: pd.Series, n: int) -> pd.Series:
     return s.rolling(int(n)).max()
 
-
 def _roll_min(s: pd.Series, n: int) -> pd.Series:
     return s.rolling(int(n)).min()
-
 
 # ---------- Strategy 1: Trend + BB squeeze ----------
 @dataclass
@@ -42,7 +36,6 @@ class TrendBreakoutParams:
     bb_bw_lookback: int = 120
     bb_bw_quantile: float = 0.5
     atr_period: int = 14
-
 
 class TrendBreakoutStrategy:
     def __init__(
@@ -72,7 +65,11 @@ class TrendBreakoutStrategy:
         upper = ma + self.bb_std * sd
         lower = ma - self.bb_std * sd
         d["bb_bw"] = (upper - lower) / ma.replace(0, np.nan)
-        d["bb_thresh"] = d["bb_bw"].rolling(self.bb_bw_lookback).quantile(self.bb_bw_quantile, interpolation="nearest")
+        d["bb_thresh"] = (
+            d["bb_bw"]
+            .rolling(self.bb_bw_lookback)
+            .quantile(self.bb_bw_quantile, interpolation="nearest")
+        )
         d["squeeze"] = d["bb_bw"] <= d["bb_thresh"]
         d["atr"] = _atr(d, self.atr_period)
         trend_up = d["ema_fast"] > d["ema_slow"]
@@ -81,7 +78,6 @@ class TrendBreakoutStrategy:
         info = {"atr_stop_mult": atr_stop_mult, "atr_trail_mult": atr_trail_mult}
         return d, info
 
-
 # ---------- Strategy 2: Naked-Forex price-action ----------
 @dataclass
 class NakedParams:
@@ -89,7 +85,6 @@ class NakedParams:
     pin_len_mult: float = 1.5  # how long wick vs body
     engulf_body_mult: float = 1.1  # engulf body strength
     atr_period: int = 14
-
 
 class NakedForexStrategy:
     """
@@ -147,7 +142,6 @@ class NakedForexStrategy:
         info = {"atr_stop_mult": atr_stop_mult, "atr_trail_mult": atr_trail_mult}
         return d, info
 
-
 # ---------- registry / resolver ----------
 def get_strategy(name: str, **kwargs):
     name = (name or "").lower()
@@ -155,7 +149,6 @@ def get_strategy(name: str, **kwargs):
         return NakedForexStrategy(**kwargs)
     # default
     return TrendBreakoutStrategy(**kwargs)
-
 
 def resolve_strategy_and_params():
     """
@@ -186,7 +179,6 @@ def resolve_strategy_and_params():
         "bb_bw_quantile": default.bb_bw_quantile,
         "atr_period": default.atr_period,
     }
-
 
 def validate_strategies() -> dict:
     """
@@ -220,7 +212,10 @@ def validate_strategies() -> dict:
                     sig = inspect.signature(fn)
                     param_names = [p.name for p in sig.parameters.values()]
                     # Expect at least (self, df, ...) or a 'df'/'dataframe' parameter
-                    if not any(p in param_names for p in ("df", "dataframe", "ohlcv", "bars")) and len(param_names) < 2:
+                    if (
+                        not any(p in param_names for p in ("df", "dataframe", "ohlcv", "bars"))
+                        and len(param_names) < 2
+                    ):
                         w.append(f"entries_and_exits signature unexpected: {param_names}")
                 except Exception as _e:
                     w.append(f"failed to inspect entries_and_exits signature: {_e}")
@@ -237,7 +232,9 @@ def validate_strategies() -> dict:
                     }
                 )
                 try:
-                    out_df, info = inst.entries_and_exits(sample, atr_stop_mult=1.0, atr_trail_mult=0.5)
+                    out_df, info = inst.entries_and_exits(
+                        sample, atr_stop_mult=1.0, atr_trail_mult=0.5
+                    )
                     if not isinstance(out_df, pd.DataFrame):
                         w.append("entries_and_exits did not return a DataFrame as first element")
                     if not isinstance(info, dict):
@@ -264,7 +261,6 @@ def validate_strategies() -> dict:
     except Exception as _e:
         return {"error": str(_e)}
     return warnings
-
 
 def scan_project_with_model(root: str = ".") -> dict:
     """
@@ -295,7 +291,6 @@ def scan_project_with_model(root: str = ".") -> dict:
         except Exception as _e:
             result["other_files_error"] = str(_e)
     return result
-
 
 if __name__ == "__main__":  # quick CLI for strategy + codebase checks
     try:

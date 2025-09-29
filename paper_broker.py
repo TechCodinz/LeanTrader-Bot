@@ -3,8 +3,7 @@ import json
 import pathlib
 import random
 import time
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Optional, Dict, Any, List, Tuple
 
 class PaperBroker:
     """
@@ -114,7 +113,9 @@ class PaperBroker:
         last = self._price(symbol)
         return {"symbol": symbol, "last": last, "timestamp": int(time.time() * 1000)}
 
-    def fetch_ohlcv(self, symbol: str, timeframe: str = "1m", limit: int = 120) -> List[List[float]]:
+    def fetch_ohlcv(
+        self, symbol: str, timeframe: str = "1m", limit: int = 120
+    ) -> List[List[float]]:
         ms = 60_000
         now = int(time.time() // 60 * 60) * 1000
         out, p = [], self._px.get(symbol, 1.0)
@@ -242,10 +243,17 @@ class PaperBroker:
         # spot vs futures (by reduceOnly presence or active futures pos/lev)
         reduce_only = bool(params.get("reduceOnly"))
         is_futures = reduce_only or (
-            symbol in self.fut_pos and self._fut(symbol)["lev"] >= 1 and self._fut(symbol)["qty"] != 0
+            symbol in self.fut_pos
+            and self._fut(symbol)["lev"] >= 1
+            and self._fut(symbol)["qty"] != 0
         )
 
-        if not is_futures and symbol in self.fut_pos and self._fut(symbol)["lev"] >= 1 and params.get("futures", False):
+        if (
+            not is_futures
+            and symbol in self.fut_pos
+            and self._fut(symbol)["lev"] >= 1
+            and params.get("futures", False)
+        ):
             is_futures = True
 
         if not is_futures and "mode" in params and params["mode"] == "futures":
@@ -264,7 +272,9 @@ class PaperBroker:
             pass
         return ord_obj
 
-    def _exec_spot(self, symbol: str, base: str, side: str, amount: float, px: float) -> Dict[str, Any]:
+    def _exec_spot(
+        self, symbol: str, base: str, side: str, amount: float, px: float
+    ) -> Dict[str, Any]:
         if side == "buy":
             cost = amount * px
             if cost > self.cash + 1e-9:
@@ -295,7 +305,9 @@ class PaperBroker:
             "mode": "spot",
         }
 
-    def _exec_futures(self, symbol: str, side: str, amount: float, px: float, reduce_only: bool) -> Dict[str, Any]:
+    def _exec_futures(
+        self, symbol: str, side: str, amount: float, px: float, reduce_only: bool
+    ) -> Dict[str, Any]:
         pos = self._fut(symbol)
         q_old, e_old, lev = pos["qty"], pos["entry"], max(1, int(pos["lev"]))
         q_delta = amount if side == "buy" else -amount
@@ -319,7 +331,9 @@ class PaperBroker:
                 realized += (px - e_old) * (close_amt if q_old > 0 else -close_amt)
                 q_old += close_amt if q_old < 0 else -close_amt
                 q_delta = (amount if side == "buy" else -amount) - (
-                    close_amt if (side == "buy" and q_old < 0) or (side == "sell" and q_old > 0) else -close_amt
+                    close_amt
+                    if (side == "buy" and q_old < 0) or (side == "sell" and q_old > 0)
+                    else -close_amt
                 )
 
             # opening remainder
@@ -335,7 +349,9 @@ class PaperBroker:
                     # avg entry if same side extend; if fresh open from 0 => entry=px
                     if q_old == 0 or (q_new * q_old > 0):
                         w_old = abs(q_old)
-                        pos["entry"] = (e_old * w_old + px * add) / (w_old + add) if w_old > 0 else px
+                        pos["entry"] = (
+                            (e_old * w_old + px * add) / (w_old + add) if w_old > 0 else px
+                        )
 
         # update position
         pos["qty"] = q_new

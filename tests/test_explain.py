@@ -1,10 +1,5 @@
-from __future__ import annotations
-
-import os
-from pathlib import Path
-
 from reporting.explain import write_explanation_markdown
-
+from pathlib import Path
 
 def test_write_explanation_markdown(tmp_path: Path):
     order = {
@@ -30,4 +25,3 @@ def test_write_explanation_markdown(tmp_path: Path):
     assert p.exists()
     text = p.read_text(encoding="utf-8")
     assert "Trade Explanation" in text and "ETH/USDT" in text
-

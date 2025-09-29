@@ -5,7 +5,6 @@ from ib_insync import IB, Forex, MarketOrder
 
 # time and math not used; keep imports lean
 
-
 class IBKRBroker:
     def __init__(self):
         load_dotenv()

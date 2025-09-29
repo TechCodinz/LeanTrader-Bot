@@ -1,11 +1,8 @@
 """Create synthetic OHLCV CSV and run trainer (no network required)."""
 
-from __future__ import annotations
-
 import csv
 import random
 import time
-from pathlib import Path
 
 p = Path("runtime") / "data"
 p.mkdir(parents=True, exist_ok=True)

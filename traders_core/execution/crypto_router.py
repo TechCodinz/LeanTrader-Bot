@@ -1,9 +1,7 @@
-from __future__ import annotations
 
 import os  # noqa: F401  # intentionally kept
 import time
 
-import pandas as pd  # noqa: F401  # intentionally kept
 from dotenv import load_dotenv
 
 from traders_core.connectors.crypto_ccxt import market_buy, market_info, market_sell, ohlcv_df, ticker_price
@@ -25,7 +23,6 @@ from traders_core.storage.registry import load_latest, load_latest_tagged
 from traders_core.utils.ta import atr
 try:
     from risk.guards import GuardState, RiskLimits, should_halt_trading, HaltTrading  # type: ignore
-    from config import (
         RISK_MAX_LOSS_PER_SYMBOL,
         RISK_MAX_DAILY_LOSS,
         RISK_MAX_ACCOUNT_DD,
@@ -43,11 +40,9 @@ load_dotenv()
 TRADING_MODE = os.getenv("TRADING_MODE", "paper").lower()
 CRYPTO_TESTNET = os.getenv("CRYPTO_TESTNET", "true").lower() == "true"
 
-
 def _round_amount(amount: float, prec: int) -> float:
     q = 10**prec
     return int(amount * q) / q
-
 
 def _emulate_oco(symbol_key: str, get_price, sl: float, tp: float, poll: int):
     """Client-side OCO: close paper position when SL or TP hit; for live, send market close."""
@@ -62,7 +57,6 @@ def _emulate_oco(symbol_key: str, get_price, sl: float, tp: float, poll: int):
         if not brk.positions(symbol_key):
             break
         time.sleep(max(1, poll))
-
 
 def decide_and_execute_crypto(
     exchange: str,
@@ -265,19 +259,7 @@ def decide_and_execute_crypto(
                     try:
                         market_sell(exchange, symbol, amount, CRYPTO_TESTNET)
                     except Exception:
-try:
-    from risk.flash_crash import FlashCrashGuard, FlashCrashParams, emergency_hedge
-    from observability.metrics import FLASH_HEDGE_COUNT
-    from ops.slack_notify import warn as slack_warn
-    _FLASH_GUARD = FlashCrashGuard(FlashCrashParams())
-except Exception:
-    _FLASH_GUARD = None
-    FLASH_HEDGE_COUNT = None
-    def slack_warn(title: str, reasons=None):
-        return False
                         pass
-                    return True
-                return False
 
             # quick loop (non-threaded): check once; orchestration calls this function every signal pass
             _live_close()
@@ -332,3 +314,14 @@ except Exception:
         METRICS.orders_total.labels(venue="crypto", symbol=symbol, status="live_error").inc()
         record_order_reject(1)
         return {"status": "live_error", "error": str(e), "regime": regime_now}
+
+try:
+    from risk.flash_crash import FlashCrashGuard, FlashCrashParams, emergency_hedge
+    from observability.metrics import FLASH_HEDGE_COUNT
+    from ops.slack_notify import warn as slack_warn
+    _FLASH_GUARD = FlashCrashGuard(FlashCrashParams())
+except Exception:
+    _FLASH_GUARD = None
+    FLASH_HEDGE_COUNT = None
+    def slack_warn(title: str, reasons=None):
+        return False

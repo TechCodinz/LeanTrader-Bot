@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Small script to apply two low-risk repo-wide fixes:
 - Replace bare `except:` with `except Exception:` (unless it's already `except Exception` or `except BaseException`)
@@ -9,10 +7,11 @@ Backs up files with a .bak extension before modifying.
 """
 
 import re
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PY_FILES = [p for p in ROOT.rglob("*.py") if "site-packages" not in str(p) and ".venv" not in str(p)]
+PY_FILES = [
+    p for p in ROOT.rglob("*.py") if "site-packages" not in str(p) and ".venv" not in str(p)
+]
 
 except_pattern = re.compile(r"^([ \t]*)except\s*:\s*(#.*)?$", flags=re.MULTILINE)
 

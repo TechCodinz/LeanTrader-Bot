@@ -4,14 +4,12 @@ import os
 import subprocess
 import sys
 import time
-from typing import Any, Dict
 
 proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if proj_root not in sys.path:
     sys.path.insert(0, proj_root)
 
 STATE_PATH = os.path.join("reports", "circuit_state.json")
-
 
 def guess_usdt_balance(bal: Dict[str, Any]) -> float:
     try:
@@ -33,7 +31,6 @@ def guess_usdt_balance(bal: Dict[str, Any]) -> float:
         pass
     return 0.0
 
-
 def load_state() -> Dict[str, Any]:
     try:
         with open(STATE_PATH, "r", encoding="utf-8") as f:
@@ -41,12 +38,10 @@ def load_state() -> Dict[str, Any]:
     except Exception:
         return {"date": str(datetime.date.today()), "cumulative_loss": 0.0}
 
-
 def save_state(s: Dict[str, Any]) -> None:
     os.makedirs(os.path.dirname(STATE_PATH) or ".", exist_ok=True)
     with open(STATE_PATH, "w", encoding="utf-8") as f:
         json.dump(s, f, indent=2)
-
 
 def run_live_once() -> Dict[str, Any]:
     """
@@ -73,18 +68,15 @@ def run_live_once() -> Dict[str, Any]:
     except Exception as e:
         return {"error": f"subprocess failed: {e}"}
 
-
 def get_balance_estimate() -> float:
     # import ExchangeRouter locally to avoid import when not needed
     try:
-        from router import ExchangeRouter
 
         ex = ExchangeRouter()
         bal = ex.safe_fetch_balance()
         return guess_usdt_balance(bal)
     except Exception:
         return 0.0
-
 
 def main():
     poll_interval = float(os.getenv("POLL_INTERVAL", "60"))  # seconds between cycles
@@ -103,7 +95,9 @@ def main():
         save_state(state)
 
     prev_balance = get_balance_estimate()
-    print(f"[daemon] starting: prev_balance_estimate={prev_balance} USD, daily_loss={state['cumulative_loss']} USD")
+    print(
+        f"[daemon] starting: prev_balance_estimate={prev_balance} USD, daily_loss={state['cumulative_loss']} USD"
+    )
 
     try:
         while True:
@@ -127,18 +121,24 @@ def main():
             curr_balance = get_balance_estimate()
             delta = prev_balance - curr_balance  # positive if we lost USD
             if delta > 0:
-                state["cumulative_loss"] = round(float(state.get("cumulative_loss", 0.0)) + float(delta), 8)
+                state["cumulative_loss"] = round(
+                    float(state.get("cumulative_loss", 0.0)) + float(delta), 8
+                )
                 state["last_delta"] = float(delta)
                 state["date"] = today
                 save_state(state)
-                print(f"[daemon] loss this run: {delta:.6f} USD -> cumulative {state['cumulative_loss']:.6f} USD")
+                print(
+                    f"[daemon] loss this run: {delta:.6f} USD -> cumulative {state['cumulative_loss']:.6f} USD"
+                )
             else:
                 print(f"[daemon] no loss this run (delta={delta:.6f})")
             prev_balance = curr_balance
 
             # check after update
             if circuit_enabled and state.get("cumulative_loss", 0.0) >= daily_max_loss:
-                print(f"[daemon] circuit-breaker tripped after run: cumulative_loss={state['cumulative_loss']}")
+                print(
+                    f"[daemon] circuit-breaker tripped after run: cumulative_loss={state['cumulative_loss']}"
+                )
                 break
 
             time.sleep(poll_interval)
@@ -146,7 +146,6 @@ def main():
         print("[daemon] interrupted by user, exiting")
     except Exception as e:
         print(f"[daemon] unexpected error: {e}")
-
 
 if __name__ == "__main__":
     main()

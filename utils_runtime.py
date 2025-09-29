@@ -10,10 +10,8 @@ RUNTIME.mkdir(exist_ok=True)
 KILL = RUNTIME / "kill.flag"
 HEART = RUNTIME / "heartbeat.json"
 
-
 def should_stop() -> bool:
     return KILL.exists()
-
 
 def write_heartbeat(state: dict):
     state = {

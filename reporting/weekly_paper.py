@@ -1,11 +1,5 @@
-from __future__ import annotations
-
-import datetime as dt
 import json
 import os
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
-
 
 def _iso_week_range(iso_week: str) -> Tuple[dt.date, dt.date]:
     # iso_week like '2025-W07'
@@ -16,7 +10,6 @@ def _iso_week_range(iso_week: str) -> Tuple[dt.date, dt.date]:
     d6 = d0 + dt.timedelta(days=6)
     return d0, d6
 
-
 def _daterange(d0: dt.date, d1: dt.date) -> List[str]:
     out = []
     cur = d0
@@ -25,13 +18,11 @@ def _daterange(d0: dt.date, d1: dt.date) -> List[str]:
         cur = cur + dt.timedelta(days=1)
     return out
 
-
 def _load_json_safe(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding='utf-8'))
     except Exception:
         return None
-
 
 def _sharpe(pnls: Sequence[float]) -> float:
     if not pnls:
@@ -43,8 +34,7 @@ def _sharpe(pnls: Sequence[float]) -> float:
     if st <= 0:
         return 0.0
     # Assume daily series; annualize to 252 trading days
-    return float((mean / st) * (252 ** 0.5))
-
+    return float((mean / st) * (252**0.5))
 
 def _max_drawdown(series: Sequence[float]) -> float:
     if not series:
@@ -58,7 +48,6 @@ def _max_drawdown(series: Sequence[float]) -> float:
         dd = cum - peak
         mdd = min(mdd, dd)
     return float(mdd)
-
 
 def gather_weekly_stats(iso_week: str) -> Dict[str, Any]:
     d0, d6 = _iso_week_range(iso_week)
@@ -117,7 +106,6 @@ def gather_weekly_stats(iso_week: str) -> Dict[str, Any]:
     # Notable sentiment and on-chain events
     sentiment = {}
     try:
-        from news_adapter import _load_json, CRYPTO_PATH  # type: ignore
 
         sent_js = _load_json(Path(CRYPTO_PATH)) or {}
         sentiment = sent_js.get('bias', {})
@@ -151,10 +139,8 @@ def gather_weekly_stats(iso_week: str) -> Dict[str, Any]:
         'onchain_events': onchain_events,
     }
 
-
 def _render_jinja(template: str, ctx: Dict[str, Any]) -> str:
     try:
-        from jinja2 import Environment, FileSystemLoader  # type: ignore
 
         env = Environment(loader=FileSystemLoader('templates'), autoescape=False)
         tmpl = env.get_template(template)
@@ -163,23 +149,20 @@ def _render_jinja(template: str, ctx: Dict[str, Any]) -> str:
         # minimal fallback HTML
         return f"<html><body><pre>{json.dumps(ctx, indent=2)}</pre></body></html>"
 
-
 def render_weekly_html(payload: Dict[str, Any]) -> str:
     if Path('templates/weekly_paper.html.j2').exists():
         return _render_jinja('weekly_paper.html.j2', payload)
     return _render_jinja('', payload)  # fallback
 
-
 def render_weekly_tex(payload: Dict[str, Any]) -> str:
     if Path('templates/weekly_paper.tex.j2').exists():
         return _render_jinja('weekly_paper.tex.j2', payload)
     # fallback minimal TeX
-    return (r"\documentclass{article}\begin{document}"
-            + json.dumps(payload)
-            + r"\end{document}")
+    return r"\documentclass{article}\begin{document}" + json.dumps(payload) + r"\end{document}"
 
-
-def write_weekly_report(iso_week: str, out_prefix: str = 'out/reports/weekly') -> Dict[str, Optional[str]]:
+def write_weekly_report(
+    iso_week: str, out_prefix: str = 'out/reports/weekly'
+) -> Dict[str, Optional[str]]:
     payload = gather_weekly_stats(iso_week)
     # Generate top ideas (best-effort)
     try:
@@ -225,6 +208,5 @@ def write_weekly_report(iso_week: str, out_prefix: str = 'out/reports/weekly') -
             pdf_ok = False
 
     return {'html': out_html, 'pdf': out_pdf if pdf_ok else None}
-
 
 __all__ = ['gather_weekly_stats', 'render_weekly_html', 'render_weekly_tex', 'write_weekly_report']

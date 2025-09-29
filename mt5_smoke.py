@@ -1,13 +1,10 @@
 # mt5_smoke.py  — drop-in replacement
-from __future__ import annotations
 
 import sys
 
 import pandas as pd  # only used to pretty-print the last few rows
 
 # Use the adapter we already wired
-from mt5_adapter_old import account_summary_lines, bars_df, mt5_init
-
 
 def main() -> None:
     if len(sys.argv) < 3:
@@ -53,7 +50,6 @@ def main() -> None:
         print(df.tail(5).to_string(index=False))
     except Exception:
         pass
-
 
 if __name__ == "__main__":
     main()

@@ -1,13 +1,9 @@
-from __future__ import annotations
-
 import argparse
 import json
 import os
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any, Dict, Optional
-
 
 class _KV:
     """Small Redis-like wrapper. Falls back to in-memory when redis is unavailable.
@@ -35,7 +31,9 @@ class _KV:
             if exp and now >= exp:
                 del self._mem[k]
 
-    def set(self, name: str, value: str, ex: Optional[int] = None, nx: bool = False, xx: bool = False) -> bool:
+    def set(
+        self, name: str, value: str, ex: Optional[int] = None, nx: bool = False, xx: bool = False
+    ) -> bool:
         if not self._use_mem:
             try:
                 res = self._r.set(name, value, ex=ex, nx=nx, xx=xx)  # type: ignore
@@ -87,12 +85,13 @@ class _KV:
                 pass
         self._mem.pop(name, None)
 
-
 try:
-    from prometheus_client import Gauge, CollectorRegistry, generate_latest  # type: ignore
 
-    SUP_LEADER = Gauge("supervisor_leader", "1 if this node is leader", ["node", "namespace"])  # noqa: N816
+    SUP_LEADER = Gauge(
+        "supervisor_leader", "1 if this node is leader", ["node", "namespace"]
+    )  # noqa: N816
 except Exception:  # pragma: no cover
+
     class _Noop:
         def labels(self, *_: Any, **__: Any) -> "_Noop":
             return self
@@ -105,9 +104,15 @@ except Exception:  # pragma: no cover
 
     SUP_LEADER = _Noop()  # type: ignore
 
-
 class Supervisor:
-    def __init__(self, *, node_id: str, namespace: str = "lt", ttl_sec: int = 15, redis_url: Optional[str] = None):
+    def __init__(
+        self,
+        *,
+        node_id: str,
+        namespace: str = "lt",
+        ttl_sec: int = 15,
+        redis_url: Optional[str] = None,
+    ):
         self.node_id = node_id
         self.ns = namespace
         self.ttl = max(5, int(ttl_sec))
@@ -219,7 +224,9 @@ class Supervisor:
                 pass
             time.sleep(max(1.0, self.ttl / 4.0))
 
-    def run(self, role: str = "standby", jobs: Optional[list[list[str]]] = None, http_port: int = 8081) -> None:
+    def run(
+        self, role: str = "standby", jobs: Optional[list[list[str]]] = None, http_port: int = 8081
+    ) -> None:
         self._start_http(port=http_port)
         if role == "leader":
             if not self._try_acquire():
@@ -246,7 +253,6 @@ class Supervisor:
         finally:
             self._stop.set()
 
-
 def _default_jobs() -> list[list[str]]:
     jobs: list[list[str]] = []
     # Always run scheduler in leader
@@ -259,7 +265,6 @@ def _default_jobs() -> list[list[str]]:
         jobs.append([os.environ.get("PYTHON", os.sys.executable), "tools/metrics_http.py"])
     return jobs
 
-
 def main() -> int:
     p = argparse.ArgumentParser(description="LeanTrader process supervisor with leader election")
     p.add_argument("--role", choices=["leader", "standby"], default=os.getenv("ROLE", "standby"))
@@ -271,10 +276,11 @@ def main() -> int:
     args = p.parse_args()
 
     node_id = args.node_id or (os.getenv("HOSTNAME") or f"node-{int(time.time())}")
-    sup = Supervisor(node_id=node_id, namespace=args.namespace, ttl_sec=args.ttl, redis_url=(args.redis or None))
+    sup = Supervisor(
+        node_id=node_id, namespace=args.namespace, ttl_sec=args.ttl, redis_url=(args.redis or None)
+    )
     sup.run(role=args.role, jobs=_default_jobs(), http_port=args.http_port)
     return 0
-
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

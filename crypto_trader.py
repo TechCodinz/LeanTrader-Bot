@@ -1,15 +1,12 @@
 # crypto_trader.py
-from __future__ import annotations
 
 import argparse
 import os
 import time
 from typing import Any, Dict, List
-
 import numpy as np
 
 from router import ExchangeRouter
-
 
 def ema(x: np.ndarray, n: int) -> np.ndarray:
     k = 2.0 / (n + 1.0)
@@ -18,7 +15,6 @@ def ema(x: np.ndarray, n: int) -> np.ndarray:
     for i in range(1, len(x)):
         out[i] = out[i - 1] + k * (x[i] - out[i - 1])
     return out
-
 
 def momentum_signal(closes: List[float]) -> str:
     c = np.array(closes, dtype=float)
@@ -30,12 +26,12 @@ def momentum_signal(closes: List[float]) -> str:
         return "sell"
     return "flat"
 
-
 def _close_list(ohlcv) -> List[float]:
     return [float(r[4]) for r in ohlcv]
 
-
-def trade_once(r: ExchangeRouter, *, prefer_futures: bool, notional_spot: float = 5.0) -> Dict[str, Any]:
+def trade_once(
+    r: ExchangeRouter, *, prefer_futures: bool, notional_spot: float = 5.0
+) -> Dict[str, Any]:
     syms = r.list_scan_symbols()
     if not syms:
         return {"ok": False, "error": "no symbols to scan"}
@@ -78,7 +74,6 @@ def trade_once(r: ExchangeRouter, *, prefer_futures: bool, notional_spot: float 
                 return {"ok": True, "mode": "spot", "order": res.get("result")}
             return {"ok": True, "mode": "spot", "order": res}
 
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -107,7 +102,6 @@ def main():
         if not args.loop:
             break
         time.sleep(args.sleep)
-
 
 if __name__ == "__main__":
     main()

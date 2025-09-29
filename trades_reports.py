@@ -1,20 +1,18 @@
 # trades_report.py
-from __future__ import annotations
 
 import argparse  # noqa: F401  # intentionally kept
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pandas as pd
 
-from ledger import LEDGER, daily_pnl_text
-
+LEDGER = Path("data") / "ledger.csv"
 
 def _load() -> pd.DataFrame:
     try:
         return pd.read_csv(LEDGER)
     except Exception:
         return pd.DataFrame()
-
 
 def _since_days(df: pd.DataFrame, days: int) -> pd.DataFrame:
     if df.empty:
@@ -24,7 +22,6 @@ def _since_days(df: pd.DataFrame, days: int) -> pd.DataFrame:
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     return df[df["date"] >= cutoff.replace(tzinfo=None)]
 
-
 def main():
     p = argparse.ArgumentParser(description="Ledger stats")
     p.add_argument("--last", type=int, default=7, help="days back")
@@ -32,7 +29,15 @@ def main():
     args = p.parse_args()
 
     if args.daily:
-        print(daily_pnl_text())
+        try:
+            from outcome_logger import OutcomeLogger
+
+            # naive: compute daily summary via logger helper if present
+            day = datetime.now(timezone.utc).strftime("%Y%m%d")
+            logger = OutcomeLogger()
+            print(logger.daily_pnl_report(day))
+        except Exception:
+            print("Daily summary unavailable.")
         return
 
     df = _load()
@@ -61,7 +66,6 @@ def main():
         print("\nTop symbols (PnL):")
         for sym, v in by_sym.items():
             print(f"  {sym:<10} {v:.4f}")
-
 
 if __name__ == "__main__":
     main()

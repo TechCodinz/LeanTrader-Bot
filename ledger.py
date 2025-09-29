@@ -1,5 +1,4 @@
 # ledger.py
-from __future__ import annotations
 
 import csv
 import json
@@ -7,7 +6,6 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
 import pandas as pd
 
 DATA_DIR = Path("data")
@@ -35,16 +33,13 @@ HEADERS = [
     "status",  # status: open|closed|stopped|tp
 ]
 
-
 def _utc_now() -> int:
     return int(time.time())
-
 
 def _ensure_file():
     if not LEDGER.exists():
         with open(LEDGER, "w", newline="", encoding="utf-8") as f:
             csv.writer(f).writerow(HEADERS)
-
 
 def log_entry(
     *,
@@ -88,7 +83,6 @@ def log_entry(
         csv.writer(f).writerow(row)
     return f"{symbol}|{tf}|{ts}"
 
-
 def log_exit(trade_id: str, *, exit_px: float, status: str = "closed") -> None:
     """
     id format: symbol|tf|ts_entry
@@ -116,7 +110,11 @@ def log_exit(trade_id: str, *, exit_px: float, status: str = "closed") -> None:
 
     # R-multiple: distance to SL (if present); fallback to |entry|*0.003 (0.3%) to avoid /0
     risk_per_unit = abs(entry - sl) if sl and sl > 0 else max(1e-9, abs(entry) * 0.003)
-    pnl_r = ((exit_px - entry) / risk_per_unit) if side == "buy" else ((entry - exit_px) / risk_per_unit)
+    pnl_r = (
+        ((exit_px - entry) / risk_per_unit)
+        if side == "buy"
+        else ((entry - exit_px) / risk_per_unit)
+    )
 
     hold_min = max(0.0, (ts_now - ts_entry) / 60.0)
 
@@ -129,7 +127,6 @@ def log_exit(trade_id: str, *, exit_px: float, status: str = "closed") -> None:
     df.loc[idx, "status"] = status
 
     df.to_csv(LEDGER, index=False)
-
 
 def daily_pnl_text(day: Optional[str] = None) -> str:
     """
@@ -166,7 +163,6 @@ def daily_pnl_text(day: Optional[str] = None) -> str:
             f"• `{r['symbol']}` {r['side']} tf=`{r['tf']}`  R=`{float(r['pnl_r']):.2f}`  PnL=`{float(r['pnl_raw']):.4f}`"
         )
     return "\n".join(lines)
-
 
 def open_positions() -> List[Dict[str, Any]]:
     _ensure_file()

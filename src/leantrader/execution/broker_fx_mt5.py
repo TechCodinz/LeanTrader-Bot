@@ -5,7 +5,6 @@ try:
 except Exception:
     mt5 = None
 
-
 class MT5Broker:
     def __init__(self):
         if mt5 is None:

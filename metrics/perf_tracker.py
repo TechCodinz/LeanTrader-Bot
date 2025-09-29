@@ -1,17 +1,11 @@
-from __future__ import annotations
-
 import json
 import os
 import time
-from collections import deque
-from pathlib import Path
-from typing import Any, Deque, Dict, Optional, Tuple
 
 _ROOT = Path(os.getenv("STATE_DIR", ".state"))
 _ROOT.mkdir(parents=True, exist_ok=True)
 _TRADES = _ROOT / "perf_trades.jsonl"
 _EQUITY = _ROOT / "equity.json"
-
 
 class PerfTracker:
     def __init__(self, window: int = 200) -> None:
@@ -30,7 +24,9 @@ class PerfTracker:
 
     def _save_equity(self) -> None:
         try:
-            _EQUITY.write_text(json.dumps({"ts": int(time.time()), "equity": self._equity}), encoding="utf-8")
+            _EQUITY.write_text(
+                json.dumps({"ts": int(time.time()), "equity": self._equity}), encoding="utf-8"
+            )
         except Exception:
             pass
 
@@ -50,12 +46,17 @@ class PerfTracker:
         # append to file for persistence
         try:
             with open(_TRADES, "a", encoding="utf-8") as f:
-                f.write(json.dumps({
-                    "ts": int(time.time()),
-                    "symbol": symbol,
-                    "win": bool(win),
-                    "R": float(r_multiple),
-                }) + "\n")
+                f.write(
+                    json.dumps(
+                        {
+                            "ts": int(time.time()),
+                            "symbol": symbol,
+                            "win": bool(win),
+                            "R": float(r_multiple),
+                        }
+                    )
+                    + "\n"
+                )
         except Exception:
             pass
 
@@ -94,26 +95,20 @@ class PerfTracker:
     def get_roll_payoff(self, symbol: str) -> float:
         return self._roll(symbol)[1]
 
-
 # module-level singleton
 _PT = PerfTracker()
-
 
 def current_equity() -> float:
     return _PT.current_equity()
 
-
 def set_equity(equity: float) -> None:
     _PT.set_equity(equity)
-
 
 def get_roll_winrate(symbol: str) -> float:
     return _PT.get_roll_winrate(symbol)
 
-
 def get_roll_payoff(symbol: str) -> float:
     return _PT.get_roll_payoff(symbol)
-
 
 def update_after_fill(fill: Dict[str, Any]) -> None:
     try:
@@ -123,4 +118,3 @@ def update_after_fill(fill: Dict[str, Any]) -> None:
         _PT.update_after_fill(sym, win, r)
     except Exception:
         pass
-

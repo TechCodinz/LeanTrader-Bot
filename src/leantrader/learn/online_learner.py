@@ -1,15 +1,10 @@
-from __future__ import annotations
-
 import json
 import os
 import time
-from pathlib import Path
-from typing import Dict, Tuple
 
 from .metrics import Trade, write_trade
 
 STATE = Path(os.getenv("LEARN_STATE_PATH", "runtime/learn_state.json"))
-
 
 def _load() -> Dict:
     try:
@@ -21,11 +16,9 @@ def _load() -> Dict:
             "sl_mult": {},
         }
 
-
 def _save(d: Dict) -> None:
     STATE.parent.mkdir(parents=True, exist_ok=True)
     STATE.write_text(json.dumps(d, indent=2), encoding="utf-8")
-
 
 def update_after_trade(symbol: str, side: str, r_mult: float, session: str) -> Dict:
     write_trade(Trade(ts=int(time.time()), symbol=symbol, side=side, r_mult=r_mult))
@@ -52,7 +45,6 @@ def update_after_trade(symbol: str, side: str, r_mult: float, session: str) -> D
     sl_map[sl_key] = sl_val
     _save(st)
     return st
-
 
 def get_tuned_multipliers(symbol: str, session: str) -> Tuple[float, float]:
     """Return (tp_mult, sl_mult) learned for symbol+session.

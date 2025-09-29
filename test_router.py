@@ -5,14 +5,11 @@ import time
 
 from router import ExchangeRouter  # uses your new router.py
 
-
 def j(x):
     return json.dumps(x, indent=2, default=str)
 
-
 def banner(t):
     print("\n" + "=" * 10 + " " + t + " " + "=" * 10)
-
 
 def test_account(r):
     banner("ROUTER INFO")
@@ -22,14 +19,12 @@ def test_account(r):
     banner("SAMPLE SYMBOLS")
     print(j(r.sample_symbols()))
 
-
 def test_spot(r, sym="BTC/USDT"):
     banner(f"SPOT PAPER DEMO ({sym})")
     print("# buy ~5 USDT notional")
     print(j(r.place_spot_market(sym, "buy", notional=5)))
     print("# sell ~5 USDT notional")
     print(j(r.place_spot_market(sym, "sell", notional=5)))
-
 
 def test_futures(r, sym="BTC/USDT", qty=0.001, lev=3):
     banner(f"FUTURES PAPER DEMO ({sym})")
@@ -40,7 +35,6 @@ def test_futures(r, sym="BTC/USDT", qty=0.001, lev=3):
     # close (reduce)
     print("# close long (reduceOnly)")
     print(j(r.place_futures_market(sym, "sell", qty=qty, leverage=lev, close=True)))
-
 
 def main():
     r = ExchangeRouter()
@@ -59,7 +53,6 @@ def main():
     except Exception as e:
         banner("FUTURES TEST SKIPPED")
         print(str(e))
-
 
 if __name__ == "__main__":
     main()

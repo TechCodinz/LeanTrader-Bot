@@ -12,7 +12,6 @@ HOSTS = {
     "live": "https://api-fxtrade.oanda.com",
 }
 
-
 class OandaBroker:
     def __init__(self, api_token: str = None, account_id: str = None, env: str = None):
         self.token = api_token or os.getenv("OANDA_API_TOKEN", "")

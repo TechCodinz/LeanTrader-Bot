@@ -1,17 +1,15 @@
-from __future__ import annotations
-
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from w3guard.guards import MempoolMonitor, PrivateTxClient, get_mempool_tuning
-from router_safe import guarded_swap
-
+from w3guard.guards import MempoolMonitor, PrivateTxClient, get_mempool_tuning, guarded_swap
 
 def _monitor_from_risk_json(path: str, symbol: str, timeframe: str) -> MempoolMonitor:
     import json
-    from pathlib import Path
 
     tune = get_mempool_tuning(symbol, timeframe)
-    mon = MempoolMonitor(symbol=symbol, timeframe=timeframe, window_ms=tune["window_ms"], drop_bps=tune["drop_bps"]) 
+    mon = MempoolMonitor(
+        symbol=symbol, timeframe=timeframe, window_ms=tune["window_ms"], drop_bps=tune["drop_bps"]
+    )
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
         risk = float(data.get("risk", 0.0) or 0.0)
@@ -19,7 +17,6 @@ def _monitor_from_risk_json(path: str, symbol: str, timeframe: str) -> MempoolMo
     except Exception:
         pass
     return mon
-
 
 def execute_swap(
     *,
@@ -57,6 +54,5 @@ def execute_swap(
         private_client=private_client,
         hedger=hedger,
     )
-
 
 __all__ = ["execute_swap"]

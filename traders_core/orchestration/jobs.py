@@ -1,13 +1,12 @@
-from __future__ import annotations
-
 import os
 import time
-from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
 
-from traders_core.connectors.crypto_ccxt import ohlcv_df, ticker_price  # noqa: F401  # intentionally kept
+from traders_core.connectors.crypto_ccxt import (
+    ohlcv_df,
+)  # noqa: F401  # intentionally kept
 from traders_core.execution.crypto_router import decide_and_execute_crypto
 from traders_core.execution.router import decide_and_execute_mt5
 from traders_core.features.pipeline import build_xy, make_features, rates_to_df
@@ -27,15 +26,12 @@ MODELS_DIR = os.getenv("MODELS_DIR", "./runtime_models")
 NOTES_DIR = os.getenv("NOTES_DIR", "./runtime_notes")
 CRYPTO_TESTNET = os.getenv("CRYPTO_TESTNET", "true").lower() == "true"
 
-
 def load_cfg(path="traders_core/configs/default.yaml") -> dict:
     return yaml.safe_load(Path(path).read_text())
-
 
 def _relabel_symbol_for_models(symbol: str, venue: str) -> str:
     # Save/load models under symbol-timeframe directories; for crypto, replace '/'
     return symbol.replace("/", "_") if venue == "crypto" else symbol
-
 
 def research_once(cfg: dict):
     results = {}
@@ -66,7 +62,9 @@ def research_once(cfg: dict):
             df = rates_to_df(rates)
             feats = make_features(df)
             X, y = build_xy(feats, horizon=cfg["horizon_bars"])
-            Xw, yw = X.tail(cfg["online_learning"]["window_bars"]), y.tail(cfg["online_learning"]["window_bars"])
+            Xw, yw = X.tail(cfg["online_learning"]["window_bars"]), y.tail(
+                cfg["online_learning"]["window_bars"]
+            )
             if len(Xw) >= cfg["online_learning"]["min_samples"]:
                 from traders_core.storage.registry import load_latest, save_model  # noqa: E402
 
@@ -82,7 +80,6 @@ def research_once(cfg: dict):
         results[sym] = out
         # ... write digest, metrics unchanged ...
     return results
-
 
 def signals_once(cfg: dict):
     out = {}
@@ -104,7 +101,6 @@ def signals_once(cfg: dict):
             )
         else:
             # 5-day window from MT5
-            import pandas as pd  # noqa: F401  # intentionally kept  # noqa: E402
 
             rates = copy_rates_days(a["symbol"], a["timeframe"], 5)
             fx_dfs[a["symbol"]] = rates_to_df(rates)
@@ -127,7 +123,9 @@ def signals_once(cfg: dict):
                 cfg["regimes"]["calm_quantile"],
             ).iloc[-1]
             tag = "storm" if reg == "storm" else "calm"
-            model, meta = load_latest_tagged(sym.replace("/", "_") if venue == "crypto" else sym, tf, tag, MODELS_DIR)
+            model, meta = load_latest_tagged(
+                sym.replace("/", "_") if venue == "crypto" else sym, tf, tag, MODELS_DIR
+            )
             # if tagged missing, the routers will still fallback to global model internally
 
         # Route
@@ -137,7 +135,6 @@ def signals_once(cfg: dict):
             ex = a.get("exchange", "binance")
             out[sym] = decide_and_execute_crypto(ex, sym, tf, cfg, MODELS_DIR, cfg["lookback_days"])
     return out
-
 
 def run_forever(cfg_path="traders_core/configs/default.yaml"):
     cfg = load_cfg(cfg_path)

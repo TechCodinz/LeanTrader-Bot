@@ -3,10 +3,7 @@ import json as _json
 import os
 import threading
 import time as _time
-from pathlib import Path
-from typing import Dict
 
-import pandas as pd
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
@@ -24,26 +21,21 @@ load_dotenv()
 
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 
-
 def require_admin(token: str = Query("")):
     if ADMIN_TOKEN and token != ADMIN_TOKEN:
         raise HTTPException(status_code=401, detail="invalid admin token")
     return True
 
-
 app = FastAPI(title="LeanTrader API", version="0.4")
 app.include_router(trade_router)
-
 
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
 
-
 def _csv_path(pair: str, tf: str) -> str:
     p = pair.replace("/", "")
     return f"data/ohlc/{p}_{tf}.csv"
-
 
 def _load_frames(pair: str):
     frames = {}
@@ -54,12 +46,13 @@ def _load_frames(pair: str):
             frames[tf] = df[["open", "high", "low", "close"]].sort_index()
     return frames
 
-
 @app.get("/signal")
 def signal(pair: str = Query("EURUSD"), post: bool = Query(False), preview: bool = Query(False)):
     frames = _load_frames(pair)
     if not frames:
-        return {"error": "No data found. Place CSVs in data/ohlc/<PAIR>_<TF>.csv with time,open,high,low,close."}
+        return {
+            "error": "No data found. Place CSVs in data/ohlc/<PAIR>_<TF>.csv with time,open,high,low,close."
+        }
     sigs = generate_signals(frames, pair, post=False)
     last = sigs.tail(1).to_dict(orient="records")[0] if len(sigs) else {}
     # Ensure required keys exist
@@ -87,7 +80,6 @@ def signal(pair: str = Query("EURUSD"), post: bool = Query(False), preview: bool
         except Exception:
             pass
     return {"pair": pair, "signal": last}
-
 
 @app.post("/telegram/callback")
 async def telegram_callback(req: Request):
@@ -117,12 +109,10 @@ async def telegram_callback(req: Request):
         pass
     return {"ok": True}
 
-
 def _orders_path() -> Path:
     p = Path(os.getenv("ORDERS_LOG_PATH", "runtime/orders.json"))
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
-
 
 def _log_order(obj: Dict) -> None:
     p = _orders_path()
@@ -133,7 +123,6 @@ def _log_order(obj: Dict) -> None:
     items.append(obj)
     p.write_text(json.dumps(items, indent=2), encoding="utf-8")
 
-
 @app.get("/orders")
 def list_orders(user: str = Query("demo")):
     try:
@@ -143,13 +132,13 @@ def list_orders(user: str = Query("demo")):
     out = [x for x in items if str(x.get("user")) == str(user)] or items
     return {"orders": out}
 
-
 @app.post("/admin/user/create")
-def admin_user_create(user_id: str = Query(...), display_name: str = Query(""), _: bool = Depends(require_admin)):
+def admin_user_create(
+    user_id: str = Query(...), display_name: str = Query(""), _: bool = Depends(require_admin)
+):
     p = UserProfile(user_id=user_id, display_name=display_name)
     upsert_profile(p)
     return {"ok": True, "profile": p.to_public()}
-
 
 @app.post("/admin/user/setkeys")
 def admin_user_setkeys(
@@ -162,7 +151,6 @@ def admin_user_setkeys(
     set_keys(user_id, fx_key or None, fx_secret or None, ccxt_key or None, ccxt_secret or None)
     return {"ok": True}
 
-
 @app.get("/admin/user/get")
 def admin_user_get(user_id: str = Query(...), _: bool = Depends(require_admin)):
     p = get_profile(user_id)
@@ -173,9 +161,7 @@ def admin_user_get(user_id: str = Query(...), _: bool = Depends(require_admin)):
     red = {k: (len(v) if v else 0) for k, v in ks.items()}
     return {"ok": True, "profile": p.to_public(), "keys_present": red}
 
-
 BROKER_MODE = os.getenv("BROKER_MODE", "emu").lower()
-
 
 def _exec_market(symbol: str, side: str, qty: float, price: float):
     if BROKER_MODE == "emu":
@@ -189,7 +175,6 @@ def _exec_market(symbol: str, side: str, qty: float, price: float):
         return {"status": "todo_fx"}
     else:
         return {"status": "unknown_mode"}
-
 
 @app.post("/admin/premium/add")
 def admin_premium_add(chat_id: str = Query(...), _: bool = Depends(require_admin)):
@@ -205,7 +190,6 @@ def admin_premium_add(chat_id: str = Query(...), _: bool = Depends(require_admin
     open(path, "w", encoding="utf-8").write(json.dumps(data, indent=2))
     return {"ok": True, "premium_chat_ids": data["premium_chat_ids"]}
 
-
 @app.post("/admin/premium/remove")
 def admin_premium_remove(chat_id: str = Query(...), _: bool = Depends(require_admin)):
     path = os.getenv("PREMIUM_LIST_PATH", "data/telegram/premium.json")
@@ -214,10 +198,11 @@ def admin_premium_remove(chat_id: str = Query(...), _: bool = Depends(require_ad
     import json as _json
 
     data = _json.loads(open(path, "r", encoding="utf-8").read())
-    data["premium_chat_ids"] = [str(x) for x in data.get("premium_chat_ids", []) if str(x) != str(chat_id)]
+    data["premium_chat_ids"] = [
+        str(x) for x in data.get("premium_chat_ids", []) if str(x) != str(chat_id)
+    ]
     open(path, "w", encoding="utf-8").write(json.dumps(data, indent=2))
     return {"ok": True, "premium_chat_ids": data["premium_chat_ids"]}
-
 
 @app.get("/admin/premium/list")
 def admin_premium_list(_: bool = Depends(require_admin)):
@@ -229,9 +214,7 @@ def admin_premium_list(_: bool = Depends(require_admin)):
     data = _json.loads(open(path, "r", encoding="utf-8").read())
     return {"premium_chat_ids": data.get("premium_chat_ids", [])}
 
-
 app.include_router(admin_router)
-
 
 # ------- Telegram publish helper with counters + optional Redis fanout -------
 _PUBLISHED_COUNT = 0
@@ -246,7 +229,6 @@ _G_TRADES = None
 _G_WINRATE = None
 _G_AVG_R = None
 
-
 def _maybe_init_prom():
     global _PROM_REG, _C_PUBLISHED, _G_LAST_TS, _G_ORDERS, _G_TRADES, _G_WINRATE, _G_AVG_R
     if not PROM_AVAILABLE or _PROM_REG is not None:
@@ -255,15 +237,18 @@ def _maybe_init_prom():
         from prometheus_client import CollectorRegistry, Counter, Gauge  # type: ignore
 
         _PROM_REG = CollectorRegistry()
-        _C_PUBLISHED = Counter("lt_signals_published_total", "Signals published", registry=_PROM_REG)
-        _G_LAST_TS = Gauge("lt_last_publish_timestamp_seconds", "Last publish timestamp", registry=_PROM_REG)
+        _C_PUBLISHED = Counter(
+            "lt_signals_published_total", "Signals published", registry=_PROM_REG
+        )
+        _G_LAST_TS = Gauge(
+            "lt_last_publish_timestamp_seconds", "Last publish timestamp", registry=_PROM_REG
+        )
         _G_ORDERS = Gauge("lt_orders_total", "Orders logged", registry=_PROM_REG)
         _G_TRADES = Gauge("lt_trades_total", "Trades logged", registry=_PROM_REG)
         _G_WINRATE = Gauge("lt_learn_winrate", "Winrate", registry=_PROM_REG)
         _G_AVG_R = Gauge("lt_learn_avg_r", "Average R", registry=_PROM_REG)
     except Exception:
         _PROM_REG = None
-
 
 def _publish_signal(
     *,
@@ -320,10 +305,11 @@ def _publish_signal(
             pass
     return ok
 
-
 @app.post("/run/scan")
 def run_scan(
-    pairs: str = Query(os.getenv("SCAN_PAIRS", "XAUUSD")), post: bool = Query(False), preview: bool = Query(False)
+    pairs: str = Query(os.getenv("SCAN_PAIRS", "XAUUSD")),
+    post: bool = Query(False),
+    preview: bool = Query(False),
 ):
     out = {}
     for pair in [p.strip() for p in pairs.split(",") if p.strip()]:
@@ -354,7 +340,6 @@ def run_scan(
         out[pair] = last
     return out
 
-
 @app.post("/publish/signal")
 def publish_signal_endpoint(payload: dict, preview: bool = Query(False)):
     try:
@@ -375,17 +360,14 @@ def publish_signal_endpoint(payload: dict, preview: bool = Query(False)):
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
-
 # background scheduler (opt-in)
 
 _SCHED_STOP = False
-
 
 def _scheduler_seen_path() -> Path:
     p = Path(os.getenv("RUNTIME_DIR", "runtime")) / "scheduler_seen.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     return p
-
 
 def _load_scheduler_seen() -> dict:
     try:
@@ -393,13 +375,11 @@ def _load_scheduler_seen() -> dict:
     except Exception:
         return {}
 
-
 def _save_scheduler_seen(d: dict) -> None:
     try:
         _scheduler_seen_path().write_text(json.dumps(d, indent=2), encoding="utf-8")
     except Exception:
         pass
-
 
 def _scheduler_loop():
     interval = int(os.getenv("SCHEDULER_INTERVAL_SEC", "60"))
@@ -441,7 +421,6 @@ def _scheduler_loop():
             pass
         _time.sleep(max(5, interval))
 
-
 @app.on_event("startup")
 def _maybe_start_scheduler():
     enabled = os.getenv("SCHEDULER_ENABLED", "false").lower() in ("1", "true", "yes")
@@ -450,12 +429,10 @@ def _maybe_start_scheduler():
     t = threading.Thread(target=_scheduler_loop, daemon=True)
     t.start()
 
-
 @app.on_event("shutdown")
 def _stop_scheduler():
     global _SCHED_STOP
     _SCHED_STOP = True
-
 
 # ---------------------- Prometheus metrics endpoint ----------------------
 @app.get("/metrics", response_class=PlainTextResponse)
@@ -545,13 +522,11 @@ def metrics():
         lines.append("lt_learn_expectancy 0")
     return "\n".join(lines) + "\n"
 
-
 # Ensure route registration in environments with aggressive import timing
 try:
     app.add_api_route("/metrics", metrics, methods=["GET"], response_class=PlainTextResponse)
 except Exception:
     pass
-
 
 # ---------------------- Redis Pub/Sub trigger (optional) ----------------------
 def _redis_subscriber_loop():
@@ -582,13 +557,11 @@ def _redis_subscriber_loop():
     except Exception:
         return
 
-
 @app.on_event("startup")
 def _maybe_start_redis_subscriber():
     if not os.getenv("REDIS_URL"):
         return
     t = threading.Thread(target=_redis_subscriber_loop, daemon=True)
     t.start()
-
 
 # (deprecated duplicate /run/scan removed; consolidated above)

@@ -8,7 +8,6 @@ import time
 from ..data.feeds import get_ohlc_csv, resample_frames
 from .signal_service import generate_signals
 
-
 def autotrade(pair: str, m15_csv: str, sleep_s: int = 30):
     while True:
         if os.path.exists(m15_csv):

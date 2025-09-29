@@ -1,18 +1,11 @@
 # auto_loop.py
 import os
 import time
-from pprint import pprint  # noqa: F401  # intentionally kept
-from typing import Any, Dict  # noqa: F401  # intentionally kept
-
-from memory import Memory
-from strategist import breakout_signal
 
 from router import ExchangeRouter
 
-
 def pct(a: float, b: float) -> float:
     return (a - b) / b if b else 0.0
-
 
 def main() -> None:
     r = ExchangeRouter()
@@ -51,13 +44,17 @@ def main() -> None:
                         try:
                             bars = r.safe_fetch_ohlcv(m["symbol"], timeframe="1m", limit=limit)
                         except Exception as _e:
-                            print(f"[traders_core.auto_loop] safe_fetch_ohlcv failed for {m['symbol']}: {_e}")
+                            print(
+                                f"[traders_core.auto_loop] safe_fetch_ohlcv failed for {m['symbol']}: {_e}"
+                            )
                             bars = []
                     else:
                         try:
                             bars = r.fetch_ohlcv(m["symbol"], timeframe="1m", limit=limit)
                         except Exception as _e:
-                            print(f"[traders_core.auto_loop] fetch_ohlcv failed for {m['symbol']}: {_e}")
+                            print(
+                                f"[traders_core.auto_loop] fetch_ohlcv failed for {m['symbol']}: {_e}"
+                            )
                             bars = []
                 except Exception as _e:
                     print(f"[traders_core.auto_loop] unexpected error fetching {m['symbol']}: {_e}")
@@ -124,7 +121,9 @@ def main() -> None:
                             close=True,
                         )
                     pnl = (px - p["px_open"]) * p["qty"]
-                    mem.close_position(p["id"], px_close=px, reason=("TP" if hit_tp else "SL"), pnl=pnl)
+                    mem.close_position(
+                        p["id"], px_close=px, reason=("TP" if hit_tp else "SL"), pnl=pnl
+                    )
 
             # 4) heartbeat
             print(f"[loop] open={len(mem.open_positions())} | scan={len(movers)}")
@@ -133,7 +132,6 @@ def main() -> None:
         except Exception as _e:
             print("[loop error]", _e)
             time.sleep(sleep_s)
-
 
 if __name__ == "__main__":
     main()

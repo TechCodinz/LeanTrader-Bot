@@ -1,14 +1,16 @@
-from __future__ import annotations
-
 import argparse
 import json
 import os
 import time
-from pathlib import Path
-from typing import Any, Dict, List
 
-from hedging.multi_account import NET_EXPOSURE_USD, account_state, execute_hedge, hedge_plan, net_exposure, Instrument
-
+from hedging.multi_account import (
+    NET_EXPOSURE_USD,
+    account_state,
+    execute_hedge,
+    hedge_plan,
+    net_exposure,
+    Instrument,
+)
 
 def _load_instruments(path: str) -> Dict[str, List[Instrument]]:
     try:
@@ -16,9 +18,16 @@ def _load_instruments(path: str) -> Dict[str, List[Instrument]]:
         out: Dict[str, List[Instrument]] = {}
         for asset, arr in (data or {}).items():
             lst = []
-            for it in (arr or []):
+            for it in arr or []:
                 try:
-                    lst.append(Instrument(asset=asset.upper(), symbol=str(it["symbol"]), kind=str(it.get("kind", "futures")), vol=float(it.get("vol", 0.02))))
+                    lst.append(
+                        Instrument(
+                            asset=asset.upper(),
+                            symbol=str(it["symbol"]),
+                            kind=str(it.get("kind", "futures")),
+                            vol=float(it.get("vol", 0.02)),
+                        )
+                    )
                 except Exception:
                     continue
             out[asset.upper()] = lst
@@ -26,20 +35,22 @@ def _load_instruments(path: str) -> Dict[str, List[Instrument]]:
     except Exception:
         return {}
 
-
 def main() -> int:
     p = argparse.ArgumentParser(description="Hedge daemon: compute net exposure and place hedges")
-    p.add_argument("--instruments", default=os.getenv("HEDGE_INSTRUMENTS", "runtime/hedge_instruments.json"))
+    p.add_argument(
+        "--instruments", default=os.getenv("HEDGE_INSTRUMENTS", "runtime/hedge_instruments.json")
+    )
     p.add_argument("--execute", action="store_true", help="execute hedges (live)")
     p.add_argument("--interval", type=int, default=int(os.getenv("HEDGE_INTERVAL_SEC", "3600")))
     args = p.parse_args()
 
     # Build venues list (support multiple via HEDGE_VENUES=paper,bybit,...)
     venues: List[Any] = []
-    hedge_venues = [s.strip().lower() for s in os.getenv("HEDGE_VENUES", "").split(",") if s.strip()]
+    hedge_venues = [
+        s.strip().lower() for s in os.getenv("HEDGE_VENUES", "").split(",") if s.strip()
+    ]
     try:
         from traders_core.router import ExchangeRouter  # type: ignore
-        import copy
 
         if not hedge_venues:
             venues.append(ExchangeRouter())
@@ -80,11 +91,12 @@ def main() -> int:
             if args.execute or os.getenv("HEDGE_LIVE", "false").lower() == "true":
                 execute_hedge(plan)
             # dump snapshot
-            Path("runtime/net_exposure.json").write_text(json.dumps(expo, ensure_ascii=False), encoding="utf-8")
+            Path("runtime/net_exposure.json").write_text(
+                json.dumps(expo, ensure_ascii=False), encoding="utf-8"
+            )
         except Exception:
             pass
         time.sleep(max(60, int(args.interval)))
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

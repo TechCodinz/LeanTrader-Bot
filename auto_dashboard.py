@@ -4,17 +4,14 @@
 import datetime as dt
 import json
 import pathlib
-from collections import defaultdict
 
 MEM_PATH = pathlib.Path("runtime/memory.jsonl")
-
 
 def load_mem():
     if not MEM_PATH.exists():
         return []
     with MEM_PATH.open("r", encoding="utf-8") as f:
         return [json.loads(line) for line in f if line.strip()]
-
 
 def summarize(rows):
     sym = defaultdict(lambda: {"n": 0, "win": 0, "pnl": 0.0})
@@ -45,7 +42,6 @@ def summarize(rows):
         }
 
     return {"symbols": fmt(sym), "hours": fmt(hours)}
-
 
 if __name__ == "__main__":
     rows = load_mem()

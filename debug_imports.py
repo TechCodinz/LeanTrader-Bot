@@ -7,7 +7,10 @@ print("CWD=", os.getcwd())
 try:
     m = importlib.import_module("mt5_adapter")
     print("module file:", getattr(m, "__file__", None))
-    print("attrs snapshot:", sorted([n for n in dir(m) if n.startswith(("min_stop", "order_send", "symbol_trade"))]))
+    print(
+        "attrs snapshot:",
+        sorted([n for n in dir(m) if n.startswith(("min_stop", "order_send", "symbol_trade"))]),
+    )
     if hasattr(m, "min_stop_distance_points"):
         print("min_stop_distance_points source:")
         print(inspect.getsource(m.min_stop_distance_points))

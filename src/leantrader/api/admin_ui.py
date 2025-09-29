@@ -50,7 +50,6 @@ pre{background:#f3f4f6;padding:12px;border-radius:10px;overflow:auto}
 </body></html>
 """
 
-
 def _read_premium():
     try:
         with open(PREMIUM_PATH, "r", encoding="utf-8") as f:
@@ -58,17 +57,14 @@ def _read_premium():
     except Exception:
         return {"premium_chat_ids": []}
 
-
 def _write_premium(obj):
     os.makedirs(os.path.dirname(PREMIUM_PATH), exist_ok=True)
     with open(PREMIUM_PATH, "w", encoding="utf-8") as f:
         json.dump(obj, f, indent=2)
 
-
 @router.get("/admin", response_class=HTMLResponse)
 def admin_page():
     return HTMLResponse(HTML_PAGE.format(prem=json.dumps(_read_premium(), indent=2)))
-
 
 @router.post("/admin/premium/add")
 def admin_premium_add(chat_id: str = Form(...)):
@@ -79,7 +75,6 @@ def admin_premium_add(chat_id: str = Form(...)):
     _write_premium(obj)
     return JSONResponse({"ok": True, "premium_chat_ids": obj["premium_chat_ids"]})
 
-
 @router.post("/admin/premium/remove")
 def admin_premium_remove(chat_id: str = Form(...)):
     obj = _read_premium()
@@ -87,7 +82,6 @@ def admin_premium_remove(chat_id: str = Form(...)):
     obj["premium_chat_ids"] = ids
     _write_premium(obj)
     return JSONResponse({"ok": True, "premium_chat_ids": obj["premium_chat_ids"]})
-
 
 @router.post("/admin/user/setkeys")
 def admin_user_keys(

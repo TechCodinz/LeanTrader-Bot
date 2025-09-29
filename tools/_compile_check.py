@@ -1,5 +1,4 @@
 import traceback
-from pathlib import Path
 
 FILES = [
     "auto_pilot.py",

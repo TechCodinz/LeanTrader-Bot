@@ -1,9 +1,8 @@
 # sizer.py
-from __future__ import annotations
 
 import datetime as dt  # noqa: F401  # intentionally kept
 import os
-from typing import Any, Dict, Optional
+from typing import Optional, Dict, Any
 
 
 def _envf(k: str, d: float) -> float:
@@ -28,6 +27,7 @@ def _session_mult(now_utc: Optional[dt.datetime] = None) -> float:
     """Simple FX/crypto session throttle (UTC clock)."""
     now = now_utc or dt.datetime.utcnow()
     h = now.hour
+    # Session presets; override via env
     asia = _envf("SESSION_ASIA", 0.7)  # 00:00–06:59
     london = _envf("SESSION_LONDON", 1.0)  # 07:00–12:59
     ny = _envf("SESSION_NEWYORK", 1.2)  # 13:00–20:59
@@ -90,7 +90,10 @@ def suggest_size(signal: Dict[str, Any], equity_usd: float) -> Dict[str, Any]:
 
     # Leverage suggestion (for futures)
     lev = None
-    if str(out.get("market", "")).startswith("crypto-") and os.getenv("EXCHANGE_MODE", "spot") == "linear":
+    if (
+        str(out.get("market", "")).startswith("crypto-")
+        and os.getenv("EXCHANGE_MODE", "spot") == "linear"
+    ):
         # Use ATR% proxy from TP ladder (if present) or ATR note in context
         atr_pct = abs(price - sl) / max(1e-9, price)  # ~1R as ATR-ish
         # map atr% to leverage: smaller ATR% -> can size higher

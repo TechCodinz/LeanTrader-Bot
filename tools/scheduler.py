@@ -1,3 +1,5 @@
+from apscheduler.schedulers.blocking import BlockingScheduler
+
 """Simple scheduler for LeanTrader: auto-runs focused crypto and forex pipelines.
 
 Features:
@@ -17,8 +19,6 @@ to avoid importing fragile adapters at top-level). Adjust commands in the job wr
 if you'd rather call library functions directly.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import logging
@@ -27,7 +27,6 @@ import subprocess
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
 
 try:
     from apscheduler.schedulers.blocking import BlockingScheduler
@@ -51,10 +50,8 @@ logging.basicConfig(
     handlers=[logging.FileHandler(LOG_FILE, encoding="utf-8"), logging.StreamHandler(sys.stdout)],
 )
 
-
 def _lock_path(job_name: str) -> Path:
     return LOCK_DIR / f"{job_name}.lock"
-
 
 def _acquire_lock(job_name: str) -> bool:
     p = _lock_path(job_name)
@@ -66,13 +63,14 @@ def _acquire_lock(job_name: str) -> bool:
             pid = 0
         # check if pid is still alive
         if pid and _process_is_running(pid):
-            logging.info("Lock for job %s present and PID %s is running — skipping run", job_name, pid)
+            logging.info(
+                "Lock for job %s present and PID %s is running — skipping run", job_name, pid
+            )
             return False
         else:
             logging.info("Stale lock for %s detected, overwriting", job_name)
     p.write_text(json.dumps({"pid": os.getpid(), "ts": time.time()}))
     return True
-
 
 def _release_lock(job_name: str) -> None:
     p = _lock_path(job_name)
@@ -81,7 +79,6 @@ def _release_lock(job_name: str) -> None:
             p.unlink()
     except Exception:
         logging.exception("Failed to release lock for %s", job_name)
-
 
 def _process_is_running(pid: int) -> bool:
     if pid <= 0:
@@ -99,7 +96,6 @@ def _process_is_running(pid: int) -> bool:
     except Exception:
         return False
 
-
 def _write_last_run(job_name: str, success: bool, details: dict | None = None) -> None:
     now = datetime.utcnow().isoformat() + "Z"
     try:
@@ -114,8 +110,9 @@ def _write_last_run(job_name: str, success: bool, details: dict | None = None) -
     except Exception:
         logging.exception("Failed to write last run metadata")
 
-
-def _run_script(script_rel: str, args: list[str] | None = None, timeout: int = 600) -> tuple[bool, str]:
+def _run_script(
+    script_rel: str, args: list[str] | None = None, timeout: int = 600
+) -> tuple[bool, str]:
     args = args or []
     script = ROOT / script_rel
     if not script.exists():
@@ -137,7 +134,6 @@ def _run_script(script_rel: str, args: list[str] | None = None, timeout: int = 6
         logging.exception("Script %s failed", script_rel)
         return False, str(e)
 
-
 def crypto_job() -> None:
     name = "crypto"
     if not _acquire_lock(name):
@@ -150,12 +146,13 @@ def crypto_job() -> None:
         # 3) Optional: run crypto-specific scans or demo publisher
         ok_p, out_p = _run_script("runtime/publish_demo.py")
         success = ok_c and ok_l and ok_p
-        _write_last_run(name, success, {"crawler_ok": ok_c, "learner_ok": ok_l, "publisher_ok": ok_p})
+        _write_last_run(
+            name, success, {"crawler_ok": ok_c, "learner_ok": ok_l, "publisher_ok": ok_p}
+        )
         if not success:
             logging.warning("One or more crypto sub-tasks failed: %s %s %s", ok_c, ok_l, ok_p)
     finally:
         _release_lock(name)
-
 
 def forex_job() -> None:
     name = "forex"
@@ -173,7 +170,6 @@ def forex_job() -> None:
     finally:
         _release_lock(name)
 
-
 def hype_job() -> None:
     """Optional hype radar job: runs when HYPE_SCHED_ENABLED=true."""
     if os.getenv("HYPE_SCHED_ENABLED", "false").strip().lower() not in ("1", "true", "yes", "on"):
@@ -190,10 +186,14 @@ def hype_job() -> None:
     finally:
         _release_lock(name)
 
-
 def collectors_job() -> None:
     """Optional collectors for social/dev volumes, gated by env flags."""
-    if os.getenv("COLLECTORS_SCHED_ENABLED", "false").strip().lower() not in ("1", "true", "yes", "on"):
+    if os.getenv("COLLECTORS_SCHED_ENABLED", "false").strip().lower() not in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    ):
         return
     name = "collectors"
     if not _acquire_lock(name):
@@ -209,15 +209,28 @@ def collectors_job() -> None:
             _run_script("tools/collect_github_commits.py", ["--repos", repos])
         # Discord
         chans = os.getenv("DISCORD_CHANNELS", "")
-        if os.getenv("DISCORD_SCHED_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on"):
-            _run_script("tools/collect_discord_volume.py", ["--assets", assets, "--channels", chans])
+        if os.getenv("DISCORD_SCHED_ENABLED", "false").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        ):
+            _run_script(
+                "tools/collect_discord_volume.py", ["--assets", assets, "--channels", chans]
+            )
         # Telegram
         tg_chans = os.getenv("TELEGRAM_CHANNELS", "")
-        if os.getenv("TELEGRAM_SCHED_ENABLED", "false").strip().lower() in ("1", "true", "yes", "on"):
-            _run_script("tools/collect_telegram_volume.py", ["--assets", assets, "--channels", tg_chans])
+        if os.getenv("TELEGRAM_SCHED_ENABLED", "false").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "on",
+        ):
+            _run_script(
+                "tools/collect_telegram_volume.py", ["--assets", assets, "--channels", tg_chans]
+            )
     finally:
         _release_lock(name)
-
 
 def hedge_job() -> None:
     if os.getenv("HEDGE_SCHED_ENABLED", "false").strip().lower() not in ("1", "true", "yes", "on"):
@@ -229,10 +242,11 @@ def hedge_job() -> None:
         args = []
         if os.getenv("HEDGE_LIVE", "false").strip().lower() in ("1", "true", "yes", "on"):
             args.append("--execute")
-        _run_script("tools/hedge_daemon.py", args + ["--interval", os.getenv("HEDGE_INTERVAL_SEC", "3600")])
+        _run_script(
+            "tools/hedge_daemon.py", args + ["--interval", os.getenv("HEDGE_INTERVAL_SEC", "3600")]
+        )
     finally:
         _release_lock(name)
-
 
 def moon_job() -> None:
     if os.getenv("MOON_SCHED_ENABLED", "false").strip().lower() not in ("1", "true", "yes", "on"):
@@ -244,7 +258,6 @@ def moon_job() -> None:
         _run_script("scanners/moon_radar.py", ["--once"])
     finally:
         _release_lock(name)
-
 
 def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
@@ -268,7 +281,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if BlockingScheduler is None:
-        logging.error("apscheduler is not installed. Please install requirements (pip install apscheduler)")
+        logging.error(
+            "apscheduler is not installed. Please install requirements (pip install apscheduler)"
+        )
         return 2
 
     sched = BlockingScheduler()
@@ -354,7 +369,6 @@ def main(argv: list[str] | None = None) -> int:
     except Exception:
         logging.exception("Scheduler failed")
         return 3
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

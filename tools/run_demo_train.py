@@ -5,19 +5,13 @@ Usage: python tools/run_demo_train.py
 This script is conservative: it only reads public market data and trains locally.
 """
 
-from __future__ import annotations
-
 import sys
 import traceback
-from pathlib import Path
-
-from market_data import fetch_ohlcv
 
 try:
     from trainer import train_dummy_classifier
 except Exception:
     train_dummy_classifier = None
-
 
 def main():
     try:
@@ -41,7 +35,6 @@ def main():
     except Exception:
         traceback.print_exc()
         return 2
-
 
 if __name__ == "__main__":
     sys.exit(main())

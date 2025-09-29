@@ -1,28 +1,33 @@
-from __future__ import annotations
-
 import math
 import time
 import logging
+from typing import Any, Dict, Tuple, Deque, Mapping, Iterable, Optional, Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Deque, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
 from collections import deque, defaultdict
-
 
 # ---- Metrics (GAUGE: MEMPOOL_RISK) -----------------------------------------
 try:
     from prometheus_client import Gauge, Counter  # type: ignore
-
-    MEMPOOL_RISK = Gauge(
-        "mempool_risk",
-        "Normalized 0..1 mempool sandwich risk level",
-        ["symbol", "timeframe"],
-    )
-    FLASH_HEDGE_COUNT = Counter(
-        "flash_hedge_count",
-        "Number of emergency futures hedges triggered",
-        ["reason", "symbol"],
-    )
 except Exception:  # pragma: no cover
+    Gauge = None  # type: ignore
+    Counter = None  # type: ignore
+
+try:
+    if Gauge is not None and Counter is not None:
+        MEMPOOL_RISK = Gauge(
+            "mempool_risk",
+            "Normalized 0..1 mempool sandwich risk level",
+            ["symbol", "timeframe"],
+        )
+        FLASH_HEDGE_COUNT = Counter(
+            "flash_hedge_count",
+            "Number of emergency futures hedges triggered",
+            ["reason", "symbol"],
+        )
+    else:
+        raise Exception("no prometheus")
+except Exception:  # pragma: no cover
+
     class _Noop:
         def labels(self, *_: Any, **__: Any) -> "_Noop":
             return self
@@ -36,7 +41,6 @@ except Exception:  # pragma: no cover
     MEMPOOL_RISK = _Noop()  # type: ignore
     FLASH_HEDGE_COUNT = _Noop()  # type: ignore
 
-
 # ---- Tuning per symbol/timeframe -------------------------------------------
 
 _TUNING: Dict[Tuple[str, str], Dict[str, float]] = {
@@ -45,20 +49,17 @@ _TUNING: Dict[Tuple[str, str], Dict[str, float]] = {
     ("ETH/USDC", "M5"): {"drop_bps": 12.0, "window_ms": 6000.0},
 }
 
-
 def set_mempool_tuning(symbol: str, timeframe: str, drop_bps: float, window_ms: float) -> None:
     _TUNING[(symbol.upper(), timeframe.upper())] = {
         "drop_bps": float(drop_bps),
         "window_ms": float(window_ms),
     }
 
-
 def get_mempool_tuning(symbol: str, timeframe: str) -> Dict[str, float]:
     key = (symbol.upper(), timeframe.upper())
     if key in _TUNING:
         return _TUNING[key]
     return _TUNING[("*", "*")]
-
 
 def load_mempool_tuning_from_file(path: str) -> int:
     """Load per-symbol/timeframe mempool tuning from YAML/JSON file.
@@ -98,14 +99,18 @@ def load_mempool_tuning_from_file(path: str) -> int:
                 continue
             for tf, vals in tf_map.items():
                 try:
-                    set_mempool_tuning(sym, tf, float(vals.get("drop_bps", 10.0)), float(vals.get("window_ms", 6000.0)))
+                    set_mempool_tuning(
+                        sym,
+                        tf,
+                        float(vals.get("drop_bps", 10.0)),
+                        float(vals.get("window_ms", 6000.0)),
+                    )
                     count += 1
                 except Exception:
                     continue
     except Exception:
         return count
     return count
-
 
 # ---- Mempool sandwich risk monitor ----------------------------------------
 
@@ -119,7 +124,6 @@ class _Tx:
     amount_in_usd: float
     from_addr: str = ""
     method: str = ""
-
 
 def _extract_tx(tx: Mapping[str, Any]) -> Optional[_Tx]:
     try:
@@ -138,11 +142,19 @@ def _extract_tx(tx: Mapping[str, Any]) -> Optional[_Tx]:
         method = str(tx.get("method", ""))
         if not tx_hash:
             tx_hash = f"{pair}:{ts}"
-        return _Tx(ts=ts, tx_hash=tx_hash, pair=pair, gas_price=gas_price, max_fee=max_fee, amount_in_usd=amount_in_usd, from_addr=from_addr, method=method)
+        return _Tx(
+            ts=ts,
+            tx_hash=tx_hash,
+            pair=pair,
+            gas_price=gas_price,
+            max_fee=max_fee,
+            amount_in_usd=amount_in_usd,
+            from_addr=from_addr,
+            method=method,
+        )
     except Exception as e:  # pragma: no cover
         logging.debug("_extract_tx failed: %s", e)
         return None
-
 
 @dataclass
 class MempoolMonitor:
@@ -186,7 +198,9 @@ class MempoolMonitor:
             # Consider last 3 tx for staircase and backrun sandwich shape
             a, b, c = pair_q[-3], pair_q[-2], pair_q[-1]
             # Gas bump suspicion: monotonically increasing gas price with tight spacing
-            gas_bump = (a.gas_price < b.gas_price < c.gas_price) or (a.max_fee < b.max_fee < c.max_fee)
+            gas_bump = (a.gas_price < b.gas_price < c.gas_price) or (
+                a.max_fee < b.max_fee < c.max_fee
+            )
             tight_timing = (c.ts - a.ts) <= (self.window_ms / 1000.0) * 0.5
             same_pair = a.pair == b.pair == c.pair
             different_senders = len({a.from_addr, b.from_addr, c.from_addr} - {""}) >= 2
@@ -222,12 +236,13 @@ class MempoolMonitor:
 
         # Record gauge
         try:
-            MEMPOOL_RISK.labels(symbol=self.symbol.upper(), timeframe=self.timeframe.upper()).set(float(self.current_risk))
+            MEMPOOL_RISK.labels(symbol=self.symbol.upper(), timeframe=self.timeframe.upper()).set(
+                float(self.current_risk)
+            )
         except Exception:  # pragma: no cover
             pass
 
         return ev
-
 
 def mempool_monitor(
     subscription: Iterable[Mapping[str, Any]],
@@ -239,7 +254,9 @@ def mempool_monitor(
     Returns a summary dict with latest risk and last event (if any).
     """
     tune = get_mempool_tuning(symbol, timeframe)
-    mon = MempoolMonitor(symbol=symbol, timeframe=timeframe, window_ms=tune["window_ms"], drop_bps=tune["drop_bps"])
+    mon = MempoolMonitor(
+        symbol=symbol, timeframe=timeframe, window_ms=tune["window_ms"], drop_bps=tune["drop_bps"]
+    )
 
     last_event: Optional[Dict[str, Any]] = None
     for tx in subscription:
@@ -248,7 +265,6 @@ def mempool_monitor(
             last_event = ev
 
     return {"risk": mon.current_risk, "last_event": last_event}
-
 
 # ---- Dynamic slippage ------------------------------------------------------
 
@@ -264,7 +280,6 @@ def dynamic_slippage(max_bps: float, risk: float) -> int:
     bps = int(max(1.0, math.floor(max_bps * scale)))
     return bps
 
-
 # ---- Private transaction mode ---------------------------------------------
 
 class PrivateTxClient:
@@ -274,7 +289,7 @@ class PrivateTxClient:
     This class wraps a callable to keep dependencies optional.
     """
 
-    def __init__(self, sender: Callable[..., Any]):
+    def __init__(self, sender: Any):
         self._sender = sender
 
     def available(self) -> bool:
@@ -282,7 +297,6 @@ class PrivateTxClient:
 
     def send(self, raw_tx: Any, **kwargs: Any) -> Any:
         return self._sender(raw_tx, **kwargs)
-
 
 def private_tx_mode(
     notional_usd: float,
@@ -294,7 +308,6 @@ def private_tx_mode(
     big = float(notional_usd) >= float(threshold_usd)
     high_risk = float(risk) >= 0.6
     return bool(big or high_risk)
-
 
 # ---- Emergency futures hedge ----------------------------------------------
 
@@ -323,12 +336,32 @@ def emergency_hedge(
 
     try:
         if hasattr(hedger, "hedge") and callable(getattr(hedger, "hedge")):
-            resp = hedger.hedge(symbol=symbol, side=side, notional_usd=float(notional_usd), leverage=float(leverage), **extra)
+            resp = hedger.hedge(
+                symbol=symbol,
+                side=side,
+                notional_usd=float(notional_usd),
+                leverage=float(leverage),
+                **extra,
+            )
         elif hasattr(hedger, "market_order") and callable(getattr(hedger, "market_order")):
             qty = extra.get("qty")
-            resp = hedger.market_order(symbol=symbol, side=side, qty=qty, notional=notional_usd, leverage=leverage, reduce_only=False)
+            resp = hedger.market_order(
+                symbol=symbol,
+                side=side,
+                qty=qty,
+                notional=notional_usd,
+                leverage=leverage,
+                reduce_only=False,
+            )
         elif hasattr(hedger, "place_order") and callable(getattr(hedger, "place_order")):
-            resp = hedger.place_order(symbol=symbol, side=side, type="market", notional=notional_usd, leverage=leverage, reduce_only=False)
+            resp = hedger.place_order(
+                symbol=symbol,
+                side=side,
+                type="market",
+                notional=notional_usd,
+                leverage=leverage,
+                reduce_only=False,
+            )
         else:
             logging.warning("Hedger has no supported method; skipping emergency hedge")
             resp = None
@@ -344,6 +377,63 @@ def emergency_hedge(
 
     return resp
 
+def guarded_swap(
+    *,
+    symbol: str,
+    timeframe: str,
+    notional_usd: float,
+    max_slippage_bps: int,
+    tx_builder: Callable[[int], Any],
+    send_public: Callable[[Any], Any],
+    monitor: Optional[MempoolMonitor] = None,
+    send_private: Optional[Callable[[Any], Any]] = None,
+    hedger: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Guarded swap flow selecting private/public based on risk and size.
+
+    - Computes slippage via dynamic_slippage(max_slippage_bps, risk)
+    - Chooses private if private_tx_mode(notional_usd, risk) and send_private provided
+    - Falls back to public; on failure, attempts emergency_hedge if hedger provided
+    """
+    try:
+        risk = 0.0
+        if monitor is not None and hasattr(monitor, "current_risk"):
+            risk = float(getattr(monitor, "current_risk", 0.0) or 0.0)
+    except Exception:
+        risk = 0.0
+
+    bps = dynamic_slippage(int(max_slippage_bps), float(risk))
+    tx = tx_builder(int(bps))
+
+    # Prefer private route when applicable
+    if send_private is not None and private_tx_mode(float(notional_usd), float(risk)):
+        try:
+            resp = send_private(tx)
+            return {"ok": True, "route": "private", "resp": resp, "slippage_bps": bps}
+        except Exception as e:  # pragma: no cover
+            logging.warning("private route failed, falling back to public: %s", e)
+
+    # Public route
+    try:
+        resp = send_public(tx)
+        if resp is not None and (isinstance(resp, dict) and resp.get("ok", True)):
+            return {"ok": True, "route": "public", "resp": resp, "slippage_bps": bps}
+    except Exception as e:  # pragma: no cover
+        logging.warning("public route raised: %s", e)
+
+    # Hedge on failure if hedger provided
+    try:
+        emergency_hedge(
+            hedger=hedger,
+            symbol=symbol,
+            side="sell" if notional_usd > 0 else "buy",
+            notional_usd=abs(float(notional_usd)),
+            reason="swap_fail",
+        )
+    except Exception:
+        pass
+
+    return {"ok": False, "route": "public", "resp": None, "slippage_bps": bps}
 
 __all__ = [
     "MEMPOOL_RISK",
@@ -357,4 +447,5 @@ __all__ = [
     "private_tx_mode",
     "emergency_hedge",
     "load_mempool_tuning_from_file",
+    "guarded_swap",
 ]

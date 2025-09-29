@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-import json
 import math
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Tuple
@@ -12,7 +9,6 @@ from allocators.portfolio import choose_assets
 from allocators.sizing import vol_scaled_weights, apply_exposure_caps
 from allocators.ensemble import blend_weights
 from features.pipeline import compute_mu_cov
-
 
 @dataclass
 class StrategyGenome:
@@ -27,10 +23,8 @@ class StrategyGenome:
     exec_slices: int = 5
     exec_reps: int = 1
 
-
 def _clamp(v, lo, hi):
     return max(lo, min(hi, v))
-
 
 def mutate(g: StrategyGenome, rng: np.random.Generator) -> StrategyGenome:
     g2 = StrategyGenome(**asdict(g))
@@ -46,7 +40,6 @@ def mutate(g: StrategyGenome, rng: np.random.Generator) -> StrategyGenome:
     g2.exec_reps = int(_clamp(g2.exec_reps + rng.integers(-1, 2), 1, 3))
     return g2
 
-
 def crossover(a: StrategyGenome, b: StrategyGenome, rng: np.random.Generator) -> StrategyGenome:
     fields = list(asdict(a).keys())
     child = {}
@@ -54,13 +47,11 @@ def crossover(a: StrategyGenome, b: StrategyGenome, rng: np.random.Generator) ->
         child[f] = getattr(a if rng.random() < 0.5 else b, f)
     return StrategyGenome(**child)
 
-
 def _pnl_series_from_weights(prices: pd.DataFrame, w: np.ndarray) -> np.ndarray:
     # daily returns
     r = prices.pct_change().fillna(0.0).to_numpy(dtype=float)
     # assume static weights for fast eval
     return (r @ w.astype(float)).reshape(-1)
-
 
 def _max_drawdown(equity: np.ndarray) -> float:
     peak = -np.inf
@@ -71,9 +62,8 @@ def _max_drawdown(equity: np.ndarray) -> float:
         dd = max(dd, (peak - v) / peak if peak > 0 else 0.0)
     return float(dd)
 
-
 def evaluate(g: StrategyGenome, prices_df: pd.DataFrame, seed: int = 123) -> Dict[str, float]:
-    rng = np.random.default_rng(seed)
+    np.random.default_rng(seed)
     # compute mu, Sigma
     mu, Sigma = compute_mu_cov(prices_df, window=int(g.lookback), min_history=int(g.min_history))
     if mu.size == 0 or Sigma.size == 0:
@@ -100,7 +90,6 @@ def evaluate(g: StrategyGenome, prices_df: pd.DataFrame, seed: int = 123) -> Dic
     # Turnover (static weights -> zero);
     turnover = 0.0
     return {"sharpe": sharpe, "pnl": float(pnl.sum()), "max_dd": max_dd, "turnover": turnover}
-
 
 def run_ga(
     prices_df: pd.DataFrame,
@@ -150,7 +139,6 @@ def run_ga(
             new_pop.append(child)
         popu = new_pop[: len(popu)]
     return best[1], leaderboard
-
 
 __all__ = [
     "StrategyGenome",

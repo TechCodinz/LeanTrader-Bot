@@ -1,18 +1,20 @@
-from __future__ import annotations
-
 import math
-from dataclasses import dataclass
 from enum import Enum
+from dataclasses import dataclass
 from typing import Dict
-
-from storage import kv
-
+try:
+    from storage import kv  # type: ignore
+except Exception:  # pragma: no cover
+    class _KV:
+        _s: Dict[str, Dict[str, float]] = {}
+        def get(self, k, d=None): return self._s.get(k, d)
+        def set(self, k, v): self._s[k] = v
+    kv = _KV()  # type: ignore
 
 class StratPath(Enum):
     CLASSICAL = "classical"
     QUANTUM = "quantum"
     ENSEMBLE = "ensemble"
-
 
 @dataclass
 class EWMA:
@@ -42,7 +44,6 @@ class EWMA:
     def value(self) -> float:
         return float(self._v)
 
-
 class BanditSelector:
     """Simple 3-armed bandit over CLASSICAL/QUANTUM/ENSEMBLE with EWMA rewards."""
 
@@ -71,7 +72,6 @@ class BanditSelector:
         self.rewards[name] = float(new_v)
         self._save()
 
-
 def daily_reward(pnl: float, turnover: float, eps: float = 1e-6) -> float:
     # Penalty on churn via sqrt(turnover) so it's sublinear
     try:
@@ -79,6 +79,4 @@ def daily_reward(pnl: float, turnover: float, eps: float = 1e-6) -> float:
     except Exception:
         return 0.0
 
-
 __all__ = ["StratPath", "EWMA", "BanditSelector", "daily_reward"]
-

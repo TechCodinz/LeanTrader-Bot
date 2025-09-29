@@ -1,12 +1,11 @@
 # notifier.py  (unchanged from my last message)
-from __future__ import annotations
 
 import json
 import os
 import textwrap
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional  # noqa: F401  # intentionally kept
+from typing import List, Optional
 
 import requests
 
@@ -15,11 +14,9 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 CMD_INBOX = DATA_DIR / "telegram_cmds.jsonl"
 OFFSET_FILE = DATA_DIR / "tg_offset.txt"
 
-
 def _envb(name: str, default: str = "") -> str:
     v = os.getenv(name, default)
     return v if v is not None else default
-
 
 class TelegramNotifier:
     def __init__(self):
@@ -63,7 +60,10 @@ class TelegramNotifier:
     def hello(self, venue: str, symbols: List[str] | str, tf: str):
         if isinstance(symbols, list):
             symbols = ", ".join(symbols)
-        self._send(f"✅ Hello! Your trading bot is alive.\n" f"*Live {venue}* tf=`{tf}`\nSymbols: {symbols}")
+        self._send(
+            f"✅ Hello! Your trading bot is alive.\n"
+            f"*Live {venue}* tf=`{tf}`\nSymbols: {symbols}"
+        )
 
     def signal(
         self,
@@ -90,7 +90,11 @@ class TelegramNotifier:
             lines.append("*Context*")
             for b in reasons[:3]:
                 lines.append(f"• {b}")
-        lines.append("\nTap: `/buy {s} <qty>` `/sell {s} <qty>` `/flat {s}` `/balance`".replace("{s}", symbol))
+        lines.append(
+            "\nTap: `/buy {s} <qty>` `/sell {s} <qty>` `/flat {s}` `/balance`".replace(
+                "{s}", symbol
+            )
+        )
         self._send("\n".join(lines))
 
     def send_photo(self, photo_path: str, caption: Optional[str] = None):
@@ -179,7 +183,6 @@ class TelegramNotifier:
                     off = up_id
         self._write_offset(off)
         time.sleep(max(0, throttle_ms) / 1000)
-
 
 def _write_command(cmd: str):
     CMD_INBOX.parent.mkdir(parents=True, exist_ok=True)

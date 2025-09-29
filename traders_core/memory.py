@@ -2,10 +2,8 @@
 import json
 import os
 import time
-from typing import Any, Dict, List
 
 MEM_PATH = os.path.join("runtime", "brain.json")
-
 
 class Memory:
     def __init__(self, path: str = MEM_PATH):

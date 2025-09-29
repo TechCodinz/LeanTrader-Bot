@@ -1,15 +1,15 @@
+import urllib.parse
+from pathlib import Path
+from typing import List
+
 """Conservative web crawler to fetch allowed pages and extract text snippets.
 
 This module is intentionally simple and opt-in. It respects robots.txt indirectly by
 only crawling explicitly provided seeds and limits pages fetched.
 """
 
-from __future__ import annotations
-
 import time
 import traceback
-from pathlib import Path
-from typing import List
 from urllib.parse import urlparse
 
 try:
@@ -22,13 +22,7 @@ except Exception:
     BeautifulSoup = None
     robotparser = None
 
-
-# Import-time trace to help diagnose supervisor import issues
-try:
-    print(f"[web_crawler] imported: main_exists={hasattr(__import__(__name__), 'main')} file={__file__}")
-except Exception:
-    pass
-
+# Import-time trace removed to keep logs clean in production
 
 # Ensure a 'main' symbol exists at import-time so callers using
 # `from tools.web_crawler import main` won't fail if module-level
@@ -38,18 +32,15 @@ def main():
     # stub; will be replaced by real main below
     raise RuntimeError("web_crawler main not yet initialized")
 
-
 def _out_dir() -> Path:
     p = Path("runtime") / "strategies"
     p.mkdir(parents=True, exist_ok=True)
     return p
 
-
 def _log_dir() -> Path:
     p = Path("runtime") / "logs"
     p.mkdir(parents=True, exist_ok=True)
     return p
-
 
 def _extract_text(html: str) -> str:
     if BeautifulSoup is None:
@@ -63,7 +54,6 @@ def _extract_text(html: str) -> str:
             parts.append(text)
     return "\n".join(parts)[:2000]
 
-
 def _write_log(line: str) -> None:
     try:
         p = _log_dir() / "crawler.log"
@@ -71,7 +61,6 @@ def _write_log(line: str) -> None:
             f.write(f"{int(time.time())}\t{line}\n")
     except Exception:
         pass
-
 
 def crawl_urls(seeds: List[str], max_pages: int = 20, retries: int = 3) -> int:
     """Fetch given seed URLs and save a snippet per page. Returns number saved.
@@ -132,7 +121,6 @@ def crawl_urls(seeds: List[str], max_pages: int = 20, retries: int = 3) -> int:
             _write_log(f"FAILED\t{url}\tretries={retries}")
     return count
 
-
 def main() -> None:  # noqa: F811
     """Simple supervisor-friendly entrypoint: reads SEEDS env var and runs
     crawl_urls periodically. It's conservative and exits cleanly if requests
@@ -171,7 +159,6 @@ def main() -> None:  # noqa: F811
             continue
         # pause until next run
         time.sleep(interval)
-
 
 if __name__ == "__main__":
     main()

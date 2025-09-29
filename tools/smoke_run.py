@@ -5,8 +5,6 @@ os.environ["EXCHANGE_ID"] = os.environ.get("EXCHANGE_ID", "paper")
 os.environ["LIVE_AUTOTRADE"] = "false"
 os.environ["THINK_FILL_MISSING_PRICE"] = "true"
 
-from brain_loop import think_once  # noqa: E402
-
 print("SMOKE: calling think_once()")
 try:
     res = think_once()

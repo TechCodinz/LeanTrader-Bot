@@ -1,7 +1,4 @@
-import pandas as pd
-
 from leantrader.backtest.engine import backtest
-
 
 def test_backtest_runs():
     idx = pd.date_range("2024-01-01", periods=200, freq="15T")
