@@ -51,6 +51,18 @@ class UltraCore:
         later planning and offline analysis.
         """
         try:
+            # Process copy signals if enabled
+            if self.copy_signals_enabled:
+                try:
+                    signals = self.load_all_signals()
+                    if signals:
+                        self.merge_signals(signals)
+                        self.knowledge_base["copy_signals"] = len(signals)
+                        print(f"📡 Processed {len(signals)} copy signals")
+                except Exception as e:
+                    if self.logger:
+                        self.logger.warning(f"Copy signals processing failed: {e}")
+
             # On-chain analytics (best-effort)
             try:
                 self.knowledge_base["onchain"] = self.scout.fetch_onchain_analytics(
@@ -98,6 +110,17 @@ class UltraCore:
     def __init__(self, router, universe, logger=None):
         # restore previous behavior: use router directly
         self.router = router
+        
+        # Initialize copy signals ingestor
+        self.copy_signals_enabled = False
+        try:
+            from tools.copy_signals_ingestor import load_all, merge_to_store
+            self.copy_signals_enabled = True
+            self.load_all_signals = load_all
+            self.merge_signals = merge_to_store
+            print("📡 Copy signals ingestor activated")
+        except Exception as e:
+            print(f"⚠️ Copy signals disabled: {e}")
         self.universe = universe
         self.logger = logger
         self.knowledge_base = {}

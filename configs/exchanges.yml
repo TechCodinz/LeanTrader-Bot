@@ -1,0 +1,25 @@
+router:
+  min_live_balance_usdt: 40
+  fallback_to_testnet: true
+  live_env_file: /opt/leantrader/.env.live
+  testnet_env_file: /opt/leantrader/.env.testnet
+  paper_symbol_filter: "USDT"
+
+exchanges:
+  gateio:
+    mode: live
+    enabled: true
+    env_file: /opt/leantrader/.env.live
+    swarm_id: swarm-gateio
+    out_root: /opt/leantrader/out/gateio
+    data_root: /opt/leantrader/data/gateio
+
+  bybit-testnet:
+    mode: testnet
+    enabled: true
+    env_file: /opt/leantrader/.env.testnet
+    swarm_id: swarm-bybit-testnet
+    out_root: /opt/leantrader/out/bybit-testnet
+    data_root: /opt/leantrader/data/bybit-testnet
+
+

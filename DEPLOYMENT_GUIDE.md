@@ -1,211 +1,247 @@
-# 🚀 Bybit Trading Bot - Deployment Guide
+# 🚀 ULTRA TRADING SYSTEM - VPS DEPLOYMENT GUIDE
 
-## 🎯 **One-Command Setup (Recommended)**
+## 📋 **QUICK DEPLOYMENT STEPS**
 
+### **Step 1: Prepare Your VPS**
 ```bash
-# Run this single command to set up everything automatically
-./quick_setup.sh
+# SSH into your VPS
+ssh root@your-vps-ip
+
+# Clean and prepare directories
+rm -rf /opt/leantrader
+mkdir -p /opt/leantrader
+mkdir -p /var/log/leantrader
+mkdir -p /opt/leantrader/inbox_signals
+mkdir -p /opt/leantrader/out/meta
+mkdir -p /opt/leantrader/data
 ```
 
-This will:
-- ✅ Upload all files to your VPS
-- ✅ Install all dependencies
-- ✅ Configure the system
-- ✅ Start the trading bot
-- ✅ Launch the dashboard
-- ✅ Set up Bybit integration
-
-## 🔧 **Manual Setup (If needed)**
-
-### Step 1: Upload Files
+### **Step 2: Upload Project Files**
 ```bash
-./upload_to_vps.sh
+# From your local machine, upload the project
+# Option A: Using SCP (if you have SSH access)
+scp -r . root@your-vps-ip:/opt/leantrader/
+
+# Option B: Using SFTP
+sftp root@your-vps-ip
+put -r . /opt/leantrader/
+quit
+
+# Option C: Using Git (if your repo is on GitHub)
+ssh root@your-vps-ip
+cd /opt/leantrader
+git clone https://github.com/yourusername/your-repo.git .
 ```
 
-### Step 2: Deploy on VPS
+### **Step 3: Set Up Python Environment**
 ```bash
-ssh root@75.119.149.117
-cd /home/root/trading-bot
-./deploy.sh
+# On your VPS
+cd /opt/leantrader
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install ccxt pyyaml feedparser prometheus-client requests beautifulsoup4 numpy pandas
 ```
 
-### Step 3: Configure Bybit API
+### **Step 4: Create Systemd Services**
 ```bash
-# Edit the configuration file
-nano .env
+# Create main orchestrator service
+cat > /etc/systemd/system/leantrader.service << 'EOF'
+[Unit]
+Description=LeanTrader Orchestrator
+After=network.target
 
-# Add your Bybit API keys:
-BYBIT_API_KEY=your_actual_api_key
-BYBIT_SECRET_KEY=your_actual_secret_key
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/leantrader
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/opt/leantrader
+EnvironmentFile=-/opt/leantrader/.env
+ExecStart=/opt/leantrader/venv/bin/python /opt/leantrader/runtime/unified_runner.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/leantrader/orchestrator.log
+StandardError=append:/var/log/leantrader/orchestrator.err
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Create auto router service
+cat > /etc/systemd/system/leantrader-router.service << 'EOF'
+[Unit]
+Description=LeanTrader Auto Env Router
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/opt/leantrader
+ExecStart=/opt/leantrader/venv/bin/python /opt/leantrader/tools/auto_env_router.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
 ```
 
-### Step 4: Start Bot
+### **Step 5: Set Permissions**
 ```bash
-sudo systemctl start trading-bot
+chmod +x /opt/leantrader/tools/*.py
+chmod +x /opt/leantrader/scripts/*.sh
+chown -R root:root /opt/leantrader
+chown -R root:root /var/log/leantrader
 ```
 
-### Step 5: Access Dashboard
-Open browser: **http://75.119.149.117:8501**
-
-## 🔑 **Getting Bybit API Keys**
-
-1. Go to [Bybit.com](https://www.bybit.com/)
-2. Login to your account
-3. Go to **Account & Security** → **API Management**
-4. Click **Create New Key**
-5. Set permissions:
-   - ✅ **Read** (for market data)
-   - ✅ **Trade** (for executing trades)
-   - ✅ **Derivatives** (for futures trading)
-6. Set IP whitelist: `75.119.149.117`
-7. Copy the **API Key** and **Secret Key**
-
-## 📊 **Accessing Your Bot**
-
-### Dashboard
-- **URL:** http://75.119.149.117:8501
-- **Features:** Real-time monitoring, portfolio tracking, trade history
-
-### SSH Commands
+### **Step 6: Configure Environment**
 ```bash
-# Connect to VPS
-ssh root@75.119.149.117
+# Create environment file
+cat > /opt/leantrader/.env << 'EOF'
+# Trading Mode
+ENABLE_LIVE=false
+ALLOW_LIVE=false
+LIVE_CONFIRM=NO
 
-# Check bot status
-sudo systemctl status trading-bot
-
-# View live logs
-journalctl -u trading-bot -f
-
-# Restart bot
-sudo systemctl restart trading-bot
-
-# Stop bot
-sudo systemctl stop trading-bot
-```
-
-## ⚙️ **Configuration Options**
-
-Edit `/home/root/trading-bot/.env` to customize:
-
-```env
-# Trading Settings
-INITIAL_CAPITAL=10000          # Starting capital
-MAX_POSITION_SIZE=0.1         # Max 10% per position
-STOP_LOSS_PCT=0.05           # 5% stop loss
-TAKE_PROFIT_PCT=0.1          # 10% take profit
-MIN_CONFIDENCE=0.7           # 70% minimum confidence
+# Exchange Configuration
+EXCHANGE_ID=paper
+PAPER_START_CASH=5000
 
 # Risk Management
-MAX_TOTAL_EXPOSURE=0.8       # Max 80% portfolio exposure
-MAX_DRAWDOWN=0.15           # Max 15% drawdown
-MAX_POSITIONS=10            # Maximum open positions
+RISK_PER_TRADE=0.02
+MAX_POSITIONS=5
+STOP_LOSS_PCT=0.05
+TAKE_PROFIT_PCT=0.10
 
-# Bybit Settings
-BYBIT_SANDBOX=false         # Set to true for testnet
+# Meta-Brain Settings
+META_BRAIN_ENABLED=true
+ENSEMBLE_LEARNING=true
+PERFORMANCE_TRACKING=true
 
-# Notifications
-TELEGRAM_BOT_TOKEN=your_token
-TELEGRAM_CHAT_ID=your_chat_id
+# Copy Signals
+COPY_SIGNALS_ENABLED=true
+SIGNALS_INBOX_DIR=/opt/leantrader/inbox_signals
+
+# Multi-Exchange Swarm
+SWARM_ENABLED=true
+PARALLEL_TRAINING=true
+EXCHANGE_ISOLATION=true
+
+# Logging
+LOG_LEVEL=INFO
+EOF
 ```
 
-## 🛡️ **Safety Features**
-
-- **Simulation Mode:** Test without real money
-- **Risk Limits:** Automatic position sizing
-- **Emergency Stop:** Auto-shutdown on high risk
-- **Real-time Monitoring:** Continuous health checks
-- **Comprehensive Logging:** Full audit trail
-
-## 📈 **What the Bot Does**
-
-1. **Learns** from market data using ML models
-2. **Predicts** price movements with high confidence
-3. **Executes** trades automatically on Bybit
-4. **Manages Risk** with stop-losses and position sizing
-5. **Monitors** performance and adjusts strategies
-6. **Notifies** you of important events
-7. **Reports** detailed analytics and metrics
-
-## 🔍 **Monitoring & Troubleshooting**
-
-### Check Bot Health
+### **Step 7: Install Additional Tools**
 ```bash
-# View recent logs
-journalctl -u trading-bot --since "1 hour ago"
+# Install yq for YAML processing
+curl -sL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o /usr/local/bin/yq
+chmod +x /usr/local/bin/yq
 
-# Check system resources
-./monitor.sh
-
-# Test exchange connection
-python3 -c "
-import ccxt
-exchange = ccxt.bybit({'apiKey': 'test', 'secret': 'test'})
-print('Bybit connection OK')
-"
+# Install tmux for session management
+apt-get update && apt-get install -y tmux
 ```
 
-### Common Issues
-
-**Bot won't start:**
+### **Step 8: Enable and Start Services**
 ```bash
-# Check logs for errors
-journalctl -u trading-bot --no-pager
+# Reload systemd
+systemctl daemon-reload
+
+# Enable services
+systemctl enable leantrader
+systemctl enable leantrader-router
+
+# Start the system
+systemctl start leantrader
 ```
 
-**No data collection:**
-- Verify Bybit API keys are correct
-- Check if IP is whitelisted on Bybit
-- Ensure VPS has internet access
-
-**Dashboard not accessible:**
+### **Step 9: Monitor the System**
 ```bash
-# Check if port is open
-sudo ufw status
-sudo ufw allow 8501
+# Check status
+systemctl status leantrader
+
+# View logs
+journalctl -u leantrader -f
+
+# Check metrics
+curl http://localhost:9300/metrics
 ```
 
-## 📞 **Support Commands**
+## 🎯 **CONFIGURATION FOR LIVE TRADING**
+
+### **For Gate.io Live Trading:**
+```bash
+# Edit environment file
+nano /opt/leantrader/.env
+
+# Update these values:
+ENABLE_LIVE=true
+ALLOW_LIVE=true
+LIVE_CONFIRM=YES
+EXCHANGE_ID=gateio
+GATEIO_API_KEY=your_api_key_here
+GATEIO_SECRET=your_secret_here
+```
+
+### **For Bybit Testnet:**
+```bash
+# Update environment file
+EXCHANGE_ID=bybit
+BYBIT_TESTNET=true
+BYBIT_API_KEY=your_testnet_api_key
+BYBIT_SECRET=your_testnet_secret
+```
+
+## 📊 **MONITORING COMMANDS**
 
 ```bash
-# Restart everything
-sudo systemctl restart trading-bot
-sudo systemctl restart redis-server
+# System status
+systemctl status leantrader leantrader-router
 
-# View full system status
-sudo systemctl status trading-bot redis-server
+# Real-time logs
+journalctl -u leantrader -f
 
-# Check disk space
-df -h
+# Check metrics endpoint
+curl http://localhost:9300/metrics
 
-# Check memory usage
-free -h
+# View performance data
+ls /opt/leantrader/out/*/reports/metrics.json
 
-# View all processes
-htop
+# Check meta-brain weights
+tail -f /opt/leantrader/out/meta/meta_weights.jsonl
 ```
 
-## 🎉 **Success Indicators**
+## 🚨 **TROUBLESHOOTING**
 
-Your bot is working correctly when you see:
-- ✅ Bot service status: `Active (running)`
-- ✅ Dashboard accessible at http://75.119.149.117:8501
-- ✅ Logs showing: `"Trading Bot Started"`
-- ✅ Market data being collected
-- ✅ ML models loaded and active
+### **Service won't start:**
+```bash
+systemctl status leantrader
+journalctl -u leantrader -n 50
+```
 
-## ⚠️ **Important Notes**
+### **Permission errors:**
+```bash
+chown -R root:root /opt/leantrader
+chmod +x /opt/leantrader/tools/*.py
+```
 
-- **Start Small:** Begin with small amounts for testing
-- **Monitor Closely:** Watch the dashboard and logs
-- **Set Limits:** Use conservative risk settings initially
-- **Backup Keys:** Keep your API keys secure
-- **Regular Updates:** Check for bot updates periodically
+### **Missing dependencies:**
+```bash
+cd /opt/leantrader
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
----
+## 🎉 **SUCCESS!**
 
-**🚀 Your professional Bybit trading bot is ready to trade like a pro!**
+Your Ultra Trading System is now deployed and ready to make profits! 
 
-**Dashboard:** http://75.119.149.117:8501  
-**Configuration:** /home/root/trading-bot/.env  
-**Logs:** `journalctl -u trading-bot -f`
+The system will:
+- ✅ Automatically choose between live/testnet based on balance
+- ✅ Apply order guardrails for safety
+- ✅ Process copy signals from external sources
+- ✅ Run parallel training across exchanges
+- ✅ Use meta-brain for ensemble learning
+- ✅ Evolve and adapt in real-time
+
+**Ready to scale and make those profits! 💰🚀**

@@ -1,0 +1,31 @@
+gateio:
+  enabled: true
+  mode: live
+  symbols_filter: "*/USDT"
+  min_notional_usdt: 5
+  max_leverage: 3
+  maker_fee_pct: 0.1
+  taker_fee_pct: 0.1
+  rate_limit_ms: 50
+  burst_limit: 10
+  cooldown_secs_on_throttle: 3
+  order_rounding:
+    price_decimals: auto
+    amount_decimals: auto
+
+bybit-testnet:
+  enabled: true
+  mode: paper
+  symbols_filter: "*/USDT"
+  min_notional_usdt: 1
+  max_leverage: 2
+  maker_fee_pct: 0.02
+  taker_fee_pct: 0.055
+  rate_limit_ms: 20
+  burst_limit: 15
+  cooldown_secs_on_throttle: 2
+  order_rounding:
+    price_decimals: auto
+    amount_decimals: auto
+
+

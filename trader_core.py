@@ -495,6 +495,18 @@ class TraderCore:
         print(
             f"TraderCore live={ENABLE_LIVE} | FX={self.fx_symbols} | SPOT={self.crypto_spot} | FUT={self.crypto_fut}"
         )
+        
+        # Initialize meta-brain for multi-exchange ensemble learning
+        meta_brain_enabled = False
+        try:
+            from tools.meta_brain import compute_weights, log_weights
+            from tools.metrics_writer import write_metrics
+            meta_brain_enabled = True
+            print("🧠 Meta-brain activated for ensemble learning")
+        except Exception as e:
+            print(f"⚠️ Meta-brain disabled: {e}")
+        
+        loop_count = 0
         while True:
             try:
                 if self.fx_symbols:
@@ -503,6 +515,32 @@ class TraderCore:
                     self._poll_crypto_spot()
                 if self.crypto_fut:
                     self._poll_crypto_futures()
+                
+                # Meta-brain integration: compute ensemble weights every 10 loops
+                if meta_brain_enabled and loop_count % 10 == 0:
+                    try:
+                        # Get exchange name from router
+                        exchange_name = getattr(self.router, 'id', 'unknown')
+                        
+                        # Write current performance metrics
+                        current_metrics = {
+                            "pnl_24h": 0.0,  # Placeholder - integrate with actual PnL tracking
+                            "sharpe_7d": 0.0,  # Placeholder - integrate with actual Sharpe calculation
+                            "winrate_200": 0.5,  # Placeholder - integrate with actual win rate
+                            "drawdown_30d_pct": 0.0,  # Placeholder - integrate with actual drawdown
+                        }
+                        write_metrics(exchange_name, current_metrics)
+                        
+                        # Compute ensemble weights (placeholder for multi-exchange)
+                        exchanges = [exchange_name]  # In real implementation, get all active exchanges
+                        weights = compute_weights(exchanges)
+                        log_weights(weights, "inference")
+                        
+                    except Exception as e:
+                        print(f"Meta-brain error: {e}")
+                
+                loop_count += 1
+                
             except KeyboardInterrupt:
                 print("Stopping...")
                 break
