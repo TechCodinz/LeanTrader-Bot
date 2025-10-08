@@ -1,3 +1,4 @@
+from pathlib import Path
 """Simple supervisor to run demo and news workers and keep them alive.
 
 Runs in the repository virtualenv (sys.executable). It spawns two subprocesses:

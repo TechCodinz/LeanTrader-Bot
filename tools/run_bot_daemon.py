@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Dict, Any
 import datetime
 import json
 import os
@@ -11,7 +13,7 @@ if proj_root not in sys.path:
 
 STATE_PATH = os.path.join("reports", "circuit_state.json")
 
-def guess_usdt_balance(bal: Dict[str, Any]) -> float:
+def guess_usdt_balance(bal):
     try:
         if isinstance(bal, dict):
             if "total" in bal and isinstance(bal["total"], dict):
