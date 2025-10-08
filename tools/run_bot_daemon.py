@@ -33,23 +33,23 @@ def guess_usdt_balance(bal):
         pass
     return 0.0
 
-def load_state() -> Dict[str, Any]:
+def load_state():
     try:
         with open(STATE_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {"date": str(datetime.date.today()), "cumulative_loss": 0.0}
 
-def save_state(s: Dict[str, Any]) -> None:
+def save_state(s):
     os.makedirs(os.path.dirname(STATE_PATH) or ".", exist_ok=True)
     with open(STATE_PATH, "w", encoding="utf-8") as f:
         json.dump(s, f, indent=2)
 
-def run_live_once() -> Dict[str, Any]:
+def run_live_once():
     """
     Call the live runner as a subprocess and return parsed JSON output.
     """
-    cmd = [sys.executable, os.path.join("tools", "run_bot_live.py")]
+    cmd = [sys.executable, os.path.join("tools","run_bot_live_and_notify.py")]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         out = proc.stdout.strip()

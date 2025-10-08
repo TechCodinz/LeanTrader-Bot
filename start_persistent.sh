@@ -30,3 +30,4 @@ tmux split-window -v -t "$SESSION":0.1
 tmux send-keys -t "$SESSION":0.2 "SCAN_TF=5m TOP_N=7 SCAN_LIMIT=250 python -u signals_scanner.py --publish --repeat 300 2>&1 | tee -a runtime/logs/scanner_console.log" C-m
 
 echo "Started tmux session '$SESSION'. Attach with: tmux attach -t $SESSION"
+nohup /opt/ultra/tools/tg_trade_pnl_watcher.sh >/opt/ultra/runtime/logs/tg_watcher.log 2>&1 &
