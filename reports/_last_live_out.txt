@@ -1,0 +1,62 @@
+
+================= EXCHANGE INTEL SUMMARY =================
+ Exchange:        gateio
+ Rate limit:      50 ms
+ Burst limit:     10
+ Min notional:    5 USDT
+ Maker fee:       0.1%
+ Taker fee:       0.1%
+ Price precision: auto
+ Amount precision:auto
+===========================================================
+
+{
+  "errors": [],
+  "results": {
+    "exchange_info": {
+      "id": "gateio",
+      "mode": "spot",
+      "live": true,
+      "testnet": false,
+      "n_markets": 5589
+    },
+    "symbol": "0G/USDT",
+    "ohlcv_rows": 200,
+    "strategy": {
+      "class": "TrendBreakoutStrategy",
+      "params": {
+        "ema_fast": 80,
+        "ema_slow": 224,
+        "bb_period": 30,
+        "bb_std": 2.3475152875480894,
+        "bb_bw_lookback": 189,
+        "bb_bw_quantile": 0.7696567504181607,
+        "atr_period": 16
+      }
+    },
+    "strategy_info": {
+      "atr_stop_mult": 1.0,
+      "atr_trail_mult": 0.5
+    },
+    "last_row": {
+      "timestamp": 1759925940000,
+      "open": 2.754,
+      "high": 2.754,
+      "low": 2.754,
+      "close": 2.754,
+      "volume": 0.0,
+      "ema_fast": 2.758118041383572,
+      "ema_slow": 2.758204037247006,
+      "bb_bw": 0.005938353394608743,
+      "bb_thresh": NaN,
+      "squeeze": false,
+      "atr": 0.002375000000000016,
+      "long_signal": false
+    },
+    "usdt_free_estimate": 40.717733936843,
+    "placed_order": {
+      "ok": false,
+      "note": "no long signal or zero amount"
+    }
+  }
+}
