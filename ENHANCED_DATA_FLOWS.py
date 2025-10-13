@@ -95,6 +95,21 @@ class UnifiedScoutingPipeline:
         """Collect scouting data from all engines"""
         all_findings = []
         
+        # SMART Scalping (Multi-timeframe + Session aware) - PRIORITY!
+        if 'smart_scalping' in self.engines:
+            try:
+                smart_signals = await self.engines['smart_scalping'].scan_markets()
+                for sig in smart_signals:
+                    all_findings.append({
+                        'type': 'smart_scalping',
+                        'source': 'SmartScalpingEngine',
+                        'data': sig,
+                        'timestamp': datetime.now(),
+                        'priority': sig.get('priority', 'high')  # Smart scalping is high priority
+                    })
+            except Exception as e:
+                logger.debug(f"Smart scalping scouting: {e}")
+        
         # Arbitrage scouting
         if 'arbitrage' in self.engines:
             try:

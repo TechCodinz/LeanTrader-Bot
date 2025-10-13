@@ -44,6 +44,9 @@ from ultra_scout import UltraScout
 # Import EXECUTION ORCHESTRATOR - THE CRITICAL PIECE!
 from EXECUTION_ORCHESTRATOR import ExecutionOrchestrator
 
+# Import SMART SCALPING ENGINE - Multi-timeframe + Session aware
+from SMART_SCALPING_ENGINE import SmartScalpingEngine
+
 
 class AdvancedScoutingOrchestrator:
     """
