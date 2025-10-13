@@ -1,3 +1,5 @@
+import pandas as pd
+from typing import Dict, Any
 
 """
 ULTRA GOD MODE - The Sacred Trading Components

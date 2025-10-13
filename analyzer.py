@@ -1,3 +1,4 @@
+import pandas as pd
 # analyzer.py
 
 def instant_analysis(df: pd.DataFrame, symbol: str) -> str:

@@ -1,8 +1,10 @@
+import pandas as pd
 """
 ULTRA FOREX & PRECIOUS METALS MASTER
 The ultimate system for trading Forex, Gold, Silver, Oil with God Mode precision
 Masters all market sessions: Asian, London, New York, Sydney
 """
+from typing import Dict, List, Tuple, Any
 
 import hashlib
 import time

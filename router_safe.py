@@ -1,3 +1,4 @@
+from typing import Dict, Optional, Callable, Any
 import logging
 
 from w3guard.guards import (

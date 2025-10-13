@@ -1,3 +1,4 @@
+from typing import Dict, Optional, Any
 # mt5_adapter.py
 
 import os

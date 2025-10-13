@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 """
 Ultra Continuous Trading Orchestrator - 24/7 Trading System
 Designed for rapid $48 → $3000-5000 growth by November
@@ -10,6 +11,7 @@ Features:
 - Compound growth acceleration
 - Multi-strategy coordination
 """
+from typing import Dict, List, Optional, Any
 
 import asyncio
 import time

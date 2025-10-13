@@ -1,7 +1,9 @@
+from dataclasses import dataclass
 """
 Exchange Manager
 Manages multiple exchange connections and provides unified interface
 """
+from typing import Dict, List, Optional
 
 import json
 import time

@@ -3,6 +3,7 @@
 Learntrader Bot - Professional Multi-Asset Trading System
 Trades: Crypto, Forex, Web3, Micro Moon Spotter
 """
+from typing import Dict, List
 
 import asyncio
 import ccxt

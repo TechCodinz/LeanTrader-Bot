@@ -1,3 +1,4 @@
+from pathlib import Path
 # run_live_meme.py
 
 import argparse
