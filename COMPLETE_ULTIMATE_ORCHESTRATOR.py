@@ -51,6 +51,9 @@ from SMART_SCALPING_ENGINE import SmartScalpingEngine
 from TELEGRAM_ORCHESTRATOR import TelegramOrchestrator
 from TELEGRAM_SIGNAL_MONITOR import monitor_signals_for_telegram
 
+# Import IBM QUANTUM ENGINE - Quantum computing for trading
+from IBM_QUANTUM_ENGINE import IBMQuantumEngine
+
 
 class AdvancedScoutingOrchestrator:
     """
@@ -360,8 +363,12 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         )
         logger.info("✅ 📱 TELEGRAM ORCHESTRATOR WIRED - Admin, VIP, Free channels + Remote trading!")
         
+        # 6. IBM QUANTUM ENGINE - Quantum computing advantage!
+        self.advanced_orchestrators['quantum'] = IBMQuantumEngine(mode=self.mode)
+        logger.info("✅ 🔮 IBM QUANTUM ENGINE WIRED - Quantum predictions, optimization, risk!")
+        
         logger.info("\n" + "=" * 80)
-        logger.info("✅ ALL ADVANCED SYSTEMS WIRED (INCLUDING EXECUTION + TELEGRAM!)")
+        logger.info("✅ ALL ADVANCED SYSTEMS WIRED (EXECUTION + TELEGRAM + QUANTUM!)")
         logger.info("=" * 80)
     
     async def start_all_orchestrators(self):
@@ -427,13 +434,20 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             else:
                 logger.info("⚠️  Telegram disabled (no bot token)")
         
+        # START IBM QUANTUM ENGINE - Quantum Analysis!
+        if 'quantum' in self.advanced_orchestrators:
+            tasks.append(
+                asyncio.create_task(self.advanced_orchestrators['quantum'].run_quantum_loop())
+            )
+            logger.info("✅ 🔮 QUANTUM LOOP STARTED - Quantum advantage active!")
+        
         # Start enhanced main loop
         tasks.append(asyncio.create_task(self.enhanced_trading_loop()))
         logger.info("✅ Enhanced trading loop started")
         
         logger.info("\n" + "=" * 80)
-        logger.info("🎉 ALL ORCHESTRATORS RUNNING (EXECUTION + TELEGRAM!)")
-        logger.info("🎉 BOT IS LIVE - TRADES + NOTIFICATIONS!")
+        logger.info("🎉 ALL ORCHESTRATORS RUNNING (EXECUTION + TELEGRAM + QUANTUM!)")
+        logger.info("🎉 BOT IS LIVE - TRADES + NOTIFICATIONS + QUANTUM!")
         logger.info("=" * 80)
         
         return tasks
