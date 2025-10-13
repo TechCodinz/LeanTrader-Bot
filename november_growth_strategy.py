@@ -20,6 +20,22 @@ from dataclasses import dataclass
 from ultra_core import UltraCore
 from risk_engine import RiskEngine
 
+# Import trading engines for strategy execution
+try:
+    from ultra_scalping_engine import UltraScalpingEngine
+    from ultra_arbitrage_engine import UltraArbitrageEngine
+    from ultra_moon_spotter import UltraMoonSpotter
+except ImportError:
+    UltraScalpingEngine = None
+    UltraArbitrageEngine = None
+    UltraMoonSpotter = None
+
+# Create dummy class for missing orchestrator
+class UltraContinuousTradingOrchestrator:
+    def __init__(self, ultra_core, risk_engine):
+        self.ultra_core = ultra_core
+        self.risk_engine = risk_engine
+
 @dataclass
 class GrowthPhase:
     """Growth phase configuration"""
