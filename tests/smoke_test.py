@@ -16,6 +16,7 @@ os.environ.setdefault("ENABLE_LIVE", "false")
 def run():
     out = {"errors": [], "results": {}}
     try:
+        from traders_core.router import ExchangeRouter
     except Exception as e:
         out["errors"].append(f"import ExchangeRouter failed: {e}")
         print(json.dumps(out, indent=2))

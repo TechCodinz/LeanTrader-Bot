@@ -36,7 +36,7 @@ class GitConflictFixer:
         # Remove Git conflict markers and keep the HEAD version conservatively
         # Pattern: <<<<<<< HEAD ... ======= ... >>>>>>> branch
         pattern = re.compile(
-            "<<<<<<< HEAD\n([\s\S]*?)\n=======\n[\s\S]*?\n>>>>>>>[^\n]+",
+            r"<<<<<<< HEAD\n([\s\S]*?)\n=======\n[\s\S]*?\n>>>>>>>[^\n]+",
             re.MULTILINE,
         )
         content = re.sub(pattern, r"\1", content)

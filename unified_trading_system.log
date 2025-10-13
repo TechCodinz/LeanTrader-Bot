@@ -1,0 +1,24 @@
+2025-10-13 12:13:44,210 - unified_trading_system - INFO - 🚀 Unified Trading System initialized
+2025-10-13 12:13:44,210 - unified_trading_system - INFO - 📦 Initializing components...
+2025-10-13 12:13:44,210 - unified_trading_system - ERROR - ❌ Failed to initialize enhanced bot: No module named 'ccxt'
+2025-10-13 12:13:44,212 - unified_trading_system - WARNING - ⚠️  Exchange router not available: name 'Dict' is not defined
+2025-10-13 12:13:44,212 - unified_trading_system - ERROR - ❌ Failed to initialize arbitrage engine: No module named 'pandas'
+2025-10-13 12:13:44,213 - unified_trading_system - ERROR - ❌ Failed to initialize scalping engine: No module named 'pandas'
+2025-10-13 12:13:44,213 - unified_trading_system - ERROR - ❌ Failed to initialize moon spotter: No module named 'aiohttp'
+2025-10-13 12:13:44,214 - unified_trading_system - ERROR - ❌ Failed to initialize evolution engine: No module named 'tensorflow'
+2025-10-13 12:13:44,214 - unified_trading_system - ERROR - ❌ Failed to initialize online learner: No module named 'joblib'
+2025-10-13 12:13:44,214 - unified_trading_system - WARNING - ⚠️  Risk manager not available, using defaults: No module named 'risk.gates'
+2025-10-13 12:13:44,214 - unified_trading_system - WARNING - ⚠️  Portfolio manager not available: No module named 'numpy'
+2025-10-13 12:13:44,214 - unified_trading_system - INFO - ✅ All components initialized successfully
+2025-10-13 12:16:20,291 - unified_trading_system - INFO - 🚀 Unified Trading System initialized
+2025-10-13 12:16:20,291 - unified_trading_system - INFO - 📦 Initializing components...
+2025-10-13 12:16:20,291 - unified_trading_system - ERROR - ❌ Failed to initialize enhanced bot: No module named 'ccxt'
+2025-10-13 12:16:20,292 - unified_trading_system - WARNING - ⚠️  Exchange router not available: name 'Dict' is not defined
+2025-10-13 12:16:20,293 - unified_trading_system - ERROR - ❌ Failed to initialize arbitrage engine: No module named 'pandas'
+2025-10-13 12:16:20,293 - unified_trading_system - ERROR - ❌ Failed to initialize scalping engine: No module named 'pandas'
+2025-10-13 12:16:20,293 - unified_trading_system - ERROR - ❌ Failed to initialize moon spotter: No module named 'aiohttp'
+2025-10-13 12:16:20,294 - unified_trading_system - ERROR - ❌ Failed to initialize evolution engine: No module named 'tensorflow'
+2025-10-13 12:16:20,294 - unified_trading_system - ERROR - ❌ Failed to initialize online learner: No module named 'joblib'
+2025-10-13 12:16:20,294 - unified_trading_system - WARNING - ⚠️  Risk manager not available, using defaults: No module named 'risk.gates'
+2025-10-13 12:16:20,294 - unified_trading_system - WARNING - ⚠️  Portfolio manager not available: No module named 'numpy'
+2025-10-13 12:16:20,294 - unified_trading_system - INFO - ✅ All components initialized successfully

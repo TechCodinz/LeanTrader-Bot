@@ -24,7 +24,10 @@ except Exception:
     def quantum_tail_estimator(returns_vec, cov_matrix, alpha=0.95, use_runtime=True):
         return {"alpha": alpha, "var": 0.0, "cvar": 0.0, "samples": 0, "method": "na"}
 try:
+    from qiskit_ibm_runtime import QiskitRuntimeService
+    IBM_MIN_QUBITS = int(os.getenv("IBM_MIN_QUBITS", "127"))
 except Exception:
+    QiskitRuntimeService = None  # type: ignore
     IBM_MIN_QUBITS = 127
 
 def _load_prices(path: Optional[str]) -> pd.DataFrame:
