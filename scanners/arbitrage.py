@@ -1,3 +1,5 @@
+from typing import Dict, List, Optional, Any
+
 def get_ticker(exchange: str, symbol: str) -> Dict[str, float]:
     """Fetch best bid/ask (fallback to last if needed). Uses ccxt via connector when available."""
     try:

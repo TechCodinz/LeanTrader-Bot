@@ -8,7 +8,13 @@ import aiohttp
 import hashlib
 from datetime import datetime
 import re
-from web3 import Web3
+from typing import Dict, List, Optional, Any, Deque
+from dataclasses import dataclass
+from collections import deque
+try:
+    from web3 import Web3
+except ImportError:
+    Web3 = None
 import warnings
 
 warnings.filterwarnings('ignore')

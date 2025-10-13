@@ -16,6 +16,8 @@ import time
 import queue
 import logging
 import hashlib
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
 
 # Core imports
 from ultra_core import UltraCore

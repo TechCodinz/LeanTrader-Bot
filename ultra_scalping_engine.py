@@ -14,6 +14,8 @@ Features:
 import asyncio
 import time
 import logging
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
 
 # Core imports
 from ultra_core import UltraCore
