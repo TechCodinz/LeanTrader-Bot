@@ -47,6 +47,10 @@ from EXECUTION_ORCHESTRATOR import ExecutionOrchestrator
 # Import SMART SCALPING ENGINE - Multi-timeframe + Session aware
 from SMART_SCALPING_ENGINE import SmartScalpingEngine
 
+# Import TELEGRAM ORCHESTRATOR - Complete Telegram integration
+from TELEGRAM_ORCHESTRATOR import TelegramOrchestrator
+from TELEGRAM_SIGNAL_MONITOR import monitor_signals_for_telegram
+
 
 class AdvancedScoutingOrchestrator:
     """
@@ -348,8 +352,16 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         )
         logger.info("✅ ⚡ EXECUTION ORCHESTRATOR WIRED - TRADES WILL NOW EXECUTE!")
         
+        # 5. TELEGRAM ORCHESTRATOR - Complete notifications & remote trading!
+        self.advanced_orchestrators['telegram'] = TelegramOrchestrator(
+            self.data_hub,
+            self.advanced_orchestrators['execution'],
+            mode=self.mode
+        )
+        logger.info("✅ 📱 TELEGRAM ORCHESTRATOR WIRED - Admin, VIP, Free channels + Remote trading!")
+        
         logger.info("\n" + "=" * 80)
-        logger.info("✅ ALL ADVANCED SYSTEMS WIRED (INCLUDING EXECUTION!)")
+        logger.info("✅ ALL ADVANCED SYSTEMS WIRED (INCLUDING EXECUTION + TELEGRAM!)")
         logger.info("=" * 80)
     
     async def start_all_orchestrators(self):
@@ -402,13 +414,26 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             )
             logger.info("✅ ⚡ EXECUTION LOOP STARTED - BOT WILL NOW TRADE!")
         
+        # START TELEGRAM ORCHESTRATOR - Notifications & Remote Trading!
+        if 'telegram' in self.advanced_orchestrators:
+            if self.advanced_orchestrators['telegram'].enabled:
+                tasks.append(
+                    asyncio.create_task(self.advanced_orchestrators['telegram'].run_telegram_loop())
+                )
+                tasks.append(
+                    asyncio.create_task(self.monitor_signals_for_telegram())
+                )
+                logger.info("✅ 📱 TELEGRAM LOOP STARTED - Notifications active!")
+            else:
+                logger.info("⚠️  Telegram disabled (no bot token)")
+        
         # Start enhanced main loop
         tasks.append(asyncio.create_task(self.enhanced_trading_loop()))
         logger.info("✅ Enhanced trading loop started")
         
         logger.info("\n" + "=" * 80)
-        logger.info("🎉 ALL ORCHESTRATORS RUNNING (INCLUDING EXECUTION!)")
-        logger.info("🎉 BOT IS NOW LIVE AND WILL EXECUTE TRADES!")
+        logger.info("🎉 ALL ORCHESTRATORS RUNNING (EXECUTION + TELEGRAM!)")
+        logger.info("🎉 BOT IS LIVE - TRADES + NOTIFICATIONS!")
         logger.info("=" * 80)
         
         return tasks
@@ -483,6 +508,18 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 logger.info(f"✅ Complete cycle {cycle} finished in {cycle_duration:.2f}s")
                 logger.info(f"{'━' * 80}\n")
                 
+                # Send cycle update to admin
+                if 'telegram' in self.advanced_orchestrators:
+                    telegram = self.advanced_orchestrators['telegram']
+                    if telegram.enabled:
+                        await telegram.send_bot_update(
+                            f"Cycle {cycle} complete\n"
+                            f"Signals: {len(self.data_hub.recent_signals)}\n"
+                            f"Trades: {exec_stats.get('total_trades', 0)}\n"
+                            f"Profit: ${exec_stats.get('total_profit', 0):.2f}",
+                            level="info"
+                        )
+                
                 await asyncio.sleep(60)  # Main cycle every 60 seconds
                 
             except KeyboardInterrupt:
@@ -492,6 +529,48 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             except Exception as e:
                 logger.error(f"Enhanced loop error: {e}")
                 await asyncio.sleep(60)
+    
+    async def monitor_signals_for_telegram(self):
+        """Monitor signals and route to Telegram channels"""
+        
+        logger.info("📱 Starting Telegram signal monitor...")
+        
+        telegram = self.advanced_orchestrators.get('telegram')
+        if not telegram or not telegram.enabled:
+            logger.info("📱 Telegram not enabled - skipping monitor")
+            return
+        
+        while self.is_running:
+            try:
+                # Monitor recent signals
+                if len(self.data_hub.recent_signals) > 0:
+                    # Get latest signal
+                    signal = list(self.data_hub.recent_signals)[-1]
+                    
+                    confidence = signal.get('data', {}).get('confidence', 0)
+                    
+                    # High confidence → VIP channel
+                    if confidence >= 0.80:
+                        await telegram.send_signal_to_vip(signal.get('data', {}))
+                    
+                    # Medium confidence → Free channel
+                    elif confidence >= 0.65:
+                        await telegram.send_signal_to_free(signal.get('data', {}))
+                
+                # Monitor recent trades for notifications
+                if len(self.data_hub.recent_trades) > 0:
+                    trade = list(self.data_hub.recent_trades)[-1]
+                    
+                    if trade.get('status') == 'open':
+                        await telegram.notify_trade_executed(trade)
+                    elif trade.get('status') == 'closed':
+                        await telegram.notify_trade_closed(trade)
+                
+                await asyncio.sleep(5)  # Check every 5 seconds
+                
+            except Exception as e:
+                logger.error(f"Telegram monitor error: {e}")
+                await asyncio.sleep(5)
 
 
 async def main():
