@@ -252,15 +252,21 @@ class ULTIMATE_EVOLUTION_ENGINE:
     def initialize_network_analysis(self):
         """Initialize network analysis for market relationships"""
         try:
-            # Initialize network graph for market analysis
-            self.network_analysis = nx.Graph()
+            # Try to import networkx
+            try:
+                import networkx as nx
+                # Initialize network graph for market analysis
+                self.network_analysis = nx.Graph()
 
-            # Add nodes for different markets
-            markets = ['crypto', 'forex', 'stocks', 'commodities', 'bonds', 'real_estate']
-            for market in markets:
-                self.network_analysis.add_node(market)
+                # Add nodes for different markets
+                markets = ['crypto', 'forex', 'stocks', 'commodities', 'bonds', 'real_estate']
+                for market in markets:
+                    self.network_analysis.add_node(market)
 
-            print("🕸️ Network analysis initialized")
+                print("🕸️ Network analysis initialized")
+            except ImportError:
+                self.network_analysis = None
+                print("🕸️ Network analysis skipped (networkx not available)")
 
         except Exception as e:
             print(f"❌ Network analysis error: {e}")
@@ -1336,9 +1342,9 @@ class ULTIMATE_EVOLUTION_ENGINE:
             'Commodity_Options_Trading',
         ]
 
-        for model in model:
-            self.commodity_models[model] = {'active': True, 'performance': 0.0}
-            print(f"🥇 Spawned {model}")
+        for model_name in commodity_models:
+            self.commodity_models[model_name] = {'active': True, 'performance': 0.0}
+            print(f"🥇 Spawned {model_name}")
 
     def connect_to_live_bot(self):
         """Connect to the live trading bot to learn from real data"""

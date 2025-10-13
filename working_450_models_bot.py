@@ -3,7 +3,9 @@
 import asyncio
 import ccxt
 import sqlite3
+import logging
 from datetime import datetime
+from pathlib import Path
 from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from sklearn.ensemble import (
@@ -19,12 +21,20 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier
 
+# Setup logger
+logger = logging.getLogger(__name__)
+
 class UltimateBot450Models:
     def __init__(self):
-        # Initialize logging
-        logger.remove()
-        logger.add("ultimate_bot_450_models.log", rotation="10 MB", level="INFO")
-        logger.add(lambda msg: print(msg, end=""), level="INFO")
+        # Initialize logging (using standard logging instead of loguru)
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler("ultimate_bot_450_models.log"),
+                logging.StreamHandler()
+            ]
+        )
 
         # Database
         self.db = sqlite3.connect('ultimate_bot_450_models.db', check_same_thread=False)

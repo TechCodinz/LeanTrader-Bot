@@ -1,13 +1,10 @@
-from sklearn.ensemble import RandomForestClassifier
-import time
-
 #!/usr/bin/env python3
 """
 DIVINE INTELLIGENCE CORE
 Advanced AI that continuously learns and evolves trading strategies
 """
 
-from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
@@ -15,9 +12,14 @@ import joblib
 import sqlite3
 import threading
 import json
+import logging
+import time
 import warnings
 
 warnings.filterwarnings('ignore')
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 class DivineIntelligenceCore:
     """Divine Intelligence Core - Continuously learning AI"""
