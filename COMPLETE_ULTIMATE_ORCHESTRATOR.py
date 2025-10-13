@@ -57,6 +57,9 @@ from IBM_QUANTUM_ENGINE import IBMQuantumEngine
 # Import UTILITY INTEGRATION LAYER - All utility functions
 from UTILITY_INTEGRATION_LAYER import UtilityIntegrationLayer
 
+# Import DEX ORCHESTRATOR - DEX trading with Moon Spotting & MEV protection
+from DEX_ORCHESTRATOR import DEXOrchestrator, DEXConfig
+
 
 class AdvancedScoutingOrchestrator:
     """
@@ -317,7 +320,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("\n✅ Advanced systems initialized")
         
         logger.info("\n" + "=" * 80)
-        logger.info("✅ ALL 34 SYSTEMS INITIALIZED (26 core + 8 advanced)")
+        logger.info("✅ ALL 40 SYSTEMS INITIALIZED (26 core + 14 advanced)")
         logger.info("=" * 80)
     
     async def wire_all_systems(self):
@@ -374,8 +377,24 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         self.advanced_orchestrators['utilities'] = UtilityIntegrationLayer()
         logger.info("✅ ⚙️  UTILITY LAYER WIRED - Sizing, guardrails, indicators, skillbook!")
         
+        # 8. DEX ORCHESTRATOR - DEX trading with Moon Spotting & MEV protection!
+        dex_config = DEXConfig(
+            enabled=True,
+            chains=['ethereum', 'bsc', 'polygon', 'arbitrum', 'solana'],
+            max_position_usd=100.0,
+            max_slippage_bps=50,  # 0.5%
+            min_liquidity_usd=5000.0,
+            use_private_tx=True,
+            mev_protection=True
+        )
+        self.advanced_orchestrators['dex'] = DEXOrchestrator(
+            config=dex_config, 
+            data_hub=self.data_hub
+        )
+        logger.info("✅ 🌙 DEX ORCHESTRATOR WIRED - Moon spotting, MEV protection, multi-chain!")
+        
         logger.info("\n" + "=" * 80)
-        logger.info("✅ ALL ADVANCED SYSTEMS WIRED (EXECUTION + TELEGRAM + QUANTUM + UTILITIES!)")
+        logger.info("✅ ALL ADVANCED SYSTEMS WIRED (EXECUTION + TELEGRAM + QUANTUM + UTILITIES + DEX!)")
         logger.info("=" * 80)
     
     async def start_all_orchestrators(self):
@@ -448,13 +467,18 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             )
             logger.info("✅ 🔮 QUANTUM LOOP STARTED - Quantum advantage active!")
         
+        # START DEX ORCHESTRATOR - Moon Spotting & DEX Trading!
+        if 'dex' in self.advanced_orchestrators:
+            await self.advanced_orchestrators['dex'].start()
+            logger.info("✅ 🌙 DEX ORCHESTRATOR STARTED - Moon spotting across 5 chains!")
+        
         # Start enhanced main loop
         tasks.append(asyncio.create_task(self.enhanced_trading_loop()))
         logger.info("✅ Enhanced trading loop started")
         
         logger.info("\n" + "=" * 80)
-        logger.info("🎉 ALL ORCHESTRATORS RUNNING (EXECUTION + TELEGRAM + QUANTUM!)")
-        logger.info("🎉 BOT IS LIVE - TRADES + NOTIFICATIONS + QUANTUM!")
+        logger.info("🎉 ALL 40 ORCHESTRATORS RUNNING (CEX + DEX + EXECUTION + TELEGRAM + QUANTUM!)")
+        logger.info("🎉 BOT IS LIVE - CEX TRADES + DEX MOON HUNTING + NOTIFICATIONS + QUANTUM!")
         logger.info("=" * 80)
         
         return tasks
