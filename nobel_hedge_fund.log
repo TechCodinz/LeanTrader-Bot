@@ -26159,3 +26159,45 @@ Request ID: NfmKhnoba3zhPetSz6dugPxWWo6atG3z9e6o9l4HI1VXApV2miex4A==
 <ADDRESS>
 </ADDRESS>
 </BODY></HTML>
+2025-10-13 17:29:41,373 - exchange_manager - INFO - Loaded 7 exchange configurations
+2025-10-13 17:29:41,384 - exchange_manager - INFO - Initialized binance exchange
+2025-10-13 17:29:41,391 - exchange_manager - INFO - Initialized bybit exchange
+2025-10-13 17:29:41,398 - exchange_manager - INFO - Initialized okx exchange
+2025-10-13 17:29:41,404 - exchange_manager - INFO - Initialized kucoin exchange
+2025-10-13 17:29:41,411 - exchange_manager - INFO - Initialized gateio exchange
+2025-10-13 17:29:41,416 - exchange_manager - INFO - Initialized mexc exchange
+2025-10-13 17:29:41,426 - exchange_manager - INFO - Initialized bitget exchange
+2025-10-13 17:30:36,262 - exchange_manager - INFO - Loaded 7 exchange configurations
+2025-10-13 17:30:36,273 - exchange_manager - INFO - Initialized binance exchange
+2025-10-13 17:30:36,280 - exchange_manager - INFO - Initialized bybit exchange
+2025-10-13 17:30:36,288 - exchange_manager - INFO - Initialized okx exchange
+2025-10-13 17:30:36,293 - exchange_manager - INFO - Initialized kucoin exchange
+2025-10-13 17:30:36,300 - exchange_manager - INFO - Initialized gateio exchange
+2025-10-13 17:30:36,306 - exchange_manager - INFO - Initialized mexc exchange
+2025-10-13 17:30:36,315 - exchange_manager - INFO - Initialized bitget exchange
+2025-10-13 17:31:21,222 - exchange_manager - INFO - Loaded 7 exchange configurations
+2025-10-13 17:31:21,233 - exchange_manager - INFO - Initialized binance exchange
+2025-10-13 17:31:21,240 - exchange_manager - INFO - Initialized bybit exchange
+2025-10-13 17:31:21,247 - exchange_manager - INFO - Initialized okx exchange
+2025-10-13 17:31:21,252 - exchange_manager - INFO - Initialized kucoin exchange
+2025-10-13 17:31:21,259 - exchange_manager - INFO - Initialized gateio exchange
+2025-10-13 17:31:21,264 - exchange_manager - INFO - Initialized mexc exchange
+2025-10-13 17:31:21,274 - exchange_manager - INFO - Initialized bitget exchange
+2025-10-13 17:31:44,654 - exchange_manager - INFO - Loaded 7 exchange configurations
+2025-10-13 17:31:44,665 - exchange_manager - INFO - Initialized binance exchange
+2025-10-13 17:31:44,672 - exchange_manager - INFO - Initialized bybit exchange
+2025-10-13 17:31:44,679 - exchange_manager - INFO - Initialized okx exchange
+2025-10-13 17:31:44,684 - exchange_manager - INFO - Initialized kucoin exchange
+2025-10-13 17:31:44,691 - exchange_manager - INFO - Initialized gateio exchange
+2025-10-13 17:31:44,696 - exchange_manager - INFO - Initialized mexc exchange
+2025-10-13 17:31:44,705 - exchange_manager - INFO - Initialized bitget exchange
+2025-10-13 17:32:47,046 - exchange_manager - INFO - Loaded 7 exchange configurations
+2025-10-13 17:32:47,056 - exchange_manager - INFO - Initialized binance exchange
+2025-10-13 17:32:47,063 - exchange_manager - INFO - Initialized bybit exchange
+2025-10-13 17:32:47,070 - exchange_manager - INFO - Initialized okx exchange
+2025-10-13 17:32:47,076 - exchange_manager - INFO - Initialized kucoin exchange
+2025-10-13 17:32:47,083 - exchange_manager - INFO - Initialized gateio exchange
+2025-10-13 17:32:47,088 - exchange_manager - INFO - Initialized mexc exchange
+2025-10-13 17:32:47,097 - exchange_manager - INFO - Initialized bitget exchange
+2025-10-13 17:32:47,125 - qiskit.passmanager.base_tasks - INFO - Pass: UnrollCustomDefinitions - 0.12112 (ms)
+2025-10-13 17:32:47,126 - qiskit.passmanager.base_tasks - INFO - Pass: BasisTranslator - 0.06437 (ms)

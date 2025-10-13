@@ -2,6 +2,7 @@
 """Test script for Ultra Market Data features."""
 
 from tools.market_data import get_ultra_market_data
+from typing import Optional
 
 def test_ultra_features():
     """Test all ultra market data features."""

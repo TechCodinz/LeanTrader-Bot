@@ -16,6 +16,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 import io
 import matplotlib.patches as mpatches
 import warnings
+from typing import Dict
 
 warnings.filterwarnings('ignore')
 

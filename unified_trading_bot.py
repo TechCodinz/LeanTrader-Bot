@@ -1,3 +1,4 @@
+from enum import Enum
 """
 Unified Trading Bot
 Main trading bot that integrates all components

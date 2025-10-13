@@ -16,7 +16,13 @@ from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
 import talib
 import schedule
-from qiskit import Aer
+try:
+    from qiskit_aer import Aer
+    from qiskit import QuantumCircuit, transpile
+except ImportError:
+    Aer = None
+    QuantumCircuit = None
+    transpile = None
 import joblib
 import sqlite3
 import redis

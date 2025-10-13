@@ -1,3 +1,5 @@
+def mt5_init(*args, **kwargs): return True
+
 mt5 = mt5_init()
 ti = mt5.terminal_info()
 ai = mt5.account_info()

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, TYPE_CHECKING
 # tg_heartbeat.py
 
 import argparse
