@@ -77,3 +77,12 @@ def reward_from_exit_safe(symbol: str, pnl: float, row: dict | None = None) -> N
     return
 
 # online_learner.py
+
+# Create OnlineLearner class wrapper
+class OnlineLearner:
+    @staticmethod
+    def memorize_entry(*args, **kwargs):
+        return memorize_entry(*args, **kwargs)
+    @staticmethod
+    def reward_from_exit(*args, **kwargs):
+        return reward_from_exit_safe(*args, **kwargs)

@@ -12,6 +12,7 @@ This system implements fluid dynamics principles for trading:
 import asyncio
 import time
 import logging
+import pandas as pd
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
@@ -567,6 +568,10 @@ async def main():
 
     # Start sentinel brilliance
     await fluid_system.start_sentinel_brilliance()
+
+# Aliases for backwards compatibility
+UltraFluidMechanics = SentinelBrillianceSystem
+FluidMechanicsEngine = FluidMechanicsEngine  # Already exists
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

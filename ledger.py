@@ -172,3 +172,13 @@ def open_positions() -> List[Dict[str, Any]]:
         return open_df.to_dict(orient="records")
     except Exception:
         return []
+
+# Create a Ledger class wrapper for compatibility
+class Ledger:
+    @staticmethod
+    def log_entry(*args, **kwargs):
+        return log_entry(*args, **kwargs)
+    
+    @staticmethod
+    def log_exit(*args, **kwargs):
+        return log_exit(*args, **kwargs)

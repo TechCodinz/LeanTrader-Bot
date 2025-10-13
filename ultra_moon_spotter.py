@@ -932,3 +932,5 @@ if __name__ == "__main__":
     The system that finds the next SHIB, PEPE, or DOGE before they moon!
     """
     )
+# Alias for backwards compatibility
+UltraMoonSpotter = UltraMoonSystem

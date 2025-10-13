@@ -727,3 +727,7 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+# Alias for backwards compatibility
+working_450_models_bot = UltimateBot450Models
+AI450ModelsBot = UltimateBot450Models

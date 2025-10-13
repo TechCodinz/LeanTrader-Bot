@@ -1929,3 +1929,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Alias for backwards compatibility
+EvolutionEngine = ULTIMATE_EVOLUTION_ENGINE

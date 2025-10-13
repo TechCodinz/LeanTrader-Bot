@@ -611,3 +611,6 @@ if __name__ == "__main__":
     # Keep running for testing
     time.sleep(60)
     core.stop_learning()
+
+# Alias for compatibility
+DivineIntelligence = DivineIntelligenceCore

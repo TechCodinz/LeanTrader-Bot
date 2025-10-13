@@ -16,6 +16,7 @@ import time
 import queue
 import logging
 import hashlib
+import pandas as pd
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
@@ -713,6 +714,9 @@ async def main():
 
     # Start swarm consciousness
     await swarm.start_swarm_consciousness()
+
+# Alias for backwards compatibility  
+UltraSwarmConsciousness = SwarmConsciousness
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

@@ -162,3 +162,6 @@ class GloAware:
             notes.append("balanced")
 
         return AwarenessDecision(mode, float(size_mult), float(sleep), "; ".join(notes), conf)
+
+# Alias for compatibility
+GlobalAwareness = GloAware
