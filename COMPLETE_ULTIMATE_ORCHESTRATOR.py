@@ -54,6 +54,9 @@ from TELEGRAM_SIGNAL_MONITOR import monitor_signals_for_telegram
 # Import IBM QUANTUM ENGINE - Quantum computing for trading
 from IBM_QUANTUM_ENGINE import IBMQuantumEngine
 
+# Import UTILITY INTEGRATION LAYER - All utility functions
+from UTILITY_INTEGRATION_LAYER import UtilityIntegrationLayer
+
 
 class AdvancedScoutingOrchestrator:
     """
@@ -367,8 +370,12 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         self.advanced_orchestrators['quantum'] = IBMQuantumEngine(mode=self.mode)
         logger.info("✅ 🔮 IBM QUANTUM ENGINE WIRED - Quantum predictions, optimization, risk!")
         
+        # 7. UTILITY INTEGRATION LAYER - All utility functions!
+        self.advanced_orchestrators['utilities'] = UtilityIntegrationLayer()
+        logger.info("✅ ⚙️  UTILITY LAYER WIRED - Sizing, guardrails, indicators, skillbook!")
+        
         logger.info("\n" + "=" * 80)
-        logger.info("✅ ALL ADVANCED SYSTEMS WIRED (EXECUTION + TELEGRAM + QUANTUM!)")
+        logger.info("✅ ALL ADVANCED SYSTEMS WIRED (EXECUTION + TELEGRAM + QUANTUM + UTILITIES!)")
         logger.info("=" * 80)
     
     async def start_all_orchestrators(self):
