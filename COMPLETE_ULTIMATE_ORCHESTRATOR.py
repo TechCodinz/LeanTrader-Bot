@@ -41,6 +41,9 @@ from ENHANCED_DATA_FLOWS import (
 # Import additional advanced systems
 from ultra_scout import UltraScout
 
+# Import EXECUTION ORCHESTRATOR - THE CRITICAL PIECE!
+from EXECUTION_ORCHESTRATOR import ExecutionOrchestrator
+
 
 class AdvancedScoutingOrchestrator:
     """
@@ -332,8 +335,18 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         )
         logger.info("✅ Deep Learning Orchestrator wired")
         
+        # 4. EXECUTION ORCHESTRATOR - THE CRITICAL PIECE!
+        self.advanced_orchestrators['execution'] = ExecutionOrchestrator(
+            self.data_hub,
+            self.trading_engines,
+            self.risk_engine,
+            self.ledger,
+            mode=self.mode
+        )
+        logger.info("✅ ⚡ EXECUTION ORCHESTRATOR WIRED - TRADES WILL NOW EXECUTE!")
+        
         logger.info("\n" + "=" * 80)
-        logger.info("✅ ALL ADVANCED SYSTEMS WIRED")
+        logger.info("✅ ALL ADVANCED SYSTEMS WIRED (INCLUDING EXECUTION!)")
         logger.info("=" * 80)
     
     async def start_all_orchestrators(self):
@@ -379,12 +392,20 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             )
             logger.info("✅ Deep learning started")
         
+        # START EXECUTION ORCHESTRATOR - THE CRITICAL PIECE!
+        if 'execution' in self.advanced_orchestrators:
+            tasks.append(
+                asyncio.create_task(self.advanced_orchestrators['execution'].run_execution_loop())
+            )
+            logger.info("✅ ⚡ EXECUTION LOOP STARTED - BOT WILL NOW TRADE!")
+        
         # Start enhanced main loop
         tasks.append(asyncio.create_task(self.enhanced_trading_loop()))
         logger.info("✅ Enhanced trading loop started")
         
         logger.info("\n" + "=" * 80)
-        logger.info("🎉 ALL ORCHESTRATORS RUNNING (Base + Advanced)")
+        logger.info("🎉 ALL ORCHESTRATORS RUNNING (INCLUDING EXECUTION!)")
+        logger.info("🎉 BOT IS NOW LIVE AND WILL EXECUTE TRADES!")
         logger.info("=" * 80)
         
         return tasks
@@ -442,6 +463,16 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 logger.info(f"      • Core: 26 systems ✅")
                 logger.info(f"      • Advanced: {len([s for s in self.advanced_systems.values() if s])} systems ✅")
                 logger.info(f"      • Orchestrators: {len(self.orchestrators) + len(self.advanced_orchestrators)} running ✅")
+                
+                # Execution stats
+                if 'execution' in self.advanced_orchestrators:
+                    exec_stats = self.advanced_orchestrators['execution'].get_stats()
+                    logger.info(f"   Execution Stats:")
+                    logger.info(f"      • Total Trades: {exec_stats['total_trades']}")
+                    logger.info(f"      • Win Rate: {exec_stats['win_rate']:.1%}")
+                    logger.info(f"      • Total Profit: ${exec_stats['total_profit']:.2f}")
+                    logger.info(f"      • Open Positions: {exec_stats['open_positions']}")
+                    logger.info(f"      • Daily P&L: ${exec_stats['daily_pnl']:.2f}")
                 
                 # Cycle metrics
                 cycle_duration = (datetime.now() - cycle_start).total_seconds()
