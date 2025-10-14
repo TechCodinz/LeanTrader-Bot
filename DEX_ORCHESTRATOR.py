@@ -494,13 +494,77 @@ class DEXOrchestrator:
         while self.running:
             try:
                 for address, position in list(self.positions.items()):
-                    # Check current price
-                    # Implement price checking logic here
+                    try:
+                        opp = position['opportunity']
+                        entry_price = position['entry_price']
+                        position_size = position['position_size']
+                        entry_time = position['entry_time']
+                        chain = position['chain']
+                        
+                        # Get Web3 connection
+                        w3 = await self.web3_manager.connect_chain(chain)
+                        if not w3:
+                            continue
+                        
+                        # Get router
+                        router = self.web3_manager.get_dex_router(chain, position.get('dex', 'uniswap_v2'))
+                        if not router:
+                            continue
+                        
+                        # Get token balance
+                        engine = self.executor.get_swap_engine(chain, w3, router)
+                        if not engine:
+                            continue
+                        
+                        balance = engine.get_token_balance(opp.token_address)
+                        if balance == 0:
+                            # Already sold
+                            del self.positions[address]
+                            continue
+                        
+                        # Calculate current price (rough estimate from pool)
+                        current_price = opp.price_usd  # Would need to query pool for real price
+                        
+                        # Calculate PnL
+                        price_change = (current_price - entry_price) / entry_price
+                        
+                        # Take profit at 2x
+                        if price_change >= 1.0:  # 100% gain
+                            logger.info(f"🎯 Taking profit on {opp.symbol}: {price_change:.1%} gain")
+                            result = await self.executor.execute_sell(
+                                opportunity=opp,
+                                amount_tokens=balance,
+                                w3=w3,
+                                router_address=router
+                            )
+                            
+                            if result.get('success'):
+                                self.stats['total_profit_usd'] += position_size * price_change
+                                del self.positions[address]
+                                logger.info(f"✅ Sold {opp.symbol} for {price_change:.1%} profit!")
+                        
+                        # Stop loss at -50%
+                        elif price_change <= -0.5:  # 50% loss
+                            logger.warning(f"🛑 Stop loss on {opp.symbol}: {price_change:.1%} loss")
+                            result = await self.executor.execute_sell(
+                                opportunity=opp,
+                                amount_tokens=balance,
+                                w3=w3,
+                                router_address=router
+                            )
+                            
+                            if result.get('success'):
+                                self.stats['total_profit_usd'] += position_size * price_change  # Negative
+                                del self.positions[address]
+                                logger.info(f"✅ Closed {opp.symbol} at {price_change:.1%} loss")
+                        
+                        # Log status for positions in between
+                        else:
+                            logger.info(f"📊 {opp.symbol}: {price_change:+.1%} (holding)")
                     
-                    # Simple profit target: 2x
-                    # Simple stop loss: -50%
-                    
-                    pass  # Placeholder for position monitoring
+                    except Exception as e:
+                        logger.error(f"Error monitoring position {address}: {e}")
+                        continue
                 
                 await asyncio.sleep(30)  # Check every 30 seconds
                 
