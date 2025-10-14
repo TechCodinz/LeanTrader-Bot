@@ -15,6 +15,8 @@ from collections import defaultdict
 from dex_router import execute_swap
 from ultra_moon_spotter import MicroMoonSpotter
 from w3guard.guards import MempoolMonitor, PrivateTxClient, get_mempool_tuning
+from DEX_SWAP_ENGINE import DEXSwapEngine
+from dex_contracts import FACTORY_ADDRESSES
 
 # Web3 for blockchain interaction
 try:
@@ -147,6 +149,7 @@ class DEXExecutor:
         self.config = config
         self.mempool_monitors = {}
         self.private_client = None
+        self.swap_engines = {}  # Cache of swap engines per chain
         
         # Initialize private transaction client if enabled
         if config.use_private_tx:
@@ -158,6 +161,32 @@ class DEXExecutor:
             except Exception as e:
                 logger.warning(f"Private TX client init failed: {e}")
     
+    def get_swap_engine(self, chain: str, w3: Web3, router_address: str) -> Optional[DEXSwapEngine]:
+        """Get or create swap engine for chain"""
+        key = f"{chain}:{router_address}"
+        
+        if key not in self.swap_engines:
+            try:
+                # Get factory address for this chain/dex
+                factory_address = None
+                for dex_name, factories in FACTORY_ADDRESSES.items():
+                    if chain in factories:
+                        factory_address = list(factories[chain].values())[0]
+                        break
+                
+                if not factory_address:
+                    logger.warning(f"No factory address for {chain}")
+                    return None
+                
+                engine = DEXSwapEngine(chain, w3, router_address, factory_address)
+                self.swap_engines[key] = engine
+                logger.info(f"✅ Swap engine created for {chain}")
+            except Exception as e:
+                logger.error(f"Failed to create swap engine: {e}")
+                return None
+        
+        return self.swap_engines.get(key)
+    
     async def execute_buy(
         self, 
         opportunity: DEXOpportunity,
@@ -165,72 +194,53 @@ class DEXExecutor:
         w3: Web3,
         router_address: str
     ) -> Dict[str, Any]:
-        """Execute a DEX buy with MEV protection"""
+        """Execute a DEX buy with REAL implementation"""
         
         try:
-            # Get or create mempool monitor
-            monitor_key = f"{opportunity.chain}:{opportunity.symbol}"
-            if monitor_key not in self.mempool_monitors:
-                tune = get_mempool_tuning(opportunity.symbol, "M5")
-                self.mempool_monitors[monitor_key] = MempoolMonitor(
-                    symbol=opportunity.symbol,
-                    timeframe="M5",
-                    window_ms=tune["window_ms"],
-                    drop_bps=tune["drop_bps"]
-                )
+            # Get swap engine
+            engine = self.get_swap_engine(opportunity.chain, w3, router_address)
+            if not engine:
+                return {'success': False, 'error': 'Swap engine not available'}
             
-            monitor = self.mempool_monitors[monitor_key]
+            # Convert USD to native token amount (ETH/BNB/MATIC)
+            # For simplicity, using fixed conversion. In production, get real price
+            # Assuming ~$2000 per ETH, ~$300 per BNB, ~$0.50 per MATIC
+            price_map = {
+                'ethereum': 2000,
+                'bsc': 300,
+                'polygon': 0.50,
+                'arbitrum': 2000,
+                'solana': 100
+            }
             
-            # Build transaction
-            def tx_builder(slippage_bps: int) -> Dict[str, Any]:
-                # This would build the actual swap transaction
-                # Simplified for now
-                return {
-                    'from': w3.eth.default_account,
-                    'to': router_address,
-                    'value': int(amount_usd * 1e18),  # Simplified
-                    'gas': 300000,
-                    'maxFeePerGas': w3.eth.gas_price,
-                    'maxPriorityFeePerGas': w3.eth.gas_price // 10,
-                }
+            native_price = price_map.get(opportunity.chain, 1000)
+            amount_native = amount_usd / native_price
             
-            # Public send function
-            def send_public(tx: Dict[str, Any]) -> Any:
-                try:
-                    signed = w3.eth.account.sign_transaction(tx, private_key="")  # From env
-                    tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
-                    return {'tx_hash': tx_hash.hex(), 'success': True}
-                except Exception as e:
-                    logger.error(f"Public send failed: {e}")
-                    return {'success': False, 'error': str(e)}
+            # Calculate slippage based on safety score
+            # Lower safety = higher slippage tolerance
+            base_slippage = self.config.max_slippage_bps
+            if opportunity.safety_score < 60:
+                slippage = min(base_slippage * 2, 500)  # Max 5%
+            else:
+                slippage = base_slippage
             
-            # Private send function (Flashbots)
-            def send_private(tx: Dict[str, Any]) -> Any:
-                if self.private_client:
-                    try:
-                        return self.private_client.send_bundle([tx])
-                    except Exception as e:
-                        logger.error(f"Private send failed: {e}")
-                        return send_public(tx)
-                return send_public(tx)
+            logger.info(f"Buying {opportunity.symbol} with {amount_native:.6f} native tokens")
+            logger.info(f"Slippage: {slippage} bps")
             
-            # Execute swap with protection
-            result = execute_swap(
-                asset=opportunity.symbol,
-                timeframe="M5",
-                notional_usd=amount_usd,
-                max_slippage_bps=self.config.max_slippage_bps,
-                tx_builder=tx_builder,
-                send_public=send_public,
-                monitor=monitor if self.config.mev_protection else None,
-                private_sender=send_private if self.config.use_private_tx else None,
-                private_client=self.private_client
+            # Execute real swap
+            result = engine.buy_token(
+                token_address=opportunity.token_address,
+                amount_eth=amount_native,
+                slippage_bps=slippage
             )
             
-            logger.info(f"✅ DEX Buy executed: {opportunity.symbol} - {amount_usd} USD")
-            logger.info(f"   Route: {result.get('route')}")
-            logger.info(f"   Slippage: {result.get('slippage_bps')} bps")
-            logger.info(f"   Risk: {result.get('risk', 0):.2%}")
+            if result.get('success'):
+                logger.info(f"✅ DEX Buy executed: {opportunity.symbol}")
+                logger.info(f"   TX: {result.get('tx_hash')}")
+                logger.info(f"   Amount out: {result.get('amount_out')}")
+                logger.info(f"   Price impact: {result.get('price_impact', 0):.2%}")
+            else:
+                logger.error(f"❌ DEX buy failed: {result.get('error')}")
             
             return result
             
@@ -241,14 +251,39 @@ class DEXExecutor:
     async def execute_sell(
         self,
         opportunity: DEXOpportunity,
-        amount_tokens: float,
+        amount_tokens: int,
         w3: Web3,
         router_address: str
     ) -> Dict[str, Any]:
-        """Execute a DEX sell with MEV protection"""
-        # Similar to execute_buy but for selling
-        logger.info(f"Executing DEX sell: {opportunity.symbol} - {amount_tokens} tokens")
-        return {'success': True, 'message': 'Sell executed'}
+        """Execute a DEX sell with REAL implementation"""
+        
+        try:
+            # Get swap engine
+            engine = self.get_swap_engine(opportunity.chain, w3, router_address)
+            if not engine:
+                return {'success': False, 'error': 'Swap engine not available'}
+            
+            logger.info(f"Selling {amount_tokens} of {opportunity.symbol}")
+            
+            # Execute real swap
+            result = engine.sell_token(
+                token_address=opportunity.token_address,
+                amount_tokens=amount_tokens,
+                slippage_bps=self.config.max_slippage_bps
+            )
+            
+            if result.get('success'):
+                logger.info(f"✅ DEX Sell executed: {opportunity.symbol}")
+                logger.info(f"   TX: {result.get('tx_hash')}")
+                logger.info(f"   Amount out: {result.get('amount_out')} wei")
+            else:
+                logger.error(f"❌ DEX sell failed: {result.get('error')}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"DEX sell failed: {e}")
+            return {'success': False, 'error': str(e)}
 
 
 class DEXOrchestrator:
