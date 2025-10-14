@@ -5,6 +5,7 @@ Uses ccxt to fetch data from Bybit (FREE!)
 """
 import ccxt
 import pandas as pd
+import numpy as np
 import time
 from datetime import datetime
 from pathlib import Path
