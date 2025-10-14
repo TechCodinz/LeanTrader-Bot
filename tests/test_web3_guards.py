@@ -1,4 +1,4 @@
-from web3.guards import (
+from w3guard.guards import (
     estimate_price_impact,
     is_safe_gas,
     token_safety_checks,

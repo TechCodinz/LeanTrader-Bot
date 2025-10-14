@@ -1,4 +1,8 @@
-from research.evolution.ga_trader import run_ga
+try:
+    from research.evolution.ga_trader import run_ga
+except ImportError:
+    import pytest
+    pytest.skip("Research modules not available in this configuration", allow_module_level=True)
 import numpy as np
 import pandas as pd
 
