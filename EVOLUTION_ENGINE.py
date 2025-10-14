@@ -1,9 +1,3 @@
-import json
-import sqlite3
-import threading
-import time
-import tensorflow as tf
-
 #!/usr/bin/env python3
 """
 🚀 ULTIMATE EVOLUTION ENGINE - FLUID MECHANISM SYSTEM
@@ -11,8 +5,14 @@ import tensorflow as tf
 💰 EVOLVES FROM REAL TRADING DATA INTO PERFECTION
 """
 
+import json
+import sqlite3
+import threading
+import time
+import tensorflow as tf
 from datetime import datetime
 import random
+import numpy as np
 from sklearn.ensemble import (
     RandomForestRegressor,
     GradientBoostingRegressor,
