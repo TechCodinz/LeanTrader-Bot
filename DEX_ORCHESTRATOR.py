@@ -12,6 +12,7 @@ from datetime import datetime
 from collections import defaultdict
 
 # DEX Infrastructure
+import os
 from dex_router import execute_swap
 from ultra_moon_spotter import MicroMoonSpotter
 from w3guard.guards import MempoolMonitor, PrivateTxClient, get_mempool_tuning
