@@ -660,6 +660,95 @@ Supported exchanges:
         except Exception as e:
             await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='HTML')
     
+    async def cmd_close(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Close position (VIP only)"""
+        user_id = str(update.effective_user.id)
+        
+        if not self.user_db.is_vip(user_id):
+            await update.message.reply_text("🔒 VIP feature only. /subscribe to join!")
+            return
+        
+        if len(context.args) < 1:
+            await update.message.reply_text(
+                "<b>Close Position</b>\n\n"
+                "Usage: /close <symbol>\n\n"
+                "Example: <code>/close BTC/USDT</code>",
+                parse_mode='HTML'
+            )
+            return
+        
+        symbol = context.args[0]
+        
+        await update.message.reply_text(
+            f"✅ Closing position for {symbol}...\n"
+            f"(Feature coming soon - positions tracked)",
+            parse_mode='HTML'
+        )
+    
+    async def cmd_positions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """View open positions (VIP only)"""
+        user_id = str(update.effective_user.id)
+        
+        if not self.user_db.is_vip(user_id):
+            await update.message.reply_text("🔒 VIP feature only. /subscribe to join!")
+            return
+        
+        message = """
+📊 <b>YOUR OPEN POSITIONS</b>
+
+No open positions at the moment.
+
+Use /trade to open a position.
+        """
+        
+        await update.message.reply_text(message, parse_mode='HTML')
+    
+    async def cmd_balance(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Check account balance (VIP only)"""
+        user_id = str(update.effective_user.id)
+        
+        if not self.user_db.is_vip(user_id):
+            await update.message.reply_text("🔒 VIP feature only. /subscribe to join!")
+            return
+        
+        user_exchange = self.user_db.get_user_exchange(user_id)
+        if not user_exchange:
+            await update.message.reply_text(
+                "⚠️ Please add your exchange API first!\n\n"
+                "Use: /addapi <exchange> <api_key> <api_secret>",
+                parse_mode='HTML'
+            )
+            return
+        
+        await update.message.reply_text(
+            "💰 <b>Account Balance</b>\n\n"
+            "Fetching from exchange...\n"
+            "(Feature coming soon)",
+            parse_mode='HTML'
+        )
+    
+    async def cmd_verify_payment(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Verify payment (Admin only)"""
+        await update.message.reply_text(
+            "Admin verification feature - contact developer to set up",
+            parse_mode='HTML'
+        )
+    
+    async def cmd_list_users(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """List users (Admin only)"""
+        user_count = len(self.user_db.users)
+        vip_count = sum(1 for u in self.user_db.users.values() if self.user_db.is_vip(u.get('username', '')))
+        
+        message = f"""
+👥 <b>USER STATISTICS</b>
+
+Total Users: {user_count}
+VIP Users: {vip_count}
+Free Users: {user_count - vip_count}
+        """
+        
+        await update.message.reply_text(message, parse_mode='HTML')
+    
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle button callbacks"""
         query = update.callback_query
