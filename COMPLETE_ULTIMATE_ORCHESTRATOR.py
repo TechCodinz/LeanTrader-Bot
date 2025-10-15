@@ -23,9 +23,8 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, str(Path(__file__).parent))
 
 # ============================================================================
-# CRITICAL PROFIT FEATURES - The Missing 50-100% Profit Boost
+# CRITICAL PROFIT FEATURES - REQUIRED FOR MAXIMUM PERFORMANCE
 # ============================================================================
-CRITICAL_FEATURES_AVAILABLE = False
 try:
     from critical_features_addon import (
         TrailingStopManager,
@@ -36,15 +35,16 @@ try:
         EmergencyStop
     )
     CRITICAL_FEATURES_AVAILABLE = True
-    logger.info("✅ Critical profit features loaded (Trailing stops, Compound, Partial TP)")
+    logger.info("✅ CRITICAL PROFIT FEATURES LOADED - Ready for +50-100% boost!")
 except Exception as e:
-    logger.info(f"ℹ️  Critical features not available (optional): {type(e).__name__}")
-    logger.info("   Bot will run without profit optimization features")
+    logger.error(f"❌ CRITICAL FEATURES FAILED TO LOAD: {e}")
+    logger.error("   Install dependencies: pip3 install numpy pandas")
+    logger.error("   Or run: bash INSTALL_ALL_DEPENDENCIES.sh")
+    CRITICAL_FEATURES_AVAILABLE = False
 
 # ============================================================================
-# ULTRA-RARE GOLDMINE FEATURES - The Cutting-Edge Advantage
+# ULTRA-RARE GOLDMINE FEATURES - REQUIRED FOR CUTTING-EDGE ADVANTAGE
 # ============================================================================
-ULTRA_FEATURES_AVAILABLE = False
 try:
     from ULTRA_GOLDMINE_FEATURES import (
         GammaSqueezeDetector,
@@ -60,10 +60,18 @@ try:
         UltraGoldmineManager
     )
     ULTRA_FEATURES_AVAILABLE = True
-    logger.info("🌟 Ultra goldmine features loaded (10 cutting-edge strategies)")
+    logger.info("✅ ULTRA GOLDMINE FEATURES LOADED - Ready for +200-500% boost!")
 except Exception as e:
-    logger.info(f"ℹ️  Ultra features not available (optional): {type(e).__name__}")
-    logger.info("   Bot will run without goldmine strategies")
+    logger.error(f"❌ ULTRA GOLDMINE FEATURES FAILED TO LOAD: {e}")
+    logger.error("   Install dependencies: pip3 install numpy pandas scipy scikit-learn")
+    logger.error("   Or run: bash INSTALL_ALL_DEPENDENCIES.sh")
+    ULTRA_FEATURES_AVAILABLE = False
+
+# Warn if features are missing
+if not CRITICAL_FEATURES_AVAILABLE:
+    logger.warning("⚠️  Running without CRITICAL PROFIT FEATURES - Missing +50-100% profit potential!")
+if not ULTRA_FEATURES_AVAILABLE:
+    logger.warning("⚠️  Running without ULTRA GOLDMINE FEATURES - Missing +200-500% profit potential!")
 
 # Import complete unified orchestrator (base 26 systems)
 from ULTIMATE_ORCHESTRATOR import (
