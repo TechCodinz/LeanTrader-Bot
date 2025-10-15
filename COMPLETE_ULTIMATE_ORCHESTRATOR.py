@@ -782,35 +782,70 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         # Track sent signals to avoid duplicates
         sent_signals = set()
         sent_trades = set()
+        last_signal_count = 0
         
         while self.is_running:
             try:
-                # Monitor signal queue (primary source)
-                if not self.data_hub.signal_queue.empty():
+                # Check recent_signals for anything new
+                current_signal_count = len(self.data_hub.recent_signals)
+                
+                if current_signal_count > last_signal_count:
+                    # New signals available!
+                    new_signals = list(self.data_hub.recent_signals)[last_signal_count:]
+                    
+                    for signal in new_signals:
+                        # Extract data (handle both nested and flat structures)
+                        signal_data = signal.get('data', signal)
+                        
+                        confidence = signal_data.get('confidence', signal_data.get('score', 0))
+                        symbol = signal_data.get('symbol', signal_data.get('pair', 'UNKNOWN'))
+                        side = signal_data.get('side', signal_data.get('action', 'buy'))
+                        
+                        # Skip invalid signals
+                        if symbol == 'UNKNOWN' or confidence == 0:
+                            continue
+                        
+                        # Create unique ID
+                        signal_id = f"{symbol}_{int(confidence*1000)}_{side}"
+                        
+                        if signal_id in sent_signals:
+                            continue
+                        
+                        sent_signals.add(signal_id)
+                        
+                        # High confidence → VIP channel
+                        if confidence >= 0.80:
+                            await telegram.send_signal_to_vip(signal_data)
+                            logger.info(f"📱 VIP signal sent: {symbol} {side.upper()} (conf: {confidence*100:.0f}%)")
+                        
+                        # Medium confidence → Free channel
+                        elif confidence >= 0.65:
+                            await telegram.send_signal_to_free(signal_data)
+                            logger.info(f"📱 Free signal sent: {symbol} {side.upper()} (conf: {confidence*100:.0f}%)")
+                    
+                    last_signal_count = current_signal_count
+                
+                # Also check signal_queue
+                while not self.data_hub.signal_queue.empty():
                     signal = await self.data_hub.signal_queue.get()
                     
-                    signal_data = signal.get('data', {})
+                    signal_data = signal.get('data', signal)
                     confidence = signal_data.get('confidence', 0)
                     symbol = signal_data.get('symbol', 'UNKNOWN')
+                    side = signal_data.get('side', 'buy')
                     
-                    # Create unique ID for this signal
-                    signal_id = f"{symbol}_{confidence}_{signal_data.get('side', 'buy')}"
-                    
-                    # Skip if already sent or invalid
-                    if signal_id in sent_signals or confidence == 0:
-                        continue
-                    
-                    sent_signals.add(signal_id)
-                    
-                    # High confidence → VIP channel
-                    if confidence >= 0.80:
-                        await telegram.send_signal_to_vip(signal_data)
-                        logger.info(f"📱 VIP signal sent: {symbol} (conf: {confidence*100:.0f}%)")
-                    
-                    # Medium confidence → Free channel
-                    elif confidence >= 0.65:
-                        await telegram.send_signal_to_free(signal_data)
-                        logger.info(f"📱 Free signal sent: {symbol} (conf: {confidence*100:.0f}%)")
+                    if symbol != 'UNKNOWN' and confidence > 0:
+                        signal_id = f"{symbol}_{int(confidence*1000)}_{side}"
+                        
+                        if signal_id not in sent_signals:
+                            sent_signals.add(signal_id)
+                            
+                            if confidence >= 0.80:
+                                await telegram.send_signal_to_vip(signal_data)
+                                logger.info(f"📱 VIP signal sent: {symbol} (conf: {confidence*100:.0f}%)")
+                            elif confidence >= 0.65:
+                                await telegram.send_signal_to_free(signal_data)
+                                logger.info(f"📱 Free signal sent: {symbol} (conf: {confidence*100:.0f}%)")
                 
                 # Monitor trade queue
                 if not self.data_hub.trade_data_queue.empty():
@@ -836,8 +871,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 if len(sent_trades) > 50:
                     sent_trades.clear()
                 
-                await asyncio.sleep(1)  # Check every second for faster signal delivery
+                await asyncio.sleep(0.5)  # Check twice per second for faster delivery
                 
+            except ZeroDivisionError:
+                await asyncio.sleep(1)
             except Exception as e:
                 logger.error(f"Telegram monitor error: {e}")
                 await asyncio.sleep(5)
