@@ -22,3 +22,173 @@
 2025-10-13 12:16:20,294 - unified_trading_system - WARNING - ⚠️  Risk manager not available, using defaults: No module named 'risk.gates'
 2025-10-13 12:16:20,294 - unified_trading_system - WARNING - ⚠️  Portfolio manager not available: No module named 'numpy'
 2025-10-13 12:16:20,294 - unified_trading_system - INFO - ✅ All components initialized successfully
+2025-10-15 14:09:52,945 - __main__ - INFO - 🚀 Unified Trading System initialized
+2025-10-15 14:09:52,945 - __main__ - INFO - 🚀 Starting Unified Trading System
+2025-10-15 14:09:52,945 - __main__ - INFO - 📊 Mode: paper
+2025-10-15 14:09:52,945 - __main__ - INFO - 🔗 Exchanges: bybit, binance, okx
+2025-10-15 14:09:52,946 - __main__ - INFO - 💱 Symbols: BTC/USDT, ETH/USDT, BNB/USDT, SOL/USDT
+2025-10-15 14:09:52,946 - __main__ - INFO - 📦 Initializing components...
+2025-10-15 14:09:53,684 - __main__ - ERROR - ❌ Failed to initialize enhanced bot: No module named 'telegram'
+2025-10-15 14:09:53,687 - __main__ - WARNING - ⚠️  Exchange router not available: name 'Dict' is not defined
+2025-10-15 14:09:54,998 - __main__ - ERROR - ❌ Failed to initialize arbitrage engine: UltraArbitrageEngine.__init__() got an unexpected keyword argument 'exchanges'
+2025-10-15 14:09:55,005 - __main__ - ERROR - ❌ Failed to initialize scalping engine: UltraScalpingEngine.__init__() got an unexpected keyword argument 'exchange'
+2025-10-15 14:09:55,055 - __main__ - ERROR - ❌ Failed to initialize moon spotter: UltraMoonSystem.__init__() got an unexpected keyword argument 'exchange'
+2025-10-15 14:09:55,067 - __main__ - ERROR - ❌ Failed to initialize evolution engine: No module named 'langchain'
+2025-10-15 14:09:55,071 - __main__ - INFO - ✅ Online learner initialized
+2025-10-15 14:09:55,072 - __main__ - WARNING - ⚠️  Risk manager not available, using defaults: No module named 'risk.gates'
+2025-10-15 14:09:55,077 - __main__ - INFO - ✅ Portfolio manager initialized
+2025-10-15 14:09:55,077 - __main__ - INFO - ✅ All components initialized successfully
+2025-10-15 14:09:55,077 - __main__ - INFO - ✅ Started 2 concurrent tasks
+2025-10-15 14:09:55,077 - __main__ - INFO - ============================================================
+2025-10-15 14:09:55,077 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 14:09:55
+2025-10-15 14:09:55,077 - __main__ - INFO - ⏱️  Uptime: 0:00:02.131983
+2025-10-15 14:09:55,077 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 14:09:55,077 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 14:09:55,077 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 14:09:55,077 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 14:09:55,077 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 14:09:55,077 - __main__ - INFO - ============================================================
+2025-10-15 14:14:55,138 - __main__ - INFO - ============================================================
+2025-10-15 14:14:55,139 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 14:14:55
+2025-10-15 14:14:55,140 - __main__ - INFO - ⏱️  Uptime: 0:05:02.194190
+2025-10-15 14:14:55,140 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 14:14:55,140 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 14:14:55,140 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 14:14:55,140 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 14:14:55,140 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 14:14:55,140 - __main__ - INFO - ============================================================
+2025-10-15 14:19:55,187 - __main__ - INFO - ============================================================
+2025-10-15 14:19:55,187 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 14:19:55
+2025-10-15 14:19:55,187 - __main__ - INFO - ⏱️  Uptime: 0:10:02.241696
+2025-10-15 14:19:55,187 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 14:19:55,187 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 14:19:55,187 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 14:19:55,187 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 14:19:55,187 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 14:19:55,187 - __main__ - INFO - ============================================================
+2025-10-15 14:24:55,248 - __main__ - INFO - ============================================================
+2025-10-15 14:24:55,248 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 14:24:55
+2025-10-15 14:24:55,248 - __main__ - INFO - ⏱️  Uptime: 0:15:02.302720
+2025-10-15 14:24:55,248 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 14:24:55,248 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 14:24:55,248 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 14:24:55,248 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 14:24:55,248 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 14:24:55,248 - __main__ - INFO - ============================================================
+2025-10-15 14:29:55,309 - __main__ - INFO - ============================================================
+2025-10-15 14:29:55,309 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 14:29:55
+2025-10-15 14:29:55,309 - __main__ - INFO - ⏱️  Uptime: 0:20:02.363528
+2025-10-15 14:29:55,309 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 14:29:55,309 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 14:29:55,309 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 14:29:55,309 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 14:29:55,309 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 14:29:55,309 - __main__ - INFO - ============================================================
+2025-10-15 14:34:55,336 - __main__ - INFO - ============================================================
+2025-10-15 14:34:55,337 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 14:34:55
+2025-10-15 14:34:55,337 - __main__ - INFO - ⏱️  Uptime: 0:25:02.391516
+2025-10-15 14:34:55,337 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 14:34:55,337 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 14:34:55,337 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 14:34:55,337 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 14:34:55,337 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 14:34:55,337 - __main__ - INFO - ============================================================
+2025-10-15 14:39:55,397 - __main__ - INFO - ============================================================
+2025-10-15 14:39:55,397 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 14:39:55
+2025-10-15 14:39:55,397 - __main__ - INFO - ⏱️  Uptime: 0:30:02.451764
+2025-10-15 14:39:55,397 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 14:39:55,397 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 14:39:55,397 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 14:39:55,397 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 14:39:55,397 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 14:39:55,397 - __main__ - INFO - ============================================================
+2025-10-15 14:44:55,451 - __main__ - INFO - ============================================================
+2025-10-15 14:44:55,451 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 14:44:55
+2025-10-15 14:44:55,451 - __main__ - INFO - ⏱️  Uptime: 0:35:02.506052
+2025-10-15 14:44:55,451 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 14:44:55,451 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 14:44:55,451 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 14:44:55,451 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 14:44:55,451 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 14:44:55,452 - __main__ - INFO - ============================================================
+2025-10-15 14:49:55,485 - __main__ - INFO - ============================================================
+2025-10-15 14:49:55,485 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 14:49:55
+2025-10-15 14:49:55,485 - __main__ - INFO - ⏱️  Uptime: 0:40:02.539893
+2025-10-15 14:49:55,485 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 14:49:55,485 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 14:49:55,485 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 14:49:55,485 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 14:49:55,485 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 14:49:55,485 - __main__ - INFO - ============================================================
+2025-10-15 14:54:55,544 - __main__ - INFO - ============================================================
+2025-10-15 14:54:55,545 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 14:54:55
+2025-10-15 14:54:55,545 - __main__ - INFO - ⏱️  Uptime: 0:45:02.599395
+2025-10-15 14:54:55,545 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 14:54:55,545 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 14:54:55,545 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 14:54:55,545 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 14:54:55,545 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 14:54:55,545 - __main__ - INFO - ============================================================
+2025-10-15 14:59:55,604 - __main__ - INFO - ============================================================
+2025-10-15 14:59:55,604 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 14:59:55
+2025-10-15 14:59:55,604 - __main__ - INFO - ⏱️  Uptime: 0:50:02.658763
+2025-10-15 14:59:55,604 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 14:59:55,604 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 14:59:55,604 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 14:59:55,604 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 14:59:55,604 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 14:59:55,604 - __main__ - INFO - ============================================================
+2025-10-15 15:04:55,663 - __main__ - INFO - ============================================================
+2025-10-15 15:04:55,663 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 15:04:55
+2025-10-15 15:04:55,663 - __main__ - INFO - ⏱️  Uptime: 0:55:02.717950
+2025-10-15 15:04:55,663 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 15:04:55,663 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 15:04:55,663 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 15:04:55,663 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 15:04:55,663 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 15:04:55,663 - __main__ - INFO - ============================================================
+2025-10-15 15:09:55,722 - __main__ - INFO - ============================================================
+2025-10-15 15:09:55,722 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 15:09:55
+2025-10-15 15:09:55,722 - __main__ - INFO - ⏱️  Uptime: 1:00:02.776755
+2025-10-15 15:09:55,722 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 15:09:55,722 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 15:09:55,722 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 15:09:55,722 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 15:09:55,722 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 15:09:55,722 - __main__ - INFO - ============================================================
+2025-10-15 15:14:55,771 - __main__ - INFO - ============================================================
+2025-10-15 15:14:55,771 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 15:14:55
+2025-10-15 15:14:55,771 - __main__ - INFO - ⏱️  Uptime: 1:05:02.825939
+2025-10-15 15:14:55,771 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 15:14:55,771 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 15:14:55,771 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 15:14:55,771 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 15:14:55,771 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 15:14:55,771 - __main__ - INFO - ============================================================
+2025-10-15 15:19:55,830 - __main__ - INFO - ============================================================
+2025-10-15 15:19:55,831 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 15:19:55
+2025-10-15 15:19:55,831 - __main__ - INFO - ⏱️  Uptime: 1:10:02.885308
+2025-10-15 15:19:55,831 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 15:19:55,831 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 15:19:55,831 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 15:19:55,831 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 15:19:55,831 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 15:19:55,831 - __main__ - INFO - ============================================================
+2025-10-15 15:24:55,889 - __main__ - INFO - ============================================================
+2025-10-15 15:24:55,889 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 15:24:55
+2025-10-15 15:24:55,889 - __main__ - INFO - ⏱️  Uptime: 1:15:02.944028
+2025-10-15 15:24:55,889 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 15:24:55,889 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 15:24:55,889 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 15:24:55,889 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 15:24:55,889 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 15:24:55,889 - __main__ - INFO - ============================================================
+2025-10-15 15:29:55,948 - __main__ - INFO - ============================================================
+2025-10-15 15:29:55,948 - __main__ - INFO - 📊 SYSTEM STATUS - 2025-10-15 15:29:55
+2025-10-15 15:29:55,948 - __main__ - INFO - ⏱️  Uptime: 1:20:03.002679
+2025-10-15 15:29:55,948 - __main__ - INFO - 🎯 Engines running: 1/1
+2025-10-15 15:29:55,948 - __main__ - INFO - 💰 Total trades: 0
+2025-10-15 15:29:55,948 - __main__ - INFO - 📈 Total profit: $0.00
+2025-10-15 15:29:55,948 - __main__ - INFO - 📍 Active positions: 0
+2025-10-15 15:29:55,948 - __main__ - INFO - ⚠️  Errors: 6
+2025-10-15 15:29:55,948 - __main__ - INFO - ============================================================
