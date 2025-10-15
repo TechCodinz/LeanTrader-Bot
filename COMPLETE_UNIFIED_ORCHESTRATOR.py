@@ -399,7 +399,8 @@ class CompleteUnifiedOrchestrator:
         logger.info("\n🤖 Phase 3: AI/ML Systems...")
         
         try:
-            self.ai_systems['evolution'] = ULTIMATE_EVOLUTION_ENGINE()
+            self.ai_systems['evolution'] = ULTIMATE_EVOLUTION_ENGINE(data_hub=self.data_hub)
+            logger.info("✅ Evolution Engine initialized WITH DATA HUB - signals will publish!")
         except Exception as e:
             logger.warning(f"Evolution: {e}")
             self.ai_systems['evolution'] = None

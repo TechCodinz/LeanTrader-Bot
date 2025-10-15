@@ -33,8 +33,11 @@ from langchain.agents import Tool
 from langchain.memory import ConversationBufferMemory
 
 class ULTIMATE_EVOLUTION_ENGINE:
-    def __init__(self):
+    def __init__(self, data_hub=None):
         print("🚀 INITIALIZING ULTIMATE EVOLUTION ENGINE WITH CLAUDE 4.1 OPUS FEATURES...")
+
+        # Data Hub for signal publishing
+        self.data_hub = data_hub
 
         # Core Evolution Parameters
         self.evolution_cycle = 0
@@ -771,6 +774,7 @@ class ULTIMATE_EVOLUTION_ENGINE:
 
     def run_scalper_engine(self):
         """Run Scalper Engine - Generate crypto signals every 5 seconds"""
+        import asyncio
         while True:
             try:
                 # Generate scalping signals
@@ -779,6 +783,28 @@ class ULTIMATE_EVOLUTION_ENGINE:
                 if signals:
                     self.engine_performance['scalper_signals'] += len(signals)
                     print(f"📈 Scalper generated {len(signals)} signals")
+                    
+                    # PUBLISH SIGNALS TO DATA HUB!
+                    if self.data_hub:
+                        for sig in signals:
+                            # Convert signal format to match orchestrator expectations
+                            published_signal = {
+                                'type': 'scalper',
+                                'symbol': sig.get('pair', 'UNKNOWN'),  # Use 'pair' as 'symbol'
+                                'side': sig.get('action', '').lower(),  # BUY -> buy, SELL -> sell
+                                'action': sig.get('action', '').lower(),
+                                'confidence': sig.get('confidence', 0.0),
+                                'data': sig,
+                                'source': 'ScalperEngine',
+                                'timestamp': sig.get('timestamp', datetime.now()).isoformat() if hasattr(sig.get('timestamp', datetime.now()), 'isoformat') else str(sig.get('timestamp'))
+                            }
+                            # Publish to queue directly (thread-safe)
+                            try:
+                                self.data_hub.signal_queue.put_nowait(published_signal)
+                                self.data_hub.recent_signals.append(published_signal)
+                            except Exception as e:
+                                print(f"⚠️  Signal publish error: {e}")
+                        print(f"✅ Published {len(signals)} signals to data hub")
 
                 time.sleep(5)  # 5 seconds
 
