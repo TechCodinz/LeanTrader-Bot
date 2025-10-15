@@ -22,12 +22,25 @@ try:
     from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
     from qiskit import transpile
     from qiskit_aer import AerSimulator
-    from qiskit_ibm_runtime import QiskitRuntimeService, Session, Sampler, Estimator
     from qiskit.circuit.library import RealAmplitudes, ZZFeatureMap
     from qiskit.quantum_info import SparsePauliOp
+    try:
+        from qiskit_ibm_runtime import QiskitRuntimeService, Session, Sampler, Estimator
+        QISKIT_RUNTIME_AVAILABLE = True
+    except ImportError:
+        QiskitRuntimeService = None
+        Session = None
+        Sampler = None
+        Estimator = None
+        QISKIT_RUNTIME_AVAILABLE = False
     QISKIT_AVAILABLE = True
 except ImportError:
     QISKIT_AVAILABLE = False
+    QISKIT_RUNTIME_AVAILABLE = False
+    QiskitRuntimeService = None
+    Session = None
+    Sampler = None
+    Estimator = None
 
 logger = logging.getLogger(__name__)
 
@@ -460,7 +473,7 @@ class IBMQuantumEngine:
         # Try to load IBM Quantum credentials
         ibm_token = os.getenv('IBM_QUANTUM_TOKEN', '')
         
-        if ibm_token and QISKIT_AVAILABLE and 'QiskitRuntimeService' in dir():
+        if ibm_token and QISKIT_AVAILABLE and QISKIT_RUNTIME_AVAILABLE and QiskitRuntimeService is not None:
             try:
                 # Save account (one-time)
                 QiskitRuntimeService.save_account(
