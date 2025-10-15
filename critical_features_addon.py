@@ -1,3 +1,5 @@
+import pandas as pd
+from typing import Dict, List, Optional
 
 """
 CRITICAL FEATURE ADDITIONS FOR ULTIMATE ULTRA+ BOT

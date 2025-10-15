@@ -1,7 +1,9 @@
+from enum import Enum
 """
 Unified Trading Bot
 Main trading bot that integrates all components
 """
+from typing import Dict
 
 import asyncio
 import logging

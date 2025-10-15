@@ -1,3 +1,4 @@
+from typing import Dict, Optional, Any
 # mt5_signals.py
 
 # Use lazy, defensive helpers (below) to import mt5_adapter at call-time.

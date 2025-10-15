@@ -8,7 +8,13 @@ import aiohttp
 import hashlib
 from datetime import datetime
 import re
-from web3 import Web3
+from typing import Dict, List, Optional, Any, Deque
+from dataclasses import dataclass
+from collections import deque
+try:
+    from web3 import Web3
+except ImportError:
+    Web3 = None
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -926,3 +932,5 @@ if __name__ == "__main__":
     The system that finds the next SHIB, PEPE, or DOGE before they moon!
     """
     )
+# Alias for backwards compatibility
+UltraMoonSpotter = UltraMoonSystem

@@ -3,12 +3,17 @@ import asyncio
 import ccxt
 from datetime import datetime
 import sqlite3
+import logging
+from pathlib import Path
 from sklearn.ensemble import (
     RandomForestClassifier,
     GradientBoostingClassifier,
 )
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CallbackQueryHandler
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 class EnhancedTradingBot:
     def __init__(self):

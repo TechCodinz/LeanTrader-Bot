@@ -10,13 +10,13 @@ import sys
 # Add workspace to path
 sys.path.append('/workspace')
 
-from exchange_manager import exchange_manager
+from exchange_manager import ExchangeManager
 
 class APITester:
     """Test API connections and functionality"""
 
     def __init__(self):
-        self.exchange_manager = exchange_manager
+        self.ExchangeManager() = ExchangeManager()
         self.test_results = {}
         self.symbols = ["BTC/USDT", "ETH/USDT", "BNB/USDT"]
 
@@ -36,7 +36,7 @@ class APITester:
             print(f"🔍 Testing {exchange_name}...")
 
             # Test basic connection
-            if exchange_name in self.exchange_manager.async_exchanges:
+            if exchange_name in self.ExchangeManager().async_exchanges:
                 result['connected'] = True
                 print(f"  ✅ Connected to {exchange_name}")
             else:
@@ -46,7 +46,7 @@ class APITester:
 
             # Test market loading
             try:
-                markets = self.exchange_manager.exchanges[exchange_name].load_markets()
+                markets = self.ExchangeManager().exchanges[exchange_name].load_markets()
                 if markets:
                     result['markets_loaded'] = True
                     print(f"  ✅ Markets loaded: {len(markets)} symbols")
@@ -60,7 +60,7 @@ class APITester:
             # Test ticker fetching
             try:
                 for symbol in self.symbols:
-                    ticker = await self.exchange_manager.fetch_ticker(symbol, exchange_name)
+                    ticker = await self.ExchangeManager().fetch_ticker(symbol, exchange_name)
                     if ticker and 'price' in ticker:
                         result['ticker_fetched'] = True
                         print(f"  ✅ Ticker fetched for {symbol}: ${ticker['price']:.2f}")
@@ -71,7 +71,7 @@ class APITester:
 
             # Test orderbook fetching
             try:
-                orderbook = await self.exchange_manager.fetch_orderbook(
+                orderbook = await self.ExchangeManager().fetch_orderbook(
                     self.symbols[0], exchange_name
                 )
                 if orderbook and 'bids' in orderbook and 'asks' in orderbook:
@@ -85,7 +85,7 @@ class APITester:
 
             # Test balance fetching (if API keys are configured)
             try:
-                balance = await self.exchange_manager.fetch_balance(exchange_name)
+                balance = await self.ExchangeManager().fetch_balance(exchange_name)
                 if balance:
                     result['balance_fetched'] = True
                     print(f"  ✅ Balance fetched: {len(balance)} currencies")
@@ -108,7 +108,7 @@ class APITester:
         opportunities = []
         for symbol in self.symbols:
             try:
-                symbol_opportunities = await self.exchange_manager.get_arbitrage_opportunities(
+                symbol_opportunities = await self.ExchangeManager().get_arbitrage_opportunities(
                     symbol, min_profit=0.001
                 )
                 opportunities.extend(symbol_opportunities)
@@ -141,12 +141,12 @@ class APITester:
 
         try:
             # Test each exchange
-            for exchange_name in self.exchange_manager.get_available_exchanges():
+            for exchange_name in self.ExchangeManager().get_available_exchanges():
                 scan_results['exchanges_tested'] += 1
 
                 try:
                     # Test ticker fetching
-                    ticker = await self.exchange_manager.fetch_ticker(
+                    ticker = await self.ExchangeManager().fetch_ticker(
                         self.symbols[0], exchange_name
                     )
                     if ticker:
@@ -177,7 +177,7 @@ class APITester:
         print("\n📊 Testing Exchange Connections:")
         print("-" * 30)
 
-        for exchange_name in self.exchange_manager.get_available_exchanges():
+        for exchange_name in self.ExchangeManager().get_available_exchanges():
             result = await self.test_exchange_connection(exchange_name)
             self.test_results[exchange_name] = result
 

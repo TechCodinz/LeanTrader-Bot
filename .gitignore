@@ -1,18 +1,36 @@
-venv/
-.venv/
-# Local environment variables
+# Security - Never commit these!
 .env
-# Python artifacts
+*.key
+*.pem
+private_keys/
+
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-build/
-dist/
-*.egg-info/
-runtime/
-tools/*.txt
-tools/*_out.txt
-*.pkl
-flake_report.txt
-pytest_report.txt
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+tmp/
+temp/
+*.tmp

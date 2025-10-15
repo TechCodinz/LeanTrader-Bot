@@ -310,3 +310,6 @@ class REAL_PROFIT_BOT:
 if __name__ == "__main__":
     bot = REAL_PROFIT_BOT()
     bot.run()
+
+# Alias for compatibility
+RealProfitBot = REAL_PROFIT_BOT

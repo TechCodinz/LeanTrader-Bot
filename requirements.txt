@@ -1,15 +1,45 @@
-numpy
-pandas
-ccxt
-requests
-prometheus_client
-fastapi
-uvicorn
-qiskit==1.2.2; python_version >= '3.10'  # optional, guarded
-streamlit  # optional, guarded
-scikit-learn
-xgboost
-lightgbm
-TA-Lib
-tensorflow==2.16.2; platform_system != 'Windows'  # optional heavy, guarded
-# On Windows, install tensorflow-cpu manually if desired
+# Trading Bot Dependencies
+# Install with: pip3 install -r requirements.txt
+
+# Core Trading
+ccxt>=4.0.0
+web3>=6.0.0
+aiohttp>=3.8.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+yfinance>=0.2.0
+
+# Machine Learning
+tensorflow>=2.13.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
+xgboost>=2.0.0
+lightgbm>=4.0.0
+catboost>=1.2.0
+
+# Quantum Computing
+qiskit>=0.44.0
+qiskit-aer>=0.12.0
+
+# Telegram
+python-telegram-bot>=20.0
+aiogram>=3.0.0
+
+# Web APIs
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+feedparser>=6.0.0
+fastapi>=0.100.0
+uvicorn>=0.23.0
+
+# Utilities
+pytz>=2023.3
+python-dateutil>=2.8.0
+networkx>=3.0
+
+# Optional (Advanced Features)
+# tweepy>=4.14.0
+# praw>=7.7.0
+# discord.py>=2.3.0

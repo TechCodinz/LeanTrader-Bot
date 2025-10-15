@@ -1,10 +1,10 @@
-
 #!/usr/bin/env python3
 """
 ULTIMATE ULTRA+ BOT - Hedge Fund Grade Trading System
 Complete implementation with all engines and features
 """
 
+from typing import Dict, List, Optional, Any, Tuple
 import os
 import asyncio
 import json
@@ -32,7 +32,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('/opt/leantraderbot/logs/ultra_plus.log'),
+        logging.FileHandler('./data/ultra_plus.log'),
         logging.StreamHandler(),
     ],
 )

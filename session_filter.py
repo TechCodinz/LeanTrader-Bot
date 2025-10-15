@@ -1,3 +1,4 @@
+from typing import Tuple
 # session_filter.py
 # Tags current market session and returns weights for decision making.
 

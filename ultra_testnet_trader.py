@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from typing import Dict, List, Any
 
 """
 ULTRA TESTNET TRADING SYSTEM

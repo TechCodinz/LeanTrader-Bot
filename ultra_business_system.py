@@ -1,5 +1,3 @@
-from cryptography.fernet import Fernet
-
 #!/usr/bin/env python3
 """
 ULTRA+ TRADING BUSINESS SYSTEM
@@ -11,9 +9,12 @@ import os
 import asyncio
 import secrets
 from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
+from collections import defaultdict
 import sqlite3
 import stripe
 import ccxt.async_support as ccxt
+from cryptography.fernet import Fernet
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -37,7 +38,10 @@ class SubscriptionManager:
     Manages VIP subscriptions, token generation, and payments.
     """
 
-    def __init__(self, db_path: str = '/opt/leantraderbot/subscriptions.db'):
+    def __init__(self, db_path: str = './data/business/subscriptions.db'):
+        # Create directory if it doesn't exist
+        import os
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self.db_path = db_path
         self.init_database()
         self.cipher = Fernet(Fernet.generate_key())

@@ -1,0 +1,1 @@
+{"id": "bybit", "rate_limit_ms": 20, "maker_fee_pct": 0.01, "taker_fee_pct": 0.075, "price_precision": "auto", "amount_precision": "auto", "min_amount": null, "max_amount": null, "min_cost": null, "max_cost": null}

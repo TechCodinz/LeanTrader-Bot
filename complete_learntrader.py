@@ -9,6 +9,7 @@ Features: Arbitrage, Multi-timeframe ML, MT5 Integration, Micro Moon Spotter
 
 import asyncio
 import ccxt
+import pandas as pd
 from datetime import datetime, timedelta
 import requests
 import time

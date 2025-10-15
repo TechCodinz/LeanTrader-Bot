@@ -22,7 +22,11 @@ from traders_core.research.regime import tag_regimes
 from traders_core.storage.registry import load_latest, load_latest_tagged
 from traders_core.utils.ta import atr
 try:
-    from risk.guards import GuardState, RiskLimits, should_halt_trading, HaltTrading  # type: ignore
+    from risk.guards import (  # type: ignore
+        GuardState,
+        RiskLimits,
+        should_halt_trading,
+        HaltTrading,
         RISK_MAX_LOSS_PER_SYMBOL,
         RISK_MAX_DAILY_LOSS,
         RISK_MAX_ACCOUNT_DD,

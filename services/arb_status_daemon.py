@@ -1,6 +1,7 @@
 
 import os
 import time
+from typing import List
 
 from scanners.arbitrage import cross_exchange_spreads
 
@@ -17,6 +18,8 @@ def main() -> int:
 
     # Telegram (optional)
     try:
+        from integrations.telegram import send_telegram_message
+        tg_send = send_telegram_message
     except Exception:
         tg_send = None
 

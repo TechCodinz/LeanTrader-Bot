@@ -1712,3 +1712,6 @@ if __name__ == "__main__":
     traditional analysis and taps into the hidden patterns of the market!
     """
     )
+
+# Create main class alias for orchestrator
+UltraQuantumIntelligence = MicrostructureDecoder
