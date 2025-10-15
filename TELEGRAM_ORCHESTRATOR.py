@@ -879,16 +879,34 @@ Bot will start trading in 15-60 minutes!
         if not self.enabled or not self.free_chat_id:
             return
         
+        # Extract signal data (handle nested structure)
+        symbol = signal.get('symbol') or signal.get('pair') or 'UNKNOWN'
+        side = signal.get('side', signal.get('action', 'BUY')).upper()
+        confidence = signal.get('confidence', signal.get('score', 0))
+        
+        # Handle confidence as decimal or percentage
+        if confidence > 1:
+            confidence = confidence / 100
+        
+        price = signal.get('price', signal.get('entry_price', signal.get('current_price', 0)))
+        sl = signal.get('stop_loss', signal.get('sl', price * 0.98 if price > 0 else 0))
+        tp = signal.get('take_profit', signal.get('tp', price * 1.02 if price > 0 else 0))
+        
+        # Skip if no real data
+        if symbol == 'UNKNOWN' or price == 0:
+            logger.debug(f"Skipping empty signal: {signal}")
+            return
+        
         message = f"""
 📢 <b>TRADING SIGNAL</b>
 
-Symbol: {signal.get('symbol', 'N/A')}
-Side: {signal.get('side', 'BUY').upper()}
-Confidence: {signal.get('confidence', 0) * 100:.0f}%
+Symbol: {symbol}
+Side: {side}
+Confidence: {confidence * 100:.0f}%
 
-Entry: ${signal.get('price', 0):.2f}
-Stop Loss: ${signal.get('stop_loss', 0):.2f}
-Take Profit: ${signal.get('take_profit', 0):.2f}
+Entry: ${price:.4f}
+Stop Loss: ${sl:.4f}
+Take Profit: ${tp:.4f}
 
 🌟 VIP members can trade this with ONE CLICK!
 Use /subscribe to join VIP
@@ -900,6 +918,7 @@ Use /subscribe to join VIP
                 text=message,
                 parse_mode='HTML'
             )
+            logger.info(f"📢 Free signal sent: {symbol} {side}")
         except Exception as e:
             logger.error(f"Free channel send failed: {e}")
     
@@ -909,12 +928,25 @@ Use /subscribe to join VIP
         if not self.enabled or not self.vip_chat_id:
             return
         
-        symbol = signal.get('symbol', 'BTC/USDT')
-        side = signal.get('side', 'buy').lower()
-        price = signal.get('price', 0)
-        sl = signal.get('stop_loss', 0)
-        tp = signal.get('take_profit', 0)
-        confidence = signal.get('confidence', 0) * 100
+        # Extract signal data (handle nested structure)
+        symbol = signal.get('symbol') or signal.get('pair') or 'BTC/USDT'
+        side = signal.get('side', signal.get('action', 'buy')).lower()
+        confidence = signal.get('confidence', signal.get('score', 0))
+        
+        # Handle confidence as decimal or percentage
+        if confidence > 1:
+            confidence = confidence / 100
+        
+        price = signal.get('price', signal.get('entry_price', signal.get('current_price', 0)))
+        sl = signal.get('stop_loss', signal.get('sl', price * 0.98 if price > 0 else 0))
+        tp = signal.get('take_profit', signal.get('tp', price * 1.02 if price > 0 else 0))
+        
+        # Skip if no real data
+        if price == 0:
+            logger.debug(f"Skipping empty VIP signal: {signal}")
+            return
+        
+        confidence_pct = confidence * 100
         
         # Create trading buttons
         symbol_clean = symbol.replace('/', '')
