@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 # ============================================================================
 # CRITICAL PROFIT FEATURES - The Missing 50-100% Profit Boost
 # ============================================================================
+CRITICAL_FEATURES_AVAILABLE = False
 try:
     from critical_features_addon import (
         TrailingStopManager,
@@ -36,13 +37,14 @@ try:
     )
     CRITICAL_FEATURES_AVAILABLE = True
     logger.info("✅ Critical profit features loaded (Trailing stops, Compound, Partial TP)")
-except ImportError as e:
-    logger.warning(f"⚠️  Critical features not available: {e}")
-    CRITICAL_FEATURES_AVAILABLE = False
+except Exception as e:
+    logger.info(f"ℹ️  Critical features not available (optional): {type(e).__name__}")
+    logger.info("   Bot will run without profit optimization features")
 
 # ============================================================================
 # ULTRA-RARE GOLDMINE FEATURES - The Cutting-Edge Advantage
 # ============================================================================
+ULTRA_FEATURES_AVAILABLE = False
 try:
     from ULTRA_GOLDMINE_FEATURES import (
         GammaSqueezeDetector,
@@ -59,9 +61,9 @@ try:
     )
     ULTRA_FEATURES_AVAILABLE = True
     logger.info("🌟 Ultra goldmine features loaded (10 cutting-edge strategies)")
-except ImportError as e:
-    logger.warning(f"⚠️  Ultra features not available: {e}")
-    ULTRA_FEATURES_AVAILABLE = False
+except Exception as e:
+    logger.info(f"ℹ️  Ultra features not available (optional): {type(e).__name__}")
+    logger.info("   Bot will run without goldmine strategies")
 
 # Import complete unified orchestrator (base 26 systems)
 from ULTIMATE_ORCHESTRATOR import (

@@ -25,12 +25,43 @@ These are advanced, proprietary strategies that give you unfair advantages
 """
 
 import asyncio
-import numpy as np
-import pandas as pd
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
 from collections import deque, defaultdict
 import logging
+
+# Optional dependencies - graceful fallback
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    # Fallback implementations
+    class np:
+        @staticmethod
+        def mean(arr): return sum(arr) / len(arr) if arr else 0
+        @staticmethod
+        def std(arr): 
+            if not arr: return 0
+            mean = sum(arr) / len(arr)
+            return (sum((x - mean) ** 2 for x in arr) / len(arr)) ** 0.5
+        @staticmethod
+        def percentile(arr, p): 
+            if not arr: return 0
+            sorted_arr = sorted(arr)
+            k = (len(sorted_arr) - 1) * (p / 100)
+            f = int(k)
+            return sorted_arr[f]
+        @staticmethod
+        def diff(arr):
+            return [arr[i] - arr[i-1] for i in range(1, len(arr))]
+
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    PANDAS_AVAILABLE = False
+    # Pandas not required for basic functionality
 
 logger = logging.getLogger(__name__)
 
