@@ -1049,8 +1049,16 @@ Select amount below to execute instantly:
         # Send startup notification
         await self.send_bot_startup_notification()
         
-        # Start bot
-        await self.app.run_polling()
+        # Initialize and start bot (non-blocking)
+        async with self.app:
+            await self.app.initialize()
+            await self.app.start()
+            logger.info("✅ Telegram bot started successfully")
+            
+            # Keep running in background
+            import asyncio
+            while True:
+                await asyncio.sleep(1)
     
     async def send_alert(self, message: str):
         """Send alert to admin (compatibility method)"""
