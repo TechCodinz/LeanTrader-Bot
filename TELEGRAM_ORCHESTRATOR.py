@@ -967,6 +967,10 @@ All systems operational! 🚀
         await self.vip_system.send_admin_notification(message, 'info')
 
 
+# Alias for compatibility with existing code
+TelegramOrchestrator = PremiumVIPTelegramSystem
+
+
 if __name__ == "__main__":
     print("""
 ╔══════════════════════════════════════════════════════════════════════╗
