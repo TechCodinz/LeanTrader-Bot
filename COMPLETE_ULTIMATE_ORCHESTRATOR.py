@@ -779,33 +779,64 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("📱 Telegram not enabled - skipping monitor")
             return
         
+        # Track sent signals to avoid duplicates
+        sent_signals = set()
+        sent_trades = set()
+        
         while self.is_running:
             try:
-                # Monitor recent signals
-                if len(self.data_hub.recent_signals) > 0:
-                    # Get latest signal
-                    signal = list(self.data_hub.recent_signals)[-1]
+                # Monitor signal queue (primary source)
+                if not self.data_hub.signal_queue.empty():
+                    signal = await self.data_hub.signal_queue.get()
                     
-                    confidence = signal.get('data', {}).get('confidence', 0)
+                    signal_data = signal.get('data', {})
+                    confidence = signal_data.get('confidence', 0)
+                    symbol = signal_data.get('symbol', 'UNKNOWN')
+                    
+                    # Create unique ID for this signal
+                    signal_id = f"{symbol}_{confidence}_{signal_data.get('side', 'buy')}"
+                    
+                    # Skip if already sent or invalid
+                    if signal_id in sent_signals or confidence == 0:
+                        continue
+                    
+                    sent_signals.add(signal_id)
                     
                     # High confidence → VIP channel
                     if confidence >= 0.80:
-                        await telegram.send_signal_to_vip(signal.get('data', {}))
+                        await telegram.send_signal_to_vip(signal_data)
+                        logger.info(f"📱 VIP signal sent: {symbol} (conf: {confidence*100:.0f}%)")
                     
                     # Medium confidence → Free channel
                     elif confidence >= 0.65:
-                        await telegram.send_signal_to_free(signal.get('data', {}))
+                        await telegram.send_signal_to_free(signal_data)
+                        logger.info(f"📱 Free signal sent: {symbol} (conf: {confidence*100:.0f}%)")
                 
-                # Monitor recent trades for notifications
-                if len(self.data_hub.recent_trades) > 0:
-                    trade = list(self.data_hub.recent_trades)[-1]
+                # Monitor trade queue
+                if not self.data_hub.trade_data_queue.empty():
+                    trade = await self.data_hub.trade_data_queue.get()
                     
-                    if trade.get('status') == 'open':
-                        await telegram.notify_trade_executed(trade)
-                    elif trade.get('status') == 'closed':
-                        await telegram.notify_trade_closed(trade)
+                    trade_id = f"{trade.get('symbol', '')}_{trade.get('status', '')}"
+                    
+                    if trade_id not in sent_trades:
+                        sent_trades.add(trade_id)
+                        
+                        if hasattr(telegram, 'send_admin_notification'):
+                            if trade.get('status') == 'open':
+                                msg = f"💰 Trade opened: {trade.get('symbol')} {trade.get('side')}"
+                                await telegram.send_admin_notification(msg, 'trade')
+                            elif trade.get('status') == 'closed':
+                                pnl = trade.get('pnl', 0)
+                                msg = f"{'💵 Profit' if pnl > 0 else '📉 Loss'}: {trade.get('symbol')} ${pnl:.2f}"
+                                await telegram.send_admin_notification(msg, 'profit' if pnl > 0 else 'warning')
                 
-                await asyncio.sleep(5)  # Check every 5 seconds
+                # Keep only recent signal IDs (prevent memory leak)
+                if len(sent_signals) > 100:
+                    sent_signals.clear()
+                if len(sent_trades) > 50:
+                    sent_trades.clear()
+                
+                await asyncio.sleep(1)  # Check every second for faster signal delivery
                 
             except Exception as e:
                 logger.error(f"Telegram monitor error: {e}")
