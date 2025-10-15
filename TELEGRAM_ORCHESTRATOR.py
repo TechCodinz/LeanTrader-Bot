@@ -1095,6 +1095,10 @@ Select amount below to execute instantly:
     async def send_alert(self, message: str):
         """Send alert to admin (compatibility method)"""
         await self.send_admin_notification(message, 'warning')
+    
+    async def send_bot_update(self, message: str, level: str = "info"):
+        """Send bot update to admin (compatibility method)"""
+        await self.send_admin_notification(message, level)
 
 
 # ============================================================================
