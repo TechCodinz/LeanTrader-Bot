@@ -404,6 +404,82 @@ VIP members can add their exchange API and trade with ONE CLICK from the channel
         
         await update.message.reply_text(message, parse_mode='HTML')
     
+    async def cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show help message"""
+        user_id = str(update.effective_user.id)
+        is_vip = self.user_db.is_vip(user_id)
+        
+        message = """
+📖 <b>COMMAND LIST</b>
+
+<b>🆓 Free Commands:</b>
+/start - Welcome message
+/help - This help message
+/subscribe - See VIP subscription plans
+/status - Check your account status
+
+<b>🌟 VIP Commands:</b>
+/addapi - Add your exchange API keys
+/trade - Execute a trade manually
+/positions - View your open positions
+/balance - Check your account balance
+/close - Close a position
+
+<b>💡 Examples:</b>
+
+Add API:
+<code>/addapi bybit YOUR_API_KEY YOUR_SECRET</code>
+
+Execute trade:
+<code>/trade BTC/USDT buy 0.001</code>
+
+Close position:
+<code>/close BTC/USDT</code>
+
+<b>Need help?</b> Contact @admin
+        """
+        
+        await update.message.reply_text(message, parse_mode='HTML')
+    
+    async def cmd_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show user status"""
+        user_id = str(update.effective_user.id)
+        user = self.user_db.users.get(str(user_id))
+        
+        if not user:
+            await update.message.reply_text("You're not registered yet. Use /start to begin!")
+            return
+        
+        is_vip = self.user_db.is_vip(user_id)
+        
+        message = f"""
+📊 <b>YOUR ACCOUNT STATUS</b>
+
+<b>Tier:</b> {'🌟 VIP' if is_vip else '📢 Free'}
+<b>Joined:</b> {user.get('joined_date', 'N/A')[:10]}
+
+"""
+        
+        if is_vip:
+            expires = user.get('subscription_expires')
+            if expires:
+                message += f"<b>VIP Expires:</b> {expires[:10]}\n"
+            message += f"<b>Total Paid:</b> ${user.get('total_paid', 0):.2f}\n"
+            
+            exchanges = user.get('exchanges', {})
+            if exchanges:
+                message += f"\n<b>Connected Exchanges:</b>\n"
+                for ex in exchanges.keys():
+                    message += f"  • {ex.upper()}\n"
+        else:
+            message += "\n💡 <b>Upgrade to VIP for premium features!</b>\nUse /subscribe to see plans"
+        
+        message += f"\n<b>Stats:</b>\n"
+        message += f"  Trades: {user.get('trades', 0)}\n"
+        message += f"  Profit: ${user.get('profit', 0):.2f}"
+        
+        await update.message.reply_text(message, parse_mode='HTML')
+    
     async def cmd_subscribe(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show subscription plans"""
         
