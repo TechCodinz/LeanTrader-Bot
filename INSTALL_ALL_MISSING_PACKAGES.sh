@@ -80,6 +80,7 @@ pip install \
 echo "Installing Telegram..."
 pip install \
     python-telegram-bot \
+    aiogram \
     -q
 
 echo "Installing utilities..."
@@ -117,6 +118,7 @@ packages = {
     'pandas': 'Pandas', 
     'ccxt': 'CCXT',
     'telegram': 'python-telegram-bot',
+    'aiogram': 'aiogram',
     'web3': 'Web3',
     'bs4': 'BeautifulSoup4',
     'langchain': 'LangChain',
