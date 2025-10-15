@@ -292,15 +292,28 @@ class UnifiedDecisionEngine:
                         except:
                             brain_features = None
                         
-                        # Combined decision
+                        # EXTRACT ACTION AND CONFIDENCE FROM SIGNAL!
+                        signal_data = signal.get('data', {})
+                        signal_side = signal.get('side') or signal_data.get('side') or signal.get('action', 'hold')
+                        signal_confidence = signal.get('confidence', 0.0) or signal_data.get('confidence', 0.0)
+                        
+                        # Boost confidence if swarm agrees
+                        if swarm_decision:
+                            swarm_conf = swarm_decision.get('confidence', 0.0)
+                            if swarm_conf > 0:
+                                signal_confidence = min(0.95, (signal_confidence + swarm_conf) / 2)
+                        
+                        # Combined decision WITH ACTION AND CONFIDENCE!
                         decision = {
                             'signal': signal,
+                            'action': signal_side,  # CRITICAL: ExecutionOrchestrator needs this!
+                            'confidence': signal_confidence,  # CRITICAL: ExecutionOrchestrator needs this!
                             'swarm_consensus': swarm_decision,
                             'brain_analysis': brain_features,
                             'timestamp': datetime.now().isoformat()
                         }
                         
-                        logger.info(f"🎯 Collective decision made for {signal.get('type', 'unknown')}")
+                        logger.info(f"🎯 Decision: {signal_side.upper()} {signal.get('symbol', 'UNKNOWN')} (conf: {signal_confidence:.1%})")
                         
                         # Publish decision
                         await self.data_hub.publish_alert(decision)
