@@ -76,6 +76,10 @@ pip install python-dotenv pyyaml toml -q
 echo "   Installing Telegram bot (CRITICAL!)..."
 pip install python-telegram-bot -q
 
+# Web scraping (for UltraScout news/social features)
+echo "   Installing web scraping packages..."
+pip install beautifulsoup4 lxml -q
+
 echo ""
 echo "✅ ALL dependencies installed (including Telegram!)"
 echo ""
