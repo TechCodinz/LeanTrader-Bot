@@ -329,13 +329,23 @@ class DEXOrchestrator:
     async def start(self):
         """Start DEX orchestrator"""
         self.running = True
+        
+        # Check if we have private key for trading
+        private_key = os.getenv('DEX_PRIVATE_KEY', '')
+        
+        if not private_key:
+            logger.info("⚠️  DEX Orchestrator: No private key - Monitoring only (no trading)")
+            logger.info("   Add DEX_PRIVATE_KEY to .env to enable DEX trading")
+            # Don't start async loops without private key to avoid crashes
+            return
+        
         logger.info("🚀 DEX Orchestrator STARTED")
         
         # Connect to all enabled chains
         for chain in self.config.chains:
             await self.web3_manager.connect_chain(chain)
         
-        # Start scanning loop
+        # Start scanning loop (only if we have private key)
         asyncio.create_task(self._scanning_loop())
         asyncio.create_task(self._position_monitoring_loop())
     
