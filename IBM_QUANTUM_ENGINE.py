@@ -460,7 +460,7 @@ class IBMQuantumEngine:
         # Try to load IBM Quantum credentials
         ibm_token = os.getenv('IBM_QUANTUM_TOKEN', '')
         
-        if ibm_token:
+        if ibm_token and QISKIT_AVAILABLE and 'QiskitRuntimeService' in dir():
             try:
                 # Save account (one-time)
                 QiskitRuntimeService.save_account(
