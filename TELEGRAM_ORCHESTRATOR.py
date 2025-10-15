@@ -913,14 +913,23 @@ Use /subscribe to join VIP
         """
         
         try:
-            await self.bot.send_message(
+            result = await self.bot.send_message(
                 chat_id=self.free_chat_id,
                 text=message,
                 parse_mode='HTML'
             )
-            logger.info(f"📢 Free signal sent: {symbol} {side}")
+            logger.info(f"✅ FREE channel signal sent: {symbol} {side} (msg_id: {result.message_id})")
+        except telegram.error.Forbidden as e:
+            logger.error(f"❌ Bot not added to FREE channel or no permission!")
+            logger.error(f"   Channel ID: {self.free_chat_id}")
+            logger.error(f"   Error: {e}")
+            logger.error(f"   FIX: Add bot to channel and make it admin with 'Post Messages' permission")
+        except telegram.error.BadRequest as e:
+            logger.error(f"❌ Invalid FREE channel ID: {self.free_chat_id}")
+            logger.error(f"   Error: {e}")
+            logger.error(f"   FIX: Channel ID should be numeric (e.g., -1001234567890)")
         except Exception as e:
-            logger.error(f"Free channel send failed: {e}")
+            logger.error(f"❌ Free channel send failed: {e}")
     
     async def send_signal_to_vip(self, signal: Dict):
         """Send premium signal to VIP channel with trading buttons"""
