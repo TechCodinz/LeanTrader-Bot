@@ -872,8 +872,8 @@ Select amount below to execute instantly:
             logger.error(f"User trade execution failed: {e}")
             return {'success': False, 'error': str(e)}
     
-    async def run_telegram_loop(self):
-        """Run the Telegram system (compatible with orchestrator)"""
+    async def run(self):
+        """Run the Telegram system"""
         
         if not self.enabled:
             logger.info("📱 Telegram disabled")
@@ -886,10 +886,6 @@ Select amount below to execute instantly:
         
         # Start bot
         await self.app.run_polling()
-    
-    async def send_alert(self, message: str):
-        """Send alert to admin (compatibility method)"""
-        await self.send_admin_notification(message, 'warning')
 
 
 # ============================================================================
