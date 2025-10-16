@@ -13,7 +13,7 @@ Adjusts position sizing and confidence based on session
 """
 
 import logging
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 from datetime import datetime, timezone, time as dt_time
 
 logger = logging.getLogger(__name__)
