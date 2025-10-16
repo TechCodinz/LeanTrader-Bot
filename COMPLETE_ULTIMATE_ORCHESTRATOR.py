@@ -665,7 +665,9 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         # ========================================================================
         logger.info("🧠 Wiring Sentient Trading Brain...")
         
-        self.sentient_brain = SentientTradingBrain(self.data_hub, self.execution_orchestrator)
+        # Get execution engine (it's stored as self.execution_engine)
+        execution_engine = self.advanced_orchestrators.get('execution')
+        self.sentient_brain = SentientTradingBrain(self.data_hub, execution_engine)
         self.advanced_orchestrators['sentient_brain'] = self.sentient_brain
         logger.info("✅ 🧠 SENTIENT TRADING BRAIN WIRED!")
         logger.info("   Mode: DUAL (Testnet validation → Live execution)")
