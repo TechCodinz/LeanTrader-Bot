@@ -876,7 +876,12 @@ Bot will start trading in 15-60 minutes!
     async def send_signal_to_free(self, signal: Dict):
         """Send basic signal to free channel"""
         
-        if not self.enabled or not self.free_chat_id:
+        if not self.enabled:
+            logger.debug("Telegram not enabled")
+            return
+        
+        if not self.free_chat_id or self.free_chat_id == '@your_free_channel':
+            logger.warning(f"⚠️  FREE channel not configured! Current: {self.free_chat_id}")
             return
         
         # Extract signal data (handle nested structure)
@@ -934,7 +939,12 @@ Use /subscribe to join VIP
     async def send_signal_to_vip(self, signal: Dict):
         """Send premium signal to VIP channel with trading buttons"""
         
-        if not self.enabled or not self.vip_chat_id:
+        if not self.enabled:
+            logger.debug("Telegram not enabled")
+            return
+        
+        if not self.vip_chat_id or self.vip_chat_id == '@your_vip_channel':
+            logger.warning(f"⚠️  VIP channel not configured! Current: {self.vip_chat_id}")
             return
         
         # Extract signal data (handle nested structure)
