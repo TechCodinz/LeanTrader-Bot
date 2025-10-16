@@ -366,17 +366,3 @@ class P2PArbitrageScanner:
             'status': 'monitoring',
             'exchanges': list(self.exchanges.keys())
         }
-ol: str) -> float:
-        """Fetch spot price"""
-        try:
-            ticker = await exchange.fetch_ticker(symbol)
-            return ticker['last']
-        except:
-            return 0
-    
-    def get_stats(self) -> Dict:
-        """Get P2P arbitrage statistics"""
-        return {
-            'status': 'monitoring',
-            'exchanges': list(self.exchanges.keys())
-        }
