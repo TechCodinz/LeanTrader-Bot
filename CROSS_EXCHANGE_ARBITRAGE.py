@@ -26,13 +26,14 @@ class CrossExchangeArbitrage:
     """
     
     def __init__(self, exchanges: Dict[str, ccxt.Exchange], data_hub):
-        self.exchanges = exchanges
+        # Extract actual ccxt exchanges from engines
+        self.exchanges = self._extract_ccxt_exchanges(exchanges)
         self.data_hub = data_hub
         
         # Arbitrage settings
         self.min_profit_pct = 0.3  # Minimum 0.3% profit after fees
         self.max_position_usd = 100  # Max $100 per arbitrage
-        self.enabled = True
+        self.enabled = len(self.exchanges) >= 2
         
         # Track opportunities
         self.opportunities = deque(maxlen=1000)
@@ -43,12 +44,41 @@ class CrossExchangeArbitrage:
         self.fees = {}
         
         logger.info("🔄 Cross-Exchange Arbitrage Engine initialized")
-        logger.info(f"   Exchanges: {list(exchanges.keys())}")
+        logger.info(f"   Valid exchanges: {list(self.exchanges.keys())}")
         logger.info(f"   Min profit: {self.min_profit_pct}%")
+        
+        if len(self.exchanges) < 2:
+            logger.warning(f"⚠️  Need 2+ exchanges for arbitrage (have {len(self.exchanges)})")
+            self.enabled = False
+    
+    def _extract_ccxt_exchanges(self, engines: Dict) -> Dict:
+        """Extract actual ccxt exchange objects from engines"""
+        ccxt_exchanges = {}
+        
+        for name, obj in engines.items():
+            try:
+                # Check if it's already a ccxt exchange
+                if hasattr(obj, 'fetch_ticker') and callable(obj.fetch_ticker):
+                    ccxt_exchanges[name] = obj
+                    logger.info(f"   ✅ {name}: Direct ccxt exchange")
+                # Check if it has an 'exchange' attribute (engine with embedded exchange)
+                elif hasattr(obj, 'exchange') and obj.exchange:
+                    if hasattr(obj.exchange, 'fetch_ticker'):
+                        ccxt_exchanges[name] = obj.exchange
+                        logger.info(f"   ✅ {name}: Extracted from engine")
+            except Exception as e:
+                logger.debug(f"   Skipping {name}: {str(e)[:50]}")
+                continue
+        
+        return ccxt_exchanges
     
     async def run_arbitrage_scanner(self):
         """Main arbitrage scanning loop"""
         logger.info("🔄 Starting arbitrage scanner...")
+        
+        if not self.enabled:
+            logger.warning("⚠️  Arbitrage disabled (need 2+ exchanges)")
+            return
         
         # Fetch fees first
         await self.fetch_exchange_fees()

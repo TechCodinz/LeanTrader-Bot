@@ -80,7 +80,14 @@ class DynamicMarketScanner:
         
         new_opportunities = set()
         
-        for exchange_name, exchange in self.exchanges.items():
+        # Get actual ccxt exchange objects
+        actual_exchanges = self._extract_ccxt_exchanges()
+        
+        if not actual_exchanges:
+            logger.warning("⚠️  No valid ccxt exchanges found, creating fallback connections...")
+            actual_exchanges = await self._create_fallback_exchanges()
+        
+        for exchange_name, exchange in actual_exchanges.items():
             try:
                 logger.info(f"🔍 Scanning {exchange_name}...")
                 
@@ -168,6 +175,76 @@ class DynamicMarketScanner:
             reverse=True
         )
         return list(sorted_volume)[:limit]
+    
+    def _extract_ccxt_exchanges(self) -> Dict:
+        """Extract actual ccxt exchange objects from engines"""
+        ccxt_exchanges = {}
+        
+        for name, obj in self.exchanges.items():
+            try:
+                # Check if it's already a ccxt exchange
+                if hasattr(obj, 'fetch_tickers') and callable(obj.fetch_tickers):
+                    ccxt_exchanges[name] = obj
+                # Check if it has an 'exchange' attribute (engine with embedded exchange)
+                elif hasattr(obj, 'exchange') and obj.exchange:
+                    if hasattr(obj.exchange, 'fetch_tickers'):
+                        ccxt_exchanges[name] = obj.exchange
+                        logger.info(f"   ✅ Extracted exchange from {name} engine")
+            except Exception as e:
+                logger.debug(f"   Skipping {name}: {str(e)[:50]}")
+                continue
+        
+        return ccxt_exchanges
+    
+    async def _create_fallback_exchanges(self) -> Dict:
+        """Create fresh exchange connections as fallback"""
+        import ccxt.async_support as ccxt
+        import os
+        
+        fallback = {}
+        
+        # Try Gate.io (user's main exchange)
+        if os.getenv('GATE_API_KEY'):
+            try:
+                fallback['gateio'] = ccxt.gateio({
+                    'apiKey': os.getenv('GATE_API_KEY'),
+                    'secret': os.getenv('GATE_SECRET'),
+                    'enableRateLimit': True
+                })
+                logger.info("   ✅ Created Gate.io connection")
+            except Exception as e:
+                logger.warning(f"   ⚠️  Gate.io: {str(e)[:50]}")
+        
+        # Try Binance (public API, no auth needed for tickers)
+        try:
+            fallback['binance'] = ccxt.binance({
+                'enableRateLimit': True
+            })
+            logger.info("   ✅ Created Binance connection (public)")
+        except Exception as e:
+            logger.warning(f"   ⚠️  Binance: {str(e)[:50]}")
+        
+        # Try other exchanges if API keys exist
+        exchange_configs = {
+            'mexc': ('MEXC_API_KEY', 'MEXC_SECRET'),
+            'okx': ('OKX_API_KEY', 'OKX_SECRET'),
+            'kucoin': ('KUCOIN_API_KEY', 'KUCOIN_SECRET'),
+        }
+        
+        for exchange_name, (key_var, secret_var) in exchange_configs.items():
+            if os.getenv(key_var):
+                try:
+                    exchange_class = getattr(ccxt, exchange_name)
+                    fallback[exchange_name] = exchange_class({
+                        'apiKey': os.getenv(key_var),
+                        'secret': os.getenv(secret_var),
+                        'enableRateLimit': True
+                    })
+                    logger.info(f"   ✅ Created {exchange_name.upper()} connection")
+                except Exception as e:
+                    logger.debug(f"   ⚠️  {exchange_name}: {str(e)[:50]}")
+        
+        return fallback
     
     def get_stats(self) -> Dict:
         """Get scanner statistics"""
