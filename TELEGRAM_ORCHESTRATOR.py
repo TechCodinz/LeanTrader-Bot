@@ -761,11 +761,15 @@ Free Users: {user_count - vip_count}
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle button callbacks"""
         query = update.callback_query
-        await query.answer()
+        
+        # CRITICAL: Answer immediately to stop loading
+        await query.answer("Processing...")
         
         user_id = str(update.effective_user.id)
         username = update.effective_user.username or "Unknown"
         data = query.data
+        
+        logger.info(f"🔘 Button clicked: {data} by user {user_id}")
         
         # Show subscription info
         if data == 'subscribe_info':
