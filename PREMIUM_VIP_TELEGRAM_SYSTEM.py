@@ -40,7 +40,7 @@ try:
         filters,
         PreCheckoutQueryHandler
     )
-    import ccxt
+    import ccxt.async_support as ccxt
     TELEGRAM_AVAILABLE = True
 except ImportError:
     TELEGRAM_AVAILABLE = False
@@ -494,6 +494,7 @@ Supported exchanges:
             return
         
         # Test API keys
+        test_exchange = None
         try:
             exchange_class = getattr(ccxt, exchange)
             test_exchange = exchange_class({
@@ -527,6 +528,10 @@ Supported exchanges:
                 f"Please check your API keys and try again.",
                 parse_mode='HTML'
             )
+        finally:
+            # Clean up exchange connection
+            if test_exchange:
+                await test_exchange.close()
     
     async def cmd_trade(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Execute trade (VIP only)"""
@@ -827,6 +832,7 @@ Select amount below to execute instantly:
     ) -> Dict:
         """Execute trade for a specific user using their exchange API"""
         
+        exchange = None
         try:
             # Get user's exchange
             user_exchange_data = self.user_db.get_user_exchange(user_id)
@@ -871,6 +877,10 @@ Select amount below to execute instantly:
         except Exception as e:
             logger.error(f"User trade execution failed: {e}")
             return {'success': False, 'error': str(e)}
+        finally:
+            # Clean up exchange connection
+            if exchange:
+                await exchange.close()
     
     async def run(self):
         """Run the Telegram system"""
