@@ -943,6 +943,12 @@ Bot will start trading in 15-60 minutes!
             confidence = confidence / 100
         
         price = signal.get('price', signal.get('entry_price', signal.get('current_price', 0)))
+        
+        # CRITICAL: If no price, fetch it live!
+        if price == 0 and symbol != 'UNKNOWN':
+            logger.info(f"🔍 No price in signal, fetching live for {symbol}...")
+            price = await self._fetch_current_price(symbol)
+        
         sl = signal.get('stop_loss', signal.get('sl', price * 0.98 if price > 0 else 0))
         tp = signal.get('take_profit', signal.get('tp', price * 1.02 if price > 0 else 0))
         
