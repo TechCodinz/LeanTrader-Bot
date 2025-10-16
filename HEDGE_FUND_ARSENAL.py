@@ -14,11 +14,17 @@ Features:
 """
 
 import asyncio
-import numpy as np
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from collections import deque
 import logging
+
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    logging.warning("numpy not available - hedge fund features using fallback")
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +54,9 @@ class StatisticalArbitrage:
     
     async def find_pairs_trades(self) -> List[Dict]:
         """Find pairs trading opportunities"""
+        if not NUMPY_AVAILABLE:
+            return []
+        
         signals = []
         
         for asset1, asset2, expected_corr in self.pairs:
@@ -109,7 +118,7 @@ class VolatilityTrading:
     
     def calculate_realized_volatility(self, prices: List[float]) -> float:
         """Calculate realized volatility from price history"""
-        if len(prices) < 20:
+        if not NUMPY_AVAILABLE or len(prices) < 20:
             return 0.02  # Default 2%
         
         returns = np.diff(np.log(prices))
@@ -122,6 +131,9 @@ class VolatilityTrading:
         
         # Track volatility
         self.volatility_history.append(current_vol)
+        
+        if not NUMPY_AVAILABLE:
+            return None
         
         if len(self.volatility_history) >= 30:
             mean_vol = np.mean(list(self.volatility_history))

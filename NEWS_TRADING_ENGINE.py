@@ -12,11 +12,17 @@ Features:
 """
 
 import asyncio
-import aiohttp
 import logging
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from collections import deque
+
+try:
+    import aiohttp
+    AIOHTTP_AVAILABLE = True
+except ImportError:
+    AIOHTTP_AVAILABLE = False
+    logging.warning("aiohttp not available - news trading will use fallback")
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +87,10 @@ class NewsTradingEngine:
     
     async def fetch_trending_coins(self) -> List[Dict]:
         """Fetch trending coins from CoinGecko public API"""
+        if not AIOHTTP_AVAILABLE:
+            logger.debug("aiohttp not available, skipping trending fetch")
+            return []
+        
         try:
             url = "https://api.coingecko.com/api/v3/search/trending"
             
