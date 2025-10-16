@@ -543,14 +543,43 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("💰 Wiring Cross-Exchange Arbitrage...")
         
         # Prepare exchanges for arbitrage
+        import ccxt
+        import os
         arb_exchanges = {}
         
-        # Add all available exchanges
-        if hasattr(self, 'engines'):
-            for exchange_name, exchange in self.engines.items():
-                if exchange:
+        # Initialize exchanges from environment variables
+        exchange_configs = {
+            'mexc': ('MEXC_API_KEY', 'MEXC_SECRET'),
+            'gateio': ('GATE_API_KEY', 'GATE_SECRET'),
+            'binance': ('BINANCE_API_KEY', 'BINANCE_SECRET'),
+            'bybit': ('BYBIT_API_KEY', 'BYBIT_SECRET'),
+        }
+        
+        for exchange_name, (key_env, secret_env) in exchange_configs.items():
+            api_key = os.getenv(key_env)
+            secret = os.getenv(secret_env)
+            
+            if api_key and secret:
+                try:
+                    exchange_class = getattr(ccxt, exchange_name)
+                    exchange = exchange_class({
+                        'apiKey': api_key,
+                        'secret': secret,
+                        'enableRateLimit': True
+                    })
                     arb_exchanges[exchange_name] = exchange
                     logger.info(f"   ✅ {exchange_name.upper()} added to arbitrage")
+                except Exception as e:
+                    logger.warning(f"   ⚠️  {exchange_name.upper()}: {str(e)[:50]}")
+            else:
+                logger.debug(f"   ⚠️  {exchange_name.upper()}: No API keys")
+        
+        # Also check existing engines
+        if hasattr(self, 'engines') and self.engines:
+            for exchange_name, exchange in self.engines.items():
+                if exchange and exchange_name not in arb_exchanges:
+                    arb_exchanges[exchange_name] = exchange
+                    logger.info(f"   ✅ {exchange_name.upper()} (from engines) added to arbitrage")
         
         if len(arb_exchanges) >= 2:
             # Initialize arbitrage engine
