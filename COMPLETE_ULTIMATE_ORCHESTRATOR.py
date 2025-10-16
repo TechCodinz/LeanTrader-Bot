@@ -884,14 +884,20 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     # High confidence → VIP channel
                     if confidence >= 0.80:
                         logger.info(f"🔍 Sending VIP signal: {symbol} {side.upper()} (conf: {confidence*100:.0f}%)")
-                        await telegram.send_signal_to_vip(signal_data)
-                        logger.info(f"✅ VIP signal sent: {symbol} {side.upper()}")
+                        try:
+                            await telegram.send_signal_to_vip(signal_data)
+                            logger.info(f"✅ VIP signal sent: {symbol} {side.upper()}")
+                        except Exception as e:
+                            logger.error(f"❌ VIP send failed: {e}")
                     
                     # Medium confidence → Free channel
                     elif confidence >= 0.65:
                         logger.info(f"🔍 Sending FREE signal: {symbol} {side.upper()} (conf: {confidence*100:.0f}%)")
-                        await telegram.send_signal_to_free(signal_data)
-                        logger.info(f"✅ FREE signal sent: {symbol} {side.upper()}")
+                        try:
+                            await telegram.send_signal_to_free(signal_data)
+                            logger.info(f"✅ FREE signal sent: {symbol} {side.upper()}")
+                        except Exception as e:
+                            logger.error(f"❌ FREE send failed: {e}")
                     
                     last_signal_count = current_signal_count
                 
