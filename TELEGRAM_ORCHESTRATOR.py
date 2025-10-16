@@ -826,41 +826,56 @@ Free Users: {user_count - vip_count}
     
     async def _fetch_current_price(self, symbol: str) -> float:
         """Fetch current market price for a symbol"""
+        logger.info(f"💰 Attempting to fetch price for {symbol}...")
+        
         try:
             # Try to use execution orchestrator's engines first
             if self.exchanges:
+                logger.info(f"   Trying existing exchanges: {list(self.exchanges.keys())}")
                 for exchange_name, exchange in self.exchanges.items():
                     try:
                         ticker = await exchange.fetch_ticker(symbol)
-                        return ticker['last']
-                    except:
+                        price = ticker['last']
+                        logger.info(f"   ✅ Got ${price} from {exchange_name}")
+                        return price
+                    except Exception as e:
+                        logger.info(f"   ⚠️  {exchange_name} failed: {str(e)[:50]}")
                         continue
             
             # Fallback: create temporary exchange connection
             import ccxt.async_support as ccxt
             import os
             
-            # Try Gate.io first (user's main exchange)
+            logger.info(f"   Trying fresh exchange connections...")
+            
+            # Try Gate.io first (user's main exchange with $42)
             if os.getenv('GATE_API_KEY'):
-                exchange = ccxt.gateio({
-                    'apiKey': os.getenv('GATE_API_KEY'),
-                    'secret': os.getenv('GATE_SECRET'),
-                    'enableRateLimit': True
-                })
-                ticker = await exchange.fetch_ticker(symbol)
-                price = ticker['last']
-                await exchange.close()
-                return price
+                logger.info(f"   Trying Gate.io (user's \$42 exchange)...")
+                try:
+                    exchange = ccxt.gateio({
+                        'apiKey': os.getenv('GATE_API_KEY'),
+                        'secret': os.getenv('GATE_SECRET'),
+                        'enableRateLimit': True
+                    })
+                    ticker = await exchange.fetch_ticker(symbol)
+                    price = ticker['last']
+                    await exchange.close()
+                    logger.info(f"   ✅ Got ${price} from Gate.io!")
+                    return price
+                except Exception as e:
+                    logger.warning(f"   ⚠️  Gate.io failed: {e}")
             
             # Try Binance (no auth needed for price)
+            logger.info(f"   Trying Binance public API...")
             exchange = ccxt.binance({'enableRateLimit': True})
             ticker = await exchange.fetch_ticker(symbol)
             price = ticker['last']
             await exchange.close()
+            logger.info(f"   ✅ Got ${price} from Binance!")
             return price
             
         except Exception as e:
-            logger.debug(f"Could not fetch price for {symbol}: {e}")
+            logger.error(f"❌ Failed to fetch price for {symbol}: {e}")
             return 0
     
     async def send_admin_notification(self, message: str, level: str = "info"):
