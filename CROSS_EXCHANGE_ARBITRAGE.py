@@ -39,6 +39,9 @@ class CrossExchangeArbitrage:
         self.opportunities = deque(maxlen=1000)
         self.executed_arbs = []
         self.total_profit = 0.0
+        self.daily_profit = 0.0
+        self.daily_arb_count = 0
+        self.last_reset = datetime.now()
         
         # Fee estimates (will fetch real fees)
         self.fees = {}
@@ -350,6 +353,20 @@ class P2PArbitrageScanner:
             logger.debug(f"P2P scan error for {exchange_name}: {e}")
     
     async def fetch_price(self, exchange: ccxt.Exchange, symbol: str) -> float:
+        """Fetch spot price"""
+        try:
+            ticker = await exchange.fetch_ticker(symbol)
+            return ticker['last']
+        except:
+            return 0
+    
+    def get_stats(self) -> Dict:
+        """Get P2P arbitrage statistics"""
+        return {
+            'status': 'monitoring',
+            'exchanges': list(self.exchanges.keys())
+        }
+ol: str) -> float:
         """Fetch spot price"""
         try:
             ticker = await exchange.fetch_ticker(symbol)
