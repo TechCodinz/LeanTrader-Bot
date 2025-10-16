@@ -764,10 +764,50 @@ Free Users: {user_count - vip_count}
         await query.answer()
         
         user_id = str(update.effective_user.id)
+        username = update.effective_user.username or "Unknown"
         data = query.data
         
+        # Show subscription info
+        if data == 'subscribe_info':
+            # Show subscription plans
+            keyboard = [
+                [
+                    InlineKeyboardButton("1 Month - $50 USDT", callback_data="subscribe_1_month"),
+                ],
+                [
+                    InlineKeyboardButton("3 Months - $120 (save 20%)", callback_data="subscribe_3_months"),
+                ],
+                [
+                    InlineKeyboardButton("6 Months - $210 (save 30%)", callback_data="subscribe_6_months"),
+                ],
+                [
+                    InlineKeyboardButton("12 Months - $360 (save 40%)", callback_data="subscribe_12_months"),
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            message = """
+⭐ <b>VIP MEMBERSHIP PLANS</b>
+
+<b>What You Get:</b>
+✅ 3-5x MORE signals daily
+✅ Cross-timeframe analysis
+✅ Advanced AI strategies
+✅ ONE-CLICK trading from Telegram
+✅ News trending alerts
+✅ Session-aware signals (25% boost)
+✅ TP1/TP2/TP3 targets
+✅ Priority support
+
+<b>Choose Your Plan:</b>
+👇 Click below to get payment details
+            """
+            
+            await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='HTML')
+            return
+        
         # Subscription buttons
-        if data.startswith('subscribe_'):
+        elif data.startswith('subscribe_'):
             plan = data.replace('subscribe_', '')
             
             # Create payment request
@@ -1012,8 +1052,14 @@ Bot will start trading in 15-60 minutes!
   • ONE-CLICK trading
   • Advanced AI strategies
   
-Use /subscribe to upgrade to VIP!
+👇 <b>Upgrade to VIP Now!</b>
         """
+        
+        # Add Subscribe button
+        keyboard = [
+            [InlineKeyboardButton("⭐ UPGRADE TO VIP ⭐", callback_data="subscribe_info")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
         
         logger.info(f"📤 Attempting to send to FREE channel: {self.free_chat_id}")
         logger.info(f"   Signal: {symbol} {side} {confidence*100:.0f}%")
@@ -1022,6 +1068,7 @@ Use /subscribe to upgrade to VIP!
             result = await self.bot.send_message(
                 chat_id=self.free_chat_id,
                 text=message,
+                reply_markup=reply_markup,
                 parse_mode='HTML'
             )
             logger.info(f"✅✅✅ FREE channel SUCCESS: {symbol} {side} (msg_id: {result.message_id}) ✅✅✅")

@@ -134,6 +134,7 @@ from DYNAMIC_MARKET_SCANNER import DynamicMarketScanner
 from NEWS_TRADING_ENGINE import NewsTradingEngine
 from SESSION_AWARE_TRADING import SessionAwareTrading
 from HEDGE_FUND_ARSENAL import HedgeFundArsenal
+from SENTIENT_TRADING_BRAIN import SentientTradingBrain
 
 # Import UTILITY INTEGRATION LAYER - All utility functions
 from UTILITY_INTEGRATION_LAYER import UtilityIntegrationLayer
@@ -658,6 +659,19 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("   • Volatility Mean Reversion")
         logger.info("   • Smart Order Routing")
         logger.info("   Expected: +20-50% from professional strategies")
+        
+        # ========================================================================
+        # SENTIENT TRADING BRAIN - Living intelligence
+        # ========================================================================
+        logger.info("🧠 Wiring Sentient Trading Brain...")
+        
+        self.sentient_brain = SentientTradingBrain(self.data_hub, self.execution_orchestrator)
+        self.advanced_orchestrators['sentient_brain'] = self.sentient_brain
+        logger.info("✅ 🧠 SENTIENT TRADING BRAIN WIRED!")
+        logger.info("   Mode: DUAL (Testnet validation → Live execution)")
+        logger.info("   Every strategy tested in sandbox before going live")
+        logger.info("   Continuous learning: Profit even from losses")
+        logger.info("   Real-time adaptation: Market-aware intelligence")
         
         logger.info("\n" + "=" * 80)
         logger.info("✅ ALL ADVANCED SYSTEMS WIRED!")
