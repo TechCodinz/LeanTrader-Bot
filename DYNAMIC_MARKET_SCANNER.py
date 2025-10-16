@@ -35,9 +35,9 @@ class DynamicMarketScanner:
         self.trending_pairs = deque(maxlen=50)  # Top 50 trending
         self.volume_leaders = deque(maxlen=30)  # Top 30 by volume
         
-        # Scanning config
-        self.min_24h_volume_usd = 5_000_000  # $5M minimum
-        self.min_price_change_pct = 3.0  # 3% move
+        # Scanning config - RELAXED for more opportunities
+        self.min_24h_volume_usd = 1_000_000  # $1M minimum (was $5M)
+        self.min_price_change_pct = 1.5  # 1.5% move (was 3%)
         self.rescan_interval = 3600  # 1 hour
         
         # Stats
@@ -80,18 +80,25 @@ class DynamicMarketScanner:
         
         new_opportunities = set()
         
-        # Get actual ccxt exchange objects
-        actual_exchanges = self._extract_ccxt_exchanges()
+        # CRITICAL FIX: The exchanges are already ccxt objects from arbitrage engine
+        # Just use them directly!
+        actual_exchanges = self.exchanges
         
-        if not actual_exchanges:
-            logger.warning("⚠️  No valid ccxt exchanges found, creating fallback connections...")
+        # Check if they're ccxt exchanges
+        first_exchange = next(iter(actual_exchanges.values())) if actual_exchanges else None
+        if first_exchange and not hasattr(first_exchange, 'fetch_tickers'):
+            logger.warning("⚠️  Exchanges are not ccxt objects, creating fallback...")
             actual_exchanges = await self._create_fallback_exchanges()
         
         for exchange_name, exchange in actual_exchanges.items():
             try:
                 logger.info(f"🔍 Scanning {exchange_name}...")
                 
-                # Get all tickers
+                # Get all tickers (check if method exists)
+                if not hasattr(exchange, 'fetch_tickers'):
+                    logger.warning(f"   {exchange_name} doesn't have fetch_tickers, skipping")
+                    continue
+                
                 tickers = await exchange.fetch_tickers()
                 
                 # Filter for USDT pairs only
