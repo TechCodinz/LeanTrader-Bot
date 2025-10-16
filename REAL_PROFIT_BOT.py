@@ -26,15 +26,15 @@ class REAL_PROFIT_BOT:
         # REAL PROFIT POSITION SIZES - CALCULATED FOR MEANINGFUL INCOME
         # These are designed to generate $50-200 daily profits to cover bills
         self.position_sizes = {
-            'BTC/USDT': 0.0002,  # ~$10 (fits $42 balance)
-            'ETH/USDT': 0.004,  # ~$10 (fits $42 balance)
-            'BNB/USDT': 0.07,  # ~$10 (fits $42 balance)
-            'SOL/USDT': 0.5,  # ~$10 (fits $42 balance)
-            'ADA/USDT': 42.0,  # ~$10 (fits $42 balance)
-            'XRP/USDT': 21.0,  # ~$10 (fits $42 balance)
-            'DOGE/USDT': 83.0,  # ~$10 (fits $42 balance)
-            'SHIB/USDT': 416666.0,  # ~$10 (fits $42 balance)
-            'PEPE/USDT': 4166666.0,  # ~$10 (fits $42 balance)
+            'BTC/USDT': 0.0002,  # ~$10 (optimized for $42 balance)
+            'ETH/USDT': 0.004,  # ~$10 (optimized for $42 balance)
+            'BNB/USDT': 0.07,  # ~$10 (optimized for $42 balance)
+            'SOL/USDT': 0.5,  # ~$10 (optimized for $42 balance)
+            'ADA/USDT': 42.0,  # ~$10 (optimized for $42 balance)
+            'XRP/USDT': 21.0,  # ~$10 (optimized for $42 balance)
+            'DOGE/USDT': 83.0,  # ~$10 (optimized for $42 balance)
+            'SHIB/USDT': 416666.0,  # ~$10 (optimized for $42 balance)
+            'PEPE/USDT': 4166666.0,  # ~$10 (optimized for $42 balance)
         }
 
         # Profit tracking
