@@ -922,13 +922,16 @@ Take Profit: ${tp:.4f}
 Use /subscribe to join VIP
         """
         
+        logger.info(f"📤 Attempting to send to FREE channel: {self.free_chat_id}")
+        logger.info(f"   Signal: {symbol} {side} {confidence*100:.0f}%")
+        
         try:
             result = await self.bot.send_message(
                 chat_id=self.free_chat_id,
                 text=message,
                 parse_mode='HTML'
             )
-            logger.info(f"✅ FREE channel signal sent: {symbol} {side} (msg_id: {result.message_id})")
+            logger.info(f"✅✅✅ FREE channel SUCCESS: {symbol} {side} (msg_id: {result.message_id}) ✅✅✅")
         except telegram.error.Forbidden as e:
             logger.error(f"❌ Bot not added to FREE channel or no permission!")
             logger.error(f"   Channel ID: {self.free_chat_id}")
