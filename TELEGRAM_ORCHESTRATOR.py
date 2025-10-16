@@ -301,11 +301,16 @@ class PremiumVIPTelegramSystem:
         self.execution = execution_orchestrator
         self.mode = mode
         
-        # Get config
+        # Get config (support multiple env var names for compatibility)
         self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN', '')
-        self.admin_chat_id = os.getenv('TG_ADMIN_CHAT_ID', '')
-        self.vip_chat_id = os.getenv('TG_VIP_CHAT_ID', '')
-        self.free_chat_id = os.getenv('TG_FREE_CHAT_ID', '')
+        
+        # Admin chat ID (try both naming conventions)
+        self.admin_chat_id = os.getenv('TELEGRAM_ADMIN_CHAT_ID') or os.getenv('TG_ADMIN_CHAT_ID', '')
+        
+        # Channel IDs (try both naming conventions)
+        self.vip_chat_id = os.getenv('TELEGRAM_VIP_CHANNEL') or os.getenv('TG_VIP_CHAT_ID', '')
+        self.free_chat_id = os.getenv('TELEGRAM_FREE_CHANNEL') or os.getenv('TG_FREE_CHAT_ID', '')
+        
         self.payment_wallet = os.getenv('PAYMENT_WALLET_ADDRESS', '')
         
         if not self.bot_token:
