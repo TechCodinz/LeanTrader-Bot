@@ -1,0 +1,24 @@
+[Unit]
+Description=Trading Bot - TESTNET (Learning & Testing)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/trading_bot
+Environment="PATH=/root/trading_bot/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="VIRTUAL_ENV=/root/trading_bot/venv"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/root/trading_bot/venv/bin/python3 /root/trading_bot/RUN_BOT.py --testnet --auto-confirm
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trading-bot-testnet
+
+# Resource limits
+MemoryMax=2G
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target

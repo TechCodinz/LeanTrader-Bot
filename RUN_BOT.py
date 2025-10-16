@@ -52,16 +52,29 @@ except Exception as e:
 
 # Get mode from args
 mode = 'testnet'
+auto_confirm = False
+
 if len(sys.argv) > 1:
-    if sys.argv[1] == '--live':
-        mode = 'live'
-        print("⚠️  LIVE MODE - Trading with real money!")
+    for arg in sys.argv[1:]:
+        if arg == '--live':
+            mode = 'live'
+        elif arg == '--testnet':
+            mode = 'testnet'
+        elif arg == '--auto-confirm':
+            auto_confirm = True
+
+# Safety check for live mode (skip if auto-confirm for systemd)
+if mode == 'live' and not auto_confirm:
+    print("⚠️  LIVE MODE - Trading with real money!")
+    try:
         response = input("Are you sure? Type 'YES' to confirm: ")
         if response != 'YES':
             print("Cancelled.")
             sys.exit(0)
-    elif sys.argv[1] == '--testnet':
-        mode = 'testnet'
+    except EOFError:
+        # Running as service without stdin - auto-confirm
+        print("⚠️  Running as background service - auto-confirming live mode")
+        pass
 
 print(f"🎯 Mode: {mode.upper()}")
 print()
