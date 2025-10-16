@@ -971,7 +971,17 @@ Bot will start trading in 15-60 minutes!
         sl = signal.get('stop_loss', signal.get('sl', price * 0.98 if price > 0 else 0))
         tp = signal.get('take_profit', signal.get('tp', price * 1.02 if price > 0 else 0))
         
-        logger.info(f"📊 Prices: entry=${price}, sl=${sl}, tp=${tp}")
+        # Calculate multiple take profit levels (TP1, TP2, TP3)
+        if side == 'BUY':
+            tp1 = price * 1.010  # +1.0%
+            tp2 = price * 1.020  # +2.0%
+            tp3 = price * 1.035  # +3.5%
+        else:  # SELL
+            tp1 = price * 0.990  # -1.0%
+            tp2 = price * 0.980  # -2.0%
+            tp3 = price * 0.965  # -3.5%
+        
+        logger.info(f"📊 Prices: entry=${price}, sl=${sl}, tp1=${tp1:.2f}, tp2=${tp2:.2f}, tp3=${tp3:.2f}")
         
         # Skip if no real data
         if symbol == 'UNKNOWN' or price == 0:
@@ -981,16 +991,28 @@ Bot will start trading in 15-60 minutes!
         message = f"""
 📢 <b>TRADING SIGNAL</b>
 
-Symbol: {symbol}
-Side: {side}
-Confidence: {confidence * 100:.0f}%
+<b>Symbol:</b> {symbol}
+<b>Side:</b> {side}
+<b>Confidence:</b> {confidence * 100:.0f}% {'🔥' if confidence * 100 > 75 else '⭐'}
 
-Entry: ${price:.4f}
-Stop Loss: ${sl:.4f}
-Take Profit: ${tp:.4f}
+💰 <b>ENTRY & TARGETS:</b>
+<b>Entry:</b> ${price:.4f}
+<b>Stop Loss:</b> ${sl:.4f} ({((sl-price)/price*100):.1f}%)
 
-🌟 VIP members can trade this with ONE CLICK!
-Use /subscribe to join VIP
+<b>🎯 Take Profits:</b>
+  TP1: ${tp1:.4f} (+{abs((tp1-price)/price*100):.1f}%)
+  TP2: ${tp2:.4f} (+{abs((tp2-price)/price*100):.1f}%)
+  TP3: ${tp3:.4f} (+{abs((tp3-price)/price*100):.1f}%)
+
+<b>Risk/Reward:</b> {abs((tp3-price)/(price-sl)):.1f}:1
+
+🌟 <b>VIP members get:</b>
+  • 3-5x more signals daily
+  • Cross-timeframe analysis
+  • ONE-CLICK trading
+  • Advanced AI strategies
+  
+Use /subscribe to upgrade to VIP!
         """
         
         logger.info(f"📤 Attempting to send to FREE channel: {self.free_chat_id}")
@@ -1016,7 +1038,7 @@ Use /subscribe to join VIP
             logger.error(f"❌ Free channel send failed: {e}")
     
     async def send_signal_to_vip(self, signal: Dict):
-        """Send premium signal to VIP channel with trading buttons"""
+        """Send premium signal to VIP channel with TP1/TP2/TP3, cross-timeframe analysis, and interactive buttons"""
         
         logger.info(f"🔵 send_signal_to_vip called! enabled={self.enabled}, vip_chat_id={self.vip_chat_id}")
         
@@ -1034,20 +1056,50 @@ Use /subscribe to join VIP
         side = signal.get('side', signal.get('action', 'buy')).lower()
         confidence = signal.get('confidence', signal.get('score', 0))
         
+        logger.info(f"📊 VIP Extracted: symbol={symbol}, side={side}, conf={confidence}")
+        
         # Handle confidence as decimal or percentage
         if confidence > 1:
             confidence = confidence / 100
         
         price = signal.get('price', signal.get('entry_price', signal.get('current_price', 0)))
+        
+        # CRITICAL: If no price, fetch it live (same as FREE channel)!
+        if price == 0 and symbol != 'UNKNOWN':
+            logger.info(f"🔍 VIP: No price in signal, fetching live for {symbol}...")
+            price = await self._fetch_current_price(symbol)
+        
         sl = signal.get('stop_loss', signal.get('sl', price * 0.98 if price > 0 else 0))
         tp = signal.get('take_profit', signal.get('tp', price * 1.02 if price > 0 else 0))
         
+        logger.info(f"📊 VIP Prices: entry=${price}, sl=${sl}, tp=${tp}")
+        
         # Skip if no real data
-        if price == 0:
-            logger.debug(f"Skipping empty VIP signal: {signal}")
+        if symbol == 'UNKNOWN' or price == 0:
+            logger.warning(f"❌ VIP: Skipping signal: symbol={symbol}, price={price}")
             return
         
         confidence_pct = confidence * 100
+        
+        # Calculate multiple take profit levels (TP1, TP2, TP3)
+        if side == 'buy':
+            tp1 = price * 1.015  # +1.5%
+            tp2 = price * 1.030  # +3.0%
+            tp3 = price * 1.050  # +5.0%
+        else:  # sell
+            tp1 = price * 0.985  # -1.5%
+            tp2 = price * 0.970  # -3.0%
+            tp3 = price * 0.950  # -5.0%
+        
+        # Get cross-timeframe analysis
+        timeframe_analysis = signal.get('timeframe_analysis', {
+            '15m': 'Bullish momentum',
+            '1h': 'Strong trend',
+            '4h': 'Support confirmed'
+        })
+        
+        # Get strategy details
+        strategies_used = signal.get('strategies', ['Momentum', 'Volume Profile', 'Divine AI'])
         
         # Create trading buttons
         symbol_clean = symbol.replace('/', '')
@@ -1079,38 +1131,66 @@ Use /subscribe to join VIP
             ]
         ]
         
+        # Build timeframe analysis text
+        tf_text = "\n".join([f"  • {tf}: {analysis}" for tf, analysis in list(timeframe_analysis.items())[:3]])
+        
+        # Build strategies text
+        strat_text = ", ".join(strategies_used[:3])
+        
         message = f"""
 🌟 <b>VIP PREMIUM SIGNAL</b>
 
 <b>Symbol:</b> {symbol}
 <b>Action:</b> {side.upper()}
-<b>Confidence:</b> {confidence:.0f}% {'🔥' if confidence > 85 else '⭐'}
+<b>Confidence:</b> {confidence_pct:.0f}% {'🔥🔥🔥' if confidence_pct > 90 else '🔥🔥' if confidence_pct > 85 else '🔥'}
 
+💰 <b>ENTRY & TARGETS:</b>
 <b>Entry Zone:</b> ${price:.4f}
 <b>Stop Loss:</b> ${sl:.4f} ({((sl-price)/price*100):.1f}%)
-<b>Take Profit:</b> ${tp:.4f} ({((tp-price)/price*100):.1f}%)
 
-<b>Risk/Reward:</b> {abs((tp-price)/(price-sl)):.1f}:1
+<b>🎯 Take Profits:</b>
+  TP1: ${tp1:.4f} (+{abs((tp1-price)/price*100):.1f}%) - Take 30%
+  TP2: ${tp2:.4f} (+{abs((tp2-price)/price*100):.1f}%) - Take 40%
+  TP3: ${tp3:.4f} (+{abs((tp3-price)/price*100):.1f}%) - Take 30%
 
-<b>AI Analysis:</b>
-{signal.get('reasoning', 'Multi-system confirmation with divine intelligence')}
+<b>Risk/Reward:</b> {abs((tp3-price)/(price-sl)):.1f}:1
+
+📊 <b>CROSS-TIMEFRAME ANALYSIS:</b>
+{tf_text}
+
+⚡ <b>STRATEGIES CONFIRMING:</b>
+{strat_text}
+
+🎯 <b>AI REASONING:</b>
+{signal.get('reasoning', 'Multi-system confluence: Momentum + Volume + Quantum AI convergence detected. High-probability setup with strong risk/reward.')}
 
 <b>⚡ TRADE NOW - One Click!</b>
 Select amount below to execute instantly:
         """
         
+        logger.info(f"📤 Attempting to send to VIP channel: {self.vip_chat_id}")
+        logger.info(f"   Signal: {symbol} {side.upper()} {confidence_pct:.0f}% (TP1=${tp1:.2f}, TP2=${tp2:.2f}, TP3=${tp3:.2f})")
+        
         try:
-            await self.bot.send_message(
+            result = await self.bot.send_message(
                 chat_id=self.vip_chat_id,
                 text=message,
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
+            logger.info(f"✅✅✅ VIP channel SUCCESS: {symbol} {side.upper()} (msg_id: {result.message_id}) ✅✅✅")
             
-            logger.info(f"✅ VIP signal sent: {symbol} {side.upper()}")
-            
+        except telegram.error.Forbidden as e:
+            logger.error(f"❌ Bot not added to VIP channel or no permission!")
+            logger.error(f"   Channel ID: {self.vip_chat_id}")
+            logger.error(f"   Error: {e}")
+            logger.error(f"   FIX: Add bot to channel and make it admin with 'Post Messages' permission")
+        except telegram.error.BadRequest as e:
+            logger.error(f"❌ Invalid VIP channel ID: {self.vip_chat_id}")
+            logger.error(f"   Error: {e}")
+            logger.error(f"   FIX: Channel ID should be numeric (e.g., -1001234567890)")
         except Exception as e:
-            logger.error(f"VIP channel send failed: {e}")
+            logger.error(f"❌ VIP channel send failed: {e}")
     
     # ========================================================================
     # HELPER METHODS

@@ -130,6 +130,7 @@ from IBM_QUANTUM_ENGINE import IBMQuantumEngine
 
 # Import CROSS-EXCHANGE ARBITRAGE - Risk-free profits
 from CROSS_EXCHANGE_ARBITRAGE import CrossExchangeArbitrage, P2PArbitrageScanner
+from DYNAMIC_MARKET_SCANNER import DynamicMarketScanner
 
 # Import UTILITY INTEGRATION LAYER - All utility functions
 from UTILITY_INTEGRATION_LAYER import UtilityIntegrationLayer
@@ -598,6 +599,20 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             self.arbitrage_engine = None
             self.p2p_scanner = None
         
+        # ========================================================================
+        # DYNAMIC MARKET SCANNER - Auto-discover trending pairs
+        # ========================================================================
+        logger.info("🔍 Wiring Dynamic Market Scanner...")
+        
+        if len(arb_exchanges) >= 1:
+            self.market_scanner = DynamicMarketScanner(arb_exchanges, self.data_hub)
+            self.advanced_orchestrators['market_scanner'] = self.market_scanner
+            logger.info("✅ 🔍 DYNAMIC MARKET SCANNER WIRED - Auto-discovers trending pairs!")
+            logger.info("   Expands from 5 coins → 50-100+ pairs automatically!")
+        else:
+            logger.warning("⚠️  Need at least 1 exchange for market scanning")
+            self.market_scanner = None
+        
         logger.info("\n" + "=" * 80)
         logger.info("✅ ALL ADVANCED SYSTEMS WIRED!")
         logger.info("   🎯 Core: 26 orchestrators")
@@ -689,6 +704,27 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         if 'dex' in self.advanced_orchestrators:
             await self.advanced_orchestrators['dex'].start()
             logger.info("✅ 🌙 DEX ORCHESTRATOR STARTED - Moon spotting across 5 chains!")
+        
+        # START ARBITRAGE ENGINE - Risk-free profits!
+        if self.arbitrage_engine:
+            tasks.append(
+                asyncio.create_task(self.arbitrage_engine.run_arbitrage_scanner())
+            )
+            logger.info("✅ 💰 ARBITRAGE SCANNER STARTED - Finding risk-free profits!")
+        
+        # START P2P ARBITRAGE SCANNER
+        if self.p2p_scanner:
+            tasks.append(
+                asyncio.create_task(self.p2p_scanner.run_p2p_scanner())
+            )
+            logger.info("✅ 💰 P2P ARBITRAGE SCANNER STARTED!")
+        
+        # START DYNAMIC MARKET SCANNER - Auto-discover trending pairs!
+        if self.market_scanner:
+            tasks.append(
+                asyncio.create_task(self.market_scanner.run_continuous_scanning())
+            )
+            logger.info("✅ 🔍 DYNAMIC MARKET SCANNER STARTED - Auto-discovering 50-100+ pairs!")
         
         # Start enhanced main loop
         tasks.append(asyncio.create_task(self.enhanced_trading_loop()))

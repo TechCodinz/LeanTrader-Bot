@@ -53,8 +53,14 @@ class CrossExchangeArbitrage:
         # Fetch fees first
         await self.fetch_exchange_fees()
         
-        # Symbols to monitor
-        symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'ADA/USDT']
+        # Symbols to monitor - EXPANDED MARKET UNIVERSE!
+        try:
+            from EXPANDED_MARKET_UNIVERSE import ARBITRAGE_SAFE_PAIRS
+            symbols = ARBITRAGE_SAFE_PAIRS
+            logger.info(f"✅ Scanning {len(symbols)} pairs for arbitrage (expanded universe)")
+        except ImportError:
+            symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'ADA/USDT']
+            logger.warning(f"⚠️  Using fallback 5 pairs only")
         
         while self.enabled:
             try:
