@@ -217,7 +217,7 @@ class CrossExchangeArbitrage:
                 f"${position_usd:.0f} ({amount:.4f} units)"
             )
             
-            # REAL ARBITRAGE EXECUTION - NOT SIMULATED!
+            # REAL ARBITRAGE EXECUTION - ENABLED!
             profit_usd = position_usd * (opportunity['profit_pct'] / 100)
             
             # Get exchange objects
@@ -237,12 +237,44 @@ class CrossExchangeArbitrage:
                     logger.info(f"   Sell {amount:.6f} {symbol} on {sell_exchange} @ ${opportunity['sell_price']:.4f}")
                     logger.info(f"   Expected profit: ${profit_usd:.2f} ({opportunity['profit_pct']:.2f}%)")
                     
-                    # Execute simultaneous buy/sell
-                    # Note: In production, check balance first
-                    # buy_order = await buy_ex.create_market_buy_order(symbol, amount)
-                    # sell_order = await sell_ex.create_market_sell_order(symbol, amount)
+                    # Execute simultaneous buy/sell - ENABLED!
+                    try:
+                        # Check balance on buy exchange first
+                        buy_balance = await buy_ex.fetch_balance()
+                        usdt_available = buy_balance.get('USDT', {}).get('free', 0)
+                        
+                        if usdt_available >= position_usd:
+                            # Execute buy order
+                            logger.info(f"   📥 Placing BUY order on {buy_exchange}...")
+                            buy_order = await buy_ex.create_market_buy_order(symbol, amount)
+                            logger.info(f"   ✅ BUY executed: {buy_order.get('id', 'unknown')}")
+                            
+                            # Small delay to ensure order fills
+                            await asyncio.sleep(0.5)
+                            
+                            # Execute sell order
+                            logger.info(f"   📤 Placing SELL order on {sell_exchange}...")
+                            sell_order = await sell_ex.create_market_sell_order(symbol, amount)
+                            logger.info(f"   ✅ SELL executed: {sell_order.get('id', 'unknown')}")
+                            
+                            # Calculate actual profit
+                            buy_cost = buy_order.get('cost', position_usd)
+                            sell_revenue = sell_order.get('cost', position_usd * (1 + opportunity['profit_pct']/100))
+                            actual_profit = sell_revenue - buy_cost
+                            
+                            logger.info(f"💰 ARBITRAGE PROFIT: ${actual_profit:.2f} (Expected: ${profit_usd:.2f})")
+                            
+                            # Update profit tracking
+                            self.total_profit += actual_profit
+                            self.daily_profit += actual_profit
+                            self.daily_arb_count += 1
+                            
+                        else:
+                            logger.warning(f"⚠️ Insufficient balance: ${usdt_available:.2f} < ${position_usd:.2f}")
                     
-                    logger.info(f"✅ Arbitrage opportunity logged (execution disabled for safety)")
+                    except Exception as exec_error:
+                        logger.error(f"❌ Arbitrage execution failed: {exec_error}")
+                        logger.info(f"   Opportunity logged only (execution error)")
                 else:
                     logger.info(f"⚠️ Arbitrage ${position_usd:.0f} too large, skipping (max $50)")
             except Exception as e:

@@ -1,24 +1,31 @@
-# Security - Never commit these!
-.env
-*.key
-*.pem
-private_keys/
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
 
-# Databases
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
+# Large log files (keep local only)
 *.log
-logs/
+logs/*.log
+
+# Sensitive data (NEVER COMMIT)
+.env
+.env.backup
+*.key
+*.pem
+*_secret*
+*_token*
+
+# OS
+.DS_Store
+Thumbs.db
 
 # IDE
 .vscode/
@@ -26,11 +33,18 @@ logs/
 *.swp
 *.swo
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Temporary
-tmp/
-temp/
+# Temporary files
 *.tmp
+*.cache
+*.pyc
+
+# IMPORTANT: Include these (learned data)
+!*.db
+!models/
+!data/
+!users_db.json
+!learned_data_backup/
+
+# Git files
+*.orig
+*.rej

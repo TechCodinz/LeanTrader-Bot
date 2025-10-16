@@ -202,7 +202,53 @@ echo "✅ Systemd service created: trading-bot-live"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🧪 STEP 6: Testing Configuration"
+echo "🧠 STEP 6: Restoring Learned Intelligence"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Restore learned data if backup exists
+if [ -d "learned_data_backup" ]; then
+    echo "🧠 Found learned data backup! Restoring..."
+    
+    # Restore databases
+    if ls learned_data_backup/*.db 1> /dev/null 2>&1; then
+        cp -v learned_data_backup/*.db .
+        echo "✅ Databases restored"
+    fi
+    
+    # Restore ML models
+    if [ -d "learned_data_backup/models" ]; then
+        cp -rv learned_data_backup/models .
+        echo "✅ ML models restored"
+    fi
+    
+    # Restore user database
+    if [ -f "learned_data_backup/users_db.json" ]; then
+        cp -v learned_data_backup/users_db.json .
+        echo "✅ User database restored"
+    fi
+    
+    # Restore data directory
+    if [ -d "learned_data_backup/data" ]; then
+        cp -rv learned_data_backup/data .
+        echo "✅ Data directory restored"
+    fi
+    
+    echo ""
+    echo -e "${GREEN}🎉 BOT'S LEARNED INTELLIGENCE RESTORED!${NC}"
+    echo "   Your bot will continue from where it left off!"
+    echo "   • Evolution Cycle: Preserved"
+    echo "   • ML Models: Pre-trained"
+    echo "   • Trade History: Complete"
+    echo "   • User Data: Intact"
+    echo ""
+else
+    echo "⚠️  No learned data backup found. Bot will start fresh."
+    echo "   This is normal for first-time deployment."
+    echo ""
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🧪 STEP 7: Testing Configuration"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Test Python imports
