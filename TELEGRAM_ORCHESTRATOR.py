@@ -824,6 +824,45 @@ Free Users: {user_count - vip_count}
     # ADMIN NOTIFICATIONS
     # ========================================================================
     
+    async def _fetch_current_price(self, symbol: str) -> float:
+        """Fetch current market price for a symbol"""
+        try:
+            # Try to use execution orchestrator's engines first
+            if self.exchanges:
+                for exchange_name, exchange in self.exchanges.items():
+                    try:
+                        ticker = await exchange.fetch_ticker(symbol)
+                        return ticker['last']
+                    except:
+                        continue
+            
+            # Fallback: create temporary exchange connection
+            import ccxt.async_support as ccxt
+            import os
+            
+            # Try Gate.io first (user's main exchange)
+            if os.getenv('GATE_API_KEY'):
+                exchange = ccxt.gateio({
+                    'apiKey': os.getenv('GATE_API_KEY'),
+                    'secret': os.getenv('GATE_SECRET'),
+                    'enableRateLimit': True
+                })
+                ticker = await exchange.fetch_ticker(symbol)
+                price = ticker['last']
+                await exchange.close()
+                return price
+            
+            # Try Binance (no auth needed for price)
+            exchange = ccxt.binance({'enableRateLimit': True})
+            ticker = await exchange.fetch_ticker(symbol)
+            price = ticker['last']
+            await exchange.close()
+            return price
+            
+        except Exception as e:
+            logger.debug(f"Could not fetch price for {symbol}: {e}")
+            return 0
+    
     async def send_admin_notification(self, message: str, level: str = "info"):
         """Send notification to admin"""
         
