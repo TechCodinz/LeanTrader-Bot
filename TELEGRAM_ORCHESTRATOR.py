@@ -897,6 +897,8 @@ Bot will start trading in 15-60 minutes!
         side = signal.get('side', signal.get('action', 'BUY')).upper()
         confidence = signal.get('confidence', signal.get('score', 0))
         
+        logger.info(f"📊 Extracted: symbol={symbol}, side={side}, conf={confidence}")
+        
         # Handle confidence as decimal or percentage
         if confidence > 1:
             confidence = confidence / 100
@@ -905,9 +907,11 @@ Bot will start trading in 15-60 minutes!
         sl = signal.get('stop_loss', signal.get('sl', price * 0.98 if price > 0 else 0))
         tp = signal.get('take_profit', signal.get('tp', price * 1.02 if price > 0 else 0))
         
+        logger.info(f"📊 Prices: entry=${price}, sl=${sl}, tp=${tp}")
+        
         # Skip if no real data
         if symbol == 'UNKNOWN' or price == 0:
-            logger.debug(f"Skipping empty signal: {signal}")
+            logger.warning(f"❌ Skipping signal: symbol={symbol}, price={price}")
             return
         
         message = f"""
