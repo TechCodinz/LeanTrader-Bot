@@ -426,14 +426,63 @@ class ExecutionOrchestrator:
             return None
     
     async def get_current_price(self, symbol: str) -> Optional[float]:
-        """Get current market price"""
+        """Get current market price from engines or fresh exchange connection"""
         try:
             # Try to get from router
-            if hasattr(self, 'router'):
+            if hasattr(self, 'router') and self.router:
                 ticker = await self.router.fetch_ticker(symbol)
-                return ticker.get('last', 0)
-        except:
-            pass
+                if ticker and ticker.get('last'):
+                    return ticker.get('last', 0)
+        except Exception as e:
+            logger.debug(f"Router fetch failed: {str(e)[:50]}")
+        
+        # Try engines
+        if self.engines:
+            for engine_name, engine in self.engines.items():
+                try:
+                    # Check if engine has an exchange object
+                    if hasattr(engine, 'exchange') and engine.exchange:
+                        ticker = await engine.exchange.fetch_ticker(symbol)
+                        if ticker and ticker.get('last'):
+                            logger.debug(f"Got price from {engine_name}: ${ticker['last']:.2f}")
+                            return ticker['last']
+                except Exception as e:
+                    logger.debug(f"{engine_name} fetch failed: {str(e)[:50]}")
+                    continue
+        
+        # Fallback: Create fresh exchange connection
+        try:
+            import ccxt.async_support as ccxt
+            import os
+            
+            logger.debug(f"Trying fresh exchange connection for {symbol}...")
+            
+            # Try Gate.io first (user's main exchange)
+            if os.getenv('GATE_API_KEY'):
+                try:
+                    exchange = ccxt.gateio({
+                        'apiKey': os.getenv('GATE_API_KEY'),
+                        'secret': os.getenv('GATE_SECRET'),
+                        'enableRateLimit': True
+                    })
+                    ticker = await exchange.fetch_ticker(symbol)
+                    price = ticker['last']
+                    await exchange.close()
+                    logger.debug(f"Got ${price:.2f} from Gate.io")
+                    return price
+                except Exception as e:
+                    logger.debug(f"Gate.io failed: {str(e)[:50]}")
+            
+            # Try Binance public API
+            exchange = ccxt.binance({'enableRateLimit': True})
+            ticker = await exchange.fetch_ticker(symbol)
+            price = ticker['last']
+            await exchange.close()
+            logger.debug(f"Got ${price:.2f} from Binance")
+            return price
+            
+        except Exception as e:
+            logger.error(f"All price fetch attempts failed for {symbol}: {e}")
         
         return None
     
