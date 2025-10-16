@@ -301,6 +301,10 @@ class PremiumVIPTelegramSystem:
         self.execution = execution_orchestrator
         self.mode = mode
         
+        # Get exchanges for price fetching
+        self.exchanges = getattr(execution_orchestrator, 'engines', {}) if execution_orchestrator else {}
+        logger.info(f"📊 Telegram has access to {len(self.exchanges)} exchanges for price fetching")
+        
         # Get config (support multiple env var names for compatibility)
         self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN', '')
         
