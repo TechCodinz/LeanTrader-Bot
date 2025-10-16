@@ -553,13 +553,45 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         arb_exchanges = {}
         
         # Initialize exchanges from environment variables
+        # Handle Gate.io mode (testnet vs live)
+        gateio_mode = os.getenv('GATEIO_MODE', 'testnet')
+        if gateio_mode == 'live':
+            gate_key_env = os.getenv('GATEIO_LIVE_API_KEY') or os.getenv('GATE_API_KEY')
+            gate_secret_env = os.getenv('GATEIO_LIVE_SECRET') or os.getenv('GATE_SECRET')
+        else:
+            gate_key_env = os.getenv('GATEIO_TESTNET_API_KEY') or os.getenv('GATE_API_KEY')
+            gate_secret_env = os.getenv('GATEIO_TESTNET_SECRET') or os.getenv('GATE_SECRET')
+        
         exchange_configs = {
             'mexc': ('MEXC_API_KEY', 'MEXC_SECRET'),
-            'gateio': ('GATE_API_KEY', 'GATE_SECRET'),
             'binance': ('BINANCE_API_KEY', 'BINANCE_SECRET'),
             'bybit': ('BYBIT_API_KEY', 'BYBIT_SECRET'),
         }
         
+        # Add Gate.io with mode-aware configuration
+        if gate_key_env and gate_secret_env:
+            try:
+                gate_config = {
+                    'apiKey': gate_key_env,
+                    'secret': gate_secret_env,
+                    'enableRateLimit': True
+                }
+                # Add testnet URL if in testnet mode
+                if gateio_mode == 'testnet':
+                    gate_config['urls'] = {
+                        'api': {
+                            'public': 'https://fx-api-testnet.gateio.ws/api/v4',
+                            'private': 'https://fx-api-testnet.gateio.ws/api/v4'
+                        }
+                    }
+                
+                exchange = ccxt.gateio(gate_config)
+                arb_exchanges['gateio'] = exchange
+                logger.info(f"   ✅ GATE.IO ({gateio_mode}) added to arbitrage")
+            except Exception as e:
+                logger.warning(f"   ⚠️  GATE.IO: {str(e)[:50]}")
+        
+        # Add other exchanges
         for exchange_name, (key_env, secret_env) in exchange_configs.items():
             api_key = os.getenv(key_env)
             secret = os.getenv(secret_env)

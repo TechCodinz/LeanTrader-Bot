@@ -211,14 +211,31 @@ class DynamicMarketScanner:
         fallback = {}
         
         # Try Gate.io (user's main exchange)
-        if os.getenv('GATE_API_KEY'):
+        gateio_mode = os.getenv('GATEIO_MODE', 'testnet')
+        if gateio_mode == 'live':
+            gate_key = os.getenv('GATEIO_LIVE_API_KEY') or os.getenv('GATE_API_KEY')
+            gate_secret = os.getenv('GATEIO_LIVE_SECRET') or os.getenv('GATE_SECRET')
+        else:
+            gate_key = os.getenv('GATEIO_TESTNET_API_KEY') or os.getenv('GATE_API_KEY')
+            gate_secret = os.getenv('GATEIO_TESTNET_SECRET') or os.getenv('GATE_SECRET')
+        
+        if gate_key and gate_secret:
             try:
-                fallback['gateio'] = ccxt.gateio({
-                    'apiKey': os.getenv('GATE_API_KEY'),
-                    'secret': os.getenv('GATE_SECRET'),
+                gate_config = {
+                    'apiKey': gate_key,
+                    'secret': gate_secret,
                     'enableRateLimit': True
-                })
-                logger.info("   ✅ Created Gate.io connection")
+                }
+                if gateio_mode == 'testnet':
+                    gate_config['urls'] = {
+                        'api': {
+                            'public': 'https://fx-api-testnet.gateio.ws/api/v4',
+                            'private': 'https://fx-api-testnet.gateio.ws/api/v4'
+                        }
+                    }
+                
+                fallback['gateio'] = ccxt.gateio(gate_config)
+                logger.info(f"   ✅ Created Gate.io connection ({gateio_mode})")
             except Exception as e:
                 logger.warning(f"   ⚠️  Gate.io: {str(e)[:50]}")
         

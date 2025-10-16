@@ -877,41 +877,45 @@ Free Users: {user_count - vip_count}
         logger.info(f"💰 Attempting to fetch price for {symbol}...")
         
         try:
-            # Try to use execution orchestrator's engines first
-            if self.exchanges:
-                logger.info(f"   Trying existing exchanges: {list(self.exchanges.keys())}")
-                for exchange_name, exchange in self.exchanges.items():
-                    try:
-                        ticker = await exchange.fetch_ticker(symbol)
-                        price = ticker['last']
-                        logger.info(f"   ✅ Got ${price} from {exchange_name}")
-                        return price
-                    except Exception as e:
-                        logger.info(f"   ⚠️  {exchange_name} failed: {str(e)[:50]}")
-                        continue
-            
-            # Fallback: create temporary exchange connection
+            # Use fresh exchange connections (engines are strategy objects, not exchanges)
             import ccxt.async_support as ccxt
             import os
             
-            logger.info(f"   Trying fresh exchange connections...")
+            # Try Gate.io first (user's main exchange)
+            # Check both naming conventions and mode
+            gateio_mode = os.getenv('GATEIO_MODE', 'testnet')
+            if gateio_mode == 'live':
+                gate_key = os.getenv('GATEIO_LIVE_API_KEY') or os.getenv('GATE_API_KEY')
+                gate_secret = os.getenv('GATEIO_LIVE_SECRET') or os.getenv('GATE_SECRET')
+            else:
+                gate_key = os.getenv('GATEIO_TESTNET_API_KEY') or os.getenv('GATE_API_KEY')
+                gate_secret = os.getenv('GATEIO_TESTNET_SECRET') or os.getenv('GATE_SECRET')
             
-            # Try Gate.io first (user's main exchange with $42)
-            if os.getenv('GATE_API_KEY'):
-                logger.info(f"   Trying Gate.io (user's \$42 exchange)...")
+            if gate_key and gate_secret:
+                logger.info(f"   Trying Gate.io ({gateio_mode})...")
                 try:
-                    exchange = ccxt.gateio({
-                        'apiKey': os.getenv('GATE_API_KEY'),
-                        'secret': os.getenv('GATE_SECRET'),
+                    gate_config = {
+                        'apiKey': gate_key,
+                        'secret': gate_secret,
                         'enableRateLimit': True
-                    })
+                    }
+                    # Add testnet URL if in testnet mode
+                    if gateio_mode == 'testnet':
+                        gate_config['urls'] = {
+                            'api': {
+                                'public': 'https://fx-api-testnet.gateio.ws/api/v4',
+                                'private': 'https://fx-api-testnet.gateio.ws/api/v4'
+                            }
+                        }
+                    
+                    exchange = ccxt.gateio(gate_config)
                     ticker = await exchange.fetch_ticker(symbol)
                     price = ticker['last']
                     await exchange.close()
-                    logger.info(f"   ✅ Got ${price} from Gate.io!")
+                    logger.info(f"   ✅ Got ${price} from Gate.io ({gateio_mode})!")
                     return price
                 except Exception as e:
-                    logger.warning(f"   ⚠️  Gate.io failed: {e}")
+                    logger.debug(f"   Gate.io failed: {str(e)[:50]}")
             
             # Try Binance (no auth needed for price)
             logger.info(f"   Trying Binance public API...")
