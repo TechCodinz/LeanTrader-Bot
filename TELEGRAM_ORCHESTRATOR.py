@@ -881,12 +881,15 @@ Bot will start trading in 15-60 minutes!
     async def send_signal_to_free(self, signal: Dict):
         """Send basic signal to free channel"""
         
+        logger.info(f"🔵 send_signal_to_free called! enabled={self.enabled}, free_chat_id={self.free_chat_id}")
+        
         if not self.enabled:
-            logger.debug("Telegram not enabled")
+            logger.warning("❌ Telegram not enabled - returning early")
             return
         
         if not self.free_chat_id or self.free_chat_id == '@your_free_channel':
-            logger.warning(f"⚠️  FREE channel not configured! Current: {self.free_chat_id}")
+            logger.error(f"❌ FREE channel not configured! Current: {self.free_chat_id}")
+            logger.error(f"   Check .env has: TELEGRAM_FREE_CHANNEL=-1002930953007")
             return
         
         # Extract signal data (handle nested structure)
@@ -947,12 +950,15 @@ Use /subscribe to join VIP
     async def send_signal_to_vip(self, signal: Dict):
         """Send premium signal to VIP channel with trading buttons"""
         
+        logger.info(f"🔵 send_signal_to_vip called! enabled={self.enabled}, vip_chat_id={self.vip_chat_id}")
+        
         if not self.enabled:
-            logger.debug("Telegram not enabled")
+            logger.warning("❌ Telegram not enabled - returning early")
             return
         
         if not self.vip_chat_id or self.vip_chat_id == '@your_vip_channel':
-            logger.warning(f"⚠️  VIP channel not configured! Current: {self.vip_chat_id}")
+            logger.error(f"❌ VIP channel not configured! Current: {self.vip_chat_id}")
+            logger.error(f"   Check .env has: TELEGRAM_VIP_CHANNEL=-1002983007302")
             return
         
         # Extract signal data (handle nested structure)
