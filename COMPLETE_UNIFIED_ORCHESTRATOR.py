@@ -361,7 +361,22 @@ class CompleteUnifiedOrchestrator:
         self.pattern_memory = PatternMemory()
         self.ledger = Ledger()
         
-        universe = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "DOGE/USDT"]
+        # EXPANDED UNIVERSE - 35 High-Volume Pairs!
+        universe = [
+            # Core 5 (original)
+            "BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "DOGE/USDT",
+            # Top volume (added)
+            "ADA/USDT", "XRP/USDT", "MATIC/USDT", "DOT/USDT", "AVAX/USDT",
+            # High momentum (added)
+            "LINK/USDT", "UNI/USDT", "LTC/USDT", "ATOM/USDT", "XLM/USDT",
+            "FIL/USDT", "NEAR/USDT", "ALGO/USDT", "VET/USDT", "ICP/USDT",
+            # Trending (added)
+            "APT/USDT", "ARB/USDT", "OP/USDT", "SUI/USDT", "TRX/USDT",
+            "TON/USDT", "FTM/USDT", "SAND/USDT", "MANA/USDT", "AAVE/USDT",
+            # Volatile gainers (added)
+            "CRV/USDT", "GRT/USDT", "ENJ/USDT", "SHIB/USDT", "PEPE/USDT"
+        ]
+        logger.info(f"🌌 Trading Universe: {len(universe)} pairs (was 5!)")
         self.ultra_core = UltraCore(self.router, universe, logger)
         
         awareness_cfg = AwarenessConfig()
