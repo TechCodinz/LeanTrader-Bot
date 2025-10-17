@@ -20,12 +20,12 @@ class SmartPositionSizer:
     def __init__(self, initial_balance: float = 1000.0):
         self.balance = initial_balance
         self.max_risk_per_trade = 0.02  # 2% max risk
-        self.max_position_pct = 0.25  # 25% max position size (was 10%, increased for small balance)
-        self.min_position_usd = 5.0  # $5 minimum (reduced for $42 balance)
+        self.max_position_pct = 0.20  # 20% max position size (smart auto-adjusts to balance)
+        self.min_position_usd = 3.0  # $3 minimum (auto-scales with balance)
         
         # Dynamic sizing based on confidence
         self.use_dynamic_sizing = True
-        self.aggressive_mode = False  # DISABLED for small balance - prevents oversizing
+        self.aggressive_mode = True  # ENABLED - but SMART (auto-scales to balance size)
         
     def calculate_position_size(self, 
                                confidence: float,
@@ -63,13 +63,13 @@ class SmartPositionSizer:
         # Calculate final position size
         position_size = (base_risk / stop_loss_pct) * kelly_fraction * volatility_adjustment * confidence_adjustment
         
-        # AGGRESSIVE MODE: DISABLED for small balance ($42)
-        # Conservative sizing to prevent balance errors
-        if False and self.aggressive_mode and confidence >= 0.85:
-            # Increase size by up to 50% for very high confidence
-            confidence_boost = 1.0 + ((confidence - 0.85) * 2.0)  # 85% conf = 1.0x, 100% conf = 1.3x
+        # AGGRESSIVE MODE: SMART auto-adjustment for any balance size
+        if self.aggressive_mode and confidence >= 0.85:
+            # Scale boost based on balance (small balance = small boost, large balance = large boost)
+            balance_scale = min(self.balance / 1000.0, 1.0)  # Max 1.0x at $1000+ balance
+            confidence_boost = 1.0 + ((confidence - 0.85) * 2.0 * balance_scale)  # Scaled by balance
             position_size *= confidence_boost
-            logger.info(f"🚀 Aggressive sizing: confidence {confidence:.1%} → {confidence_boost:.2f}x boost")
+            logger.info(f"🚀 Smart aggressive sizing: {confidence:.1%} conf × ${self.balance:.0f} balance → {confidence_boost:.2f}x boost")
         
         # Apply limits
         max_position = self.balance * self.max_position_pct

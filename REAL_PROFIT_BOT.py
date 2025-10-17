@@ -23,19 +23,20 @@ class REAL_PROFIT_BOT:
         # Initialize Gate.io exchange
         self.gate = ccxt.gate(self.gate_config)
 
-        # REAL PROFIT POSITION SIZES - CALCULATED FOR MEANINGFUL INCOME
-        # These are designed to generate $50-200 daily profits to cover bills
-        self.position_sizes = {
-            'BTC/USDT': 0.0002,  # ~$10 (optimized for $42 balance)
-            'ETH/USDT': 0.004,  # ~$10 (optimized for $42 balance)
-            'BNB/USDT': 0.07,  # ~$10 (optimized for $42 balance)
-            'SOL/USDT': 0.5,  # ~$10 (optimized for $42 balance)
-            'ADA/USDT': 42.0,  # ~$10 (optimized for $42 balance)
-            'XRP/USDT': 21.0,  # ~$10 (optimized for $42 balance)
-            'DOGE/USDT': 83.0,  # ~$10 (optimized for $42 balance)
-            'SHIB/USDT': 416666.0,  # ~$10 (optimized for $42 balance)
-            'PEPE/USDT': 4166666.0,  # ~$10 (optimized for $42 balance)
+        # SMART AUTO-SCALING POSITION SIZES
+        # Automatically adjusts to wallet size - works with ANY balance!
+        self.base_position_sizes = {
+            'BTC/USDT': 0.00001,  # Base size (auto-scales)
+            'ETH/USDT': 0.0002,  # Base size (auto-scales)
+            'BNB/USDT': 0.003,  # Base size (auto-scales)
+            'SOL/USDT': 0.02,  # Base size (auto-scales)
+            'ADA/USDT': 2.0,  # Base size (auto-scales)
+            'XRP/USDT': 1.0,  # Base size (auto-scales)
+            'DOGE/USDT': 4.0,  # Base size (auto-scales)
+            'SHIB/USDT': 20000.0,  # Base size (auto-scales)
+            'PEPE/USDT': 200000.0,  # Base size (auto-scales)
         }
+        self.position_sizes = {}  # Will be auto-calculated
 
         # Profit tracking
         self.total_profit = 0.0
@@ -159,9 +160,15 @@ class REAL_PROFIT_BOT:
             return "HOLD", 0, 0, 0, 0
 
     def execute_trade(self, symbol, signal, price):
-        """Execute trade with REAL PROFIT position sizing"""
+        """Execute trade with SMART AUTO-SCALED position sizing"""
         try:
-            position_size = self.position_sizes.get(symbol, 0.01)
+            # SMART AUTO-SCALING: Adjust position to current balance
+            balance = self.check_gate_balance()
+            target_position_usd = min(balance * 0.20, 10.0)  # 20% of balance or $10 max
+            
+            # Get base size and scale it to target USD value
+            base_size = self.base_position_sizes.get(symbol, 0.01)
+            position_size = (target_position_usd / price) if price > 0 else base_size
 
             # Check if we have enough balance first
             balance = self.check_gate_balance()
