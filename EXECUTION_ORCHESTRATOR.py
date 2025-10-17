@@ -208,7 +208,8 @@ class ExecutionOrchestrator:
         self.mode = mode
         
         # Smart components
-        self.position_sizer = SmartPositionSizer(initial_balance=1000.0)
+        # Start conservative - will auto-update from exchange balance
+        self.position_sizer = SmartPositionSizer(initial_balance=50.0)
         self.risk_manager = SmartRiskManager()
         
         # Execution settings
