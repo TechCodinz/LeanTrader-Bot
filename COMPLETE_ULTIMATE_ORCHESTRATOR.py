@@ -136,6 +136,9 @@ from SESSION_AWARE_TRADING import SessionAwareTrading
 from HEDGE_FUND_ARSENAL import HedgeFundArsenal
 from SENTIENT_TRADING_BRAIN import SentientTradingBrain
 
+# Import REAL PROFIT BOT - 35 pairs smart trading
+from REAL_PROFIT_BOT import REAL_PROFIT_BOT
+
 # Import UTILITY INTEGRATION LAYER - All utility functions
 from UTILITY_INTEGRATION_LAYER import UtilityIntegrationLayer
 
@@ -646,6 +649,21 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             self.p2p_scanner = None
         
         # ========================================================================
+        # REAL PROFIT BOT - 35 Pairs with Smart Sizing!
+        # ========================================================================
+        logger.info("💰 Wiring Real Profit Bot...")
+        
+        try:
+            self.real_profit_bot = REAL_PROFIT_BOT()
+            self.trading_engines['real_profit'] = self.real_profit_bot
+            logger.info("✅ 💰 REAL PROFIT BOT WIRED - 35 pairs with smart auto-sizing!")
+            logger.info(f"   Trading pairs: {len(self.real_profit_bot.position_sizes)}")
+            logger.info("   Auto-adjusts to wallet size automatically!")
+        except Exception as e:
+            logger.warning(f"⚠️ REAL PROFIT BOT failed: {e}")
+            self.real_profit_bot = None
+        
+        # ========================================================================
         # DYNAMIC MARKET SCANNER - Auto-discover trending pairs
         # ========================================================================
         logger.info("🔍 Wiring Dynamic Market Scanner...")
@@ -822,6 +840,15 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 asyncio.create_task(self.p2p_scanner.run_p2p_scanner())
             )
             logger.info("✅ 💰 P2P ARBITRAGE SCANNER STARTED!")
+        
+        # START REAL PROFIT BOT - 35 Pairs Trading!
+        if hasattr(self, 'real_profit_bot') and self.real_profit_bot:
+            # Wrap sync run() in async
+            async def run_real_profit_loop():
+                await asyncio.to_thread(self.real_profit_bot.run)
+            
+            tasks.append(asyncio.create_task(run_real_profit_loop()))
+            logger.info("✅ 💰 REAL PROFIT BOT STARTED - Trading 35 pairs!")
         
         # START DYNAMIC MARKET SCANNER - Auto-discover trending pairs!
         if self.market_scanner:
