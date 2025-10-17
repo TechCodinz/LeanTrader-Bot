@@ -1,0 +1,25 @@
+[Unit]
+Description=Trading Bot - LIVE (Real Trading with $62)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/trading_bot
+Environment="PATH=/root/trading_bot/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="VIRTUAL_ENV=/root/trading_bot/venv"
+Environment="PYTHONUNBUFFERED=1"
+Environment="TRADING_MODE=live"
+ExecStart=/root/trading_bot/venv/bin/python3 /root/trading_bot/RUN_BOT.py --live --auto-confirm
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trading-bot-live
+
+# Resource limits
+MemoryMax=2G
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target

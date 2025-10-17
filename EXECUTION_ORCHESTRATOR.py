@@ -20,8 +20,12 @@ class SmartPositionSizer:
     def __init__(self, initial_balance: float = 1000.0):
         self.balance = initial_balance
         self.max_risk_per_trade = 0.02  # 2% max risk
-        self.max_position_pct = 0.10  # 10% max position size
-        self.min_position_usd = 10.0  # $10 minimum
+        self.max_position_pct = 0.20  # 20% max position size (smart auto-adjusts to balance)
+        self.min_position_usd = 3.0  # $3 minimum (auto-scales with balance)
+        
+        # Dynamic sizing based on confidence
+        self.use_dynamic_sizing = True
+        self.aggressive_mode = True  # ENABLED - but SMART (auto-scales to balance size)
         
     def calculate_position_size(self, 
                                confidence: float,
@@ -59,10 +63,24 @@ class SmartPositionSizer:
         # Calculate final position size
         position_size = (base_risk / stop_loss_pct) * kelly_fraction * volatility_adjustment * confidence_adjustment
         
+        # AGGRESSIVE MODE: SMART auto-adjustment for any balance size
+        if self.aggressive_mode and confidence >= 0.85:
+            # Scale boost based on balance (small balance = small boost, large balance = large boost)
+            balance_scale = min(self.balance / 1000.0, 1.0)  # Max 1.0x at $1000+ balance
+            confidence_boost = 1.0 + ((confidence - 0.85) * 2.0 * balance_scale)  # Scaled by balance
+            position_size *= confidence_boost
+            logger.info(f"🚀 Smart aggressive sizing: {confidence:.1%} conf × ${self.balance:.0f} balance → {confidence_boost:.2f}x boost")
+        
         # Apply limits
         max_position = self.balance * self.max_position_pct
         position_size = min(position_size, max_position)
         position_size = max(position_size, self.min_position_usd)
+        
+        # Balance-aware: As balance grows, increase position sizes proportionally
+        if self.balance > 1000:
+            growth_multiplier = (self.balance / 1000) ** 0.5  # Square root scaling
+            position_size *= growth_multiplier
+            logger.debug(f"💰 Balance-aware sizing: ${self.balance:.0f} → {growth_multiplier:.2f}x multiplier")
         
         return position_size
     
@@ -409,14 +427,80 @@ class ExecutionOrchestrator:
             return None
     
     async def get_current_price(self, symbol: str) -> Optional[float]:
-        """Get current market price"""
+        """Get current market price from engines or fresh exchange connection"""
         try:
             # Try to get from router
-            if hasattr(self, 'router'):
+            if hasattr(self, 'router') and self.router:
                 ticker = await self.router.fetch_ticker(symbol)
-                return ticker.get('last', 0)
-        except:
-            pass
+                if ticker and ticker.get('last'):
+                    return ticker.get('last', 0)
+        except Exception as e:
+            logger.debug(f"Router fetch failed: {str(e)[:50]}")
+        
+        # Try engines
+        if self.engines:
+            for engine_name, engine in self.engines.items():
+                try:
+                    # Check if engine has an exchange object
+                    if hasattr(engine, 'exchange') and engine.exchange:
+                        ticker = await engine.exchange.fetch_ticker(symbol)
+                        if ticker and ticker.get('last'):
+                            logger.debug(f"Got price from {engine_name}: ${ticker['last']:.2f}")
+                            return ticker['last']
+                except Exception as e:
+                    logger.debug(f"{engine_name} fetch failed: {str(e)[:50]}")
+                    continue
+        
+        # Fallback: Create fresh exchange connection
+        try:
+            import ccxt.async_support as ccxt
+            import os
+            
+            logger.debug(f"Trying fresh exchange connection for {symbol}...")
+            
+            # Try Gate.io first (user's main exchange)
+            gateio_mode = os.getenv('GATEIO_MODE', 'testnet')
+            if gateio_mode == 'live':
+                gate_key = os.getenv('GATEIO_LIVE_API_KEY') or os.getenv('GATE_API_KEY')
+                gate_secret = os.getenv('GATEIO_LIVE_SECRET') or os.getenv('GATE_SECRET')
+            else:
+                gate_key = os.getenv('GATEIO_TESTNET_API_KEY') or os.getenv('GATE_API_KEY')
+                gate_secret = os.getenv('GATEIO_TESTNET_SECRET') or os.getenv('GATE_SECRET')
+            
+            if gate_key and gate_secret:
+                try:
+                    gate_config = {
+                        'apiKey': gate_key,
+                        'secret': gate_secret,
+                        'enableRateLimit': True
+                    }
+                    if gateio_mode == 'testnet':
+                        gate_config['urls'] = {
+                            'api': {
+                                'public': 'https://fx-api-testnet.gateio.ws/api/v4',
+                                'private': 'https://fx-api-testnet.gateio.ws/api/v4'
+                            }
+                        }
+                    
+                    exchange = ccxt.gateio(gate_config)
+                    ticker = await exchange.fetch_ticker(symbol)
+                    price = ticker['last']
+                    await exchange.close()
+                    logger.debug(f"Got ${price:.2f} from Gate.io ({gateio_mode})")
+                    return price
+                except Exception as e:
+                    logger.debug(f"Gate.io failed: {str(e)[:50]}")
+            
+            # Try Binance public API
+            exchange = ccxt.binance({'enableRateLimit': True})
+            ticker = await exchange.fetch_ticker(symbol)
+            price = ticker['last']
+            await exchange.close()
+            logger.debug(f"Got ${price:.2f} from Binance")
+            return price
+            
+        except Exception as e:
+            logger.error(f"All price fetch attempts failed for {symbol}: {e}")
         
         return None
     
