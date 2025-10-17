@@ -975,6 +975,16 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     except Exception as e:
                         logger.debug(f"Ultrasonic signals: {e}")
                 
+                # ACTIVATE GOLDMINE FEATURES
+                if ULTRA_FEATURES_AVAILABLE and self.goldmine_manager:
+                    try:
+                        for symbol in ['BTC/USDT', 'ETH/USDT']:
+                            goldmine_signals = await self.goldmine_manager.get_all_signals(symbol, {})
+                            if goldmine_signals:
+                                logger.info(f"💎 GOLDMINE: {symbol} - {len(goldmine_signals)} features active")
+                    except Exception as e:
+                        logger.debug(f"Goldmine signals: {e}")
+                
                 # Phase 3: All Learning
                 logger.info("🎓 Phase 3: Complete Learning...")
                 logger.info("   • Evolution engine updating")
