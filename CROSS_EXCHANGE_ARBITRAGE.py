@@ -30,9 +30,9 @@ class CrossExchangeArbitrage:
         self.exchanges = self._extract_ccxt_exchanges(exchanges)
         self.data_hub = data_hub
         
-        # Arbitrage settings
-        self.min_profit_pct = 0.3  # Minimum 0.3% profit after fees
-        self.max_position_usd = 100  # Max $100 per arbitrage
+        # Arbitrage settings - OPTIMIZED for small balance
+        self.min_profit_pct = 0.15  # Minimum 0.15% profit after fees (increased opportunities)
+        self.max_position_usd = 20  # Max $20 per arbitrage (fits $42 balance)
         self.enabled = len(self.exchanges) >= 2
         
         # Track opportunities
@@ -230,8 +230,8 @@ class CrossExchangeArbitrage:
             
             # Check if we have enough balance (only execute if we can afford it)
             try:
-                # For safety, only execute small arbitrage opportunities
-                if position_usd <= 50:  # Max $50 per arbitrage for safety
+                # Execute arbitrage if within balance limits
+                if position_usd <= self.max_position_usd:  # Use configured max
                     logger.info(f"💰 EXECUTING REAL ARBITRAGE:")
                     logger.info(f"   Buy {amount:.6f} {symbol} on {buy_exchange} @ ${buy_price:.4f}")
                     logger.info(f"   Sell {amount:.6f} {symbol} on {sell_exchange} @ ${opportunity['sell_price']:.4f}")
