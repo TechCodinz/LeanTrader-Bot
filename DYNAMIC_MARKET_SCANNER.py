@@ -80,14 +80,12 @@ class DynamicMarketScanner:
         
         new_opportunities = set()
         
-        # CRITICAL FIX: The exchanges are already ccxt objects from arbitrage engine
-        # Just use them directly!
-        actual_exchanges = self.exchanges
+        # CRITICAL FIX: Extract actual ccxt exchanges from engine objects
+        actual_exchanges = self._extract_ccxt_exchanges()
         
-        # Check if they're ccxt exchanges
-        first_exchange = next(iter(actual_exchanges.values())) if actual_exchanges else None
-        if first_exchange and not hasattr(first_exchange, 'fetch_tickers'):
-            logger.warning("⚠️  Exchanges are not ccxt objects, creating fallback...")
+        # If no valid exchanges found, create fallback
+        if not actual_exchanges:
+            logger.warning("⚠️  No valid ccxt exchanges found, creating fallback...")
             actual_exchanges = await self._create_fallback_exchanges()
         
         for exchange_name, exchange in actual_exchanges.items():
