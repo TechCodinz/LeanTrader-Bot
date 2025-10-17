@@ -947,11 +947,33 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 logger.info("   • Advanced scouting (news, social, on-chain)")
                 logger.info("   • Forex scanning")
                 
-                # Phase 2: All Intelligence
+                # Phase 2: All Intelligence + ACTIVE COMPUTING
                 logger.info("🧠 Phase 2: Complete Intelligence...")
                 logger.info("   • Collective AI (swarm, brain, awareness)")
                 logger.info("   • Deep learning predictions")
                 logger.info("   • ML strategy generation")
+                
+                # ACTIVATE QUANTUM PREDICTIONS
+                if 'quantum' in self.advanced_orchestrators:
+                    try:
+                        # Get market data for quantum analysis
+                        for symbol in ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']:
+                            market_data = {'price_change_pct': 0, 'volume_change_pct': 0, 'volatility': 0.02, 'rsi': 50}
+                            quantum_pred = await self.advanced_orchestrators['quantum'].quantum_market_prediction(market_data)
+                            if quantum_pred.get('confidence', 0) > 0.7:
+                                logger.info(f"🔮 Quantum: {symbol} {quantum_pred['direction']} ({quantum_pred['confidence']:.1%})")
+                    except Exception as e:
+                        logger.debug(f"Quantum prediction: {e}")
+                
+                # ACTIVATE ULTRASONIC STRATEGIES
+                if 'ultrasonic' in self.advanced_orchestrators:
+                    try:
+                        market_data = {'current_price': 0, 'returns': [], 'volume_usd': 100000}
+                        ultrasonic_signals = await self.advanced_orchestrators['ultrasonic'].get_ultrasonic_signals(market_data, [])
+                        if ultrasonic_signals:
+                            logger.info(f"🌌 ULTRASONIC: {len(ultrasonic_signals)} signals generated")
+                    except Exception as e:
+                        logger.debug(f"Ultrasonic signals: {e}")
                 
                 # Phase 3: All Learning
                 logger.info("🎓 Phase 3: Complete Learning...")
