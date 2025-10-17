@@ -957,13 +957,16 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 if 'quantum' in self.advanced_orchestrators:
                     try:
                         # Get market data for quantum analysis
+                        quantum_results = []
                         for symbol in ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']:
                             market_data = {'price_change_pct': 0, 'volume_change_pct': 0, 'volatility': 0.02, 'rsi': 50}
                             quantum_pred = await self.advanced_orchestrators['quantum'].quantum_market_prediction(market_data)
-                            if quantum_pred.get('confidence', 0) > 0.7:
-                                logger.info(f"🔮 Quantum: {symbol} {quantum_pred['direction']} ({quantum_pred['confidence']:.1%})")
+                            if quantum_pred and quantum_pred.get('confidence', 0) > 0:
+                                quantum_results.append(f"{symbol}:{quantum_pred['direction'][:1]}({quantum_pred['confidence']:.0%})")
+                        if quantum_results:
+                            logger.info(f"🔮 Quantum: {len(quantum_results)} predictions - {', '.join(quantum_results)}")
                     except Exception as e:
-                        logger.debug(f"Quantum prediction: {e}")
+                        logger.warning(f"Quantum prediction error: {e}")
                 
                 # ACTIVATE ULTRASONIC STRATEGIES
                 if 'ultrasonic' in self.advanced_orchestrators:
