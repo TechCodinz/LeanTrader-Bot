@@ -976,14 +976,24 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         logger.debug(f"Ultrasonic signals: {e}")
                 
                 # ACTIVATE GOLDMINE FEATURES
-                if ULTRA_FEATURES_AVAILABLE and self.goldmine_manager:
+                if ULTRA_FEATURES_AVAILABLE and hasattr(self, 'ultra_goldmine') and self.ultra_goldmine:
                     try:
                         for symbol in ['BTC/USDT', 'ETH/USDT']:
-                            goldmine_signals = await self.goldmine_manager.get_all_signals(symbol, {})
+                            goldmine_signals = await self.ultra_goldmine.get_all_signals(symbol, {})
                             if goldmine_signals:
                                 logger.info(f"💎 GOLDMINE: {symbol} - {len(goldmine_signals)} features active")
                     except Exception as e:
                         logger.debug(f"Goldmine signals: {e}")
+                
+                # ACTIVATE DIVINE INTELLIGENCE
+                if DIVINE_FEATURES_AVAILABLE and hasattr(self, 'divine_intelligence') and self.divine_intelligence:
+                    try:
+                        market_data = {'prices': [], 'volumes': [], 'current_price': 0, 'order_book': {}, 'recent_trades': []}
+                        divine_signals = await self.divine_intelligence.get_divine_signals(market_data)
+                        if divine_signals:
+                            logger.info(f"🔮 DIVINE: {len(divine_signals)} consciousness features active")
+                    except Exception as e:
+                        logger.debug(f"Divine signals: {e}")
                 
                 # Phase 3: All Learning
                 logger.info("🎓 Phase 3: Complete Learning...")
