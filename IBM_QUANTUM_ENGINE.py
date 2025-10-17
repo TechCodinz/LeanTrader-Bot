@@ -103,14 +103,14 @@ class QuantumMarketPredictor:
         # Create circuit
         qc = QuantumCircuit(self.n_qubits)
         
-        # Encode features
-        qc.compose(self.feature_map.bind_parameters(features), inplace=True)
+        # Encode features (Qiskit API: assign_parameters instead of bind_parameters)
+        qc.compose(self.feature_map.assign_parameters(features), inplace=True)
         
         # Apply ansatz with parameters
         if params is None:
             params = np.random.random(self.ansatz.num_parameters) * 2 * np.pi
         
-        qc.compose(self.ansatz.bind_parameters(params), inplace=True)
+        qc.compose(self.ansatz.assign_parameters(params), inplace=True)
         
         # Measure
         qc.measure_all()
