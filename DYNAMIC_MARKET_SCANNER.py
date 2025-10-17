@@ -92,11 +92,17 @@ class DynamicMarketScanner:
             try:
                 logger.info(f"🔍 Scanning {exchange_name}...")
                 
-                # Get all tickers (check if method exists)
+                # Validate it's a proper ccxt exchange
                 if not hasattr(exchange, 'fetch_tickers'):
-                    logger.warning(f"   {exchange_name} doesn't have fetch_tickers, skipping")
+                    logger.debug(f"   {exchange_name} doesn't have fetch_tickers, skipping")
                     continue
                 
+                # Check if it's callable (not a dict)
+                if not callable(getattr(exchange, 'fetch_tickers', None)):
+                    logger.debug(f"   {exchange_name} fetch_tickers not callable, skipping")
+                    continue
+                
+                # Fetch tickers
                 tickers = await exchange.fetch_tickers()
                 
                 # Filter for USDT pairs only
@@ -288,6 +294,18 @@ class DynamicMarketScanner:
             signal = {
                 'type': 'trending',
                 'symbol': trend['symbol'],
+                'side': 'BUY' if trend['price_change_pct'] > 0 else 'SELL',
+                'confidence': min(abs(trend['price_change_pct']) / 10, 0.95),  # Cap at 95%
+                'source': 'DynamicScanner',
+                'reasoning': f"Trending {trend['price_change_pct']:+.1f}% with ${trend['volume_24h']/1e6:.1f}M volume",
+                'timestamp': datetime.now()
+            }
+            
+            await self.data_hub.publish_signal(signal)
+        
+        if top_trending:
+            logger.info(f"📢 Published {len(top_trending)} trending signals to data hub")
+ol'],
                 'side': 'BUY' if trend['price_change_pct'] > 0 else 'SELL',
                 'confidence': min(abs(trend['price_change_pct']) / 10, 0.95),  # Cap at 95%
                 'source': 'DynamicScanner',
