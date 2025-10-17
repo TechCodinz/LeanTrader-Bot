@@ -20,12 +20,12 @@ class SmartPositionSizer:
     def __init__(self, initial_balance: float = 1000.0):
         self.balance = initial_balance
         self.max_risk_per_trade = 0.02  # 2% max risk
-        self.max_position_pct = 0.10  # 10% max position size
-        self.min_position_usd = 10.0  # $10 minimum
+        self.max_position_pct = 0.25  # 25% max position size (was 10%, increased for small balance)
+        self.min_position_usd = 5.0  # $5 minimum (reduced for $42 balance)
         
         # Dynamic sizing based on confidence
         self.use_dynamic_sizing = True
-        self.aggressive_mode = True  # Grow account faster
+        self.aggressive_mode = False  # DISABLED for small balance - prevents oversizing
         
     def calculate_position_size(self, 
                                confidence: float,
@@ -63,8 +63,9 @@ class SmartPositionSizer:
         # Calculate final position size
         position_size = (base_risk / stop_loss_pct) * kelly_fraction * volatility_adjustment * confidence_adjustment
         
-        # AGGRESSIVE MODE: Grow account faster with high confidence trades
-        if self.aggressive_mode and confidence >= 0.85:
+        # AGGRESSIVE MODE: DISABLED for small balance ($42)
+        # Conservative sizing to prevent balance errors
+        if False and self.aggressive_mode and confidence >= 0.85:
             # Increase size by up to 50% for very high confidence
             confidence_boost = 1.0 + ((confidence - 0.85) * 2.0)  # 85% conf = 1.0x, 100% conf = 1.3x
             position_size *= confidence_boost
