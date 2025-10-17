@@ -20,8 +20,8 @@ class SmartPositionSizer:
     def __init__(self, initial_balance: float = 1000.0):
         self.balance = initial_balance
         self.max_risk_per_trade = 0.02  # 2% max risk
-        self.max_position_pct = 0.20  # 20% max position size (smart auto-adjusts to balance)
-        self.min_position_usd = 3.0  # $3 minimum (auto-scales with balance)
+        self.max_position_pct = 0.15  # 15% max position size (conservative for small balance)
+        self.min_position_usd = 5.0  # $5 minimum (exchange minimum + fees)
         
         # Dynamic sizing based on confidence
         self.use_dynamic_sizing = True
