@@ -212,6 +212,15 @@ class ExecutionOrchestrator:
         self.position_sizer = SmartPositionSizer(initial_balance=50.0)
         self.risk_manager = SmartRiskManager()
         
+        # 🧠 Adaptive pair selector - grows with balance!
+        try:
+            from ADAPTIVE_PAIR_SELECTOR import AdaptivePairSelector
+            self.adaptive_selector = AdaptivePairSelector()
+            logger.info("✅ 🧠 Adaptive pair selector loaded - will grow pairs with balance!")
+        except Exception as e:
+            logger.warning(f"⚠️  Adaptive selector not available: {e}")
+            self.adaptive_selector = None
+        
         # Execution settings
         self.min_confidence = 0.80  # 80% minimum confidence to execute
         self.execution_enabled = True
