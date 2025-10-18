@@ -104,7 +104,12 @@ class REAL_PROFIT_BOT:
     def check_gate_balance(self):
         """Check exchange USDT balance (Gate.io or Bybit depending on mode)"""
         try:
-            balance = self.gate.fetch_balance()
+            # For Bybit testnet, explicitly request UNIFIED account balance
+            if self.mode == "testnet":
+                balance = self.gate.fetch_balance(params={'accountType': 'UNIFIED'})
+            else:
+                balance = self.gate.fetch_balance()
+            
             usdt_balance = balance['USDT']['free']
             exchange_name = "Bybit Testnet" if self.mode == "testnet" else "Gate.io"
             print(f"💰 {exchange_name} USDT Balance: {usdt_balance}")
