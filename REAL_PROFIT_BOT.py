@@ -23,12 +23,18 @@ class REAL_PROFIT_BOT:
                 'secret': os.getenv('BYBIT_SECRET', 'BIu7c65FQnDsd6kBmctU7gK9bBbzY15vi8oe'),
                 'enableRateLimit': True,
                 'options': {
-                    'defaultType': 'spot',  # Use SPOT account (not derivatives)
+                    'defaultType': 'spot',  # Use SPOT account
+                    'defaultSubType': 'spot',  # Ensure spot sub-type
                 }
             }
             self.gate = ccxt.bybit(self.exchange_config)
             self.gate.set_sandbox_mode(True)  # Enable Bybit testnet
-            print(f"🧪 TESTNET MODE: Using Bybit testnet SPOT account for learning")
+            # Try to use Unified Trading Account
+            try:
+                self.gate.options['accountType'] = 'UNIFIED'
+            except:
+                pass
+            print(f"🧪 TESTNET MODE: Using Bybit testnet UNIFIED/SPOT account for learning")
         else:
             # 💰 LIVE MODE: Use Gate.io (REAL TRADING)
             self.exchange_config = {

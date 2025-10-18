@@ -69,7 +69,7 @@ class NewsTradingEngine:
                 trending = await self.fetch_trending_coins()
                 
                 if trending:
-                    logger.info(f"📰 Found {len(trending)} trending coins")
+                    logger.info(f"📰 NEWS ENGINE: Found {len(trending)} trending coins")
                     
                     # Generate signals from trending data
                     for coin_data in trending:
@@ -77,6 +77,7 @@ class NewsTradingEngine:
                         if signal:
                             await self.data_hub.publish_signal(signal)
                             self.signals_generated += 1
+                            logger.info(f"📰 NEWS SIGNAL: {signal.get('symbol')} {signal.get('side')} (sentiment: {signal.get('sentiment', 'N/A')})")
                 
                 # Wait before next check (every 10 minutes)
                 await asyncio.sleep(600)
