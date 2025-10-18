@@ -166,7 +166,8 @@ class REAL_PROFIT_BOT:
         try:
             # SMART AUTO-SCALING: Adjust position to current balance
             balance = self.check_gate_balance()
-            target_position_usd = min(balance * 0.20, 10.0)  # 20% of balance or $10 max
+            # Gate.io minimum is $3 USDT - ensure we meet it
+            target_position_usd = max(3.50, min(balance * 0.25, 12.0))  # Min $3.50, 25% of balance, or $12 max
             
             # Get base size and scale it to target USD value
             base_size = self.base_position_sizes.get(symbol, 0.01)
