@@ -1,0 +1,7 @@
+2025-10-18 19:33:39,263 - __main__ - INFO - 🚀 Initializing PROPER Unified Trading System
+2025-10-18 19:33:39,264 - __main__ - INFO - ======================================================================
+2025-10-18 19:33:39,264 - __main__ - INFO - 🚀 STARTING PROPER UNIFIED TRADING SYSTEM
+2025-10-18 19:33:39,264 - __main__ - INFO - ======================================================================
+2025-10-18 19:33:39,265 - __main__ - INFO - 📦 Initializing core dependencies...
+2025-10-18 19:33:41,559 - __main__ - ERROR - ❌ Failed to initialize UltraCore: UltraCore.__init__() missing 2 required positional arguments: 'router' and 'universe'
+2025-10-18 19:33:41,559 - __main__ - ERROR - ❌ Core dependencies failed to initialize - aborting
