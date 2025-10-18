@@ -218,12 +218,29 @@ class REAL_PROFIT_BOT:
                     return None
 
             if signal == "BUY":
-                # Gate.io market buy: pass cost in USDT (not quantity)
+                # Gate.io/Bybit market buy: pass cost in USDT (not quantity)
                 cost_usd = target_position_usd  # Use the USD amount directly
-                order = self.gate.create_market_buy_order(symbol, cost_usd)
+                
+                # For Bybit testnet, pass UNIFIED account type
+                if self.mode == "testnet":
+                    order = self.gate.create_market_buy_order(
+                        symbol, 
+                        cost_usd,
+                        params={'accountType': 'UNIFIED'}
+                    )
+                else:
+                    order = self.gate.create_market_buy_order(symbol, cost_usd)
                 print(f"✅ REAL PROFIT BUY: {symbol} @ ${price:.4f} | Cost: ${cost_usd:.2f}")
             elif signal == "SELL":
-                order = self.gate.create_market_sell_order(symbol, position_size)
+                # For Bybit testnet, pass UNIFIED account type
+                if self.mode == "testnet":
+                    order = self.gate.create_market_sell_order(
+                        symbol, 
+                        position_size,
+                        params={'accountType': 'UNIFIED'}
+                    )
+                else:
+                    order = self.gate.create_market_sell_order(symbol, position_size)
                 print(f"✅ REAL PROFIT SELL: {symbol} @ ${price:.4f} | Size: {position_size}")
             else:
                 return None
