@@ -218,29 +218,23 @@ class REAL_PROFIT_BOT:
                     return None
 
             if signal == "BUY":
-                # Gate.io/Bybit market buy: pass cost in USDT (not quantity)
-                cost_usd = target_position_usd  # Use the USD amount directly
+                # CRITICAL DIFFERENCE:
+                # - Gate.io: Pass COST in USDT (because we set createMarketBuyOrderRequiresPrice=False)
+                # - Bybit: Pass AMOUNT in base currency (BTC, ETH, etc.)
                 
-                # For Bybit testnet, pass UNIFIED account type
                 if self.mode == "testnet":
-                    order = self.gate.create_market_buy_order(
-                        symbol, 
-                        cost_usd,
-                        params={'accountType': 'UNIFIED'}
-                    )
+                    # Bybit: Calculate amount in base currency
+                    amount = target_position_usd / price  # e.g., $7.50 / $67000 = 0.000112 BTC
+                    order = self.gate.create_market_buy_order(symbol, amount)
+                    print(f"✅ REAL PROFIT BUY: {symbol} @ ${price:.4f} | Amount: {amount:.8f} | Cost: ${target_position_usd:.2f}")
                 else:
+                    # Gate.io: Pass cost directly
+                    cost_usd = target_position_usd
                     order = self.gate.create_market_buy_order(symbol, cost_usd)
-                print(f"✅ REAL PROFIT BUY: {symbol} @ ${price:.4f} | Cost: ${cost_usd:.2f}")
+                    print(f"✅ REAL PROFIT BUY: {symbol} @ ${price:.4f} | Cost: ${cost_usd:.2f}")
             elif signal == "SELL":
-                # For Bybit testnet, pass UNIFIED account type
-                if self.mode == "testnet":
-                    order = self.gate.create_market_sell_order(
-                        symbol, 
-                        position_size,
-                        params={'accountType': 'UNIFIED'}
-                    )
-                else:
-                    order = self.gate.create_market_sell_order(symbol, position_size)
+                # Both Gate.io and Bybit: Pass amount in base currency for sells
+                order = self.gate.create_market_sell_order(symbol, position_size)
                 print(f"✅ REAL PROFIT SELL: {symbol} @ ${price:.4f} | Size: {position_size}")
             else:
                 return None
