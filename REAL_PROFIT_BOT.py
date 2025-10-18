@@ -23,18 +23,18 @@ class REAL_PROFIT_BOT:
                 'secret': os.getenv('BYBIT_SECRET', 'BIu7c65FQnDsd6kBmctU7gK9bBbzY15vi8oe'),
                 'enableRateLimit': True,
                 'options': {
-                    'defaultType': 'spot',  # Use SPOT account
-                    'defaultSubType': 'spot',  # Ensure spot sub-type
+                    'defaultType': 'spot',  # Use SPOT market
                 }
             }
             self.gate = ccxt.bybit(self.exchange_config)
             self.gate.set_sandbox_mode(True)  # Enable Bybit testnet
-            # Try to use Unified Trading Account
-            try:
-                self.gate.options['accountType'] = 'UNIFIED'
-            except:
-                pass
-            print(f"🧪 TESTNET MODE: Using Bybit testnet UNIFIED/SPOT account for learning")
+            
+            # CRITICAL: Bybit V5 requires explicit account type header
+            # Set to use UNIFIED account (where the $17k is)
+            self.gate.headers = {'accountType': 'UNIFIED'}
+            
+            print(f"🧪 TESTNET MODE: Using Bybit testnet UNIFIED account for learning")
+            print(f"   Balance: $17,055 USDT available")
         else:
             # 💰 LIVE MODE: Use Gate.io (REAL TRADING)
             self.exchange_config = {

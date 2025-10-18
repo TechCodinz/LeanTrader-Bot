@@ -193,13 +193,18 @@ class DynamicMarketScanner:
         
         for name, obj in self.exchanges.items():
             try:
+                # Skip if obj is None or not an object
+                if obj is None or not hasattr(obj, '__dict__'):
+                    continue
+                
                 # Check if it's already a ccxt exchange
-                if hasattr(obj, 'fetch_tickers') and callable(obj.fetch_tickers):
+                if hasattr(obj, 'fetch_tickers') and callable(getattr(obj, 'fetch_tickers', None)):
                     ccxt_exchanges[name] = obj
                 # Check if it has an 'exchange' attribute (engine with embedded exchange)
                 elif hasattr(obj, 'exchange') and obj.exchange:
-                    if hasattr(obj.exchange, 'fetch_tickers'):
-                        ccxt_exchanges[name] = obj.exchange
+                    exch = obj.exchange
+                    if hasattr(exch, 'fetch_tickers') and callable(getattr(exch, 'fetch_tickers', None)):
+                        ccxt_exchanges[name] = exch
                         logger.info(f"   ✅ Extracted exchange from {name} engine")
             except Exception as e:
                 logger.debug(f"   Skipping {name}: {str(e)[:50]}")
