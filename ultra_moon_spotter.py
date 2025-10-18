@@ -581,13 +581,18 @@ class AutoSniper:
         self.snipe_results = []
 
         # Web3 connections for different chains
-        self.web3_connections = {
-            'ethereum': Web3(Web3.HTTPProvider('https://mainnet.infura.io/v3/YOUR_KEY')),
-            'bsc': Web3(Web3.HTTPProvider('https://bsc-dataseed.binance.org/')),
-            'polygon': Web3(Web3.HTTPProvider('https://polygon-rpc.com/')),
-            'arbitrum': Web3(Web3.HTTPProvider('https://arb1.arbitrum.io/rpc')),
-            'avalanche': Web3(Web3.HTTPProvider('https://api.avax.network/ext/bc/C/rpc')),
-        }
+        try:
+            from web3 import Web3
+            self.web3_connections = {
+                'ethereum': Web3(Web3.HTTPProvider('https://mainnet.infura.io/v3/YOUR_KEY')),
+                'bsc': Web3(Web3.HTTPProvider('https://bsc-dataseed.binance.org/')),
+                'polygon': Web3(Web3.HTTPProvider('https://polygon-rpc.com/')),
+                'arbitrum': Web3(Web3.HTTPProvider('https://arb1.arbitrum.io/rpc')),
+                'avalanche': Web3(Web3.HTTPProvider('https://api.avax.network/ext/bc/C/rpc')),
+            }
+        except Exception as e:
+            print(f"⚠️ Web3 not available: {e}")
+            self.web3_connections = {}
 
         # Router addresses for swaps
         self.routers = {
