@@ -5,25 +5,39 @@ import requests
 from datetime import datetime
 
 class REAL_PROFIT_BOT:
-    def __init__(self):
+    def __init__(self, mode: str = "live"):
         # TELEGRAM CONFIGURATION
         self.telegram_bot_token = "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
         self.admin_chat_id = "5329503447"
         self.vip_chat_id = "-1002983007302"
         self.free_chat_id = "-1002930953007"
-
-        # GATE.IO API CONFIGURATION (REAL TRADING)
-        self.gate_config = {
-            'apiKey': 'a0508d8aadf3bcb76e16f4373e1f3a76',
-            'secret': '451770a07dbede1b87bb92f5ce98e24029d2fe91e0053be2ec41771c953113f9',
-            'sandbox': False,  # REAL TRADING
-            'enableRateLimit': True,
-        }
-
-        # Initialize Gate.io exchange
-        self.gate = ccxt.gate(self.gate_config)
-        # Configure Gate.io to accept cost (USDT amount) instead of quantity for market buy orders
-        self.gate.options['createMarketBuyOrderRequiresPrice'] = False
+        
+        self.mode = mode
+        
+        # MODE-AWARE EXCHANGE CONFIGURATION
+        if mode == "testnet":
+            # 🧪 TESTNET MODE: Use Bybit testnet ($17k+ for learning)
+            import os
+            self.exchange_config = {
+                'apiKey': os.getenv('BYBIT_API_KEY', 'N8BMgWdfisCtkvfZk8'),
+                'secret': os.getenv('BYBIT_SECRET', 'BIu7c65FQnDsd6kBmctU7gK9bBbzY15vi8oe'),
+                'enableRateLimit': True,
+            }
+            self.gate = ccxt.bybit(self.exchange_config)
+            self.gate.set_sandbox_mode(True)  # Enable Bybit testnet
+            print(f"🧪 TESTNET MODE: Using Bybit testnet for learning")
+        else:
+            # 💰 LIVE MODE: Use Gate.io (REAL TRADING)
+            self.exchange_config = {
+                'apiKey': 'a0508d8aadf3bcb76e16f4373e1f3a76',
+                'secret': '451770a07dbede1b87bb92f5ce98e24029d2fe91e0053be2ec41771c953113f9',
+                'sandbox': False,  # REAL TRADING
+                'enableRateLimit': True,
+            }
+            self.gate = ccxt.gate(self.exchange_config)
+            # Configure Gate.io to accept cost (USDT amount) instead of quantity for market buy orders
+            self.gate.options['createMarketBuyOrderRequiresPrice'] = False
+            print(f"💰 LIVE MODE: Using Gate.io for real trading")
 
         # SMART AUTO-SCALING POSITION SIZES
         # Automatically adjusts to wallet size - works with ANY balance!
@@ -79,11 +93,12 @@ class REAL_PROFIT_BOT:
             return False
 
     def check_gate_balance(self):
-        """Check Gate.io USDT balance"""
+        """Check exchange USDT balance (Gate.io or Bybit depending on mode)"""
         try:
             balance = self.gate.fetch_balance()
             usdt_balance = balance['USDT']['free']
-            print(f"💰 Gate.io USDT Balance: {usdt_balance}")
+            exchange_name = "Bybit Testnet" if self.mode == "testnet" else "Gate.io"
+            print(f"💰 {exchange_name} USDT Balance: {usdt_balance}")
             return float(usdt_balance)
         except Exception as e:
             print(f"❌ Balance check error: {e}")
