@@ -305,15 +305,3 @@ class DynamicMarketScanner:
         
         if top_trending:
             logger.info(f"📢 Published {len(top_trending)} trending signals to data hub")
-ol'],
-                'side': 'BUY' if trend['price_change_pct'] > 0 else 'SELL',
-                'confidence': min(abs(trend['price_change_pct']) / 10, 0.95),  # Cap at 95%
-                'source': 'DynamicScanner',
-                'reasoning': f"Trending {trend['price_change_pct']:+.1f}% with ${trend['volume_24h']/1e6:.1f}M volume",
-                'timestamp': datetime.now()
-            }
-            
-            await self.data_hub.publish_signal(signal)
-        
-        if top_trending:
-            logger.info(f"📢 Published {len(top_trending)} trending signals to data hub")
