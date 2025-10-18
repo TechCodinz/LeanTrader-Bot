@@ -741,9 +741,13 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("\n⚡ Wiring SMART SCALPING ENGINE...")
         
         try:
+            # Import and get ultra_core from base system
+            from ultra_core import UltraCore
+            ultra_core_instance = self.ultra_core if hasattr(self, 'ultra_core') else None
+            
             self.smart_scalping = SmartScalpingEngine(
-                data_hub=self.data_hub,
-                execution_orchestrator=execution_engine
+                ultra_core=ultra_core_instance,
+                risk_engine=self.risk_engine
             )
             self.advanced_orchestrators['smart_scalping'] = self.smart_scalping
             logger.info("✅ ⚡ SMART SCALPING ENGINE WIRED!")
@@ -754,6 +758,27 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.error(f"❌ Smart Scalping Engine failed to wire: {e}")
             self.smart_scalping = None
+        
+        # ========================================================================
+        # 💧 ULTRA FLUID MECHANICS - SENTINEL BRILLIANCE SYSTEM
+        # ========================================================================
+        logger.info("\n💧 Wiring ULTRA FLUID MECHANICS...")
+        
+        try:
+            from ultra_fluid_mechanics import FluidMechanicsEngine
+            ultra_core_instance = self.ultra_core if hasattr(self, 'ultra_core') else None
+            
+            self.fluid_mechanics = FluidMechanicsEngine(
+                ultra_core=ultra_core_instance,
+                risk_engine=self.risk_engine
+            )
+            self.advanced_orchestrators['fluid_mechanics'] = self.fluid_mechanics
+            logger.info("✅ 💧 FLUID MECHANICS WIRED!")
+            logger.info("   Sentinel monitoring + Fluid market analysis")
+            logger.info("   Effortless execution with unbeatable performance")
+        except Exception as e:
+            logger.error(f"❌ Fluid Mechanics failed to wire: {e}")
+            self.fluid_mechanics = None
         
         logger.info("\n" + "=" * 80)
         logger.info("✅ ALL ADVANCED SYSTEMS WIRED!")
