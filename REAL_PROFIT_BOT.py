@@ -22,10 +22,13 @@ class REAL_PROFIT_BOT:
                 'apiKey': os.getenv('BYBIT_API_KEY', 'N8BMgWdfisCtkvfZk8'),
                 'secret': os.getenv('BYBIT_SECRET', 'BIu7c65FQnDsd6kBmctU7gK9bBbzY15vi8oe'),
                 'enableRateLimit': True,
+                'options': {
+                    'defaultType': 'spot',  # Use SPOT account (not derivatives)
+                }
             }
             self.gate = ccxt.bybit(self.exchange_config)
             self.gate.set_sandbox_mode(True)  # Enable Bybit testnet
-            print(f"🧪 TESTNET MODE: Using Bybit testnet for learning")
+            print(f"🧪 TESTNET MODE: Using Bybit testnet SPOT account for learning")
         else:
             # 💰 LIVE MODE: Use Gate.io (REAL TRADING)
             self.exchange_config = {
