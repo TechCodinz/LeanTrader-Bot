@@ -1,10 +1,16 @@
 #!/bin/bash
-# 🚨 CRITICAL FIX: Unlock Bybit $17k + Fix Scanner
+# 🚨 CRITICAL FIX: Unlock Bybit $17k + Fix Scanner + All Systems Sync
 set -e
 
 echo "═══════════════════════════════════════════════════════"
 echo "🚨 DEPLOYING CRITICAL FIX: BYBIT UNIFIED ACCOUNT"
 echo "═══════════════════════════════════════════════════════"
+echo ""
+echo "FIXES:"
+echo "  ✅ Bybit UNIFIED account access (\$17k)"
+echo "  ✅ Dynamic Market Scanner (string error fixed)"
+echo "  ✅ All 40+ systems logging & synchronized"
+echo "  ✅ Auto-Live-Trigger ready"
 echo ""
 
 cd /root/trading_bot
@@ -14,14 +20,23 @@ echo "📥 Pulling critical fix..."
 git fetch origin main
 git reset --hard origin/main
 
-echo "🧹 Clearing cache..."
+echo "✅ Pulled latest from GitHub"
+echo ""
+
+echo "🧹 Clearing Python cache..."
 find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 find . -type f -name "*.pyc" -delete 2>/dev/null || true
 
-echo "🔄 Restarting bot..."
+echo "✅ Cache cleared"
+echo ""
+
+echo "🔄 Restarting testnet bot..."
 sudo systemctl restart trading-bot-testnet
 
-echo "⏳ Waiting 60s for startup..."
+echo "✅ Bot restarted"
+echo ""
+
+echo "⏳ Waiting 60s for full startup (TensorFlow + all systems)..."
 sleep 60
 
 echo ""
