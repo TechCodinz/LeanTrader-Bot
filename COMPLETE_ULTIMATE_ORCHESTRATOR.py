@@ -654,10 +654,12 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("💰 Wiring Real Profit Bot...")
         
         try:
-            self.real_profit_bot = REAL_PROFIT_BOT()
+            # MODE-AWARE: Bybit testnet ($17k) or Gate.io live
+            self.real_profit_bot = REAL_PROFIT_BOT(mode=self.mode)
             self.trading_engines['real_profit'] = self.real_profit_bot
-            logger.info("✅ 💰 REAL PROFIT BOT WIRED - 35 pairs with smart auto-sizing!")
-            logger.info(f"   Trading pairs: {len(self.real_profit_bot.position_sizes)}")
+            logger.info(f"✅ 💰 REAL PROFIT BOT WIRED - {self.mode.upper()} mode")
+            logger.info(f"   Exchange: {'Bybit Testnet' if self.mode == 'testnet' else 'Gate.io Live'}")
+            logger.info(f"   Trading pairs: {len(self.real_profit_bot.crypto_pairs)}")
             logger.info("   Auto-adjusts to wallet size automatically!")
         except Exception as e:
             logger.warning(f"⚠️ REAL PROFIT BOT failed: {e}")
