@@ -1283,9 +1283,9 @@ Select amount below to execute instantly:
             price = ticker['last']
             amount = amount_usd / price
             
-            # Execute order
+            # Execute order (Gate.io requires price for market buy)
             if side == 'buy':
-                order = await exchange.create_market_buy_order(symbol, amount)
+                order = await exchange.create_market_buy_order(symbol, amount, price)
             else:
                 order = await exchange.create_market_sell_order(symbol, amount)
             

@@ -186,7 +186,8 @@ class REAL_PROFIT_BOT:
                     return None
 
             if signal == "BUY":
-                order = self.gate.create_market_buy_order(symbol, position_size)
+                # Gate.io requires price for market buy orders to calculate total cost
+                order = self.gate.create_market_buy_order(symbol, position_size, price)
                 print(f"✅ REAL PROFIT BUY: {symbol} @ ${price:.4f} | Size: {position_size}")
             elif signal == "SELL":
                 order = self.gate.create_market_sell_order(symbol, position_size)

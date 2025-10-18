@@ -244,9 +244,9 @@ class CrossExchangeArbitrage:
                         usdt_available = buy_balance.get('USDT', {}).get('free', 0)
                         
                         if usdt_available >= position_usd:
-                            # Execute buy order
+                            # Execute buy order (Gate.io requires price parameter)
                             logger.info(f"   📥 Placing BUY order on {buy_exchange}...")
-                            buy_order = await buy_ex.create_market_buy_order(symbol, amount)
+                            buy_order = await buy_ex.create_market_buy_order(symbol, amount, buy_price)
                             logger.info(f"   ✅ BUY executed: {buy_order.get('id', 'unknown')}")
                             
                             # Small delay to ensure order fills
