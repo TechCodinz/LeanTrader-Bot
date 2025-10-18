@@ -139,6 +139,9 @@ from SENTIENT_TRADING_BRAIN import SentientTradingBrain
 # Import REAL PROFIT BOT - 35 pairs smart trading
 from REAL_PROFIT_BOT import REAL_PROFIT_BOT
 
+# Import AUTO LIVE TRIGGER - Intelligent testnet→live switching
+from AUTO_LIVE_TRIGGER import AutoLiveTrigger
+
 # Import UTILITY INTEGRATION LAYER - All utility functions
 from UTILITY_INTEGRATION_LAYER import UtilityIntegrationLayer
 
