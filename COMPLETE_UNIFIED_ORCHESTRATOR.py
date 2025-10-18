@@ -280,17 +280,23 @@ class UnifiedDecisionEngine:
                 if signals:
                     # Collective decision from all systems
                     for signal in signals:
-                        # Get swarm consensus
+                        # Get swarm consensus WITH LOGGING
+                        swarm_decision = None
                         try:
                             swarm_decision = await self.swarm.collective_decision()
-                        except:
-                            swarm_decision = None
+                            if swarm_decision:
+                                logger.info(f"🧠 Swarm consensus: {swarm_decision.get('action', 'HOLD')} (confidence: {swarm_decision.get('confidence', 0):.1%})")
+                        except Exception as e:
+                            logger.debug(f"Swarm decision error: {e}")
                         
-                        # Get brain analysis
+                        # Get brain analysis WITH LOGGING
+                        brain_features = None
                         try:
                             brain_features = self.brain.engineer_features(signal.get('data', {}))
-                        except:
-                            brain_features = None
+                            if brain_features:
+                                logger.info(f"🧠 Brain engineered {len(brain_features)} features")
+                        except Exception as e:
+                            logger.debug(f"Brain features error: {e}")
                         
                         # EXTRACT ACTION AND CONFIDENCE FROM SIGNAL!
                         signal_data = signal.get('data', {})

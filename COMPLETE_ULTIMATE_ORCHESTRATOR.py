@@ -1045,7 +1045,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 logger.info("   • Deep learning predictions")
                 logger.info("   • ML strategy generation")
                 
-                # ACTIVATE QUANTUM PREDICTIONS
+                # ACTIVATE QUANTUM PREDICTIONS (EXPLICIT LOGGING)
                 if 'quantum' in self.advanced_orchestrators:
                     try:
                         # Get market data for quantum analysis
@@ -1055,10 +1055,11 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             quantum_pred = await self.advanced_orchestrators['quantum'].quantum_market_prediction(market_data)
                             if quantum_pred and quantum_pred.get('confidence', 0) > 0:
                                 quantum_results.append(f"{symbol}:{quantum_pred['direction'][:1]}({quantum_pred['confidence']:.0%})")
+                                logger.info(f"🔮 Quantum prediction: {symbol} → {quantum_pred['direction']} ({quantum_pred['confidence']:.0%})")
                         if quantum_results:
-                            logger.info(f"🔮 Quantum: {len(quantum_results)} predictions - {', '.join(quantum_results)}")
+                            logger.info(f"🔮 Quantum active: {len(quantum_results)} predictions generated")
                     except Exception as e:
-                        logger.warning(f"Quantum prediction error: {e}")
+                        logger.error(f"Quantum prediction error: {e}")
                 
                 # ACTIVATE ULTRASONIC STRATEGIES
                 if 'ultrasonic' in self.advanced_orchestrators:
@@ -1070,25 +1071,32 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     except Exception as e:
                         logger.debug(f"Ultrasonic signals: {e}")
                 
-                # ACTIVATE GOLDMINE FEATURES
+                # ACTIVATE GOLDMINE FEATURES (EXPLICIT LOGGING)
                 if ULTRA_FEATURES_AVAILABLE and hasattr(self, 'ultra_goldmine') and self.ultra_goldmine:
                     try:
-                        for symbol in ['BTC/USDT', 'ETH/USDT']:
+                        goldmine_count = 0
+                        for symbol in ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']:
                             goldmine_signals = await self.ultra_goldmine.get_all_signals(symbol, {})
                             if goldmine_signals:
-                                logger.info(f"💎 GOLDMINE: {symbol} - {len(goldmine_signals)} features active")
+                                goldmine_count += len(goldmine_signals)
+                                for sig in goldmine_signals[:2]:  # Log first 2
+                                    logger.info(f"💎 GOLDMINE: {symbol} - {sig.get('feature', 'Unknown')}: {sig.get('signal', 'N/A')}")
+                        if goldmine_count > 0:
+                            logger.info(f"💎 GOLDMINE active: {goldmine_count} total signals across all pairs")
                     except Exception as e:
-                        logger.debug(f"Goldmine signals: {e}")
+                        logger.error(f"Goldmine signals error: {e}")
                 
-                # ACTIVATE DIVINE INTELLIGENCE
+                # ACTIVATE DIVINE INTELLIGENCE (EXPLICIT LOGGING)
                 if DIVINE_FEATURES_AVAILABLE and hasattr(self, 'divine_intelligence') and self.divine_intelligence:
                     try:
                         market_data = {'prices': [], 'volumes': [], 'current_price': 0, 'order_book': {}, 'recent_trades': []}
                         divine_signals = await self.divine_intelligence.get_divine_signals(market_data)
                         if divine_signals:
-                            logger.info(f"🔮 DIVINE: {len(divine_signals)} consciousness features active")
+                            for sig in divine_signals[:3]:  # Log first 3
+                                logger.info(f"🔮 DIVINE: {sig.get('feature', 'Unknown')} - {sig.get('insight', 'N/A')}")
+                            logger.info(f"🔮 DIVINE active: {len(divine_signals)} consciousness features computed")
                     except Exception as e:
-                        logger.debug(f"Divine signals: {e}")
+                        logger.error(f"Divine signals error: {e}")
                 
                 # Phase 3: All Learning
                 logger.info("🎓 Phase 3: Complete Learning...")
