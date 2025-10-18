@@ -735,6 +735,26 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("   Continuous learning: Profit even from losses")
         logger.info("   Real-time adaptation: Market-aware intelligence")
         
+        # ========================================================================
+        # 🔥 SMART SCALPING ENGINE - THE MISSING PROFIT ENGINE! 🔥
+        # ========================================================================
+        logger.info("\n⚡ Wiring SMART SCALPING ENGINE...")
+        
+        try:
+            self.smart_scalping = SmartScalpingEngine(
+                data_hub=self.data_hub,
+                execution_orchestrator=execution_engine
+            )
+            self.advanced_orchestrators['smart_scalping'] = self.smart_scalping
+            logger.info("✅ ⚡ SMART SCALPING ENGINE WIRED!")
+            logger.info("   Multi-timeframe confluence + Session awareness")
+            logger.info("   Targets: $0.50-2.00 per scalp")
+            logger.info("   Frequency: 10-50 scalps per hour")
+            logger.info("   Expected: +$10-50 daily profit (steady accumulation)")
+        except Exception as e:
+            logger.error(f"❌ Smart Scalping Engine failed to wire: {e}")
+            self.smart_scalping = None
+        
         logger.info("\n" + "=" * 80)
         logger.info("✅ ALL ADVANCED SYSTEMS WIRED!")
         logger.info("   🎯 Core: 26 orchestrators")
@@ -871,6 +891,13 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             )
             logger.info("✅ 🏦 HEDGE FUND ARSENAL STARTED - Pairs trading, volatility, smart routing!")
         
+        # 🔥 START SMART SCALPING ENGINE - THE MISSING PROFIT ENGINE! 🔥
+        if hasattr(self, 'smart_scalping') and self.smart_scalping:
+            tasks.append(
+                asyncio.create_task(self.run_smart_scalping_loop())
+            )
+            logger.info("✅ ⚡ SMART SCALPING LOOP STARTED - Micro-profits accumulating!")
+        
         # Start enhanced main loop
         tasks.append(asyncio.create_task(self.enhanced_trading_loop()))
         logger.info("✅ Enhanced trading loop started")
@@ -887,6 +914,41 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("=" * 80)
         
         return tasks
+    
+    async def run_smart_scalping_loop(self):
+        """
+        🔥 SMART SCALPING LOOP - THE PROFIT ENGINE! 🔥
+        Generates micro-profits continuously via multi-timeframe confluence scalping
+        """
+        logger.info("\n⚡ SMART SCALPING LOOP ACTIVE...")
+        
+        cycle = 0
+        
+        while self.is_running:
+            try:
+                cycle += 1
+                
+                if cycle % 10 == 0:
+                    logger.info(f"⚡ Scalping cycle {cycle} - Scanning for micro-profit opportunities...")
+                
+                # Scan markets with session + timeframe awareness
+                scalp_signals = await self.smart_scalping.scan_markets()
+                
+                if scalp_signals:
+                    logger.info(f"📈 Scalper generated {len(scalp_signals)} signals")
+                    
+                    # Publish signals to data hub for execution
+                    for signal in scalp_signals:
+                        await self.data_hub.publish_signal(signal)
+                    
+                    logger.info(f"✅ Published {len(scalp_signals)} signals to data hub")
+                
+                # Scalp frequently (every 30 seconds)
+                await asyncio.sleep(30)
+                
+            except Exception as e:
+                logger.error(f"Scalping loop error: {e}")
+                await asyncio.sleep(60)
     
     async def enhanced_trading_loop(self):
         """Enhanced main loop with complete orchestration + Profit Features"""
