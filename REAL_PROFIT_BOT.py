@@ -22,6 +22,8 @@ class REAL_PROFIT_BOT:
 
         # Initialize Gate.io exchange
         self.gate = ccxt.gate(self.gate_config)
+        # Configure Gate.io to accept cost (USDT amount) instead of quantity for market buy orders
+        self.gate.options['createMarketBuyOrderRequiresPrice'] = False
 
         # SMART AUTO-SCALING POSITION SIZES
         # Automatically adjusts to wallet size - works with ANY balance!
@@ -186,9 +188,10 @@ class REAL_PROFIT_BOT:
                     return None
 
             if signal == "BUY":
-                # Gate.io requires price for market buy orders to calculate total cost
-                order = self.gate.create_market_buy_order(symbol, position_size, price)
-                print(f"✅ REAL PROFIT BUY: {symbol} @ ${price:.4f} | Size: {position_size}")
+                # Gate.io market buy: pass cost in USDT (not quantity)
+                cost_usd = target_position_usd  # Use the USD amount directly
+                order = self.gate.create_market_buy_order(symbol, cost_usd)
+                print(f"✅ REAL PROFIT BUY: {symbol} @ ${price:.4f} | Cost: ${cost_usd:.2f}")
             elif signal == "SELL":
                 order = self.gate.create_market_sell_order(symbol, position_size)
                 print(f"✅ REAL PROFIT SELL: {symbol} @ ${price:.4f} | Size: {position_size}")
