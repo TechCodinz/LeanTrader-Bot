@@ -8,7 +8,7 @@ from sklearn.cluster import DBSCAN
 import warnings
 
 # Added base imports for typing, arrays, dataframes, and collections used throughout
-from typing import Any, Dict, List
+from typing import Dict, List, Tuple, Optional, Any, Union
 import numpy as np
 import pandas as pd
 from collections import deque, defaultdict

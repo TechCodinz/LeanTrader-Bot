@@ -3,7 +3,7 @@
 import os
 import time
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Tuple, Optional, Any, Union
 
 import pandas as pd
 from dotenv import load_dotenv
