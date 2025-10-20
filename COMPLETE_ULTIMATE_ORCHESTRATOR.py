@@ -395,10 +395,15 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         try:
             self.advanced_systems['ultra_scout'] = UltraScout(max_threads=4)
             logger.info("✅ UltraScout initialized (news, social, web, on-chain)")
+        except Exception as e:
+            logger.warning(f"UltraScout: {e}")
 
         # ================================================================
         # 7 NEW ULTRA SYSTEMS - COMPLETE INTEGRATION (ALL MUST WORK!)
         # ================================================================
+        
+        # Import UltraCore for systems that need it
+        from ultra_core import UltraCore
         
         # 1. Ultra Moon System
         logger.info('🌙 Initializing Ultra Moon System...')
@@ -477,7 +482,8 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         # 7. Trade Planner
         try:
             logger.info('📊 Loading Trade Planner module...')
-            self.trade_planner = trade_planner
+            import trade_planner as tp_module
+            self.trade_planner = tp_module
             logger.info('✅ Trade Planner module loaded')
         except Exception as e:
             logger.warning(f'⚠️  Trade Planner: {e}')

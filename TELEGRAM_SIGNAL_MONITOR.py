@@ -20,8 +20,18 @@ async def monitor_signals_for_telegram(orchestrator):
     
     logger.info("📱 Starting Telegram signal monitor...")
     
-    telegram = orchestrator.advanced_orchestrators.get('telegram')
-    if not telegram or not telegram.enabled:
+    # Try to get telegram from business system or advanced_orchestrators
+    telegram = None
+    if hasattr(orchestrator, 'business') and orchestrator.business:
+        telegram = getattr(orchestrator.business, 'telegram', None)
+    if not telegram:
+        telegram = orchestrator.advanced_orchestrators.get('telegram') if hasattr(orchestrator, 'advanced_orchestrators') else None
+    
+    if not telegram:
+        logger.info("📱 Telegram bot not found - will publish signals to data hub only")
+        return
+    
+    if not getattr(telegram, 'enabled', True):
         logger.info("📱 Telegram not enabled - skipping monitor")
         return
     

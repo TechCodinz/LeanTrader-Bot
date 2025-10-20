@@ -20,6 +20,8 @@ import logging
 # Core imports
 from ultra_core import UltraCore
 from risk_engine import RiskEngine
+from ultra_scalping_engine import UltraScalpingEngine
+from ultra_arbitrage_engine import UltraArbitrageEngine
 
 @dataclass
 class TradingSession:

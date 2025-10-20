@@ -61,6 +61,9 @@ from november_growth_strategy import NovemberGrowthStrategy
 # Utilities
 from paper_broker import PaperBroker
 
+# Telegram signal monitoring
+from TELEGRAM_SIGNAL_MONITOR import monitor_signals_for_telegram
+
 
 class CentralDataHub:
     """Central hub for ALL data flow"""
@@ -361,7 +364,35 @@ class CompleteUnifiedOrchestrator:
         self.pattern_memory = PatternMemory()
         self.ledger = Ledger()
         
-        universe = ["BTC/USDT", "ETH/USDT", "BNB/USDT", "SOL/USDT", "DOGE/USDT"]
+        # EXPANDED UNIVERSE - ALL MARKETS (92 total)
+        universe = [
+            # Top Crypto (35 pairs)
+            'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'ADA/USDT',
+            'XRP/USDT', 'DOGE/USDT', 'DOT/USDT', 'MATIC/USDT', 'SHIB/USDT',
+            'AVAX/USDT', 'LINK/USDT', 'UNI/USDT', 'ATOM/USDT', 'LTC/USDT',
+            'BCH/USDT', 'NEAR/USDT', 'APT/USDT', 'ARB/USDT', 'OP/USDT',
+            'FTM/USDT', 'ALGO/USDT', 'VET/USDT', 'SAND/USDT', 'MANA/USDT',
+            'AXS/USDT', 'THETA/USDT', 'FIL/USDT', 'PEPE/USDT', 'WLD/USDT',
+            'INJ/USDT', 'SUI/USDT', 'SEI/USDT', 'TIA/USDT', 'ORDI/USDT',
+            
+            # Forex (20 pairs)
+            'EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD',
+            'USD/CHF', 'NZD/USD', 'EUR/GBP', 'EUR/JPY', 'GBP/JPY',
+            'AUD/JPY', 'EUR/CHF', 'GBP/CHF', 'EUR/AUD', 'GBP/AUD',
+            'AUD/CAD', 'NZD/JPY', 'CAD/JPY', 'EUR/NZD', 'GBP/NZD',
+            
+            # Top Stocks (24 pairs) 
+            'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA',
+            'META', 'JPM', 'V', 'WMT', 'JNJ', 'PG',
+            'MA', 'HD', 'BAC', 'DIS', 'NFLX', 'ADBE',
+            'CRM', 'PYPL', 'INTC', 'CSCO', 'PFE', 'KO',
+            
+            # Commodities (13 pairs)
+            'GOLD', 'SILVER', 'OIL', 'NATGAS', 'COPPER',
+            'PLATINUM', 'WHEAT', 'CORN', 'SOYBEAN', 'COFFEE',
+            'SUGAR', 'COTTON', 'COCOA',
+        ]
+        logger.info(f"🌌 Trading Universe: {len(universe)} pairs (35 crypto + 20 forex + 24 stocks + 13 commodities)")
         self.ultra_core = UltraCore(self.router, universe, logger)
         
         awareness_cfg = AwarenessConfig()
@@ -517,8 +548,12 @@ class CompleteUnifiedOrchestrator:
         tasks.append(asyncio.create_task(self.main_trading_loop()))
         logger.info("✅ Main trading loop started")
         
+        # Start Telegram signal monitor
+        tasks.append(asyncio.create_task(monitor_signals_for_telegram(self)))
+        logger.info("✅ Telegram signal monitor started")
+        
         logger.info("\n" + "=" * 80)
-        logger.info("🎉 ALL ORCHESTRATORS RUNNING IN PARALLEL")
+        logger.info("🎉 ALL ORCHESTRATORS RUNNING IN PARALLEL + TELEGRAM MONITOR")
         logger.info("=" * 80)
         
         return tasks
