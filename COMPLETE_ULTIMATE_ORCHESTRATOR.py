@@ -395,6 +395,56 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         try:
             self.advanced_systems['ultra_scout'] = UltraScout(max_threads=4)
             logger.info("✅ UltraScout initialized (news, social, web, on-chain)")
+
+        # ================================================================
+        # 7 NEW ULTRA SYSTEMS - COMPLETE INTEGRATION (ALL MUST WORK!)
+        # ================================================================
+        
+        # 1. Ultra Moon System
+        logger.info('🌙 Initializing Ultra Moon System...')
+        from ultra_moon_spotter import UltraMoonSystem
+        self.advanced_systems['ultra_moon'] = UltraMoonSystem()
+        logger.info('✅ Ultra Moon System ready')
+        
+        # 2. Ultra God Mode
+        logger.info('⚡ Initializing Ultra God Mode...')
+        from ultra_god_mode import UltraGodMode
+        self.advanced_systems['god_mode'] = UltraGodMode()
+        logger.info('✅ Ultra God Mode ready')
+        
+        # 3. Ultra Forex Master
+        logger.info('💱 Initializing Ultra Forex Master...')
+        from ultra_forex_master import UltraForexMaster
+        self.advanced_systems['forex_master'] = UltraForexMaster()
+        logger.info('✅ Ultra Forex Master ready')
+        
+        # 4. Ultra Continuous Trading
+        logger.info('🔄 Initializing Ultra Continuous Trading...')
+        from ultra_continuous_trading import UltraContinuousTradingOrchestrator
+        temp_core_1 = UltraCore(router=self.router, universe=[])
+        self.advanced_systems['continuous_trading'] = UltraContinuousTradingOrchestrator(temp_core_1, self.risk_engine)
+        logger.info('✅ Ultra Continuous Trading ready')
+        
+        # 5. Ultra Multi-Platform Scanner
+        logger.info('🔍 Initializing Ultra Multi-Platform Scanner...')
+        from ultra_multi_platform_scanner import UltraMultiPlatformScanner
+        temp_core_2 = UltraCore(router=self.router, universe=[])
+        self.advanced_systems['multi_platform_scanner'] = UltraMultiPlatformScanner(temp_core_2, self.risk_engine)
+        logger.info('✅ Ultra Multi-Platform Scanner ready')
+        
+        # 6. 450+ Models Bot
+        logger.info('🤖 Initializing 450+ Models Bot...')
+        from working_450_models_bot import UltimateBot450Models
+        self.advanced_systems['models_450'] = UltimateBot450Models()
+        logger.info('✅ 450+ Models Bot ready')
+        
+        # 7. Trade Planner
+        logger.info('📊 Loading Trade Planner module...')
+        self.trade_planner = trade_planner
+        logger.info('✅ Trade Planner module loaded')
+        
+        logger.info('🎉 ALL 7 NEW SYSTEMS INITIALIZED SUCCESSFULLY!')
+        
         except Exception as e:
             logger.warning(f"UltraScout: {e}")
             self.advanced_systems['ultra_scout'] = None
