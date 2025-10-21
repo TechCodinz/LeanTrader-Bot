@@ -66,9 +66,12 @@ class UltraArbitrageEngine:
     - Automated profit capture
     """
 
-    def __init__(self, ultra_core: UltraCore, risk_engine: RiskEngine):
+    def __init__(self, ultra_core: UltraCore, risk_engine: RiskEngine, universe=None):
         self.ultra_core = ultra_core
         self.risk_engine = risk_engine
+
+        # Trading universe - use passed universe or fallback to 5 pairs
+        self.universe = universe if universe else ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT']
 
         # Arbitrage configuration
         self.MIN_SPREAD_PIPS = 5.0  # 5 pip minimum spread
@@ -126,24 +129,27 @@ class UltraArbitrageEngine:
         # Start scanning tasks for different priority levels
         tasks = []
 
-        # High priority symbols (BTC, ETH)
-        high_priority_symbols = ['BTC/USDT', 'ETH/USDT']
+        # Divide universe into priority groups
+        all_symbols = self.universe
+        
+        # High priority: First third of symbols
+        high_priority_symbols = all_symbols[:len(all_symbols)//3] if all_symbols else ['BTC/USDT', 'ETH/USDT']
         tasks.append(
             asyncio.create_task(
                 self._scan_arbitrage_opportunities(high_priority_symbols, 'high_priority')
             )
         )
 
-        # Medium priority symbols
-        medium_priority_symbols = ['BNB/USDT', 'ADA/USDT', 'SOL/USDT']
+        # Medium priority: Middle third
+        medium_priority_symbols = all_symbols[len(all_symbols)//3:2*len(all_symbols)//3] if all_symbols else ['BNB/USDT', 'ADA/USDT']
         tasks.append(
             asyncio.create_task(
                 self._scan_arbitrage_opportunities(medium_priority_symbols, 'medium_priority')
             )
         )
 
-        # Low priority symbols
-        low_priority_symbols = ['MATIC/USDT', 'DOT/USDT', 'LINK/USDT']
+        # Low priority: Last third
+        low_priority_symbols = all_symbols[2*len(all_symbols)//3:] if all_symbols else ['SOL/USDT']
         tasks.append(
             asyncio.create_task(
                 self._scan_arbitrage_opportunities(low_priority_symbols, 'low_priority')

@@ -62,11 +62,14 @@ class UltraScalpingEngine:
     - Compound growth acceleration
     """
 
-    def __init__(self, ultra_core: UltraCore, risk_engine: RiskEngine):
+    def __init__(self, ultra_core: UltraCore, risk_engine: RiskEngine, universe=None):
         self.ultra_core = ultra_core
         self.risk_engine = risk_engine
         self.pattern_memory = PatternMemory()
         self.brain = Brain()
+
+        # Trading universe - use passed universe or fallback to 5 pairs
+        self.universe = universe if universe else ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT']
 
         # Scalping configuration
         self.MICRO_PIP_TARGET = 0.5  # 0.5 pip minimum target
@@ -147,8 +150,8 @@ class UltraScalpingEngine:
         opportunities = []
 
         try:
-            # Get market data for all symbols
-            symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT']
+            # Get market data for ALL symbols in universe
+            symbols = self.universe
 
             for symbol in symbols:
                 # Get price data

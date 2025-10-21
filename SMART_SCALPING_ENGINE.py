@@ -377,9 +377,12 @@ class SmartScalpingEngine:
     - Adaptive strategy (adjusts based on session volatility)
     """
     
-    def __init__(self, ultra_core, risk_engine):
+    def __init__(self, ultra_core, risk_engine, universe=None):
         self.ultra_core = ultra_core
         self.risk_engine = risk_engine
+        
+        # Trading universe - use all 92 pairs instead of session-based hardcoded pairs
+        self.universe = universe if universe else ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT']
         
         # Smart components
         self.mtf_analyzer = MultiTimeframeAnalyzer()
@@ -395,6 +398,7 @@ class SmartScalpingEngine:
         self.executed_trades = 0
         
         logger.info("🎯 Smart Scalping Engine initialized")
+        logger.info(f"   Universe: {len(self.universe)} pairs")
         logger.info(f"   Multi-timeframe: {len(self.mtf_analyzer.TIMEFRAMES)} timeframes")
         logger.info(f"   Session aware: 4 sessions tracked")
         logger.info(f"   Min confluence: {self.min_confluence:.0%}")
@@ -417,14 +421,14 @@ class SmartScalpingEngine:
         
         logger.info(f"🕐 Current Session: {current_session} ({session_volatility} volatility)")
         
-        # Get optimal pairs for this session
-        optimal_pairs = MarketSession.get_optimal_pairs(current_session)
+        # Use FULL UNIVERSE instead of session-based hardcoded pairs
+        optimal_pairs = self.universe
         
-        # Also get learned optimal pairs
+        # Also get learned optimal pairs (if available)
         learned_pairs = self.session_tracker.get_optimal_markets(current_session)
         
-        # Combine default + learned pairs
-        all_pairs = list(set(optimal_pairs + [p[0] for p in learned_pairs[:5]]))
+        # Use full universe + learned pairs (no duplication needed since we're using all pairs)
+        all_pairs = list(set(optimal_pairs))
         
         logger.info(f"📊 Scanning {len(all_pairs)} optimal pairs for {current_session}")
         

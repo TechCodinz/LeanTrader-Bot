@@ -16,7 +16,7 @@ from telegram.ext import Application, CallbackQueryHandler
 logger = logging.getLogger(__name__)
 
 class EnhancedTradingBot:
-    def __init__(self):
+    def __init__(self, universe=None):
         # Initialize exchanges
         self.exchanges = {}
         self.initialize_exchanges()
@@ -35,23 +35,9 @@ class EnhancedTradingBot:
         # Telegram configuration
         self.channels = {'admin': '5329503447', 'free': '-1002930953007', 'vip': '-1002983007302'}
 
-        # Trading pairs
-        self.crypto_pairs = [
-            'BTC/USDT',
-            'ETH/USDT',
-            'BNB/USDT',
-            'ADA/USDT',
-            'SOL/USDT',
-            'XRP/USDT',
-            'DOT/USDT',
-            'DOGE/USDT',
-            'AVAX/USDT',
-            'MATIC/USDT',
-            'LTC/USDT',
-            'LINK/USDT',
-            'UNI/USDT',
-            'ATOM/USDT',
-            'FIL/USDT',
+        # USE FULL UNIVERSE instead of hardcoded 15 pairs
+        self.crypto_pairs = universe if universe else [
+            'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT'
         ]
 
         # Database

@@ -408,20 +408,20 @@ class CompleteUnifiedOrchestrator:
         # Phase 2: Trading Engines  
         logger.info("\n⚡ Phase 2: Trading Engines...")
         
-        self.trading_engines['arbitrage'] = UltraArbitrageEngine(self.ultra_core, self.risk_engine)
-        self.trading_engines['scalping'] = UltraScalpingEngine(self.ultra_core, self.risk_engine)
+        self.trading_engines['arbitrage'] = UltraArbitrageEngine(self.ultra_core, self.risk_engine, universe=universe)
+        self.trading_engines['scalping'] = UltraScalpingEngine(self.ultra_core, self.risk_engine, universe=universe)
         
         # SMART SCALPING - Multi-timeframe + Session aware!
         try:
             from SMART_SCALPING_ENGINE import SmartScalpingEngine
-            self.trading_engines['smart_scalping'] = SmartScalpingEngine(self.ultra_core, self.risk_engine)
-            logger.info("🎯 Smart Scalping Engine initialized (MTF + Session aware)")
+            self.trading_engines['smart_scalping'] = SmartScalpingEngine(self.ultra_core, self.risk_engine, universe=universe)
+            logger.info("🎯 Smart Scalping Engine initialized (MTF + Session aware + Full Universe)")
         except Exception as e:
             logger.warning(f"Smart scalping: {e}")
         
         self.trading_engines['moon_spotter'] = UltraMoonSpotter()
-        self.trading_engines['real_profit'] = RealProfitBot()
-        self.trading_engines['enhanced'] = EnhancedTradingBot()
+        self.trading_engines['real_profit'] = RealProfitBot(universe=universe)
+        self.trading_engines['enhanced'] = EnhancedTradingBot(universe=universe)
         
         engine_count = len([e for e in self.trading_engines.values() if e])
         logger.info(f"✅ Trading engines initialized ({engine_count}/6 - Including SMART SCALPING!)")
@@ -430,8 +430,8 @@ class CompleteUnifiedOrchestrator:
         logger.info("\n🤖 Phase 3: AI/ML Systems...")
         
         try:
-            self.ai_systems['evolution'] = ULTIMATE_EVOLUTION_ENGINE(data_hub=self.data_hub)
-            logger.info("✅ Evolution Engine initialized WITH DATA HUB - signals will publish!")
+            self.ai_systems['evolution'] = ULTIMATE_EVOLUTION_ENGINE(data_hub=self.data_hub, universe=universe)
+            logger.info(f"✅ Evolution Engine initialized WITH DATA HUB + {len(universe)} pairs!")
         except Exception as e:
             logger.warning(f"Evolution: {e}")
             self.ai_systems['evolution'] = None

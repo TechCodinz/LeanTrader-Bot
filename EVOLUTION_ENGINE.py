@@ -39,7 +39,7 @@ except ImportError:
     ConversationBufferMemory = None
 
 class ULTIMATE_EVOLUTION_ENGINE:
-    def __init__(self, data_hub=None):
+    def __init__(self, data_hub=None, universe=None):
         print("🚀 INITIALIZING ULTIMATE EVOLUTION ENGINE WITH CLAUDE 4.1 OPUS FEATURES...")
 
         # Data Hub for signal publishing
@@ -94,7 +94,8 @@ class ULTIMATE_EVOLUTION_ENGINE:
         self.stock_models = {}
         self.commodity_models = {}
 
-        # Market Universe
+        # Market Universe - USE PASSED UNIVERSE OR FALLBACK TO DEFAULTS
+        self.universe = universe if universe else []
         self.crypto_pairs = []
         self.forex_pairs = []
         self.stock_symbols = []
@@ -1168,53 +1169,34 @@ class ULTIMATE_EVOLUTION_ENGINE:
         """Initialize market data collectors for all asset classes"""
         print("📊 Initializing market data collectors...")
 
-        # Crypto pairs (70+ pairs)
+        # USE UNIVERSE FROM ORCHESTRATOR if provided
+        if self.universe:
+            print(f"🌌 Using orchestrator universe: {len(self.universe)} pairs")
+            # Categorize pairs from universe
+            for pair in self.universe:
+                if 'USDT' in pair or 'BTC' in pair or 'ETH' in pair:
+                    self.crypto_pairs.append(pair)
+                elif 'USD' in pair or 'EUR' in pair or 'GBP' in pair or 'JPY' in pair:
+                    self.forex_pairs.append(pair)
+                elif any(x in pair for x in ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN', 'NVDA', 'META']):
+                    self.stock_symbols.append(pair)
+                else:
+                    # Commodities or others
+                    self.commodity_symbols.append(pair)
+            
+            print(f"✅ Categorized: {len(self.crypto_pairs)} crypto, {len(self.forex_pairs)} forex, {len(self.stock_symbols)} stocks, {len(self.commodity_symbols)} commodities")
+            return
+        
+        # FALLBACK: Use hardcoded defaults if no universe provided
+        print("⚠️ No universe provided, using defaults (5 pairs only)")
+        
+        # Crypto pairs (MINIMAL FALLBACK)
         self.crypto_pairs = [
             'BTC/USDT',
             'ETH/USDT',
             'BNB/USDT',
             'SOL/USDT',
             'ADA/USDT',
-            'XRP/USDT',
-            'DOGE/USDT',
-            'SHIB/USDT',
-            'PEPE/USDT',
-            'MATIC/USDT',
-            'AVAX/USDT',
-            'DOT/USDT',
-            'LINK/USDT',
-            'UNI/USDT',
-            'LTC/USDT',
-            'BCH/USDT',
-            'ATOM/USDT',
-            'NEAR/USDT',
-            'FTM/USDT',
-            'ALGO/USDT',
-            'VET/USDT',
-            'FIL/USDT',
-            'TRX/USDT',
-            'ICP/USDT',
-            'HBAR/USDT',
-            'APT/USDT',
-            'OP/USDT',
-            'ARB/USDT',
-            'SUI/USDT',
-            'SEI/USDT',
-            'INJ/USDT',
-            'TIA/USDT',
-            'JUP/USDT',
-            'WIF/USDT',
-            'BONK/USDT',
-            'POPCAT/USDT',
-            'MAGA/USDT',
-            'TURBO/USDT',
-            'SPONGE/USDT',
-            'AIDOGE/USDT',
-            'ELON/USDT',
-            'WOJAK/USDT',
-            'CHAD/USDT',
-            'FLOKI/USDT',
-            'MEME/USDT',
         ]
 
         # Forex pairs

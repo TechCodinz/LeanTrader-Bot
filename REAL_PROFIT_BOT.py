@@ -5,7 +5,7 @@ import requests
 from datetime import datetime
 
 class REAL_PROFIT_BOT:
-    def __init__(self):
+    def __init__(self, universe=None):
         # TELEGRAM CONFIGURATION
         self.telegram_bot_token = "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
         self.admin_chat_id = "5329503447"
@@ -43,20 +43,12 @@ class REAL_PROFIT_BOT:
         self.winning_trades = 0
         self.running = True
 
-        # ALL MAJOR PAIRS FOR MAXIMUM OPPORTUNITIES
-        self.crypto_pairs = [
-            'BTC/USDT',
-            'ETH/USDT',
-            'BNB/USDT',
-            'SOL/USDT',
-            'ADA/USDT',
-            'XRP/USDT',
-            'DOGE/USDT',
-            'SHIB/USDT',
-            'PEPE/USDT',
+        # USE FULL UNIVERSE instead of hardcoded 5-9 pairs
+        self.crypto_pairs = universe if universe else [
+            'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'ADA/USDT'
         ]
 
-        print("🚀 REAL PROFIT BOT INITIALIZED!")
+        print(f"🚀 REAL PROFIT BOT INITIALIZED with {len(self.crypto_pairs)} pairs!")
         print("💰 TRADING EXCHANGE: Gate.io (REAL INCOME GENERATION)")
         print(f"📊 {len(self.crypto_pairs)} Crypto Pairs")
         print("🎯 TARGET: $50-200 DAILY PROFITS FOR BILLS!")
