@@ -552,8 +552,16 @@ class CompleteUnifiedOrchestrator:
         tasks.append(asyncio.create_task(monitor_signals_for_telegram(self)))
         logger.info("✅ Telegram signal monitor started")
         
+        # Start LIVE TRADING executor
+        try:
+            from ENABLE_LIVE_TRADING import enable_live_trading
+            tasks.append(asyncio.create_task(enable_live_trading(self)))
+            logger.info("💰 LIVE TRADING executor started")
+        except Exception as e:
+            logger.warning(f"⚠️ Live trading not enabled: {e}")
+        
         logger.info("\n" + "=" * 80)
-        logger.info("🎉 ALL ORCHESTRATORS RUNNING IN PARALLEL + TELEGRAM MONITOR")
+        logger.info("🎉 ALL ORCHESTRATORS RUNNING + TELEGRAM + LIVE TRADING")
         logger.info("=" * 80)
         
         return tasks

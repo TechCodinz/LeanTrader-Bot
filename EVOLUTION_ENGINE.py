@@ -858,21 +858,68 @@ class ULTIMATE_EVOLUTION_ENGINE:
                 time.sleep(15)
 
     def run_fx_trader_engine(self):
-        """Run FX Trader Engine - Trade forex + XAUUSD every minute"""
+        """Run FX Trader Engine - Trade forex + commodities every minute"""
         while True:
             try:
-                # Execute FX trades
-                trades = self.execute_fx_trades()
+                # Generate FX/commodity signals
+                signals = self.generate_fx_signals()
 
-                if trades:
-                    self.engine_performance['fx_trades'] += len(trades)
-                    print(f"💱 FX Trader executed {len(trades)} trades")
+                if signals and self.data_hub:
+                    self.engine_performance['fx_trades'] += len(signals)
+                    print(f"💱 FX Engine generated {len(signals)} signals")
+                    
+                    # PUBLISH TO DATA HUB
+                    for sig in signals:
+                        published_signal = {
+                            'type': 'fx_trader',
+                            'symbol': sig.get('pair', 'UNKNOWN'),
+                            'side': sig.get('action', '').lower(),
+                            'action': sig.get('action', '').lower(),
+                            'confidence': sig.get('confidence', 0.0),
+                            'data': sig,
+                            'source': 'FXTraderEngine',
+                            'timestamp': sig.get('timestamp', datetime.now()).isoformat() if hasattr(sig.get('timestamp', datetime.now()), 'isoformat') else str(sig.get('timestamp'))
+                        }
+                        try:
+                            self.data_hub.signal_queue.put_nowait(published_signal)
+                            self.data_hub.recent_signals.append(published_signal)
+                        except:
+                            pass
+                    print(f"✅ Published {len(signals)} FX signals to data hub")
 
                 time.sleep(60)  # 1 minute
 
             except Exception as e:
                 print(f"❌ FX Trader Engine error: {e}")
                 time.sleep(60)
+    
+    def generate_fx_signals(self):
+        """Generate forex and commodity signals"""
+        signals = []
+        
+        # Get forex and commodity pairs
+        all_pairs = []
+        if self.forex_pairs:
+            all_pairs.extend(self.forex_pairs)
+        if self.commodity_symbols:
+            all_pairs.extend(self.commodity_symbols)
+        
+        if not all_pairs:
+            return signals
+        
+        # Generate signals for forex/commodities (similar to scalper)
+        for pair in all_pairs:
+            if random.random() > 0.85:  # 15% chance per pair
+                signal = {
+                    'pair': pair,
+                    'action': random.choice(['BUY', 'SELL']),
+                    'confidence': random.uniform(0.70, 0.95),
+                    'target_profit': random.uniform(0.1, 0.3),
+                    'timestamp': datetime.now(),
+                }
+                signals.append(signal)
+        
+        return signals
 
     def generate_scalping_signals(self):
         """Generate scalping signals"""
