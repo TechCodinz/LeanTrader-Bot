@@ -1,0 +1,55 @@
+╔═══════════════════════════════════════════════════════════╗
+║   COPY-PASTE THIS TO YOUR VPS TO GET FULL DIAGNOSTICS    ║
+╚═══════════════════════════════════════════════════════════╝
+
+SSH into your VPS and run:
+
+bash << 'EOF'
+cd ~/trading_bot 2>/dev/null || cd /root/trading_bot 2>/dev/null
+
+echo "=== SYSTEM DIAGNOSTICS ==="
+echo ""
+echo "1. RUNNING PROCESSES:"
+ps aux | grep -E "python|RUN_BOT" | grep -v grep
+echo ""
+
+echo "2. MAIN FILES:"
+ls -la RUN_BOT.py COMPLETE_ULTIMATE_ORCHESTRATOR.py 2>/dev/null
+echo ""
+
+echo "3. ALL ENGINE FILES:"
+find . -maxdepth 1 -name "*ENGINE*.py" -o -name "*ORCHESTRATOR*.py" -o -name "*SCOUT*.py" | sort
+echo ""
+
+echo "4. LATEST LOG (Last 100 lines):"
+tail -100 bot.log
+echo ""
+
+echo "5. ENGINES LOADED (from logs):"
+grep -iE "✅.*LOADED|initialized|Starting" bot.log | tail -30
+echo ""
+
+echo "6. PAIR DISCOVERY:"
+grep -E "TOTAL DISCOVERED|ACTIVE PAIRS|discovered.*pairs" bot.log | tail -10
+echo ""
+
+echo "7. UNIQUE PAIRS TRADING:"
+grep "Decision:" bot.log 2>/dev/null | grep -oE "[A-Z]{2,5}/[A-Z]{2,5}" | sort -u | wc -l
+echo ""
+
+echo "8. SIGNALS SENT:"
+echo "VIP: $(grep -c '✅ VIP' bot.log 2>/dev/null)"
+echo "FREE: $(grep -c '✅ FREE' bot.log 2>/dev/null)"
+echo ""
+
+echo "9. ORCHESTRATOR IMPORTS:"
+head -150 COMPLETE_ULTIMATE_ORCHESTRATOR.py 2>/dev/null | grep "^from\|^import" | head -30
+echo ""
+
+echo "10. RECENT ACTIVITY:"
+tail -30 bot.log | grep -E "✅|Decision:|Signal|Trade"
+
+echo ""
+echo "=== END DIAGNOSTICS ==="
+EOF
+

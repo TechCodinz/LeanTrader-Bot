@@ -1,0 +1,92 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║                 PROFESSIONAL SYSTEM DIAGNOSTIC                    ║
+║              Copy-Paste This On Your VPS Terminal                 ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+STEP 1: SSH into your VPS
+=====================================
+ssh root@vmi2817884.contaboserver.net
+
+
+STEP 2: Copy-paste this ENTIRE block and press Enter
+=========================================================
+
+cd ~/trading_bot 2>/dev/null || cd /root/trading_bot 2>/dev/null; bash << 'ENDDIAG'
+echo "╔═══════════════════════════════════════════════════════════╗"
+echo "║        PROFESSIONAL TRADING BOT DIAGNOSTICS               ║"
+echo "╚═══════════════════════════════════════════════════════════╝"
+echo ""
+echo "📁 Current Directory: $(pwd)"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "1. RUNNING PROCESS"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+ps aux | grep "python.*RUN_BOT" | grep -v grep
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "2. KEY FILES"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+for file in RUN_BOT.py COMPLETE_ULTIMATE_ORCHESTRATOR.py DYNAMIC_PAIR_DISCOVERY.py ultra_scout.py EXECUTION_ORCHESTRATOR.py SMART_SCALPING_ENGINE.py TELEGRAM_ORCHESTRATOR.py; do
+    if [ -f "$file" ]; then
+        echo "  ✅ $file ($(wc -l < $file) lines)"
+    else
+        echo "  ❌ $file - MISSING"
+    fi
+done
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "3. ENGINES LOADED (What's Actually Running)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+grep -E "✅.*initialized|✅.*ready|✅.*LOADED|✅.*System" bot.log 2>/dev/null | tail -50
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "4. PAIR DISCOVERY (The Key Question)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "Discovery activity:"
+grep -iE "TOTAL DISCOVERED|scanning.*markets|Found.*pairs|ACTIVE PAIRS|Dynamic.*Discovery" bot.log 2>/dev/null | tail -20
+echo ""
+echo "Unique pairs currently trading:"
+UNIQUE=$(grep 'Decision:' bot.log 2>/dev/null | grep -oE '[A-Z]{2,5}/[A-Z]{2,5}' | sort -u | wc -l)
+echo "  COUNT: $UNIQUE pairs"
+echo ""
+echo "Sample pairs:"
+grep 'Decision:' bot.log 2>/dev/null | grep -oE '[A-Z]{2,5}/[A-Z]{2,5}' | sort -u | head -25
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "5. TELEGRAM SIGNALS"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+VIP=$(grep -c '✅ VIP' bot.log 2>/dev/null || echo 0)
+FREE=$(grep -c '✅ FREE' bot.log 2>/dev/null || echo 0)
+echo "  VIP Signals: $VIP"
+echo "  FREE Signals: $FREE"
+echo ""
+echo "Latest 5 signals:"
+grep "✅ VIP #\|✅ FREE #" bot.log 2>/dev/null | tail -5
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "6. ORCHESTRATOR ARCHITECTURE"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [ -f "COMPLETE_ULTIMATE_ORCHESTRATOR.py" ]; then
+    echo "Imports in orchestrator:"
+    head -145 COMPLETE_ULTIMATE_ORCHESTRATOR.py | grep "^from\|^import" | head -25
+fi
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "7. RECENT ACTIVITY (Last 40 lines)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+tail -40 bot.log
+echo ""
+echo "╔═══════════════════════════════════════════════════════════╗"
+echo "║                    DIAGNOSTICS COMPLETE                   ║"
+echo "╚═══════════════════════════════════════════════════════════╝"
+ENDDIAG
+
+
+STEP 3: Share the output
+=====================================
+Copy the entire output and share it with me.
+
+Then I'll know EXACTLY what your system has and what (if anything) needs to be added.
+
+NO GUESSING. PROFESSIONAL ANALYSIS FIRST. 🎯
