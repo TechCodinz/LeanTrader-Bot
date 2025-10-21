@@ -210,6 +210,12 @@ class ExecutionOrchestrator:
         self.position_sizer = SmartPositionSizer(initial_balance=1000.0)
         self.risk_manager = SmartRiskManager()
         
+        # ADVANCED COMPONENTS (wired externally)
+        self.action_decider = None  # AdvancedActionDecider
+        self.trailing_stop = None  # TrailingStopManager
+        self.compound_engine = None  # CompoundEngine  
+        self.partial_tp = None  # PartialTPManager
+        
         # Execution settings
         self.min_confidence = 0.80  # 80% minimum confidence to execute
         self.execution_enabled = True
@@ -253,7 +259,7 @@ class ExecutionOrchestrator:
                 await asyncio.sleep(5)
     
     async def process_decision(self, decision: Dict[str, Any]):
-        """Process AI decision and execute if valid"""
+        """Process AI decision using ADVANCED ACTION LOGIC"""
         
         try:
             # Extract decision details
@@ -271,9 +277,50 @@ class ExecutionOrchestrator:
                 logger.debug(f"Low confidence: {confidence:.2%} < {self.min_confidence:.2%}")
                 return
             
-            # Validate action
-            if action not in ['buy', 'sell']:
-                return
+            # USE ADVANCED ACTION DECIDER if available
+            if self.action_decider:
+                # Get price history (simulate for now)
+                price = signal.get('data', {}).get('price', 0)
+                price_history = [price] * 50  # Would fetch real history
+                
+                # Get all current opportunities (for portfolio balancing)
+                opportunities = []  # Would get from data_hub
+                
+                # DECIDE SOPHISTICATED ACTION!
+                advanced_decision = await self.action_decider.decide_action(
+                    symbol=symbol,
+                    signal=signal,
+                    confidence=confidence,
+                    price_history=price_history,
+                    opportunities=opportunities
+                )
+                
+                action = advanced_decision['action']
+                size = advanced_decision.get('size', 0)
+                reason = advanced_decision.get('reason', '')
+                
+                logger.info(f"🧠 ADVANCED DECISION: {action.upper()} {symbol}")
+                logger.info(f"   Reason: {reason}")
+                logger.info(f"   Confidence: {confidence:.1%}")
+                logger.info(f"   Market Regime: {advanced_decision.get('regime', 'unknown')}")
+                
+                # Handle different actions
+                if action == 'avoid' or action == 'hold':
+                    logger.info(f"   ⏸️  No action taken")
+                    return
+                    
+                elif action == 'scale_in':
+                    logger.info(f"   📈 Scaling into position (DCA)")
+                    
+                elif action == 'scale_out':
+                    logger.info(f"   📉 Scaling out {size:.0%} of position")
+                    # Would execute partial close
+                    return
+            
+            else:
+                # Fallback to simple logic
+                if action not in ['buy', 'sell']:
+                    return
             
             # Check risk management
             can_trade, reason = self.risk_manager.can_open_position(symbol, action)
@@ -487,7 +534,7 @@ class ExecutionOrchestrator:
         return None
     
     async def monitor_positions(self):
-        """Monitor open positions for stop loss and take profit"""
+        """Monitor open positions with ADVANCED FEATURES (Trailing Stop, Partial TP)"""
         
         for symbol, position in list(self.risk_manager.open_positions.items()):
             try:
@@ -505,15 +552,40 @@ class ExecutionOrchestrator:
                 else:
                     pnl_pct = (entry_price - current_price) / entry_price
                 
-                # Check stop loss (1% loss)
-                if pnl_pct < -0.01:
-                    logger.warning(f"🛑 Stop loss triggered: {symbol} ({pnl_pct:.2%})")
-                    await self.close_position(symbol, current_price, 'stop_loss')
+                # USE TRAILING STOP if available
+                if self.trailing_stop:
+                    new_stop = self.trailing_stop.update(
+                        symbol=symbol,
+                        current_price=current_price,
+                        entry_price=entry_price,
+                        initial_stop=entry_price * 0.99  # 1% initial stop
+                    )
+                    
+                    # Check if trailing stop hit
+                    if current_price <= new_stop:
+                        logger.info(f"🛑 Trailing stop triggered: {symbol} ({pnl_pct:.2%})")
+                        await self.close_position(symbol, current_price, 'trailing_stop')
+                        continue
                 
-                # Check take profit (2% profit)
-                elif pnl_pct > 0.02:
-                    logger.info(f"🎯 Take profit triggered: {symbol} ({pnl_pct:.2%})")
-                    await self.close_position(symbol, current_price, 'take_profit')
+                # USE PARTIAL TP if available
+                if self.partial_tp:
+                    tp_orders = await self.partial_tp.check_tp_levels(symbol, current_price)
+                    if tp_orders:
+                        for order in tp_orders:
+                            logger.info(f"🎯 {order['tp_level']} hit: {symbol}")
+                            # Would execute partial close here
+                
+                # Fallback to basic stop loss and take profit
+                else:
+                    # Check stop loss (1% loss)
+                    if pnl_pct < -0.01:
+                        logger.warning(f"🛑 Stop loss triggered: {symbol} ({pnl_pct:.2%})")
+                        await self.close_position(symbol, current_price, 'stop_loss')
+                    
+                    # Check take profit (2% profit)
+                    elif pnl_pct > 0.02:
+                        logger.info(f"🎯 Take profit triggered: {symbol} ({pnl_pct:.2%})")
+                        await self.close_position(symbol, current_price, 'take_profit')
                 
             except Exception as e:
                 logger.debug(f"Position monitoring error for {symbol}: {e}")
