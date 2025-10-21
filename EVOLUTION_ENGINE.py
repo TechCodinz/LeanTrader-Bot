@@ -76,10 +76,12 @@ class ULTIMATE_EVOLUTION_ENGINE:
         self.celery_tasks = None
         self.network_analysis = None
 
-        # Advanced Features Initialization
-        self.initialize_claude_features()
-        self.initialize_quantum_intelligence()
-        self.initialize_active_engines()
+        # Market Universe - MUST BE DEFINED BEFORE initialize_active_engines()
+        self.universe = universe if universe else []
+        self.crypto_pairs = []
+        self.forex_pairs = []
+        self.stock_symbols = []
+        self.commodity_symbols = []
 
         # AI Model Arsenal - Starting with 35+ models, will evolve to 12,000+
         self.prediction_models = {}
@@ -94,12 +96,10 @@ class ULTIMATE_EVOLUTION_ENGINE:
         self.stock_models = {}
         self.commodity_models = {}
 
-        # Market Universe - USE PASSED UNIVERSE OR FALLBACK TO DEFAULTS
-        self.universe = universe if universe else []
-        self.crypto_pairs = []
-        self.forex_pairs = []
-        self.stock_symbols = []
-        self.commodity_symbols = []
+        # Advanced Features Initialization
+        self.initialize_claude_features()
+        self.initialize_quantum_intelligence()
+        self.initialize_active_engines()
 
         # Exchange Connections
         self.exchanges = {}
@@ -109,6 +109,9 @@ class ULTIMATE_EVOLUTION_ENGINE:
         self.init_evolution_database()
 
         # Initialize Core Systems
+        # CRITICAL: Initialize market collectors FIRST to populate crypto_pairs/forex_pairs
+        self.initialize_market_collectors()  # Moved here from initialize_evolution_systems
+        
         self.initialize_evolution_systems()
         self.connect_to_live_bot()
         self.start_evolution_cycle()
@@ -547,6 +550,11 @@ class ULTIMATE_EVOLUTION_ENGINE:
     def initialize_active_engines(self):
         """Initialize Active Trading Engines"""
         print("⚡ Initializing ACTIVE ENGINES...")
+        
+        # CRITICAL FIX: Load market pairs BEFORE initializing engines
+        if not self.crypto_pairs:
+            self.initialize_market_collectors()
+            print(f"✅ Pre-loaded: {len(self.crypto_pairs)} crypto, {len(self.forex_pairs)} forex")
 
         try:
             # Active Trading Engines
@@ -637,11 +645,14 @@ class ULTIMATE_EVOLUTION_ENGINE:
     def initialize_scalper_engine(self):
         """Initialize Scalper Engine - Generating crypto signals every 5 seconds"""
         try:
+            # USE FULL UNIVERSE - crypto_pairs was already set from universe parameter
+            pairs_to_use = self.crypto_pairs if self.crypto_pairs else ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT']
+            
             scalper_config = {
                 'signal_frequency': 5,  # seconds
                 'target_profit': 0.1,  # 0.1%
                 'max_hold_time': 300,  # 5 minutes
-                'pairs': ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT'],
+                'pairs': pairs_to_use,  # USE ALL PAIRS FROM UNIVERSE
                 'scalping_strategies': [
                     'momentum_scalping',
                     'mean_reversion_scalping',
@@ -653,7 +664,7 @@ class ULTIMATE_EVOLUTION_ENGINE:
                 'max_concurrent_trades': 10,
             }
 
-            print("📈 Scalper Engine initialized - 5 second signals")
+            print(f"📈 Scalper Engine initialized - {len(pairs_to_use)} pairs, 5 second signals")
             return scalper_config
 
         except Exception as e:
@@ -721,23 +732,16 @@ class ULTIMATE_EVOLUTION_ENGINE:
     def initialize_fx_trader_engine(self):
         """Initialize FX Trader Engine - Trading forex + XAUUSD every minute"""
         try:
+            # USE FOREX PAIRS FROM UNIVERSE
+            forex_to_use = self.forex_pairs if self.forex_pairs else [
+                'EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD'
+            ]
+            commodities_to_use = self.commodity_symbols if self.commodity_symbols else ['XAU/USD', 'XAG/USD']
+            
             fx_trader_config = {
                 'trading_frequency': 60,  # seconds (1 minute)
-                'forex_pairs': [
-                    'EUR/USD',
-                    'GBP/USD',
-                    'USD/JPY',
-                    'USD/CHF',
-                    'AUD/USD',
-                    'USD/CAD',
-                    'NZD/USD',
-                    'EUR/GBP',
-                    'EUR/JPY',
-                    'GBP/JPY',
-                    'CHF/JPY',
-                    'AUD/JPY',
-                ],
-                'commodity_pairs': ['XAU/USD', 'XAG/USD', 'OIL/USD', 'GAS/USD'],
+                'forex_pairs': forex_to_use,
+                'commodity_pairs': commodities_to_use,
                 'trading_strategies': [
                     'trend_following',
                     'mean_reversion',
