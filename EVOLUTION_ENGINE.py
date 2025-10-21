@@ -1217,38 +1217,66 @@ class ULTIMATE_EVOLUTION_ENGINE:
                 print(f"⚡ Spawned {model}")
 
     def initialize_market_collectors(self):
-        """Initialize market data collectors for all asset classes"""
-        print("📊 Initializing market data collectors...")
+        """Initialize market data collectors - DYNAMIC DISCOVERY"""
+        print("📊 Initializing DYNAMIC market discovery...")
 
-        # USE UNIVERSE FROM ORCHESTRATOR if provided
+        # DYNAMIC DISCOVERY: Get all profitable pairs from discovery engine
+        try:
+            from DYNAMIC_PAIR_DISCOVERY import get_discovery_engine
+            discovery = get_discovery_engine()
+            
+            # Start async discovery in background
+            import threading
+            def run_discovery():
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(discovery.discover_all_markets())
+                discovered = discovery.get_active_pairs()
+                
+                # Categorize discovered pairs
+                for pair in discovered:
+                    if 'USDT' in pair or '/BTC' in pair:
+                        self.crypto_pairs.append(pair)
+                    elif any(x in pair for x in ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'NZD']):
+                        self.forex_pairs.append(pair)
+                    elif any(x in pair for x in ['XAU', 'XAG', 'OIL', 'GAS']):
+                        self.commodity_symbols.append(pair)
+                
+                print(f"🌍 DYNAMIC DISCOVERY: {len(self.crypto_pairs)} crypto, {len(self.forex_pairs)} forex, {len(self.commodity_symbols)} commodities")
+                
+                # Start continuous discovery
+                loop.run_until_complete(discovery.continuous_discovery())
+            
+            threading.Thread(target=run_discovery, daemon=True).start()
+            print("✅ Dynamic pair discovery started in background!")
+            
+        except Exception as e:
+            print(f"⚠️ Dynamic discovery failed: {e}, using universe fallback")
+        
+        # USE UNIVERSE FROM ORCHESTRATOR if provided (as initial seed)
         if self.universe:
-            print(f"🌌 Using orchestrator universe: {len(self.universe)} pairs")
-            # Categorize pairs from universe
+            print(f"🌌 Using orchestrator universe as seed: {len(self.universe)} pairs")
             for pair in self.universe:
                 if 'USDT' in pair or 'BTC' in pair or 'ETH' in pair:
-                    self.crypto_pairs.append(pair)
+                    if pair not in self.crypto_pairs:
+                        self.crypto_pairs.append(pair)
                 elif 'USD' in pair or 'EUR' in pair or 'GBP' in pair or 'JPY' in pair:
-                    self.forex_pairs.append(pair)
+                    if pair not in self.forex_pairs:
+                        self.forex_pairs.append(pair)
                 elif any(x in pair for x in ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN', 'NVDA', 'META']):
-                    self.stock_symbols.append(pair)
+                    if pair not in self.stock_symbols:
+                        self.stock_symbols.append(pair)
                 else:
-                    # Commodities or others
-                    self.commodity_symbols.append(pair)
+                    if pair not in self.commodity_symbols:
+                        self.commodity_symbols.append(pair)
             
-            print(f"✅ Categorized: {len(self.crypto_pairs)} crypto, {len(self.forex_pairs)} forex, {len(self.stock_symbols)} stocks, {len(self.commodity_symbols)} commodities")
-            return
+            print(f"✅ Seed loaded: {len(self.crypto_pairs)} crypto, {len(self.forex_pairs)} forex")
         
-        # FALLBACK: Use hardcoded defaults if no universe provided
-        print("⚠️ No universe provided, using defaults (5 pairs only)")
-        
-        # Crypto pairs (MINIMAL FALLBACK)
-        self.crypto_pairs = [
-            'BTC/USDT',
-            'ETH/USDT',
-            'BNB/USDT',
-            'SOL/USDT',
-            'ADA/USDT',
-        ]
+        # Minimal fallback only if nothing else works
+        if not self.crypto_pairs:
+            print("⚠️ Starting with minimal crypto pairs, will expand dynamically")
+            self.crypto_pairs = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'ADA/USDT']
 
         # Forex pairs
         self.forex_pairs = [

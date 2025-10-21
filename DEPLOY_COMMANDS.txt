@@ -1,0 +1,95 @@
+╔═══════════════════════════════════════════════════════════════╗
+║           VPS DEPLOYMENT - COPY & PASTE COMMANDS              ║
+╚═══════════════════════════════════════════════════════════════╝
+
+## STEP 1: ON YOUR LOCAL MACHINE (where bot files are)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Replace YOUR_VPS_IP with your actual VPS IP address
+export VPS_IP="YOUR_VPS_IP"
+export VPS_USER="root"  # or your VPS username
+
+# Copy all bot files to VPS
+scp -r /workspace/* $VPS_USER@$VPS_IP:~/trading_bot/
+
+# Copy deployment script
+scp /workspace/VPS_DEPLOY.sh $VPS_USER@$VPS_IP:~/
+
+
+## STEP 2: SSH INTO YOUR VPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ssh $VPS_USER@$VPS_IP
+
+
+## STEP 3: ON YOUR VPS - RUN DEPLOYMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+chmod +x ~/VPS_DEPLOY.sh
+bash ~/VPS_DEPLOY.sh
+
+
+## STEP 4: START THE BOT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+cd ~/trading_bot
+./start_bot.sh
+
+
+## STEP 5: MONITOR THE BOT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Check status
+./status.sh
+
+# View live logs
+tail -f bot.log
+
+# See signals being sent
+grep "✅ VIP #\|✅ FREE #" bot.log | tail -20
+
+# Check unique pairs trading
+grep "Decision:" bot.log | grep -oE "[A-Z]{2,5}/[A-Z]{2,5}" | sort -u | wc -l
+
+# Attach to screen session (Ctrl+A then D to detach)
+screen -r trading_bot
+
+
+## USEFUL COMMANDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# Stop bot
+cd ~/trading_bot && ./stop_bot.sh
+
+# Restart bot
+cd ~/trading_bot && ./stop_bot.sh && sleep 2 && ./start_bot.sh
+
+# Check if bot is running
+pgrep -af RUN_BOT.py
+
+# View latest signals
+grep "✅" bot.log | tail -30
+
+# Check errors
+grep -E "Error|Exception|Failed" bot.log | tail -20
+
+
+## AUTO-RESTART IS ENABLED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The bot will automatically restart if it crashes (checks every 30 min)
+Check restart log: cat ~/trading_bot/restart.log
+
+
+═══════════════════════════════════════════════════════════════
+
+🎯 THAT'S IT! Your bot will:
+- Discover ALL profitable pairs dynamically
+- Trade 24/7 without limits
+- Send signals to Telegram every few minutes
+- Auto-restart if crashes
+- Learn and improve continuously
+
+Check your Telegram VIP channel for signals! 📱💰
+
+═══════════════════════════════════════════════════════════════
