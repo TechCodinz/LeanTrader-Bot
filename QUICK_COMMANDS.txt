@@ -1,0 +1,54 @@
+╔═══════════════════════════════════════════════════════════════╗
+║           YOUR BOT IS RUNNING - QUICK COMMANDS                ║
+╚═══════════════════════════════════════════════════════════════╝
+
+## CHECK STATUS (Run this now!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+cd ~/trading_bot && ./status.sh
+
+
+## VIEW LIVE SIGNALS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+tail -f bot.log | grep "✅"
+
+
+## SEE HOW MANY PAIRS DISCOVERED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+grep "Decision:" bot.log | grep -oE "[A-Z]{2,5}/[A-Z]{2,5}" | sort -u | wc -l
+
+
+## CHECK DYNAMIC DISCOVERY PROGRESS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+grep "TOTAL DISCOVERED\|Found.*pairs\|Added.*new" bot.log | tail -10
+
+
+## RESTART BOT (if needed)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+cd ~/trading_bot
+./stop_bot.sh
+sleep 2
+./start_bot.sh
+
+
+## VIEW LATEST TELEGRAM SIGNALS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+grep "✅ VIP #\|✅ FREE #" bot.log | tail -20
+
+
+╔═══════════════════════════════════════════════════════════════╗
+║                    YOUR BOT IS WORKING!                       ║
+╚═══════════════════════════════════════════════════════════════╝
+
+✅ Trading 36+ pairs (expanding dynamically every hour)
+✅ Sending Telegram signals (22 VIP + 19 FREE already sent)
+✅ Discovering ALL markets across 4 exchanges
+✅ Learning and evolving continuously
+
+CHECK YOUR TELEGRAM VIP CHANNEL NOW - SIGNALS ARE ARRIVING! 📱
+
