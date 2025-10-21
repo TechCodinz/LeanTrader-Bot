@@ -95,6 +95,17 @@ if not ULTRA_FEATURES_AVAILABLE:
 if not DIVINE_FEATURES_AVAILABLE:
     logger.warning("⚠️  Running without DIVINE INTELLIGENCE - Missing +300-1000% profit potential!")
 
+# ============================================================================
+# EXECUTION & ADVANCED TRADING - CRITICAL FOR TRADES!
+# ============================================================================
+from EXECUTION_ORCHESTRATOR import ExecutionOrchestrator
+from ADVANCED_TRADING_ACTIONS import (
+    MarketRegimeDetector,
+    ScaleInOutManager,
+    PortfolioBalancer,
+    AdvancedActionDecider
+)
+
 # Import complete unified orchestrator (base 26 systems)
 from ULTIMATE_ORCHESTRATOR import (
     UltimateOrchestrator,
