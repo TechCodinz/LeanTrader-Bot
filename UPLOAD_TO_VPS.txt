@@ -1,0 +1,109 @@
+╔════════════════════════════════════════════════════════════════╗
+║                  UPLOAD SCRIPTS TO YOUR VPS                    ║
+╚════════════════════════════════════════════════════════════════╝
+
+STEP 1: Copy the scripts to your VPS
+=====================================
+
+From your LOCAL machine, run:
+
+scp VPS_CHECK_AND_RESTART.sh VPS_AUTO_RESTART.sh root@YOUR_VPS_IP:~/trading_bot/
+scp VPS_QUICK_GUIDE.md root@YOUR_VPS_IP:~/trading_bot/
+
+(Replace YOUR_VPS_IP with your actual VPS IP address)
+
+
+STEP 2: SSH into your VPS
+==========================
+
+ssh root@YOUR_VPS_IP
+
+
+STEP 3: Make scripts executable
+================================
+
+cd ~/trading_bot
+chmod +x VPS_CHECK_AND_RESTART.sh
+chmod +x VPS_AUTO_RESTART.sh
+chmod +x status.sh
+chmod +x start_bot.sh
+chmod +x stop_bot.sh
+
+
+STEP 4: Run the auto-restart script
+====================================
+
+./VPS_AUTO_RESTART.sh
+
+
+WHAT EACH SCRIPT DOES:
+======================
+
+1. VPS_AUTO_RESTART.sh
+   - Automatically stops and restarts the bot
+   - No prompts - just runs
+   - Shows you the status after restart
+   - RECOMMENDED for quick fixes
+
+2. VPS_CHECK_AND_RESTART.sh
+   - Shows detailed bot status first
+   - Displays signal statistics
+   - Shows recent activity
+   - Asks if you want to restart
+   - RECOMMENDED for checking before restart
+
+3. status.sh (already exists)
+   - Quick status check only
+   - Doesn't restart anything
+
+
+COPY-PASTE COMMANDS FOR YOUR VPS:
+==================================
+
+# Quick restart (no questions asked)
+cd ~/trading_bot && ./VPS_AUTO_RESTART.sh
+
+# Check status first, then decide
+cd ~/trading_bot && ./VPS_CHECK_AND_RESTART.sh
+
+# Just view status
+cd ~/trading_bot && ./status.sh
+
+# Watch live signals
+cd ~/trading_bot && tail -f bot.log | grep "✅"
+
+# Emergency full restart
+cd ~/trading_bot && ./stop_bot.sh && sleep 2 && ./start_bot.sh
+
+
+AFTER RUNNING THE SCRIPT:
+=========================
+
+You should see:
+✅ Bot started successfully! (PID: XXXXX)
+
+Then you can monitor with:
+tail -f bot.log
+
+Or watch just the signals:
+tail -f bot.log | grep "✅"
+
+
+TROUBLESHOOTING:
+================
+
+If the script says "No such file or directory":
+1. Make sure you're in ~/trading_bot directory
+2. Run: chmod +x VPS_AUTO_RESTART.sh
+3. Try again: ./VPS_AUTO_RESTART.sh
+
+If bot won't start:
+1. Check the log: tail -50 bot.log
+2. Make sure RUN_BOT.py exists: ls -la RUN_BOT.py
+3. Check Python: python3 --version
+
+Still having issues?
+1. cd ~/trading_bot
+2. ./VPS_CHECK_AND_RESTART.sh
+3. Read the output carefully
+4. Share any error messages
