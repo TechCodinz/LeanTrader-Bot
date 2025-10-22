@@ -974,6 +974,36 @@ Use code ULTRA50 for 50% off first month!
 
         await update.message.reply_text(premium_info, reply_markup=keyboard)
 
+    async def cmd_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /stats command - show trading statistics."""
+        stats_text = "📊 **Trading Statistics**\n\n"
+        stats_text += f"📈 Signals Today: {len(self.active_signals)}\n"
+        stats_text += f"✅ Active Positions: {sum(1 for s in self.active_signals.values() if s['status'] == 'active')}\n"
+        stats_text += f"📊 Total Tracked: {len(self.signal_history)}\n"
+        await update.message.reply_text(stats_text)
+
+    async def cmd_active(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /active command - show active signals."""
+        if not self.active_signals:
+            await update.message.reply_text("🔥 No active signals at the moment.")
+            return
+        
+        active_text = f"🔥 **Active Signals** ({len(self.active_signals)})\n\n"
+        for signal_id, signal_info in list(self.active_signals.items())[:10]:
+            data = signal_info['data']
+            active_text += f"• {data.get('symbol', 'N/A')} - {signal_info['status']}\n"
+        
+        await update.message.reply_text(active_text)
+
+    async def cmd_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /settings command - show bot settings."""
+        settings_text = "⚙️ **Bot Settings**\n\n"
+        settings_text += "📱 Free Channel: Enabled\n"
+        settings_text += "💎 VIP Channel: Enabled\n"
+        settings_text += "🔔 Notifications: Active\n\n"
+        settings_text += "Use /premium to unlock advanced settings!"
+        await update.message.reply_text(settings_text)
+
     async def run(self):
         """Run the bot."""
         await self.application.initialize()
