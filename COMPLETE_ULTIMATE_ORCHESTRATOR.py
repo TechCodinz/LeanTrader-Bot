@@ -574,7 +574,19 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f'⚠️  Dynamic Pair Discovery: {e}')
             self.advanced_systems['pair_discovery'] = None
         
-        logger.info('🎉 ALL 8 ADVANCED SYSTEMS INITIALIZED!')
+        # ================================================================
+        # 9. ULTRA RARE ENGINES - 10 advanced profit engines
+        # ================================================================
+        try:
+            logger.info('⚡ Initializing Ultra Rare Engines...')
+            from ULTRA_RARE_ENGINES import UltraRareEnginesOrchestrator
+            self.advanced_systems['ultra_rare'] = UltraRareEnginesOrchestrator()
+            logger.info('✅ Ultra Rare Engines ready - 10 profit engines active!')
+        except Exception as e:
+            logger.warning(f'⚠️  Ultra Rare Engines: {e}')
+            self.advanced_systems['ultra_rare'] = None
+        
+        logger.info('🎉 ALL 9 ADVANCED SYSTEMS INITIALIZED!')
     
     async def start(self):
         """Start the complete ultimate orchestrator with all systems"""
