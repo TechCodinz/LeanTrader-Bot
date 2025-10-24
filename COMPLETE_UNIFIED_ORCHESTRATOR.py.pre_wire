@@ -380,23 +380,6 @@ class CompleteUnifiedOrchestrator:
         
         logger.info(f"🚀 Complete Unified Orchestrator - {mode.upper()} mode")
     
-    
-    def update_universe(self, new_universe: list):
-        """Update trading universe dynamically"""
-        if new_universe and len(new_universe) > len(getattr(self, 'trading_universe', [])):
-            old_count = len(getattr(self, 'trading_universe', []))
-            self.trading_universe = new_universe
-            
-            # Update ultra_core
-            if hasattr(self, 'ultra_core') and hasattr(self.ultra_core, 'pairs'):
-                self.ultra_core.pairs = new_universe
-            
-            logger.info(f"🔄 UNIVERSE EXPANDED: {old_count} → {len(new_universe)} pairs!")
-            logger.info(f"   🎯 Trading engines now scanning {len(new_universe)} pairs!")
-            
-            return True
-        return False
-
     async def initialize_all_systems(self):
         """Initialize ALL systems with full wiring"""
         logger.info("=" * 80)

@@ -396,27 +396,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         logger.info("🚀 Complete Ultimate Orchestrator initialized")
     
-    
-    def update_trading_universe(self):
-        """Update parent's trading universe with discovered pairs"""
-        if hasattr(self, 'dynamic_pairs') and self.dynamic_pairs:
-            # Update parent's universe
-            if hasattr(self, 'ultra_core'):
-                # Update ultra_core's pair list
-                self.ultra_core.pairs = self.dynamic_pairs
-                logger.info(f'🔄 Updated ultra_core universe: {len(self.dynamic_pairs)} pairs')
-            
-            if hasattr(self, 'trading_universe'):
-                self.trading_universe = self.dynamic_pairs
-                logger.info(f'🔄 Updated trading_universe: {len(self.dynamic_pairs)} pairs')
-            
-            # Update engines if they exist
-            if hasattr(self, 'engines'):
-                for engine_name, engine in self.engines.items():
-                    if hasattr(engine, 'pairs'):
-                        engine.pairs = self.dynamic_pairs
-                        logger.debug(f'🔄 Updated {engine_name}: {len(self.dynamic_pairs)} pairs')
-
     async def run_dynamic_pair_discovery(self):
         """
         Continuously discover and add profitable trading pairs
