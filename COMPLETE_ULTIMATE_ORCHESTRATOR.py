@@ -586,8 +586,60 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f'⚠️  Ultra Rare Engines: {e}')
             self.advanced_systems['ultra_rare'] = None
         
-        logger.info('🎉 ALL 9 ADVANCED SYSTEMS INITIALIZED!')
+        # ================================================================
+        # 10. ADVANCED TRADING ACTIONS - 15 professional strategies
+        # ================================================================
+        try:
+            from ADVANCED_TRADING_ACTIONS_ENGINE import get_advanced_actions
+            self.advanced_actions = get_advanced_actions()
+            logger.info('📊 Advanced Trading Actions: ENABLED (15 action types!)')
+        except Exception as e:
+            logger.warning(f'⚠️  Advanced Trading Actions: {e}')
+            self.advanced_actions = None
+            logger.info('✅ Ultra Rare Engines ready - 10 profit engines active!')
+        except Exception as e:
+            logger.warning(f'⚠️  Ultra Rare Engines: {e}')
+            self.advanced_systems['ultra_rare'] = None
+        
+        logger.info('🎉 ALL 10 ADVANCED SYSTEMS INITIALIZED!')
     
+    
+
+    def enhance_decision_with_action(self, decision: Dict) -> Dict:
+        """Add advanced action type to decision"""
+        if not self.advanced_actions:
+            return decision
+        
+        try:
+            symbol = decision.get('symbol', '')
+            confidence = decision.get('confidence', 0.5)
+            action_type = decision.get('action', 'UNKNOWN')
+            
+            # Convert BUY/SELL to direction
+            direction = 'buy' if 'BUY' in str(action_type).upper() else 'sell'
+            
+            # Get advanced action
+            advanced_action = self.advanced_actions.determine_action(
+                symbol=symbol,
+                direction=direction,
+                confidence=confidence,
+                timeframe='1h',  # Default, could be dynamic
+                volatility=decision.get('volatility', 0.02),
+                market_regime=decision.get('market_regime', 'neutral')
+            )
+            
+            # Enhance decision
+            decision['advanced_action'] = advanced_action['action']
+            decision['action_reason'] = advanced_action['reason']
+            decision['suggested_leverage'] = advanced_action['leverage']
+            decision['duration'] = advanced_action['duration']
+            
+            return decision
+            
+        except Exception as e:
+            logger.error(f"Error enhancing decision: {e}")
+            return decision
+
     async def start(self):
         """Start the complete ultimate orchestrator with all systems"""
         try:
