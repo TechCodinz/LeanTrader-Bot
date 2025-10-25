@@ -15,21 +15,39 @@ class LiveTradeExecutor:
     """Execute real trades on Bybit with proper risk management"""
     
     def __init__(self):
-        # Initialize Bybit with REAL trading (not testnet)
-        api_key = os.getenv('BYBIT_API_KEY')
-        api_secret = os.getenv('BYBIT_API_SECRET')
+        # Check if we're in testnet mode
+        trading_mode = os.getenv('TRADING_MODE', 'live').lower()
+        use_testnet = trading_mode == 'testnet' or os.getenv('BYBIT_TESTNET', 'false').lower() == 'true'
+        
+        if use_testnet:
+            # Use TESTNET (fake money for training!)
+            api_key = os.getenv('BYBIT_TESTNET_API_KEY')
+            api_secret = os.getenv('BYBIT_TESTNET_API_SECRET')
+            logger.info("🧪 TESTNET MODE - Using fake money for training!")
+        else:
+            # Use REAL trading
+            api_key = os.getenv('BYBIT_API_KEY')
+            api_secret = os.getenv('BYBIT_API_SECRET')
+            logger.info("💰 LIVE MODE - Using REAL money!")
         
         if not api_key or not api_secret:
-            raise ValueError("BYBIT_API_KEY and BYBIT_API_SECRET must be set")
+            raise ValueError("Bybit API keys must be set in .env")
         
-        self.exchange = ccxt.bybit({
+        exchange_config = {
             'apiKey': api_key,
             'secret': api_secret,
             'enableRateLimit': True,
             'options': {
                 'defaultType': 'spot',  # Spot trading (safer than futures)
             }
-        })
+        }
+        
+        # Add testnet flag if needed
+        if use_testnet:
+            exchange_config['options']['testnet'] = True
+        
+        self.exchange = ccxt.bybit(exchange_config)
+        self.testnet_mode = use_testnet
         
         # Risk management
         self.max_position_size_usd = float(os.getenv('MAX_POSITION_SIZE', '50'))  # $50 max per trade
@@ -40,7 +58,9 @@ class LiveTradeExecutor:
         self.daily_profit = 0.0
         self.total_profit = 0.0
         
-        logger.info(f"✅ Live Executor initialized")
+        mode_label = "TESTNET (Fake Money)" if self.testnet_mode else "LIVE (Real Money)"
+        logger.info(f"✅ Live Executor initialized - {mode_label}")
+        logger.info(f"   Exchange: Bybit {'Testnet' if self.testnet_mode else 'Mainnet'}")
         logger.info(f"   Max position: ${self.max_position_size_usd}")
         logger.info(f"   Max daily trades: {self.max_daily_trades}")
         logger.info(f"   Min confidence: {self.min_confidence:.0%}")
