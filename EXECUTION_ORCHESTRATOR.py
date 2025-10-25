@@ -92,9 +92,10 @@ class SmartRiskManager:
     """Smart risk management and validation"""
     
     def __init__(self):
-        self.max_open_positions = 5
+        self.max_open_positions = 999999  # ♾️ INFINITE TRADING!
+        self.max_daily_trades = 999999    # ♾️ UNLIMITED TRADES!
         self.max_daily_loss = 0.05  # 5% max daily loss
-        self.max_correlated_positions = 2  # Max positions in correlated assets
+        self.max_correlated_positions = 999999  # No correlation limits!
         
         self.open_positions = {}
         self.daily_pnl = 0.0
