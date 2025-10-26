@@ -43,14 +43,20 @@ class REAL_PROFIT_BOT:
         self.winning_trades = 0
         self.running = True
 
-        # USE FULL UNIVERSE instead of hardcoded 5-9 pairs
-        self.crypto_pairs = universe if universe else [
-            'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'ADA/USDT'
-        ]
-
+        # USE DYNAMIC UNIVERSE from discovery or fallback to intelligent defaults
+        if universe and len(universe) > 0:
+            self.crypto_pairs = [p for p in universe if '/USDT' in p or '/USD' in p][:50]  # Top 50 crypto pairs
+        else:
+            # Intelligent fallback: Top liquid pairs only
+            self.crypto_pairs = [
+                'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'ADA/USDT',
+                'XRP/USDT', 'DOGE/USDT', 'MATIC/USDT', 'AVAX/USDT', 'DOT/USDT'
+            ]
+        
+        # This list will be updated by orchestrator with dynamic profitable pairs!
         print(f"🚀 REAL PROFIT BOT INITIALIZED with {len(self.crypto_pairs)} pairs!")
         print("💰 TRADING EXCHANGE: Gate.io (REAL INCOME GENERATION)")
-        print(f"📊 {len(self.crypto_pairs)} Crypto Pairs")
+        print(f"📊 {len(self.crypto_pairs)} Crypto Pairs (will be updated with dynamic discovery)")
         print("🎯 TARGET: $50-200 DAILY PROFITS FOR BILLS!")
 
     def send_telegram(self, message, chat_id=None):

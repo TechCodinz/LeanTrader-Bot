@@ -597,6 +597,36 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
     TOTAL: 26 core + 8 additional = 34 SYSTEMS
     """
     
+    async def start(self):
+        """
+        OVERRIDE: Start with execution loop + all advanced systems
+        This fixes the issue where parent's start() doesn't call start_all_orchestrators()
+        """
+        try:
+            # Initialize all systems
+            await self.initialize_all_systems()
+            
+            # Wire everything together
+            await self.wire_all_systems()
+            
+            # ✅ FIX: Call start_all_orchestrators() which includes execution loop!
+            tasks = await self.start_all_orchestrators()
+            
+            logger.info("\n" + "=" * 80)
+            logger.info("🎉 ALL SYSTEMS RUNNING - EXECUTION LOOP ACTIVE!")
+            logger.info("=" * 80)
+            
+            # Run until stopped
+            await asyncio.gather(*tasks)
+            
+        except KeyboardInterrupt:
+            logger.info("🛑 Shutdown requested")
+        except Exception as e:
+            logger.error(f"Fatal error: {e}")
+            raise
+        finally:
+            logger.info("👋 Complete Ultimate Orchestrator shutting down...")
+    
     def __init__(self, mode: str = "testnet"):
         super().__init__(mode)
         
@@ -1599,14 +1629,21 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             )
             logger.info("✅ 💰 P2P ARBITRAGE SCANNER STARTED!")
         
-        # START REAL PROFIT BOT - 35 Pairs Trading!
+        # START REAL PROFIT BOT - DYNAMIC PAIRS!
         if hasattr(self, 'real_profit_bot') and self.real_profit_bot:
+            # ✅ FIX: Use dynamic profitable pairs from discovery!
+            if self.market_scanner and hasattr(self.market_scanner, 'profitable_pairs'):
+                dynamic_pairs = list(self.market_scanner.profitable_pairs.keys())
+                if dynamic_pairs:
+                    self.real_profit_bot.crypto_pairs = dynamic_pairs
+                    logger.info(f"✅ 💰 REAL PROFIT BOT using {len(dynamic_pairs)} DYNAMIC profitable pairs!")
+            
             # Wrap sync run() in async
             async def run_real_profit_loop():
                 await asyncio.to_thread(self.real_profit_bot.run)
             
             tasks.append(asyncio.create_task(run_real_profit_loop()))
-            logger.info("✅ 💰 REAL PROFIT BOT STARTED - Trading 35 pairs!")
+            logger.info(f"✅ 💰 REAL PROFIT BOT STARTED - Trading {len(self.real_profit_bot.crypto_pairs)} pairs!")
         
         # START DYNAMIC MARKET SCANNER - Auto-discover trending pairs!
         if self.market_scanner:
