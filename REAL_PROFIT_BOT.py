@@ -43,21 +43,25 @@ class REAL_PROFIT_BOT:
         self.winning_trades = 0
         self.running = True
 
-        # USE DYNAMIC UNIVERSE from discovery or fallback to intelligent defaults
+        # USE ALL DISCOVERED PAIRS - NO LIMITS!
+        # Start with universe if provided (will be replaced by dynamic discovery)
         if universe and len(universe) > 0:
-            self.crypto_pairs = [p for p in universe if '/USDT' in p or '/USD' in p][:50]  # Top 50 crypto pairs
+            # Filter to crypto/forex only, NO LIMITS
+            self.crypto_pairs = [p for p in universe if '/USDT' in p or '/USD' in p or '/' in p]
         else:
-            # Intelligent fallback: Top liquid pairs only
-            self.crypto_pairs = [
-                'BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'ADA/USDT',
-                'XRP/USDT', 'DOGE/USDT', 'MATIC/USDT', 'AVAX/USDT', 'DOT/USDT'
-            ]
+            # Minimal fallback - will be replaced by dynamic discovery
+            self.crypto_pairs = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'ADA/USDT']
         
-        # This list will be updated by orchestrator with dynamic profitable pairs!
+        # This list will be continuously updated by:
+        # 1. DYNAMIC_PAIR_DISCOVERY (discovers all pairs from all exchanges)
+        # 2. DYNAMIC_MARKET_SCANNER (filters dead pairs, adds trending ones)
+        # 3. Orchestrator injects discovered pairs every scan cycle
+        
         print(f"🚀 REAL PROFIT BOT INITIALIZED with {len(self.crypto_pairs)} pairs!")
         print("💰 TRADING EXCHANGE: Gate.io (REAL INCOME GENERATION)")
-        print(f"📊 {len(self.crypto_pairs)} Crypto Pairs (will be updated with dynamic discovery)")
+        print(f"📊 {len(self.crypto_pairs)} Initial Pairs (expanding with dynamic discovery - NO LIMITS!)")
         print("🎯 TARGET: $50-200 DAILY PROFITS FOR BILLS!")
+        print("🔄 Pairs auto-update every hour with fresh discoveries!")
 
     def send_telegram(self, message, chat_id=None):
         if chat_id is None:
