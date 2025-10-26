@@ -327,33 +327,13 @@ from november_growth_strategy import NovemberGrowthStrategy
 # STEADY PROFIT & ADVANCED EXECUTION SYSTEMS (10 MORE!)
 # ============================================================================
 from STEADY_PROFIT_EXTRACTOR import SteadyProfitExtractor
-
-try:
-    from FINAL_PROFIT_OPTIMIZATION import ProfitOptimizer
-except: ProfitOptimizer = None
-
-try:
-    from allocators.sizing import vol_scaled_weights, apply_exposure_caps
-except: vol_scaled_weights = apply_exposure_caps = None
-
-try:
-    from allocators.portfolio import Portfolio
-except: Portfolio = None
-
-try:
-    from execution_adv import LimitMakerExecutor, place_market, safe_create_order
-except: LimitMakerExecutor = place_market = safe_create_order = None
-
-try:
-    from futures_signals import FuturesSignalGenerator
-except: FuturesSignalGenerator = None
-try:
-    from session_clock import SessionClock
-except: SessionClock = None
-
-try:
-    from session_filter import SessionFilter
-except: SessionFilter = None
+from FINAL_PROFIT_OPTIMIZATION import ProfitOptimizer
+from allocators.sizing import vol_scaled_weights, apply_exposure_caps
+from allocators.portfolio import Portfolio
+from execution_adv import LimitMakerExecutor, place_market, safe_create_order
+from futures_signals import FuturesSignalGenerator
+from session_clock import SessionClock
+from session_filter import SessionFilter
 
 # ============================================================================
 # MICRO WALLET GROWER & CONTINUOUS ULTRA BOT (THE $1 TO INFINITE ENGINES!)

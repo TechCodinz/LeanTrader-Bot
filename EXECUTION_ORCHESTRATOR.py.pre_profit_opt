@@ -66,7 +66,7 @@ class SmartPositionSizer:
         # AGGRESSIVE MODE: Grow account faster with high confidence trades
         if self.aggressive_mode and confidence >= 0.85:
             # Increase size by up to 50% for very high confidence
-            confidence_boost = 1.0 + ((confidence - 0.80) * 3.0)  # More aggressive for 80%+ confidence  # 85% conf = 1.0x, 100% conf = 1.3x
+            confidence_boost = 1.0 + ((confidence - 0.85) * 2.0)  # 85% conf = 1.0x, 100% conf = 1.3x
             position_size *= confidence_boost
             logger.info(f"🚀 Aggressive sizing: confidence {confidence:.1%} → {confidence_boost:.2f}x boost")
         

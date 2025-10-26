@@ -2,6 +2,7 @@ from typing import Dict, List, Tuple, Optional, Any, Union
 import random
 from sklearn.ensemble import RandomForestClassifier
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 
 """Ultra Advanced AI Training System.
