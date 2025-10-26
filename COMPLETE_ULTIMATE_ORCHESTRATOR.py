@@ -359,6 +359,14 @@ except: SessionFilter = None
 # MICRO WALLET GROWER & CONTINUOUS ULTRA BOT (THE $1 TO INFINITE ENGINES!)
 # ============================================================================
 from MICRO_TRADING_BOT import MICRO_GATE_BOT
+from critical_features_addon import (
+    TrailingStopManager,
+    CompoundEngine,
+    PartialTPManager,
+    FundingArbitrage,
+    VolumeProfileAnalyzer,
+    EmergencyStop
+)
 from continuous_ultra_bot import ContinuousUltraTradingSystem
 
 # ============================================================================
