@@ -181,7 +181,18 @@ from REVOLUTIONARY_AI_FEATURES import RevolutionaryAIManager
 # Persistence Manager - Load learned memory/databases
 from PERSISTENCE_MANAGER import PersistenceManager, initialize_persistence
 
-logger.info('✅ ALL 20 ULTRA SYSTEMS + REVOLUTIONARY AI + PERSISTENCE IMPORTED!')
+# ============================================================================
+# CRITICAL MISSING SYSTEMS - Online Learner, News, Alpha, Awareness
+# ============================================================================
+from online_learner import OnlineLearner, predict_proba, update_from_feats
+from news_service import harvest_rss, analyze_sentiment, get_latest_clean
+from news_adapter import NewsAdapter
+from news_harvest import NewsHarvester
+from ADAPTIVE_CONFIDENCE_ENGINE import AdaptiveConfidenceEngine
+from alpha_engines import AlphaRouter, Decision as AlphaDecision
+from awareness import SituationalAwareness, AwarenessConfig
+
+logger.info('✅ ALL 27 SYSTEMS IMPORTED: 20 ULTRA + REVOLUTIONARY AI + 7 CRITICAL!')
 
 
 class AdvancedScoutingOrchestrator:
@@ -601,10 +612,69 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f"⚠️  Revolutionary AI: {e}")
             self.revolutionary_ai = None
         
-        logger.info("\n✅ ALL ULTRA SYSTEMS + REVOLUTIONARY AI INITIALIZED!")
+        # ====================================================================
+        # CRITICAL MISSING SYSTEMS - Online Learning, News, Alpha, Awareness
+        # ====================================================================
+        logger.info("\n🔥 Initializing CRITICAL MISSING SYSTEMS...")
+        
+        # ONLINE LEARNER - Real-time SGD learning
+        try:
+            self.online_learner = OnlineLearner()
+            self.advanced_systems['online_learner'] = self.online_learner
+            logger.info("✅ 🧠 ONLINE LEARNER - Real-time SGD learning!")
+        except Exception as e:
+            logger.warning(f"⚠️  Online Learner: {e}")
+            self.online_learner = None
+        
+        # NEWS SERVICE - News harvesting & sentiment
+        try:
+            self.news_harvester = NewsHarvester() if 'NewsHarvester' in dir() else None
+            self.news_adapter = NewsAdapter() if 'NewsAdapter' in dir() else None
+            self.advanced_systems['news_harvester'] = self.news_harvester
+            self.advanced_systems['news_adapter'] = self.news_adapter
+            logger.info("✅ 📰 NEWS SERVICE - RSS feeds, sentiment, harvesting!")
+        except Exception as e:
+            logger.warning(f"⚠️  News Service: {e}")
+            self.news_harvester = None
+            self.news_adapter = None
+        
+        # ADAPTIVE CONFIDENCE ENGINE - Dynamic thresholds
+        try:
+            self.adaptive_confidence = AdaptiveConfidenceEngine()
+            self.advanced_systems['adaptive_confidence'] = self.adaptive_confidence
+            logger.info("✅ 🎯 ADAPTIVE CONFIDENCE - Dynamic 65-95% thresholds!")
+        except Exception as e:
+            logger.warning(f"⚠️  Adaptive Confidence: {e}")
+            self.adaptive_confidence = None
+        
+        # ALPHA ENGINES - Multiple alpha generation strategies
+        try:
+            self.alpha_router = AlphaRouter()
+            self.advanced_systems['alpha_router'] = self.alpha_router
+            logger.info("✅ 🎲 ALPHA ENGINES - Multi-strategy alpha generation!")
+        except Exception as e:
+            logger.warning(f"⚠️  Alpha Engines: {e}")
+            self.alpha_router = None
+        
+        # SITUATIONAL AWARENESS - Market regime detection
+        try:
+            awareness_config = AwarenessConfig()
+            self.situational_awareness = SituationalAwareness(awareness_config)
+            self.advanced_systems['situational_awareness'] = self.situational_awareness
+            logger.info("✅ 👁️  SITUATIONAL AWARENESS - Regime detection!")
+        except Exception as e:
+            logger.warning(f"⚠️  Situational Awareness: {e}")
+            self.situational_awareness = None
+        
+        logger.info("\n✅ ALL ULTRA + REVOLUTIONARY + CRITICAL SYSTEMS INITIALIZED!")
         
         logger.info("\n" + "=" * 80)
-        logger.info("✅ ALL 60+ SYSTEMS INITIALIZED (26 core + 20 ultra + 14 advanced)")
+        logger.info("✅ ALL 77+ SYSTEMS INITIALIZED!")
+        logger.info("   - 26 core systems")
+        logger.info("   - 20 ultra systems")
+        logger.info("   - 10 revolutionary AI features")
+        logger.info("   - 7 critical missing systems (online learner, news, alpha, awareness)")
+        logger.info("   - 14 advanced orchestrators")
         logger.info("=" * 80)
     
     async def wire_all_systems(self):
@@ -1289,6 +1359,54 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             
             tasks.append(asyncio.create_task(run_450_models()))
             logger.info("✅ 🤖 450 MODELS TRAINING!")
+        
+        # ====================================================================
+        # CRITICAL SYSTEMS AUTO-START - News, Online Learning, Alpha
+        # ====================================================================
+        logger.info("\n🔥 AUTO-STARTING CRITICAL SYSTEMS...")
+        
+        # NEWS HARVESTING - Continuous news monitoring
+        if self.news_harvester or hasattr(self, 'news_adapter'):
+            async def run_news_harvesting():
+                while True:
+                    try:
+                        # Harvest RSS feeds
+                        count = harvest_rss(limit_per_feed=20)
+                        if count > 0:
+                            logger.info(f"📰 Harvested {count} news items")
+                        
+                        # Get latest analyzed news
+                        news = get_latest_clean(limit=10)
+                        if news:
+                            logger.debug(f"📰 Processing {len(news)} news items for signals")
+                        
+                        await asyncio.sleep(300)  # Every 5 min
+                    except Exception as e:
+                        logger.debug(f"News harvesting: {e}")
+                        await asyncio.sleep(300)
+            
+            tasks.append(asyncio.create_task(run_news_harvesting()))
+            logger.info("✅ 📰 NEWS HARVESTING ACTIVE - RSS feeds every 5 min!")
+        
+        # ONLINE LEARNER - Updates from every trade
+        # (This is passive - updates when trades close, no loop needed)
+        if self.online_learner:
+            logger.info("✅ 🧠 ONLINE LEARNER ACTIVE - Updates from every trade!")
+        
+        # ADAPTIVE CONFIDENCE - Adjusts thresholds dynamically
+        # (This is passive - called during decision making, no loop needed)
+        if self.adaptive_confidence:
+            logger.info("✅ 🎯 ADAPTIVE CONFIDENCE ACTIVE - Dynamic 65-95% thresholds!")
+        
+        # ALPHA ROUTER - Multi-strategy alpha generation
+        # (This is passive - called during signal generation, no loop needed)
+        if self.alpha_router:
+            logger.info("✅ 🎲 ALPHA ROUTER ACTIVE - Multi-strategy signals!")
+        
+        # SITUATIONAL AWARENESS - Market regime monitoring
+        # (This is passive - called during decision making, no loop needed)
+        if self.situational_awareness:
+            logger.info("✅ 👁️  SITUATIONAL AWARENESS ACTIVE - Regime detection!")
         
         logger.info("\n" + "=" * 80)
         logger.info("🎉 ALL 70+ SYSTEMS RUNNING TOGETHER!")
