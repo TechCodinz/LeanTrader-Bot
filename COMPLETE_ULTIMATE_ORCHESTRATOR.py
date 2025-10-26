@@ -142,6 +142,15 @@ from REAL_PROFIT_BOT import REAL_PROFIT_BOT
 # Import AUTO LIVE TRIGGER - Intelligent testnet→live switching
 from AUTO_LIVE_TRIGGER import AutoLiveTrigger
 
+
+# ULTRA-ADVANCED HEDGE-FUND-GRADE SYSTEMS
+from SENTIENT_TRADING_BRAIN import SentientTradingBrain
+from EVOLUTION_ENGINE import ULTIMATE_EVOLUTION_ENGINE
+from ultra_quantum_intelligence import MicrostructureDecoder, BlackSwanPredictor, RegimeShiftDetector
+from ultra_swarm_consciousness import SwarmConsciousnessSystem
+from ultra_god_mode import QuantumPricePredictor, UltraGodMode
+from working_450_models_bot import UltimateBot450Models
+
 # Import UTILITY INTEGRATION LAYER - All utility functions
 from UTILITY_INTEGRATION_LAYER import UtilityIntegrationLayer
 
@@ -784,42 +793,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.error(f"❌ Fluid Mechanics failed to wire: {e}")
             self.fluid_mechanics = None
-
-        # ================================================================
-        # DYNAMIC PAIR DISCOVERY - Auto-discover 3000+ profitable pairs
-        # ================================================================
-        try:
-            logger.info('🔍 Initializing Dynamic Pair Discovery...')
-            from DYNAMIC_PAIR_DISCOVERY import get_discovery_engine
-            self.advanced_systems['pair_discovery'] = get_discovery_engine()
-            logger.info('✅ Dynamic Pair Discovery ready - Will scan 5000+ pairs!')
-        except Exception as e:
-            logger.warning(f'⚠️  Dynamic Pair Discovery: {e}')
-            self.advanced_systems['pair_discovery'] = None
-        
-        # ================================================================
-        # ULTRA RARE ENGINES - 10 advanced profit engines
-        # ================================================================
-        try:
-            logger.info('⚡ Initializing Ultra Rare Engines...')
-            from ULTRA_RARE_ENGINES import UltraRareEnginesOrchestrator
-            self.advanced_systems['ultra_rare'] = UltraRareEnginesOrchestrator()
-            logger.info('✅ Ultra Rare Engines ready - 10 profit engines active!')
-        except Exception as e:
-            logger.warning(f'⚠️  Ultra Rare Engines: {e}')
-            self.advanced_systems['ultra_rare'] = None
-        
-        # ================================================================
-        # ADVANCED TRADING ACTIONS - 15 professional strategies
-        # ================================================================
-        try:
-            from ADVANCED_TRADING_ACTIONS_ENGINE import get_advanced_actions
-            self.advanced_actions = get_advanced_actions()
-            logger.info('📊 Advanced Trading Actions: ENABLED (15 action types!)')
-        except Exception as e:
-            logger.warning(f'⚠️  Advanced Trading Actions: {e}')
-            self.advanced_actions = None
-
         
         logger.info("\n" + "=" * 80)
         logger.info("✅ ALL ADVANCED SYSTEMS WIRED!")
