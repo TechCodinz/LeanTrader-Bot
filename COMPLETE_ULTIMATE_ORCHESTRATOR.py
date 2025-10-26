@@ -724,13 +724,23 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f"⚠️  Exchange Router: {e}")
             self.exchange_router = None
         
-        # RISK ENGINE CORE - Advanced risk management
+        # RISK ENGINE CORE - Advanced risk management (INFINITE LIMITS!)
         try:
             self.risk_engine_core = RiskEngineCore()
-            self.risk_guard = RiskGuard() if 'RiskGuard' in dir() else None
+            # RiskGuard with INFINITE limits!
+            self.risk_guard = RiskGuard(
+                max_positions=999999,      # INFINITE positions!
+                max_per_symbol=999999,     # INFINITE per symbol!
+                max_exposure_frac=0.95,    # 95% balance (aggressive!)
+                dd_limit_pct=0.15,         # 15% DD limit
+                dd_pause_min=10            # 10-min pause only
+            ) if 'RiskGuard' in dir() else None
             self.advanced_systems['risk_engine_core'] = self.risk_engine_core
             self.advanced_systems['risk_guard'] = self.risk_guard
             logger.info("✅ 🛡️  RISK ENGINE CORE + GUARD - Advanced risk management!")
+            logger.info("   → UNLIMITED positions (999,999)!")
+            logger.info("   → 95% max exposure (aggressive!)")
+            logger.info("   → 15% DD limit, 10-min pause")
         except Exception as e:
             logger.warning(f"⚠️  Risk Engine Core: {e}")
             self.risk_engine_core = None
