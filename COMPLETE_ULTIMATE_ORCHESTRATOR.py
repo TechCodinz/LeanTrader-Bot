@@ -419,6 +419,32 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         self.advanced_systems = {}
         self.advanced_orchestrators = {}
         
+        # ========================================================================
+        # LOAD LEARNED MEMORY - Don't start from scratch!
+        # ========================================================================
+        logger.info("\n🧠 Loading learned memory from previous runs...")
+        try:
+            self.persistence_manager, self.learned_state = initialize_persistence()
+            
+            # Log what we loaded
+            total_db_rows = sum(
+                sum(t['rows'] for t in db.get('tables', []))
+                for db in self.learned_state.get('databases', {}).values()
+            )
+            
+            history_trades = 0
+            if 'history' in self.learned_state and 'csv' in self.learned_state['history']:
+                history_trades = self.learned_state['history']['csv'].get('trades', 0)
+            
+            logger.info(f"✅ Loaded {len(self.learned_state.get('databases', {}))} databases with {total_db_rows} rows of learned data")
+            logger.info(f"✅ Loaded {history_trades:,} historical trades")
+            logger.info("✅ Bot will use previous knowledge - NOT starting from scratch!")
+        except Exception as e:
+            logger.warning(f"⚠️  Could not load learned memory: {e}")
+            logger.warning("   Bot will start fresh (no previous knowledge)")
+            self.persistence_manager = None
+            self.learned_state = {}
+        
         logger.info("🚀 Complete Ultimate Orchestrator initialized")
     
     async def initialize_all_systems(self):
