@@ -10,7 +10,7 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Any
 from collections import deque
 from datetime import datetime
 
@@ -155,7 +155,11 @@ from ultra_moon_spotter import MicroMoonSpotter, UltraMoonSystem
 from ultra_forex_master import UltraForexMaster
 from ultra_business_system import UltraBusinessSystem
 from ultra_backtest_engine import UltraBacktestEngine
-from ultra_telegram_master import UltraTelegramMaster
+# Ultra Telegram Master (optional - not critical for core functionality)
+try:
+    from ultra_telegram_master import UltraTelegramMaster
+except (ImportError, ModuleNotFoundError):
+    UltraTelegramMaster = None
 from ultra_multi_platform_scanner import UltraMultiPlatformScanner
 from ultra_continuous_trading import UltraContinuousTradingOrchestrator
 from ultra_ml_pipeline import UltraMLPipeline

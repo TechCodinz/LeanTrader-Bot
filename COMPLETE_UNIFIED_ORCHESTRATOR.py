@@ -67,13 +67,22 @@ from TELEGRAM_SIGNAL_MONITOR import monitor_signals_for_telegram
 # EXECUTION ORCHESTRATOR - THE CRITICAL PIECE!
 from EXECUTION_ORCHESTRATOR import ExecutionOrchestrator
 
-# ADVANCED TRADING ACTIONS - SOPHISTICATED LOGIC!
-from ADVANCED_TRADING_ACTIONS import (
-    MarketRegimeDetector,
-    ScaleInOutManager,
-    PortfolioBalancer,
-    AdvancedActionDecider
-)
+# ADVANCED TRADING ACTIONS - SOPHISTICATED LOGIC! (Optional - not critical)
+try:
+    from ADVANCED_TRADING_ACTIONS import (
+        MarketRegimeDetector,
+        ScaleInOutManager,
+        PortfolioBalancer,
+        AdvancedActionDecider
+    )
+    ADVANCED_ACTIONS_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    # Create dummy classes if not available
+    class MarketRegimeDetector: pass
+    class ScaleInOutManager: pass
+    class PortfolioBalancer: pass
+    class AdvancedActionDecider: pass
+    ADVANCED_ACTIONS_AVAILABLE = False
 
 # CRITICAL PROFIT FEATURES
 try:

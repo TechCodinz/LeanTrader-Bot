@@ -1,4 +1,6 @@
 import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
 
 """
 ULTRA TELEGRAM SIGNAL MASTER
@@ -16,7 +18,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 import io
 import matplotlib.patches as mpatches
 import warnings
-from typing import Dict
+from typing import Dict, Any, List, Optional
 
 warnings.filterwarnings('ignore')
 
