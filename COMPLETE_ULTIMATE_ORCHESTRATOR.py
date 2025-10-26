@@ -2025,14 +2025,15 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         
                         # Analyze and trade all configured pairs with ADVANCED ACTIONS
                         for symbol in self.micro_wallet_grower.crypto_pairs:
-                            action, confidence, price, sl, tp = self.micro_wallet_grower.analyze_market(symbol)
+                            # ✅ FIX: analyze_market returns (action, confidence, price, change, volume)
+                            action, confidence, price, change, volume = self.micro_wallet_grower.analyze_market(symbol)
                             
                             # ADVANCED DECISION LOGIC (not just BUY/SELL!)
                             if action == "HOLD":
-                                logger.debug(f"⏸️  HOLDING {symbol} - Waiting for better setup")
+                                logger.debug(f"⏸️  HOLDING {symbol} - Waiting for better setup (Change: {change:+.2f}%)")
                                 continue
                             
-                            if action in ['BUY', 'SELL'] and confidence >= 0.70:
+                            if action in ['BUY', 'SELL'] and confidence >= 70:
                                 # ✅ FIX: execute_trade only takes 3 params (symbol, action, price)
                                 result = self.micro_wallet_grower.execute_trade(symbol, action, price)
                                 
