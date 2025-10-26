@@ -178,7 +178,10 @@ from working_450_models_bot import UltimateBot450Models
 # Revolutionary AI Features
 from REVOLUTIONARY_AI_FEATURES import RevolutionaryAIManager
 
-logger.info('✅ ALL 20 ULTRA SYSTEMS + REVOLUTIONARY AI IMPORTED!')
+# Persistence Manager - Load learned memory/databases
+from PERSISTENCE_MANAGER import PersistenceManager, initialize_persistence
+
+logger.info('✅ ALL 20 ULTRA SYSTEMS + REVOLUTIONARY AI + PERSISTENCE IMPORTED!')
 
 
 class AdvancedScoutingOrchestrator:
