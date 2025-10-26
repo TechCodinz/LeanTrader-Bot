@@ -231,7 +231,12 @@ from session_filter import SessionFilter
 from MICRO_TRADING_BOT import MICRO_GATE_BOT
 from continuous_ultra_bot import ContinuousUltraTradingSystem
 
-logger.info('✅ ALL 57 SYSTEMS IMPORTED: 20 ULTRA + 10 REV + 7 CRITICAL + 18 DEEP + 10 PROFIT + 2 GROWTH!')
+# ============================================================================
+# SAFETY & AUTO-SWITCH SYSTEMS (TESTNET→REAL AUTO-SWITCHING!)
+# ============================================================================
+from guardrails import TradeGuard, GuardConfig
+
+logger.info('✅ ALL 58 SYSTEMS IMPORTED: 20 ULTRA + 10 REV + 7 CRITICAL + 18 DEEP + 10 PROFIT + 2 GROWTH + 1 SAFETY!')
 
 
 class AdvancedScoutingOrchestrator:
@@ -909,8 +914,47 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         logger.info("✅ MICRO WALLET GROWER & CONTINUOUS ULTRA - GROWTH ENGINES READY!")
         
+        # ====================================================================
+        # SAFETY & AUTO-SWITCH SYSTEMS - TESTNET→REAL PROTECTION! 🛡️
+        # ====================================================================
+        logger.info("\n🛡️ Initializing SAFETY & AUTO-SWITCH SYSTEMS...")
+        
+        # GUARDRAILS - Trade safety limits
+        try:
+            guard_config = GuardConfig(
+                cooldown_bars=3,
+                max_loss_streak=3,
+                daily_profit_lock_bps=50,
+                spread_bps_threshold=8,
+                max_trades_per_day=40
+            )
+            self.trade_guard = TradeGuard(guard_config)
+            self.advanced_systems['trade_guard'] = self.trade_guard
+            logger.info("✅ 🔒 TRADE GUARD - Safety limits active!")
+            logger.info("   → Max 40 trades/day")
+            logger.info("   → Pauses after 3 loss streak")
+            logger.info("   → Spread protection")
+        except Exception as e:
+            logger.warning(f"⚠️  Trade Guard: {e}")
+            self.trade_guard = None
+        
+        # AUTO LIVE TRIGGER - Testnet→Real auto-switching!
+        try:
+            self.auto_live_trigger = AutoLiveTrigger()
+            self.advanced_systems['auto_live_trigger'] = self.auto_live_trigger
+            logger.info("✅ 🤖 AUTO LIVE TRIGGER - Testnet→Real auto-switch!")
+            logger.info("   → Monitors testnet performance")
+            logger.info("   → Auto-approves 60%+ win rate strategies")
+            logger.info("   → Auto-starts live bot when ready")
+            logger.info("   → Auto-pauses if performance drops")
+        except Exception as e:
+            logger.warning(f"⚠️  Auto Live Trigger: {e}")
+            self.auto_live_trigger = None
+        
+        logger.info("✅ SAFETY & AUTO-SWITCH SYSTEMS - PROTECTION READY!")
+        
         logger.info("\n" + "=" * 80)
-        logger.info("✅ ALL 114+ SYSTEMS INITIALIZED!")
+        logger.info("✅ ALL 116+ SYSTEMS INITIALIZED!")
         logger.info("   - 26 core systems")
         logger.info("   - 20 ultra systems")
         logger.info("   - 10 revolutionary AI features")
@@ -918,6 +962,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("   - 18 ultra-deep systems (routers, nobel, omniscient, premium)")
         logger.info("   - 10 STEADY PROFIT systems (extractor, sizing, execution!)")
         logger.info("   - 2 GROWTH ENGINES (micro wallet $1→∞, continuous ultra!)")
+        logger.info("   - 2 SAFETY SYSTEMS (guardrails, auto-switch testnet→real!)")
         logger.info("   - 14 advanced orchestrators")
         logger.info("   - Plus: Persistence, execution, telegram, quantum, DEX...")
         logger.info("=" * 80)
@@ -929,6 +974,8 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("🔄 CONTINUOUS ULTRA: Scans ALL exchanges, trades ALL patterns!")
         logger.info("🥇 GOLD TRADER: XAU/USD, XAG/USD (in Ultra Forex Master!)")
         logger.info("💱 TRADFI/FOREX: All forex pairs on Bybit!")
+        logger.info("🛡️ SAFETY SYSTEMS: Guardrails, Risk protection, Auto-switch!")
+        logger.info("🤖 AUTO TESTNET→REAL: Learns on testnet, trades on real!")
         logger.info("=" * 80)
     
     async def wire_all_systems(self):
@@ -1784,8 +1831,52 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             tasks.append(asyncio.create_task(run_continuous_ultra()))
             logger.info("✅ 🔄 CONTINUOUS ULTRA ACTIVE - Scanning ALL exchanges & patterns!")
         
+        # ====================================================================
+        # AUTO LIVE TRIGGER - TESTNET→REAL AUTO-SWITCHING! 🤖
+        # ====================================================================
+        if self.auto_live_trigger:
+            async def run_auto_live_trigger():
+                """
+                AUTO LIVE TRIGGER - Smart testnet→real switching
+                - Starts in TESTNET mode (safe!)
+                - Monitors all strategies
+                - Auto-approves 60%+ win rate + 10+ trades
+                - Auto-switches to REAL money when ready
+                - Auto-pauses if performance drops below 55%
+                - NO MANUAL INTERVENTION NEEDED!
+                """
+                while True:
+                    try:
+                        # Check if should start live bot
+                        if not self.auto_live_trigger.live_bot_running:
+                            if self.auto_live_trigger.should_start_live_bot():
+                                approved = self.auto_live_trigger.get_approved_strategies()
+                                logger.info(f"🚀 AUTO-STARTING LIVE BOT!")
+                                logger.info(f"   Approved strategies: {', '.join(approved)}")
+                                await self.auto_live_trigger.start_live_bot()
+                        
+                        # Check if should pause live bot
+                        if self.auto_live_trigger.should_pause_live_bot():
+                            logger.warning("⚠️  AUTO-PAUSING LIVE BOT (performance drop)")
+                            await self.auto_live_trigger.pause_live_bot()
+                        
+                        # Log status every 5 minutes
+                        self.auto_live_trigger.log_status()
+                        
+                        await asyncio.sleep(300)  # Check every 5 minutes
+                        
+                    except Exception as e:
+                        logger.debug(f"Auto live trigger: {e}")
+                        await asyncio.sleep(300)
+            
+            tasks.append(asyncio.create_task(run_auto_live_trigger()))
+            logger.info("✅ 🤖 AUTO LIVE TRIGGER ACTIVE - Testnet→Real auto-switching!")
+            logger.info("   → Starts in TESTNET (safe!)")
+            logger.info("   → Learns & validates strategies")
+            logger.info("   → Auto-switches to REAL when 60%+ win rate!")
+        
         logger.info("\n" + "=" * 80)
-        logger.info("🎉 ALL 85+ SYSTEMS RUNNING TOGETHER!")
+        logger.info("🎉 ALL 88+ SYSTEMS RUNNING TOGETHER!")
         logger.info("🎉 CEX + DEX + 20 ULTRA + EXECUTION + TELEGRAM + QUANTUM!")
         logger.info("🌙 ULTRA MOON SPOTTER - Hunting 1,000,000x gems!")
         logger.info("💱 ULTRA FOREX MASTER - Trading all sessions!")
