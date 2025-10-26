@@ -919,21 +919,22 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         # ====================================================================
         logger.info("\n🛡️ Initializing SAFETY & AUTO-SWITCH SYSTEMS...")
         
-        # GUARDRAILS - Trade safety limits
+        # GUARDRAILS - Trade safety limits (INFINITE TRADES!)
         try:
             guard_config = GuardConfig(
-                cooldown_bars=3,
-                max_loss_streak=3,
-                daily_profit_lock_bps=50,
-                spread_bps_threshold=8,
-                max_trades_per_day=40
+                cooldown_bars=1,  # Minimal cooldown (fast trading!)
+                max_loss_streak=5,  # Allow more tries before pause
+                daily_profit_lock_bps=0,  # No profit lock (keep trading!)
+                spread_bps_threshold=20,  # More lenient spread
+                max_trades_per_day=999999  # INFINITE TRADES!
             )
             self.trade_guard = TradeGuard(guard_config)
             self.advanced_systems['trade_guard'] = self.trade_guard
             logger.info("✅ 🔒 TRADE GUARD - Safety limits active!")
-            logger.info("   → Max 40 trades/day")
-            logger.info("   → Pauses after 3 loss streak")
-            logger.info("   → Spread protection")
+            logger.info("   → UNLIMITED trades/day (infinite!)")
+            logger.info("   → Fast execution (1-bar cooldown)")
+            logger.info("   → Spread protection (20 bps)")
+            logger.info("   → Pauses after 5 loss streak only")
         except Exception as e:
             logger.warning(f"⚠️  Trade Guard: {e}")
             self.trade_guard = None
