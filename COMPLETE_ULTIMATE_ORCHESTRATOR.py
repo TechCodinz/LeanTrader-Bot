@@ -142,15 +142,6 @@ from REAL_PROFIT_BOT import REAL_PROFIT_BOT
 # Import AUTO LIVE TRIGGER - Intelligent testnet→live switching
 from AUTO_LIVE_TRIGGER import AutoLiveTrigger
 
-
-# ULTRA-ADVANCED HEDGE-FUND-GRADE SYSTEMS
-from SENTIENT_TRADING_BRAIN import SentientTradingBrain
-from EVOLUTION_ENGINE import ULTIMATE_EVOLUTION_ENGINE
-from ultra_quantum_intelligence import MicrostructureDecoder, BlackSwanPredictor, RegimeShiftDetector
-from ultra_swarm_consciousness import SwarmConsciousnessSystem
-from ultra_god_mode import QuantumPricePredictor, UltraGodMode
-from working_450_models_bot import UltimateBot450Models
-
 # Import UTILITY INTEGRATION LAYER - All utility functions
 from UTILITY_INTEGRATION_LAYER import UtilityIntegrationLayer
 
