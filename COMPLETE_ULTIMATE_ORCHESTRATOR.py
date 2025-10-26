@@ -1366,7 +1366,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         try:
             # MODE-AWARE: Bybit testnet ($17k) or Gate.io live
-            self.real_profit_bot = REAL_PROFIT_BOT(mode=self.mode)
+            self.real_profit_bot = REAL_PROFIT_BOT()  # No mode parameter needed
             self.trading_engines['real_profit'] = self.real_profit_bot
             logger.info(f"✅ 💰 REAL PROFIT BOT WIRED - {self.mode.upper()} mode")
             logger.info(f"   Exchange: {'Bybit Testnet' if self.mode == 'testnet' else 'Gate.io Live'}")
