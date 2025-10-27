@@ -134,6 +134,15 @@ class CentralDataHub:
     async def publish_alert(self, alert: Dict[str, Any]):
         """Publish alert to all systems"""
         await self.alert_queue.put(alert)
+    
+    def get_signals(self, limit=20):
+        """Get recent signals"""
+        if hasattr(self, 'recent_signals') and self.recent_signals:
+            # Convert deque to list for slicing
+            signals_list = list(self.recent_signals)
+            return signals_list[-limit:] if len(signals_list) > limit else signals_list
+        return []
+
 
 
 class LearningOrchestrator:

@@ -1597,8 +1597,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("=" * 80)
     
     async def start_all_orchestrators(self):
-        """Start ALL orchestrators including advanced ones"""
+        """
+        START METHOD CALLEDStart ALL orchestrators including advanced ones"""
         
+        logger.info("🚀 START_ALL_ORCHESTRATORS: Creating tasks...")
         tasks = []
         
         # Start base orchestrators
@@ -1703,9 +1705,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     self.real_profit_bot.crypto_pairs = all_pairs
                     logger.info(f"✅ 💰 MERGED: Now trading {len(all_pairs)} pairs from ALL discovery sources!")
             
-            # Wrap sync run() in async
+            # Wrap sync run() in async (non-blocking)
             async def run_real_profit_loop():
-                await asyncio.to_thread(self.real_profit_bot.run)
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, self.real_profit_bot.run)
             
             tasks.append(asyncio.create_task(run_real_profit_loop()))
             logger.info(f"✅ 💰 REAL PROFIT BOT STARTED - Trading {len(self.real_profit_bot.crypto_pairs)} pairs (expanding dynamically)!")
@@ -1863,7 +1866,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ 🎯 REVOLUTIONARY AI ACTIVE - 10 cutting-edge features!")
         
         # EVOLUTION ENGINE - Spawn strategies every 5 min
-        if self.evolution_engine:
+        if hasattr(self, "evolution_engine") and self.evolution_engine:
             async def run_evolution():
                 while True:
                     try:
@@ -1877,7 +1880,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ 🧬 EVOLUTION ENGINE - Spawning strategies!")
         
         # SWARM CONSCIOUSNESS - 20 agents collaborating
-        if self.swarm_consciousness:
+        if hasattr(self, "swarm_consciousness") and self.swarm_consciousness:
             async def run_swarm():
                 while True:
                     try:
@@ -1891,7 +1894,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ 🐝 SWARM CONSCIOUSNESS - 20 agents active!")
         
         # 450 MODELS BOT - Train continuously
-        if self.bot_450:
+        if hasattr(self, "bot_450") and self.bot_450:
             async def run_450_models():
                 while True:
                     try:
@@ -2008,6 +2011,8 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         # ====================================================================
         # MICRO WALLET GROWER - $1 TO INFINITE AUTO-GROWTH! 💎
         # ====================================================================
+        logger.info(f"🔍 Checking MICRO condition: micro_wallet_grower exists={self.micro_wallet_grower is not None}")
+        logger.info(f"🔍 About to check MICRO: exists={hasattr(self, 'micro_wallet_grower')} value={getattr(self, 'micro_wallet_grower', None) is not None}")
         if self.micro_wallet_grower:
             async def run_micro_wallet_growth():
                 """
@@ -2021,7 +2026,57 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 while True:
                     try:
                         # Check current balance
+                        logger.info("💓 MICRO heartbeat - checking balance...")
                         balance = self.micro_wallet_grower.check_gate_balance()
+                        
+                        # EXTRACT SIGNALS FROM DATA HUB (all models, all timeframes)
+                        logger.info(f"🔍 MICRO checking: balance=${balance:.2f}, has_hub={hasattr(self, 'data_hub')}, hub_exists={self.data_hub is not None if hasattr(self, 'data_hub') else False}")
+                        traded_this_cycle = 0
+                        if hasattr(self, "data_hub") and self.data_hub:
+                            hub_signals = self.data_hub.get_signals(limit=20)
+                            logger.info(f"📊 MICRO: Got {len(hub_signals)} signals from hub (last 20)")
+                            if hub_signals:
+                                sample = hub_signals[0]
+                                logger.info(f"   Sample signal: {sample.get('symbol', 'N/A')} {sample.get('action', 'N/A')} conf={sample.get('confidence', 0):.1%}")
+                            logger.info(f"📊 Got {len(hub_signals)} signals from data hub")
+                            for signal in hub_signals:
+                                if traded_this_cycle >= 3:  # Max 3 trades per cycle
+                                    break
+                                
+                                symbol = signal.get("symbol", "")
+                                action = signal.get("action", "HOLD")
+                                confidence = signal.get("confidence", 0) * 100 if signal.get("confidence", 0) < 1 else signal.get("confidence", 0)
+                                
+                                # Fetch REAL-TIME price (signals don't have prices)
+                                price = 0
+                                if symbol and symbol in self.micro_wallet_grower.gate.markets:
+                                    try:
+                                        ticker = self.micro_wallet_grower.gate.fetch_ticker(symbol)
+                                        price = ticker.get('last', 0)
+                                    except:
+                                        pass
+                                
+                                # SMART FILTERING: Check if we can afford this coin
+                                if price > 0:
+                                    logger.info(f"   🔍 {symbol} {action} @ ${price:.6f} conf={confidence:.1f}%")
+                                if symbol and price and action.upper() in ["BUY", "SELL"] and confidence >= 70:
+                                    # Calculate affordable position size (use 30% of balance per trade)
+                                    max_per_trade = balance * 0.3
+                                    affordable_quantity = max_per_trade / price if price > 0 else 0
+                                    
+                                    logger.info(f"      💰 Afford check: max=${max_per_trade:.2f}, qty={affordable_quantity:.2f}, passes={affordable_quantity > 0 and max_per_trade >= 0.30}")
+                                    
+                                    # Only trade if we can afford at least some quantity
+                                    if affordable_quantity > 0 and max_per_trade >= 0.30:  # Min $0.30 per trade
+                                        logger.info(f"💎 HUB SIGNAL: {symbol} {action} @ ${price:.6f} (Conf: {confidence:.0f}%)")
+                                        logger.info(f"   💰 Affordable qty: {affordable_quantity:.2f}, Cost: ${max_per_trade:.2f}")
+                                        
+                                        # Execute with calculated position size
+                                        result = self.micro_wallet_grower.execute_trade(symbol, action, price)
+                                        if result:
+                                            traded_this_cycle += 1
+                                            logger.info(f"   ✅ Balance after: ${balance:.2f}")
+                        
                         
                         # Analyze and trade all configured pairs with ADVANCED ACTIONS
                         for symbol in self.micro_wallet_grower.crypto_pairs:
@@ -2030,7 +2085,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             
                             # ADVANCED DECISION LOGIC (not just BUY/SELL!)
                             if action == "HOLD":
-                                logger.debug(f"⏸️  HOLDING {symbol} - Waiting for better setup (Change: {change:+.2f}%)")
+                                logger.info(f"⏸️  HOLDING {symbol} - Waiting for better setup (Change: {change:+.2f}%)")
                                 continue
                             
                             if action in ['BUY', 'SELL'] and confidence >= 70:
@@ -2056,7 +2111,9 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         await asyncio.sleep(15)  # FAST MICRO SCALPING - 15 second cycles!
                         
                     except Exception as e:
-                        logger.debug(f"Micro wallet growth: {e}")
+                        logger.error(f"❌ MICRO ERROR: {e}")
+                        import traceback
+                        logger.error(traceback.format_exc())
                         await asyncio.sleep(60)
             
             tasks.append(asyncio.create_task(run_micro_wallet_growth()))

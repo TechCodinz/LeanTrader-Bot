@@ -44,7 +44,7 @@ class MICRO_GATE_BOT:
         self.running = True
 
         # Only trade pairs that definitely meet minimums
-        self.crypto_pairs = ['DOGE/USDT']  # Only DOGE for now since it's most likely to work
+        self.crypto_pairs = ['DOGE/USDT', 'SHIB/USDT', 'PEPE/USDT', 'FLOKI/USDT', 'BONK/USDT']  # Multiple micro pairs
 
         print("🚀 MICRO GATE.IO BOT INITIALIZED!")
         print("💰 TRADING EXCHANGE: Gate.io (MICRO POSITIONS)")
@@ -101,9 +101,9 @@ class MICRO_GATE_BOT:
             volume = ticker_data['volume']
 
             # Simple strategy - buy on positive momentum
-            if change > 2.0 and volume > 50000:
+            if change > 0.5 and volume > 10000:
                 return "BUY", 80, price, change, volume
-            elif change < -2.0 and volume > 50000:
+            elif change < -0.5 and volume > 10000:
                 return "SELL", 80, price, change, volume
             else:
                 return "HOLD", 50, price, change, volume
