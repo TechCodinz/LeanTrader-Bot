@@ -44,7 +44,13 @@ class MICRO_GATE_BOT:
         self.running = True
 
         # Only trade pairs that definitely meet minimums
-        self.crypto_pairs = ['DOGE/USDT', 'SHIB/USDT', 'PEPE/USDT', 'FLOKI/USDT', 'BONK/USDT']  # Multiple micro pairs
+        self.crypto_pairs = ['DOGE/USDT', 'SHIB/USDT', 'PEPE/USDT', 'FLOKI/USDT', 'BONK/USDT']
+        
+        # SAFETY FEATURES
+        self.starting_balance = self.check_gate_balance()
+        self.max_daily_loss = self.starting_balance * 0.20  # Max 20% loss per day
+        self.daily_loss = 0.0
+        self.max_trades_per_day = 50  # Limit trades  # Multiple micro pairs
 
         print("🚀 MICRO GATE.IO BOT INITIALIZED!")
         print("💰 TRADING EXCHANGE: Gate.io (MICRO POSITIONS)")
@@ -112,23 +118,43 @@ class MICRO_GATE_BOT:
             print(f"❌ Market analysis error for {symbol}: {e}")
             return "HOLD", 0, 0, 0, 0
 
-    def execute_trade(self, symbol, signal, price):
+    def execute_trade(self, symbol, signal, price, quantity=None):
         """Execute trade with micro position sizing"""
+        print(f"🔍 execute_trade called: {symbol} {signal} price={price} qty={quantity}")
         try:
-            position_size = self.position_sizes.get(symbol, 0.001)
+            # SAFETY CHECK: Stop if daily loss limit reached
+            print(f"   Checking daily loss: {self.daily_loss:.2f} / {self.max_daily_loss:.2f}")
+            if self.daily_loss >= self.max_daily_loss:
+                print(f"🛑 SAFETY: Daily loss limit reached (${self.daily_loss:.2f}). Stopping trading.")
+                return None
+            
+            # SAFETY CHECK: Limit trades per day
+            print(f"   Checking trades: {self.total_trades} / {self.max_trades_per_day}")
+            if self.total_trades >= self.max_trades_per_day:
+                print(f"🛑 SAFETY: Max trades per day reached ({self.total_trades}). Stopping.")
+                return None
 
+            # Use passed quantity or calculate from balance
+            if quantity is None:
+                position_size = self.position_sizes.get(symbol, 0.001)
+            else:
+                position_size = quantity
+            
             # Check if we have enough balance first
             balance = self.check_gate_balance()
             required_balance = price * position_size * 1.1  # Add 10% buffer
 
+            print(f"   Balance check: have ${balance:.2f}, need ${required_balance:.2f}")
             if balance < required_balance:
                 print(f"❌ Insufficient balance: Need ${required_balance:.2f}, have ${balance:.2f}")
                 return None
 
-            if signal == "BUY":
+            print(f"   Signal type: {signal.upper()}")
+            if signal.upper() == "BUY":
+                print(f"   Creating BUY order...")
                 order = self.gate.create_market_buy_order(symbol, position_size)
                 print(f"✅ MICRO BUY: {symbol} @ ${price:.4f} | Size: {position_size}")
-            elif signal == "SELL":
+            elif signal.upper() == "SELL":
                 order = self.gate.create_market_sell_order(symbol, position_size)
                 print(f"✅ MICRO SELL: {symbol} @ ${price:.4f} | Size: {position_size}")
             else:

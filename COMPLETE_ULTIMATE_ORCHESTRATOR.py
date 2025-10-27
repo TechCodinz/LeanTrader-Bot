@@ -2061,18 +2061,20 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                                     logger.info(f"   🔍 {symbol} {action} @ ${price:.6f} conf={confidence:.1f}%")
                                 if symbol and price and action.upper() in ["BUY", "SELL"] and confidence >= 70:
                                     # Calculate affordable position size (use 30% of balance per trade)
-                                    max_per_trade = balance * 0.3
+                                    max_per_trade = balance * 0.90  # Use 90% to meet Gate.io $3 minimum
                                     affordable_quantity = max_per_trade / price if price > 0 else 0
                                     
                                     logger.info(f"      💰 Afford check: max=${max_per_trade:.2f}, qty={affordable_quantity:.2f}, passes={affordable_quantity > 0 and max_per_trade >= 0.30}")
                                     
                                     # Only trade if we can afford at least some quantity
-                                    if affordable_quantity > 0 and max_per_trade >= 0.30:  # Min $0.30 per trade
+                                    if affordable_quantity > 0 and max_per_trade >= 1.20:  # Min $1.20 (approaching Gate.io $3 min)
                                         logger.info(f"💎 HUB SIGNAL: {symbol} {action} @ ${price:.6f} (Conf: {confidence:.0f}%)")
                                         logger.info(f"   💰 Affordable qty: {affordable_quantity:.2f}, Cost: ${max_per_trade:.2f}")
                                         
                                         # Execute with calculated position size
-                                        result = self.micro_wallet_grower.execute_trade(symbol, action, price)
+                                        logger.info(f"   🚀 Calling execute_trade: {symbol} {action} qty={affordable_quantity:.2f}")
+                                        result = self.micro_wallet_grower.execute_trade(symbol, action, price, quantity=affordable_quantity)
+                                        logger.info(f"   📊 Result: {result}")
                                         if result:
                                             traded_this_cycle += 1
                                             logger.info(f"   ✅ Balance after: ${balance:.2f}")
@@ -2090,7 +2092,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             
                             if action in ['BUY', 'SELL'] and confidence >= 70:
                                 # ✅ FIX: execute_trade only takes 3 params (symbol, action, price)
-                                result = self.micro_wallet_grower.execute_trade(symbol, action, price)
+                                result = self.micro_wallet_grower.execute_trade(symbol, action, price, quantity=affordable_quantity)
                                 
                                 if result:
                                     logger.info(f"💎 MICRO GROWTH: {symbol} {action} @ ${price:.6f}")
