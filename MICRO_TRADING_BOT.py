@@ -129,10 +129,7 @@ class MICRO_GATE_BOT:
                 return None
             
             # SAFETY CHECK: Limit trades per day
-            print(f"   Checking trades: {self.total_trades} / {self.max_trades_per_day}")
-            if self.total_trades >= self.max_trades_per_day:
-                print(f"🛑 SAFETY: Max trades per day reached ({self.total_trades}). Stopping.")
-                return None
+            # Infinite trading - no daily limit
 
             # Use passed quantity or calculate from balance
             if quantity is None:
@@ -152,8 +149,11 @@ class MICRO_GATE_BOT:
             print(f"   Signal type: {signal.upper()}")
             if signal.upper() == "BUY":
                 print(f"   Creating BUY order...")
-                order = self.gate.create_market_buy_order(symbol, position_size)
-                print(f"✅ MICRO BUY: {symbol} @ ${price:.4f} | Size: {position_size}")
+                # Gate.io market buy needs COST (total $ to spend), not quantity
+                cost_to_spend = price * position_size
+                params = {'createMarketBuyOrderRequiresPrice': False}
+                order = self.gate.create_market_buy_order(symbol, cost_to_spend, params)
+                print(f"✅ MICRO BUY: {symbol} - Spent ${cost_to_spend:.2f}")
             elif signal.upper() == "SELL":
                 order = self.gate.create_market_sell_order(symbol, position_size)
                 print(f"✅ MICRO SELL: {symbol} @ ${price:.4f} | Size: {position_size}")
