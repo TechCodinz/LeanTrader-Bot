@@ -2029,6 +2029,26 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         logger.info("💓 MICRO heartbeat - checking balance...")
                         balance = self.micro_wallet_grower.check_gate_balance()
                         
+                        # AUTO-CLOSE profitable positions to free up capital
+                        try:
+                            positions = self.micro_wallet_grower.gate.fetch_balance()
+                            for coin, amt in positions['total'].items():
+                                if coin != 'USDT' and amt > 0:
+                                    symbol = f"{coin}/USDT"
+                                    if symbol in self.micro_wallet_grower.gate.markets:
+                                        # Check current price
+                                        ticker = self.micro_wallet_grower.gate.fetch_ticker(symbol)
+                                        current_price = ticker['last']
+                                        position_value = amt * current_price
+                                        
+                                        # Sell if position > $3 and frees up capital
+                                        if position_value >= 3.0:
+                                            logger.info(f"🔄 Closing position: {symbol} - {amt:.4f} tokens worth ${position_value:.2f}")
+                                            self.micro_wallet_grower.gate.create_market_sell_order(symbol, amt)
+                                            logger.info(f"   ✅ Freed up ${position_value:.2f} USDT!")
+                        except Exception as e:
+                            logger.debug(f"Position close: {e}")
+                        
                         # EXTRACT SIGNALS FROM DATA HUB (all models, all timeframes)
                         logger.info(f"🔍 MICRO checking: balance=${balance:.2f}, has_hub={hasattr(self, 'data_hub')}, hub_exists={self.data_hub is not None if hasattr(self, 'data_hub') else False}")
                         traded_this_cycle = 0
@@ -2061,13 +2081,13 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                                     logger.info(f"   🔍 {symbol} {action} @ ${price:.6f} conf={confidence:.1f}%")
                                 if symbol and price and action.upper() in ["BUY", "SELL"] and confidence >= 70:
                                     # Calculate affordable position size (use 30% of balance per trade)
-                                    max_per_trade = balance * 0.90  # Use 90% to meet Gate.io $3 minimum
+                                    max_per_trade = balance * 0.15  # Use 15% per trade for multiple positions
                                     affordable_quantity = max_per_trade / price if price > 0 else 0
                                     
                                     logger.info(f"      💰 Afford check: max=${max_per_trade:.2f}, qty={affordable_quantity:.2f}, passes={affordable_quantity > 0 and max_per_trade >= 0.30}")
                                     
                                     # Only trade if we can afford at least some quantity
-                                    if affordable_quantity > 0 and max_per_trade >= 1.20:  # Min $1.20 (approaching Gate.io $3 min)
+                                    if affordable_quantity > 0 and max_per_trade >= 3.00:  # Gate.io $3 minimum  # Min $1.20 (approaching Gate.io $3 min)
                                         logger.info(f"💎 HUB SIGNAL: {symbol} {action} @ ${price:.6f} (Conf: {confidence:.0f}%)")
                                         logger.info(f"   💰 Affordable qty: {affordable_quantity:.2f}, Cost: ${max_per_trade:.2f}")
                                         
