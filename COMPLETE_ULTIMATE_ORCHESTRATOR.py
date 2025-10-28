@@ -1608,7 +1608,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ 💰 ARBITRAGE SCANNER STARTED - Finding risk-free profits!")
         
         # START P2P ARBITRAGE SCANNER
-        if self.p2p_scanner:
+        if getattr(self, 'p2p_scanner', None):
             tasks.append(
                 asyncio.create_task(self.p2p_scanner.run_p2p_scanner())
             )
