@@ -333,10 +333,31 @@ try:
 except ImportError:
     PROFIT_OPTIMIZER_AVAILABLE = False
     logger.debug("FINAL_PROFIT_OPTIMIZATION not available")
-from allocators.sizing import vol_scaled_weights, apply_exposure_caps
-from allocators.portfolio import Portfolio
-from execution_adv import LimitMakerExecutor, place_market, safe_create_order
-from futures_signals import FuturesSignalGenerator
+
+# Optional advanced features
+try:
+    from allocators.sizing import vol_scaled_weights, apply_exposure_caps
+    from allocators.portfolio import Portfolio
+except ImportError:
+    logger.debug("allocators modules not available")
+    vol_scaled_weights = None
+    apply_exposure_caps = None
+    Portfolio = None
+
+try:
+    from execution_adv import LimitMakerExecutor, place_market, safe_create_order
+except ImportError:
+    logger.debug("execution_adv not available")
+    LimitMakerExecutor = None
+    place_market = None
+    safe_create_order = None
+
+try:
+    from futures_signals import FuturesSignalGenerator
+except ImportError:
+    logger.debug("FuturesSignalGenerator not available")
+    FuturesSignalGenerator = None
+
 from session_clock import SessionClock
 from session_filter import SessionFilter
 
