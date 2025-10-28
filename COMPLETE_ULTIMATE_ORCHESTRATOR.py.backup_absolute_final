@@ -77,34 +77,7 @@ except Exception as e:
     ULTRA_FEATURES_AVAILABLE = False
 
 # ============================================================================
-
-        
-        # CORE SUPPORT SYSTEMS
-        try:
-            self.portfolio_allocator = PortfolioAllocator() if 'PortfolioAllocator' in dir() else None
-            self.position_sizer = PositionSizer() if 'PositionSizer' in dir() else None
-            self.quantum_executor = QuantumExecutor() if 'QuantumExecutor' in dir() else None
-            self.liquidity_guard = LiquidityGuard() if 'LiquidityGuard' in dir() else None
-            self.moon_radar = MoonRadar() if 'MoonRadar' in dir() else None
-            self.hype_radar = HypeRadar() if 'HypeRadar' in dir() else None
-            logger.info("✅ ⚙️  CORE SUPPORT SYSTEMS - Allocators, Execution, Scanners!")
-        except Exception as e:
-            logger.debug(f"Core support systems: {e}")
-        
-        # ENHANCED DATA FLOWS - 4 Intelligence Systems!
-        try:
-            self.collective_intelligence = CollectiveIntelligenceCoordinator()
-            self.realtime_learning = RealTimeLearningPipeline()
-            self.unified_scouting = UnifiedScoutingPipeline()
-            self.unified_reporting = UnifiedReportingSystem()
-            self.advanced_systems['collective_intelligence'] = self.collective_intelligence
-            self.advanced_systems['realtime_learning'] = self.realtime_learning
-            logger.info("✅ 🌐 ENHANCED DATA FLOWS - 4 intelligence systems!")
-        except Exception as e:
-            logger.warning(f"⚠️  Enhanced Data Flows: {e}")
-            self.collective_intelligence = None
-        
-        # DIVINE INTELLIGENCE FEATURES - CONSCIOUSNESS-LEVEL TRADING ENTITY
+# DIVINE INTELLIGENCE FEATURES - CONSCIOUSNESS-LEVEL TRADING ENTITY
 # ============================================================================
 try:
     from DIVINE_INTELLIGENCE_FEATURES import (
@@ -414,36 +387,6 @@ from SENTIENT_TRADING_BRAIN import SentientTradingBrain, StrategyValidator
 
 from PREMIUM_VIP_TELEGRAM_SYSTEM import PremiumVIPTelegramSystem as PremiumTelegram
 from trader_core import TraderCore
-from DIVINE_INTELLIGENCE_FEATURES import DivineIntelligenceManager, QuantumEntanglementCorrelator, FractalDimensionAnalyzer, InformationEntropyTracker, NashEquilibriumPredictor, ChaosTheoryAttractorMapper
-
-from ENHANCED_DATA_FLOWS import RealTimeLearningPipeline, UnifiedScoutingPipeline, CollectiveIntelligenceCoordinator, UnifiedReportingSystem
-
-from core.strategy_engine import StrategyEngine
-
-from core.risk_manager import RiskManager as CoreRiskManager
-
-from core.order_manager import OrderManager
-
-from execution.quantum_exec import QuantumExecutor
-
-from execution.liquidity_guard import LiquidityGuard
-
-from allocators.portfolio import PortfolioAllocator
-
-from allocators.sizing import PositionSizer
-
-from allocators.ensemble import EnsembleAllocator
-
-from scanners.moon_radar import MoonRadar
-
-from scanners.hype_radar import HypeRadar
-
-from scanners.arbitrage import ArbitrageScanner
-
-from strategies.meta_selector import MetaStrategySelector
-
-from strategies.pipeline import StrategyPipeline
-
 
 
 
