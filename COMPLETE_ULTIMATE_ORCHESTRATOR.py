@@ -1804,7 +1804,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ 🐝 SWARM CONSCIOUSNESS - 20 agents active!")
         
         # 450 MODELS BOT - Train continuously
-        if self.bot_450:
+        if getattr(self, 'bot_450', None):
             async def run_450_models():
                 while True:
                     try:
