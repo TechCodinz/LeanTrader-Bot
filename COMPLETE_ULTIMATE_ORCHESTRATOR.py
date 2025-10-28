@@ -1942,7 +1942,8 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             total_freed = 0.0
                             
                             for coin, amt in positions['total'].items():
-                                if coin != 'USDT' and amt > 0:
+                                # Skip USDT and GT (GT is for fee rebates, not trading)
+                                if coin not in ['USDT', 'GT'] and amt > 0:
                                     # Get available (not locked) amount
                                     available_amt = positions['free'].get(coin, 0)
                                     
