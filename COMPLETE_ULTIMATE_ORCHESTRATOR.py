@@ -2118,29 +2118,43 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         return tasks
     
     async def start(self):
-        """Override start to actually run all task loops!"""
+        """Override start to run ALL task loops including parent's!"""
         logger.info("="*80)
         logger.info("⚡ STARTING ALL ACTIVE ENGINES...")
         logger.info("="*80)
         
-        # Call parent start (if exists)
-        try:
-            await super().start()
-        except:
-            pass  # Parent may not have start()
+        # Initialize and wire (from parent)
+        await self.initialize_all_systems()
+        await self.wire_all_systems()
         
-        # Start all orchestrators AND GET TASKS
-        tasks = await self.start_all_orchestrators()
+        # Collect ALL tasks (parent's + our new ones)
+        all_tasks = []
         
-        logger.info(f"✅ {len(tasks)} ACTIVE TASK LOOPS CREATED!")
-        logger.info("   → MICRO Wallet Grower")
-        logger.info("   → Signal Engines (Ultra Rare, Alpha, Nobel, etc.)")
-        logger.info("   → Execution Orchestrator")
-        logger.info("   → All discovery and monitoring loops")
+        # Parent's background tasks
+        if self.orchestrators.get('learning'):
+            all_tasks.append(
+                asyncio.create_task(self.orchestrators['learning'].run_learning_loop())
+            )
+        if self.orchestrators.get('decision'):
+            all_tasks.append(
+                asyncio.create_task(self.orchestrators['decision'].run_decision_loop())
+            )
+        all_tasks.append(
+            asyncio.create_task(self.enhanced_trading_loop())
+        )
+        
+        # OUR NEW TASK LOOPS (MICRO, execution, signals, etc.)
+        new_tasks = await self.start_all_orchestrators()
+        all_tasks.extend(new_tasks)
+        
+        logger.info("="*80)
+        logger.info(f"✅ {len(all_tasks)} TOTAL TASK LOOPS CREATED!")
+        logger.info(f"   → {len(new_tasks)} NEW active engines (MICRO, signals, execution)")
+        logger.info(f"   → 3 parent engines (learning, decision, main loop)")
         logger.info("="*80)
         
         # RUN ALL TASKS CONCURRENTLY!
-        await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*all_tasks, return_exceptions=True)
     
     async def run_smart_scalping_loop(self):
         """
