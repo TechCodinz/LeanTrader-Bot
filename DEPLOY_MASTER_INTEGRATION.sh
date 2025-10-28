@@ -33,6 +33,11 @@ echo ""
 echo "🔧 Step 4: ABSOLUTE FINAL patch (110-120+ engines)..."
 python3 ABSOLUTE_FINAL_COMPLETE_PATCH.py
 
+# Step 5: ULTRA FINAL patch (brain, hivemind, AI bot)
+echo ""
+echo "🔧 Step 5: ULTRA FINAL patch (120-130+ engines)..."
+python3 ULTRA_FINAL_MISSING_PATCH.py
+
 # Restart bot
 echo ""
 echo "🔄 Step 5: Restarting with ALL 110-120+ engines..."

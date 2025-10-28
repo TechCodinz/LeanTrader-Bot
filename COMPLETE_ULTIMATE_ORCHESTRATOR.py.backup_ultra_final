@@ -79,25 +79,6 @@ except Exception as e:
 # ============================================================================
 
         
-        
-        # ULTRA SMART AI BOT - Master AI Controller!
-        try:
-            self.ultra_smart_ai = ULTRA_SMART_AI_BOT()
-            self.advanced_systems['ultra_smart_ai'] = self.ultra_smart_ai
-            logger.info("✅ 🤖 ULTRA SMART AI BOT - Master AI Controller active!")
-        except Exception as e:
-            logger.warning(f"⚠️  Ultra Smart AI Bot: {e}")
-            self.ultra_smart_ai = None
-        
-        # HIVEMIND - Collective Decision Making!
-        try:
-            self.hive_coordinator = HiveCoordinator()
-            self.advanced_systems['hivemind'] = self.hive_coordinator
-            logger.info("✅ 🐝 HIVEMIND COORDINATOR - Collective intelligence active!")
-        except Exception as e:
-            logger.warning(f"⚠️  HiveMind: {e}")
-            self.hive_coordinator = None
-        
         # CORE SUPPORT SYSTEMS
         try:
             self.portfolio_allocator = PortfolioAllocator() if 'PortfolioAllocator' in dir() else None
@@ -462,16 +443,6 @@ from scanners.arbitrage import ArbitrageScanner
 from strategies.meta_selector import MetaStrategySelector
 
 from strategies.pipeline import StrategyPipeline
-from ULTRA_SMART_AI_BOT import ULTRA_SMART_AI_BOT
-
-from brain import Brain, Memory, VolSizer, Advice, Guards
-
-from brain_loop import ScanArgs, think_once, beautiful_telegram_notification
-
-from hivemind import HiveCoordinator, FrameDecision
-
-from EXPANDED_MARKET_UNIVERSE import get_market_universe_for_balance, get_priority_pairs
-
 
 
 
