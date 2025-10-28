@@ -1,0 +1,31 @@
+═══════════════════════════════════════════════════════════════
+COPY THESE - CHECK WHAT'S ACTUALLY RUNNING ON VPS
+═══════════════════════════════════════════════════════════════
+
+# 1. What Python processes are running?
+ssh root@75.119.149.117 "ps aux | grep python | grep -v grep"
+
+# 2. What's in the bot directory?
+ssh root@75.119.149.117 "ls -la ~/bot/*.py | head -20"
+
+# 3. Check recent logs (last 50 lines)
+ssh root@75.119.149.117 "tail -50 ~/bot/bot.log"
+
+# 4. Check for MICRO activity in logs
+ssh root@75.119.149.117 "grep -i micro ~/bot/bot.log | tail -20"
+
+# 5. What branch is VPS on?
+ssh root@75.119.149.117 "cd ~/bot && git branch && git log --oneline -5"
+
+# 6. Is MICRO_WALLET_GROWER file there?
+ssh root@75.119.149.117 "ls -la ~/bot/MICRO* | head -10"
+
+# 7. Check if MICRO is imported in orchestrator
+ssh root@75.119.149.117 "grep -n 'MICRO_GATE_BOT\|micro_wallet_grower' ~/bot/COMPLETE_ULTIMATE_ORCHESTRATOR.py | head -10"
+
+# 8. Live tail to see what's happening NOW
+ssh root@75.119.149.117 "tail -f ~/bot/bot.log"
+
+═══════════════════════════════════════════════════════════════
+RUN THESE AND PASTE THE OUTPUT BACK TO ME
+═══════════════════════════════════════════════════════════════
