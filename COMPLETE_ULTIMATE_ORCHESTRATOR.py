@@ -1976,6 +1976,28 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         except Exception as e:
                             logger.debug(f"Position close: {e}")
                         
+                        # INJECT DYNAMIC PAIRS from discovery engines
+                        if not self.micro_wallet_grower.crypto_pairs or len(self.micro_wallet_grower.crypto_pairs) == 0:
+                            # Get pairs from market scanner
+                            if self.market_scanner and hasattr(self.market_scanner, 'active_pairs'):
+                                discovered = list(self.market_scanner.active_pairs)
+                                if discovered:
+                                    self.micro_wallet_grower.crypto_pairs = discovered[:50]  # Top 50
+                                    logger.info(f"✅ MICRO using {len(self.micro_wallet_grower.crypto_pairs)} DISCOVERED pairs!")
+                            
+                            # Fallback: Use signals from data hub
+                            if not self.micro_wallet_grower.crypto_pairs:
+                                hub_signals = self.data_hub.get_signals(limit=30)
+                                unique_pairs = list(set([s.get('symbol') for s in hub_signals if s.get('symbol')]))
+                                if unique_pairs:
+                                    self.micro_wallet_grower.crypto_pairs = unique_pairs
+                                    logger.info(f"✅ MICRO using {len(unique_pairs)} pairs from SIGNAL ENGINES!")
+                            
+                            # Last resort fallback
+                            if not self.micro_wallet_grower.crypto_pairs:
+                                self.micro_wallet_grower.crypto_pairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'DOGE/USDT']
+                                logger.warning(f"⚠️  MICRO using 5 fallback pairs (discovery engines not ready)")
+                        
                         # Analyze and trade all configured pairs
                         for symbol in self.micro_wallet_grower.crypto_pairs:
                             action, confidence, price, sl, tp = self.micro_wallet_grower.analyze_market(symbol)
