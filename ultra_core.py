@@ -200,6 +200,58 @@ class UltraCore:
 
         return results
 
+    async def get_market_data(self, symbol=None, timeframe='1h'):
+        """
+        Get market data for Ultra engines - compatibility wrapper
+        
+        Args:
+            symbol: Trading pair (e.g. 'BTC/USDT')
+            timeframe: Timeframe (e.g. '1h', 'M5')
+            
+        Returns:
+            dict with market data including ohlcv, analysis, etc.
+        """
+        try:
+            if symbol:
+                # Fetch OHLCV data for specific symbol
+                try:
+                    ohlcv = self.router.safe_fetch_ohlcv(symbol, timeframe=timeframe)
+                except:
+                    ohlcv = []
+                
+                if ohlcv and len(ohlcv) > 0:
+                    # Analyze the market data
+                    analysis = self.analyze_market(ohlcv)
+                    
+                    # Get current price
+                    current_price = ohlcv[-1][4] if len(ohlcv) > 0 else 0
+                    
+                    return {
+                        'symbol': symbol,
+                        'timeframe': timeframe,
+                        'ohlcv': ohlcv,
+                        'close': current_price,
+                        'analysis': analysis,
+                        'prices': [x[4] for x in ohlcv if len(x) > 4],
+                        'volumes': [x[5] for x in ohlcv if len(x) > 5],
+                    }
+                else:
+                    # Return minimal data structure
+                    return {
+                        'symbol': symbol,
+                        'timeframe': timeframe,
+                        'close': 0,
+                        'analysis': None
+                    }
+            
+            # Return general market scan if no symbol specified
+            return self.scan_markets()
+            
+        except Exception as e:
+            if self.logger:
+                self.logger.debug(f"get_market_data error for {symbol}: {e}")
+            return {'symbol': symbol, 'close': 0, 'analysis': None}
+    
     def analyze_market(self, ohlcv):
         """Advanced reasoning: pattern recognition, anomaly detection, regime analysis."""
         # Enhanced: LSTM-based regime prediction
