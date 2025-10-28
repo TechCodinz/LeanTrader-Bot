@@ -1942,8 +1942,8 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             total_freed = 0.0
                             
                             for coin, amt in positions['total'].items():
-                                # Skip USDT and GT (GT is for fee rebates, not trading)
-                                if coin not in ['USDT', 'GT'] and amt > 0:
+                                # Skip USDT, GT (fee rebates), and PIG (problematic position)
+                                if coin not in ['USDT', 'GT', 'PIG'] and amt > 0:
                                     # Get available (not locked) amount
                                     available_amt = positions['free'].get(coin, 0)
                                     
@@ -1975,7 +1975,8 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                                 logger.info(f"💰 TOTAL FREED: ${total_freed:.2f}")
                                 
                         except Exception as e:
-                            logger.debug(f"Position close: {e}")
+                            logger.error(f"❌ Position close failed: {e}")
+                            logger.error(f"   This error was preventing MICRO from trading!")
                         
                         # INJECT DYNAMIC PAIRS from discovery engines
                         if not self.micro_wallet_grower.crypto_pairs or len(self.micro_wallet_grower.crypto_pairs) == 0:
@@ -1994,27 +1995,42 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                                     self.micro_wallet_grower.crypto_pairs = unique_pairs
                                     logger.info(f"✅ MICRO using {len(unique_pairs)} pairs from SIGNAL ENGINES!")
                             
-                            # Last resort fallback
+                            # Last resort fallback (MORE AGGRESSIVE)
                             if not self.micro_wallet_grower.crypto_pairs:
-                                self.micro_wallet_grower.crypto_pairs = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'DOGE/USDT']
-                                logger.warning(f"⚠️  MICRO using 5 fallback pairs (discovery engines not ready)")
+                                self.micro_wallet_grower.crypto_pairs = [
+                                    'BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'DOGE/USDT',
+                                    'SHIB/USDT', 'PEPE/USDT', 'ADA/USDT', 'XRP/USDT', 'MATIC/USDT',
+                                    'AVAX/USDT', 'DOT/USDT', 'LINK/USDT', 'UNI/USDT', 'ATOM/USDT'
+                                ]
+                                logger.warning(f"⚠️  MICRO using 15 fallback pairs (discovery engines not ready)")
                         
                         # Analyze and trade all configured pairs
+                        logger.info(f"🔍 MICRO scanning {len(self.micro_wallet_grower.crypto_pairs)} pairs...")
+                        trades_attempted = 0
                         for symbol in self.micro_wallet_grower.crypto_pairs:
                             action, confidence, price, sl, tp = self.micro_wallet_grower.analyze_market(symbol)
                             
                             if action in ['BUY', 'SELL'] and confidence >= 0.70:
+                                trades_attempted += 1
+                                logger.info(f"💎 MICRO TRADE #{trades_attempted}: {action} {symbol} @ {confidence:.0%}")
                                 # Execute micro trade
                                 result = self.micro_wallet_grower.execute_trade(symbol, action, price, sl, tp)
                                 
                                 if result:
                                     logger.info(f"💎 MICRO GROWTH: {symbol} {action} @ ${price:.6f}")
                                     logger.info(f"   Balance: ${balance:.2f}, Conf: {confidence*100:.0f}%")
+                                else:
+                                    logger.warning(f"⚠️  MICRO trade failed for {symbol}")
+                        
+                        if trades_attempted == 0:
+                            logger.info(f"💤 MICRO: No high-confidence signals this cycle (checked {len(self.micro_wallet_grower.crypto_pairs)} pairs)")
                         
                         await asyncio.sleep(60)  # Check every minute
                         
                     except Exception as e:
-                        logger.debug(f"Micro wallet growth: {e}")
+                        logger.error(f"❌ Micro wallet growth error: {e}")
+                        import traceback
+                        logger.error(traceback.format_exc())
                         await asyncio.sleep(60)
             
             tasks.append(asyncio.create_task(run_micro_wallet_growth()))
