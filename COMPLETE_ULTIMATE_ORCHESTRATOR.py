@@ -358,8 +358,17 @@ except ImportError:
     logger.debug("FuturesSignalGenerator not available")
     FuturesSignalGenerator = None
 
-from session_clock import SessionClock
-from session_filter import SessionFilter
+try:
+    from session_clock import SessionClock
+except (ImportError, AttributeError):
+    logger.debug("SessionClock not available")
+    SessionClock = None
+
+try:
+    from session_filter import SessionFilter
+except (ImportError, AttributeError):
+    logger.debug("SessionFilter not available")
+    SessionFilter = None
 
 # ============================================================================
 # MICRO WALLET GROWER & CONTINUOUS ULTRA BOT (THE $1 TO INFINITE ENGINES!)
