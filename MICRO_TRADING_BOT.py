@@ -44,7 +44,8 @@ class MICRO_GATE_BOT:
         self.running = True
 
         # Only trade pairs that definitely meet minimums
-        self.crypto_pairs = ['DOGE/USDT', 'SHIB/USDT', 'PEPE/USDT', 'FLOKI/USDT', 'BONK/USDT']
+        # self.crypto_pairs = ['DOGE/USDT', 'SHIB/USDT', 'PEPE/USDT', 'FLOKI/USDT', 'BONK/USDT']  # DISABLED - Using dynamic discovery
+        self.crypto_pairs = []  # Will be populated by scanner
         
         # SAFETY FEATURES
         self.starting_balance = self.check_gate_balance()
