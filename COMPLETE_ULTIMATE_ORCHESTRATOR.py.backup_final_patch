@@ -386,8 +386,6 @@ from ADVANCED_TRADING_ACTIONS_ENGINE import AdvancedTradingActions
 from SENTIENT_TRADING_BRAIN import SentientTradingBrain, StrategyValidator
 
 from PREMIUM_VIP_TELEGRAM_SYSTEM import PremiumVIPTelegramSystem as PremiumTelegram
-from trader_core import TraderCore
-
 
 
 logger.info('✅ ALL 58 SYSTEMS IMPORTED: 20 ULTRA + 10 REV + 7 CRITICAL + 18 DEEP + 10 PROFIT + 2 GROWTH + 1 SAFETY!')
@@ -1538,16 +1536,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("   Monitors: CoinGecko trending, sentiment, breaking news")
         
         # ========================================================================
-        
-        # TRADER CORE - Core trading infrastructure
-        try:
-            self.trader_core = TraderCore()
-            self.advanced_systems['trader_core'] = self.trader_core
-            logger.info("✅ ⚙️  TRADER CORE - Core trading infrastructure!")
-        except Exception as e:
-            logger.warning(f"⚠️  Trader Core: {e}")
-            self.trader_core = None
-        
         # SESSION-AWARE TRADING - Trade at optimal times
         # ========================================================================
         logger.info("⏰ Wiring Session-Aware Trading...")
@@ -1984,55 +1972,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             
             tasks.append(asyncio.create_task(run_adaptive_confidence()))
             logger.info("✅ 🧠 ADAPTIVE CONFIDENCE ACTIVE - Auto-tuning!")
-
-        # ULTRA GOD MODE - God-tier trading features!
-        if self.ultra_god:
-            async def run_god_mode():
-                while True:
-                    try:
-                        # Get top symbols for god-level analysis
-                        symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT']
-                        
-                        for symbol in symbols:
-                            try:
-                                # Get market data
-                                import pandas as pd
-                                # Simplified: would get real OHLCV data
-                                df = pd.DataFrame({
-                                    'close': [100 + i for i in range(100)],
-                                    'high': [101 + i for i in range(100)],
-                                    'low': [99 + i for i in range(100)],
-                                    'volume': [1000 + i*10 for i in range(100)]
-                                })
-                                
-                                # Execute god-mode analysis
-                                god_analysis = await self.ultra_god.execute_god_mode_analysis(symbol, df)
-                                
-                                if god_analysis and god_analysis.get('signal') in ['BUY', 'SELL']:
-                                    signal = {
-                                        'symbol': symbol,
-                                        'action': god_analysis['signal'].lower(),
-                                        'confidence': god_analysis.get('confidence', 0.8),
-                                        'source': 'ultra_god_mode',
-                                        'quantum_score': god_analysis.get('quantum_score', 0),
-                                        'swarm_consensus': god_analysis.get('swarm_consensus', 0),
-                                        'smart_money_score': god_analysis.get('smart_money_score', 0)
-                                    }
-                                    await self.data_hub.publish_signal(signal)
-                                    logger.info(f"👑 GOD MODE → MICRO: {symbol} {signal['action']} (conf: {signal['confidence']:.2f}, quantum: {signal['quantum_score']:.2f})")
-                            
-                            except Exception as e:
-                                logger.debug(f"God mode analysis for {symbol}: {e}")
-                        
-                        await asyncio.sleep(180)  # Every 3 minutes (intensive analysis)
-                    except Exception as e:
-                        logger.debug(f"God mode: {e}")
-                        await asyncio.sleep(180)
-            
-            tasks.append(asyncio.create_task(run_god_mode()))
-            logger.info("✅ 👑 ULTRA GOD MODE ACTIVE - Quantum + Swarm + Fractals + Smart Money!")
-        
-
 
 
         # ALPHA ROUTER - 10 Alpha Strategies!
