@@ -1,0 +1,35 @@
+═══════════════════════════════════════════════════════════════
+DEPLOY FIXES TO VPS - COPY AND RUN
+═══════════════════════════════════════════════════════════════
+
+ssh root@75.119.149.117 << 'ENDSSH'
+cd ~/bot && \
+git fetch origin && \
+git checkout analyze-vps-current && \
+git pull origin analyze-vps-current && \
+pkill -9 -f COMPLETE_ULTIMATE_ORCHESTRATOR && \
+sleep 3 && \
+nohup python COMPLETE_ULTIMATE_ORCHESTRATOR.py > bot.log 2>&1 & && \
+sleep 10 && \
+echo "" && \
+echo "✅ DEPLOYED! Watching for MICRO activity..." && \
+tail -f bot.log | grep --line-buffered -E "MICRO|PIG|Position close"
+ENDSSH
+
+═══════════════════════════════════════════════════════════════
+WHAT YOU'LL SEE:
+═══════════════════════════════════════════════════════════════
+
+Every minute:
+  🔍 MICRO scanning 15 pairs...
+  💎 MICRO TRADE #1: BUY BTC/USDT @ 85%
+  ✅ MICRO TRADE EXECUTED
+
+Or if no signals:
+  🔍 MICRO scanning 15 pairs...
+  💤 MICRO: No high-confidence signals this cycle
+
+NO MORE:
+  🔄 CLOSING FULL POSITION: PIG/USDT  ← GONE!
+
+═══════════════════════════════════════════════════════════════
