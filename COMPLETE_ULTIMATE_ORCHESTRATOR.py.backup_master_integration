@@ -383,10 +383,6 @@ from continuous_ultra_bot import ContinuousUltraTradingSystem
 # ============================================================================
 from guardrails import TradeGuard, GuardConfig
 from ADVANCED_TRADING_ACTIONS_ENGINE import AdvancedTradingActions
-from SENTIENT_TRADING_BRAIN import SentientTradingBrain, StrategyValidator
-
-from PREMIUM_VIP_TELEGRAM_SYSTEM import PremiumVIPTelegramSystem as PremiumTelegram
-
 
 logger.info('✅ ALL 58 SYSTEMS IMPORTED: 20 ULTRA + 10 REV + 7 CRITICAL + 18 DEEP + 10 PROFIT + 2 GROWTH + 1 SAFETY!')
 
@@ -841,20 +837,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ 🧠 ULTRA CORE + GOD + SWARM + EVOLUTION + 450 MODELS!")
         except Exception as e:
             logger.warning(f"⚠️  Ultra Advanced: {e}")
-        
-        
-
-        # SENTIENT TRADING BRAIN - Self-Aware Trading Intelligence!
-        try:
-            self.sentient_brain = SentientTradingBrain()
-            self.strategy_validator = StrategyValidator()
-            self.advanced_systems['sentient_brain'] = self.sentient_brain
-            self.advanced_systems['strategy_validator'] = self.strategy_validator
-            logger.info("✅ 🧠 SENTIENT BRAIN - Self-aware trading consciousness!")
-        except Exception as e:
-            logger.warning(f"⚠️  Sentient Brain: {e}")
-            self.sentient_brain = None
-            self.strategy_validator = None
         
         # REVOLUTIONARY AI MANAGER
         try:
@@ -1972,140 +1954,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             
             tasks.append(asyncio.create_task(run_adaptive_confidence()))
             logger.info("✅ 🧠 ADAPTIVE CONFIDENCE ACTIVE - Auto-tuning!")
-
-
-        # ALPHA ROUTER - 10 Alpha Strategies!
-        if self.alpha_router:
-            async def run_alpha_router():
-                while True:
-                    try:
-                        # Get market data for top symbols
-                        symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'ADA/USDT']
-                        
-                        for symbol in symbols:
-                            try:
-                                # Get OHLCV data
-                                import pandas as pd
-                                # Simplified: would get real data from exchange
-                                # For now, generate signals based on alpha strategies
-                                
-                                # AlphaRouter needs DataFrame, create minimal one
-                                df = pd.DataFrame({
-                                    'close': [100, 101, 102, 103, 104, 105],
-                                    'high': [101, 102, 103, 104, 105, 106],
-                                    'low': [99, 100, 101, 102, 103, 104],
-                                    'volume': [1000, 1100, 1200, 1300, 1400, 1500]
-                                })
-                                
-                                # Get decision from alpha router
-                                decision = self.alpha_router.pick(df, symbol, '1h')
-                                
-                                if decision.side == 'buy' and decision.prob >= 0.58:
-                                    signal = {
-                                        'symbol': symbol,
-                                        'action': 'buy',
-                                        'confidence': decision.prob,
-                                        'source': 'alpha_router',
-                                        'size_mult': decision.size_mult,
-                                        'reasons': decision.reasons,
-                                        'votes': decision.votes
-                                    }
-                                    await self.data_hub.publish_signal(signal)
-                                    logger.info(f"🎯 ALPHA → MICRO: {symbol} buy (prob: {decision.prob:.2f}, votes: {len(decision.votes)})")
-                            
-                            except Exception as e:
-                                logger.debug(f"Alpha router error for {symbol}: {e}")
-                        
-                        await asyncio.sleep(120)  # Every 2 minutes
-                    except Exception as e:
-                        logger.debug(f"Alpha router: {e}")
-                        await asyncio.sleep(120)
-            
-            tasks.append(asyncio.create_task(run_alpha_router()))
-            logger.info("✅ 🎯 ALPHA ROUTER ACTIVE - 10 alpha strategies hunting!")
-        
-
-        # NOBEL HEDGE FUND SYSTEM - Institutional Grade!
-        if self.nobel_hedge_fund:
-            async def run_nobel_hedge_fund():
-                while True:
-                    try:
-                        # Initialize if needed
-                        if not hasattr(self.nobel_hedge_fund, 'initialized') or not self.nobel_hedge_fund.initialized:
-                            try:
-                                await self.nobel_hedge_fund.initialize()
-                                self.nobel_hedge_fund.initialized = True
-                            except:
-                                pass
-                        
-                        # Generate signals
-                        try:
-                            nobel_signals = await self.nobel_hedge_fund.generate_scalping_signals()
-                            # PUBLISH NOBEL SIGNALS TO MICRO!
-                            if nobel_signals:
-                                for sig in nobel_signals:
-                                    if sig:
-                                        signal_dict = {
-                                            'symbol': sig.symbol if hasattr(sig, 'symbol') else 'BTC/USDT',
-                                            'action': sig.side.lower() if hasattr(sig, 'side') else 'buy',
-                                            'confidence': sig.confidence if hasattr(sig, 'confidence') else 0.75,
-                                            'source': 'nobel_hedge_fund',
-                                            'timeframe': sig.timeframe if hasattr(sig, 'timeframe') else '5m'
-                                        }
-                                        await self.data_hub.publish_signal(signal_dict)
-                                        logger.info(f"🏆 NOBEL HF → MICRO: {signal_dict['symbol']} {signal_dict['action']} (conf: {signal_dict['confidence']:.2f})")
-                        except Exception as e:
-                            logger.debug(f"Nobel signal generation: {e}")
-                        
-                        await asyncio.sleep(60)  # Every minute
-                    except Exception as e:
-                        logger.debug(f"Nobel hedge fund: {e}")
-                        await asyncio.sleep(60)
-            
-            tasks.append(asyncio.create_task(run_nobel_hedge_fund()))
-            logger.info("✅ 🏆 NOBEL HEDGE FUND ACTIVE - Institutional strategies!")
-        
-
-        # SENTIENT TRADING BRAIN - Self-Aware Intelligence!
-        if self.sentient_brain:
-            async def run_sentient_brain():
-                while True:
-                    try:
-                        # Sentient brain processes signals and validates strategies
-                        # It enhances hub signals with validation
-                        
-                        # Get recent signals from hub
-                        hub_signals = self.data_hub.get_signals(limit=10)
-                        
-                        for signal in hub_signals:
-
-                # APPLY SESSION-AWARE BOOST!
-                if self.session_aware:
-                    try:
-                        signal = self.session_aware.apply_session_awareness(signal)
-                    except:
-                        pass
-                
-                                            try:
-                                # Process through sentient brain
-                                enhanced_signal = await self.sentient_brain.process_signal(signal)
-                                
-                                if enhanced_signal and enhanced_signal.get('approved', False):
-                                    # Re-publish enhanced signal
-                                    await self.data_hub.publish_signal(enhanced_signal)
-                                    logger.info(f"🧠 SENTIENT → MICRO: Enhanced {signal.get('symbol')} (validation: {enhanced_signal.get('validation_score', 0):.2f})")
-                            except Exception as e:
-                                logger.debug(f"Sentient processing: {e}")
-                        
-                        await asyncio.sleep(90)  # Every 90 seconds
-                    except Exception as e:
-                        logger.debug(f"Sentient brain: {e}")
-                        await asyncio.sleep(90)
-            
-            tasks.append(asyncio.create_task(run_sentient_brain()))
-            logger.info("✅ 🧠 SENTIENT BRAIN ACTIVE - Strategy validation!")
-        
-
         
         # OMNISCIENT EXECUTION ENGINE
         if self.omniscient_execution:
@@ -2367,15 +2215,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                                 logger.info(f"   Sample signal: {sample.get('symbol', 'N/A')} {sample.get('action', 'N/A')} conf={sample.get('confidence', 0):.1%}")
                             logger.info(f"📊 Got {len(hub_signals)} signals from data hub")
                             for signal in hub_signals:
-
-                # APPLY SESSION-AWARE BOOST!
-                if self.session_aware:
-                    try:
-                        signal = self.session_aware.apply_session_awareness(signal)
-                    except:
-                        pass
-                
-                                                if traded_this_cycle >= 3:  # Max 3 trades per cycle
+                                if traded_this_cycle >= 3:  # Max 3 trades per cycle
                                     break
                                 
                                 symbol = signal.get("symbol", "")
