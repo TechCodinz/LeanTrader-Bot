@@ -2483,45 +2483,23 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         logger.info("💓 MICRO heartbeat - checking balance...")
                         balance = self.micro_wallet_grower.check_gate_balance()
                         
-                        # AUTO-CLOSE ALL positions to COMPOUND profit
+                        # AUTO-CLOSE profitable positions to free up capital
                         try:
                             positions = self.micro_wallet_grower.gate.fetch_balance()
-                            total_freed = 0.0
-                            
                             for coin, amt in positions['total'].items():
                                 if coin != 'USDT' and amt > 0:
                                     symbol = f"{coin}/USDT"
                                     if symbol in self.micro_wallet_grower.gate.markets:
-                                        # Get available (not locked) amount
-                                        available_amt = positions['free'].get(coin, 0)
+                                        # Check current price
+                                        ticker = self.micro_wallet_grower.gate.fetch_ticker(symbol)
+                                        current_price = ticker['last']
+                                        position_value = amt * current_price
                                         
-                                        if available_amt > 0:
-                                            # Check current price
-                                            ticker = self.micro_wallet_grower.gate.fetch_ticker(symbol)
-                                            current_price = ticker['last']
-                                            position_value = available_amt * current_price
-                                            
-                                            # Close ANY position > $1 to free up capital for next trade
-                                            if position_value >= 1.0:
-                                                logger.info(f"🔄 CLOSING FULL POSITION: {symbol}")
-                                                logger.info(f"   Amount: {available_amt:.8f} {coin}")
-                                                logger.info(f"   Value: ${position_value:.2f}")
-                                                
-                                                # Create market sell for FULL available amount
-                                                order = self.micro_wallet_grower.gate.create_market_sell_order(
-                                                    symbol, 
-                                                    available_amt  # FULL AMOUNT
-                                                )
-                                                
-                                                logger.info(f"   ✅ CLOSED! Order: {order['id']}")
-                                                logger.info(f"   💰 Freed ${position_value:.2f} → Ready for next trade!")
-                                                total_freed += position_value
-                                            else:
-                                                logger.debug(f"   ⏭️  {symbol} too small: ${position_value:.2f}")
-                            
-                            if total_freed > 0:
-                                logger.info(f"💰 TOTAL FREED THIS CYCLE: ${total_freed:.2f}")
-                                
+                                        # Sell if position > $3 and frees up capital
+                                        if position_value >= 3.0:
+                                            logger.info(f"🔄 Closing position: {symbol} - {amt:.4f} tokens worth ${position_value:.2f}")
+                                            self.micro_wallet_grower.gate.create_market_sell_order(symbol, amt)
+                                            logger.info(f"   ✅ Freed up ${position_value:.2f} USDT!")
                         except Exception as e:
                             logger.debug(f"Position close: {e}")
                         
