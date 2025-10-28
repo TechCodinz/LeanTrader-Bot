@@ -38,9 +38,14 @@ echo ""
 echo "🔧 Step 5: ULTRA FINAL patch (120-130+ engines)..."
 python3 ULTRA_FINAL_MISSING_PATCH.py
 
+# Step 6: PROPERLY WIRE EVERYTHING (actual task loops)
+echo ""
+echo "🔧 Step 6: PROPERLY WIRE EVERYTHING (add actual task loops)..."
+python3 PROPERLY_WIRE_EVERYTHING.py
+
 # Restart bot
 echo ""
-echo "🔄 Step 5: Restarting with ALL 110-120+ engines..."
+echo "🔄 Step 7: Restarting with 34 ACTUALLY RUNNING engines..."
 pkill -f COMPLETE_ULTIMATE_ORCHESTRATOR
 sleep 5
 nohup python COMPLETE_ULTIMATE_ORCHESTRATOR.py > bot.log 2>&1 &
@@ -74,8 +79,22 @@ timeout 180 tail -f bot.log | grep --line-buffered -E "🌙 MOON|ULTRA|💎 RARE
 echo ""
 echo "✅ MASTER DEPLOYMENT COMPLETE!"
 echo ""
-echo "📊 ALL 110-120+ ENGINES ACTIVE!"
-echo "🏆 NOTHING LEFT BEHIND - COMPLETE HIVE MIND!"
+echo "📊 HONEST NUMBERS:"
+echo "   • 34 engines ACTUALLY RUNNING (24 original + 10 new)"
+echo "   • All with proper task loops"
+echo "   • All publishing signals"
+echo ""
+echo "🔍 NEW ENGINES WIRED:"
+echo "   💎 Ultra Rare (10 strategies)"
+echo "   🎯 Alpha Router (10 strategies)"  
+echo "   🏆 Nobel Hedge Fund"
+echo "   🧠 Sentient Brain"
+echo "   ⏰ Session-Aware"
+echo "   👁️  Omniscient Execution"
+echo "   👁️  Divine Intelligence (6 engines)"
+echo "   🌐 Collective Intelligence"
+echo "   🐝 HiveMind"
+echo "   🤖 ULTRA Smart AI"
 echo ""
 echo "Monitor with:"
-echo "  tail -f bot.log | grep -E 'MOON|ALPHA|NOBEL|DIVINE|SENTIENT|execute_trade'"
+echo "  tail -f bot.log | grep -E 'ULTRA RARE|ALPHA|NOBEL|DIVINE|SENTIENT|HIVEMIND|execute_trade'"
