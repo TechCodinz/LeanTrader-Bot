@@ -382,7 +382,6 @@ from continuous_ultra_bot import ContinuousUltraTradingSystem
 # SAFETY & AUTO-SWITCH SYSTEMS (TESTNET→REAL AUTO-SWITCHING!)
 # ============================================================================
 from guardrails import TradeGuard, GuardConfig
-from ADVANCED_TRADING_ACTIONS_ENGINE import AdvancedTradingActions
 
 logger.info('✅ ALL 58 SYSTEMS IMPORTED: 20 ULTRA + 10 REV + 7 CRITICAL + 18 DEEP + 10 PROFIT + 2 GROWTH + 1 SAFETY!')
 
@@ -1918,64 +1917,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         await asyncio.sleep(20)
             
             tasks.append(asyncio.create_task(run_ultra_arb()))
-        
-        # ULTRA RARE ENGINES - 10 profit engines!
-        if self.ultra_rare_engines:
-            async def run_ultra_rare_engines():
-                while True:
-                    try:
-                        # Run all 10 engines and collect signals
-                        rare_signals = await self.ultra_rare_engines.scan_all_engines()
-                        # PUBLISH RARE ENGINE SIGNALS TO MICRO!
-                        if rare_signals:
-                            for sig in rare_signals:
-                                if sig and isinstance(sig, dict) and sig.get('confidence', 0) > 0.7:
-                                    await self.data_hub.publish_signal(sig)
-                                    logger.info(f"💎 RARE ENGINE → MICRO: {sig.get('pattern')} on {sig.get('symbol')} (conf: {sig.get('confidence', 0):.2f})")
-                        await asyncio.sleep(30)  # Every 30 seconds
-                    except Exception as e:
-                        logger.debug(f"Ultra rare engines: {e}")
-                        await asyncio.sleep(30)
-            
-            tasks.append(asyncio.create_task(run_ultra_rare_engines()))
-            logger.info("✅ 💎 ULTRA RARE ENGINES ACTIVE - 10 profit engines hunting!")
-        
-        # ADAPTIVE CONFIDENCE ENGINE
-        if self.adaptive_confidence:
-            async def run_adaptive_confidence():
-                while True:
-                    try:
-                        # Update confidence thresholds based on performance
-                        await self.adaptive_confidence.update_thresholds()
-                        await asyncio.sleep(300)  # Every 5 minutes
-                    except Exception as e:
-                        logger.debug(f"Adaptive confidence: {e}")
-                        await asyncio.sleep(300)
-            
-            tasks.append(asyncio.create_task(run_adaptive_confidence()))
-            logger.info("✅ 🧠 ADAPTIVE CONFIDENCE ACTIVE - Auto-tuning!")
-        
-        # OMNISCIENT EXECUTION ENGINE
-        if self.omniscient_execution:
-            async def run_omniscient_execution():
-                while True:
-                    try:
-                        # Monitor all markets and execute intelligently
-                        omni_signals = await self.omniscient_execution.scan_omniscient_opportunities()
-                        # PUBLISH OMNISCIENT SIGNALS TO MICRO!
-                        if omni_signals:
-                            for sig in omni_signals:
-                                if sig and isinstance(sig, dict):
-                                    await self.data_hub.publish_signal(sig)
-                                    logger.info(f"👁️  OMNISCIENT → MICRO: {sig.get('symbol')} (timeframes: {sig.get('timeframes_aligned', 0)})")
-                        await asyncio.sleep(60)  # Every minute
-                    except Exception as e:
-                        logger.debug(f"Omniscient execution: {e}")
-                        await asyncio.sleep(60)
-            
-            tasks.append(asyncio.create_task(run_omniscient_execution()))
-            logger.info("✅ 👁️  OMNISCIENT EXECUTION ACTIVE - Multi-dimensional trading!")
-
             logger.info("✅ 💰 ULTRA ARBITRAGE SCANNING!")
         
         # ULTRA MULTI-PLATFORM SCANNER
