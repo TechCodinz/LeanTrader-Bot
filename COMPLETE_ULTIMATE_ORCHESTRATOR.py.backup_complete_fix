@@ -1901,46 +1901,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         # Check current balance
                         balance = self.micro_wallet_grower.check_gate_balance()
                         
-                        # AUTO-CLOSE ALL positions to compound profit
-                        try:
-                            positions = self.micro_wallet_grower.gate.fetch_balance()
-                            total_freed = 0.0
-                            
-                            for coin, amt in positions['total'].items():
-                                if coin != 'USDT' and amt > 0:
-                                    # Get available (not locked) amount
-                                    available_amt = positions['free'].get(coin, 0)
-                                    
-                                    if available_amt > 0:
-                                        symbol = f"{coin}/USDT"
-                                        if symbol in self.micro_wallet_grower.gate.markets:
-                                            # Check current price
-                                            ticker = self.micro_wallet_grower.gate.fetch_ticker(symbol)
-                                            current_price = ticker['last']
-                                            position_value = available_amt * current_price
-                                            
-                                            # Close ANY position > $1
-                                            if position_value >= 1.0:
-                                                logger.info(f"🔄 CLOSING FULL POSITION: {symbol}")
-                                                logger.info(f"   Amount: {available_amt:.8f} {coin}")
-                                                logger.info(f"   Value: ${position_value:.2f}")
-                                                
-                                                # Sell FULL available amount
-                                                order = self.micro_wallet_grower.gate.create_market_sell_order(
-                                                    symbol, 
-                                                    available_amt
-                                                )
-                                                
-                                                logger.info(f"   ✅ CLOSED! Order: {order['id']}")
-                                                logger.info(f"   💰 Freed ${position_value:.2f}")
-                                                total_freed += position_value
-                            
-                            if total_freed > 0:
-                                logger.info(f"💰 TOTAL FREED: ${total_freed:.2f}")
-                                
-                        except Exception as e:
-                            logger.debug(f"Position close: {e}")
-                        
                         # Analyze and trade all configured pairs
                         for symbol in self.micro_wallet_grower.crypto_pairs:
                             action, confidence, price, sl, tp = self.micro_wallet_grower.analyze_market(symbol)
