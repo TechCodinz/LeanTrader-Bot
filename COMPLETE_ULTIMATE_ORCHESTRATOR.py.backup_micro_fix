@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-
-# ULTRA ENGINE IMPORTS - All advanced trading engines
-from ultra_moon_spotter import UltraMoonSystem
-from ultra_scalping_engine import UltraScalpingEngine
-from ultra_arbitrage_engine import UltraArbitrageEngine
-from ultra_swarm_consciousness import SwarmConsciousness
-from EVOLUTION_ENGINE import ULTIMATE_EVOLUTION_ENGINE
-from REVOLUTIONARY_AI_FEATURES import RevolutionaryAIManager
-
 """
 COMPLETE ULTIMATE ORCHESTRATOR
 ALL SYSTEMS INTEGRATED - NOTHING LEFT BEHIND
@@ -77,53 +68,7 @@ except Exception as e:
     ULTRA_FEATURES_AVAILABLE = False
 
 # ============================================================================
-
-        
-        
-        # ULTRA SMART AI BOT - Master AI Controller!
-        try:
-            self.ultra_smart_ai = ULTRA_SMART_AI_BOT()
-            self.advanced_systems['ultra_smart_ai'] = self.ultra_smart_ai
-            logger.info("✅ 🤖 ULTRA SMART AI BOT - Master AI Controller active!")
-        except Exception as e:
-            logger.warning(f"⚠️  Ultra Smart AI Bot: {e}")
-            self.ultra_smart_ai = None
-        
-        # HIVEMIND - Collective Decision Making!
-        try:
-            self.hive_coordinator = HiveCoordinator()
-            self.advanced_systems['hivemind'] = self.hive_coordinator
-            logger.info("✅ 🐝 HIVEMIND COORDINATOR - Collective intelligence active!")
-        except Exception as e:
-            logger.warning(f"⚠️  HiveMind: {e}")
-            self.hive_coordinator = None
-        
-        # CORE SUPPORT SYSTEMS
-        try:
-            self.portfolio_allocator = PortfolioAllocator() if 'PortfolioAllocator' in dir() else None
-            self.position_sizer = PositionSizer() if 'PositionSizer' in dir() else None
-            self.quantum_executor = QuantumExecutor() if 'QuantumExecutor' in dir() else None
-            self.liquidity_guard = LiquidityGuard() if 'LiquidityGuard' in dir() else None
-            self.moon_radar = MoonRadar() if 'MoonRadar' in dir() else None
-            self.hype_radar = HypeRadar() if 'HypeRadar' in dir() else None
-            logger.info("✅ ⚙️  CORE SUPPORT SYSTEMS - Allocators, Execution, Scanners!")
-        except Exception as e:
-            logger.debug(f"Core support systems: {e}")
-        
-        # ENHANCED DATA FLOWS - 4 Intelligence Systems!
-        try:
-            self.collective_intelligence = CollectiveIntelligenceCoordinator()
-            self.realtime_learning = RealTimeLearningPipeline()
-            self.unified_scouting = UnifiedScoutingPipeline()
-            self.unified_reporting = UnifiedReportingSystem()
-            self.advanced_systems['collective_intelligence'] = self.collective_intelligence
-            self.advanced_systems['realtime_learning'] = self.realtime_learning
-            logger.info("✅ 🌐 ENHANCED DATA FLOWS - 4 intelligence systems!")
-        except Exception as e:
-            logger.warning(f"⚠️  Enhanced Data Flows: {e}")
-            self.collective_intelligence = None
-        
-        # DIVINE INTELLIGENCE FEATURES - CONSCIOUSNESS-LEVEL TRADING ENTITY
+# DIVINE INTELLIGENCE FEATURES - CONSCIOUSNESS-LEVEL TRADING ENTITY
 # ============================================================================
 try:
     from DIVINE_INTELLIGENCE_FEATURES import (
@@ -382,99 +327,24 @@ from november_growth_strategy import NovemberGrowthStrategy
 # STEADY PROFIT & ADVANCED EXECUTION SYSTEMS (10 MORE!)
 # ============================================================================
 from STEADY_PROFIT_EXTRACTOR import SteadyProfitExtractor
-
-try:
-    from FINAL_PROFIT_OPTIMIZATION import ProfitOptimizer
-except: ProfitOptimizer = None
-
-try:
-    from allocators.sizing import vol_scaled_weights, apply_exposure_caps
-except: vol_scaled_weights = apply_exposure_caps = None
-
-try:
-    from allocators.portfolio import Portfolio
-except: Portfolio = None
-
-try:
-    from execution_adv import LimitMakerExecutor, place_market, safe_create_order
-except: LimitMakerExecutor = place_market = safe_create_order = None
-
-try:
-    from futures_signals import FuturesSignalGenerator
-except: FuturesSignalGenerator = None
-try:
-    from session_clock import SessionClock
-except: SessionClock = None
-
-try:
-    from session_filter import SessionFilter
-except: SessionFilter = None
+from FINAL_PROFIT_OPTIMIZATION import ProfitOptimizer
+from allocators.sizing import vol_scaled_weights, apply_exposure_caps
+from allocators.portfolio import Portfolio
+from execution_adv import LimitMakerExecutor, place_market, safe_create_order
+from futures_signals import FuturesSignalGenerator
+from session_clock import SessionClock
+from session_filter import SessionFilter
 
 # ============================================================================
 # MICRO WALLET GROWER & CONTINUOUS ULTRA BOT (THE $1 TO INFINITE ENGINES!)
 # ============================================================================
 from MICRO_TRADING_BOT import MICRO_GATE_BOT
-from critical_features_addon import (
-    TrailingStopManager,
-    CompoundEngine,
-    PartialTPManager,
-    FundingArbitrage,
-    VolumeProfileAnalyzer,
-    EmergencyStop
-)
 from continuous_ultra_bot import ContinuousUltraTradingSystem
 
 # ============================================================================
 # SAFETY & AUTO-SWITCH SYSTEMS (TESTNET→REAL AUTO-SWITCHING!)
 # ============================================================================
 from guardrails import TradeGuard, GuardConfig
-from ADVANCED_TRADING_ACTIONS_ENGINE import AdvancedTradingActions
-from SENTIENT_TRADING_BRAIN import SentientTradingBrain, StrategyValidator
-
-from PREMIUM_VIP_TELEGRAM_SYSTEM import PremiumVIPTelegramSystem as PremiumTelegram
-from trader_core import TraderCore
-from DIVINE_INTELLIGENCE_FEATURES import DivineIntelligenceManager, QuantumEntanglementCorrelator, FractalDimensionAnalyzer, InformationEntropyTracker, NashEquilibriumPredictor, ChaosTheoryAttractorMapper
-
-from ENHANCED_DATA_FLOWS import RealTimeLearningPipeline, UnifiedScoutingPipeline, CollectiveIntelligenceCoordinator, UnifiedReportingSystem
-
-from core.strategy_engine import StrategyEngine
-
-from core.risk_manager import RiskManager as CoreRiskManager
-
-from core.order_manager import OrderManager
-
-from execution.quantum_exec import QuantumExecutor
-
-from execution.liquidity_guard import LiquidityGuard
-
-from allocators.portfolio import PortfolioAllocator
-
-from allocators.sizing import PositionSizer
-
-from allocators.ensemble import EnsembleAllocator
-
-from scanners.moon_radar import MoonRadar
-
-from scanners.hype_radar import HypeRadar
-
-from scanners.arbitrage import ArbitrageScanner
-
-from strategies.meta_selector import MetaStrategySelector
-
-from strategies.pipeline import StrategyPipeline
-from ULTRA_SMART_AI_BOT import ULTRA_SMART_AI_BOT
-
-from brain import Brain, Memory, VolSizer, Advice, Guards
-
-from brain_loop import ScanArgs, think_once, beautiful_telegram_notification
-
-from hivemind import HiveCoordinator, FrameDecision
-
-from EXPANDED_MARKET_UNIVERSE import get_market_universe_for_balance, get_priority_pairs
-
-
-
-
 
 logger.info('✅ ALL 58 SYSTEMS IMPORTED: 20 ULTRA + 10 REV + 7 CRITICAL + 18 DEEP + 10 PROFIT + 2 GROWTH + 1 SAFETY!')
 
@@ -707,39 +577,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
     TOTAL: 26 core + 8 additional = 34 SYSTEMS
     """
     
-    async def start(self):
-        """
-        OVERRIDE: Start with execution loop + all advanced systems
-        This fixes the issue where parent's start() doesn't call start_all_orchestrators()
-        """
-        try:
-            # Initialize all systems
-            await self.initialize_all_systems()
-            
-            # Wire everything together
-            await self.wire_all_systems()
-            
-            # ✅ FIX: Call start_all_orchestrators() which includes execution loop!
-            tasks = await self.start_all_orchestrators()
-            
-            logger.info("\n" + "=" * 80)
-            logger.info("🎉 ALL SYSTEMS RUNNING - EXECUTION LOOP ACTIVE!")
-            logger.info("=" * 80)
-            
-            # Keep tasks running forever
-            await asyncio.gather(*tasks)
-            
-            # Run until stopped
-            await asyncio.gather(*tasks)
-            
-        except KeyboardInterrupt:
-            logger.info("🛑 Shutdown requested")
-        except Exception as e:
-            logger.error(f"Fatal error: {e}")
-            raise
-        finally:
-            logger.info("👋 Complete Ultimate Orchestrator shutting down...")
-    
     def __init__(self, mode: str = "testnet"):
         super().__init__(mode)
         
@@ -876,12 +713,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         # 10. ULTRA SCALPING ENGINE
         try:
-            # Ultra Scalping needs ultra_core and risk_engine
-            if hasattr(self, 'ultra_core') and hasattr(self, 'risk_engine'):
-                self.ultra_scalping = UltraScalpingEngine(self.ultra_core, self.risk_engine)
-            else:
-                self.ultra_scalping = None
-                logger.warning("⚠️  Ultra Scalping needs UltraCore and RiskEngine")
+            self.ultra_scalping = UltraScalpingEngine()
             self.advanced_systems['ultra_scalping'] = self.ultra_scalping
             logger.info("✅ ⚡ ULTRA SCALPING ENGINE!")
         except Exception as e:
@@ -890,12 +722,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         # 11. ULTRA ARBITRAGE ENGINE
         try:
-            # Ultra Arbitrage needs ultra_core and risk_engine
-            if hasattr(self, 'ultra_core') and hasattr(self, 'risk_engine'):
-                self.ultra_arbitrage = UltraArbitrageEngine(self.ultra_core, self.risk_engine)
-            else:
-                self.ultra_arbitrage = None
-                logger.warning("⚠️  Ultra Arbitrage needs UltraCore and RiskEngine")
+            self.ultra_arbitrage = UltraArbitrageEngine()
             self.advanced_systems['ultra_arbitrage'] = self.ultra_arbitrage
             logger.info("✅ 💰 ULTRA ARBITRAGE ENGINE!")
         except Exception as e:
@@ -929,20 +756,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ 🧠 ULTRA CORE + GOD + SWARM + EVOLUTION + 450 MODELS!")
         except Exception as e:
             logger.warning(f"⚠️  Ultra Advanced: {e}")
-        
-        
-
-        # SENTIENT TRADING BRAIN - Self-Aware Trading Intelligence!
-        try:
-            self.sentient_brain = SentientTradingBrain()
-            self.strategy_validator = StrategyValidator()
-            self.advanced_systems['sentient_brain'] = self.sentient_brain
-            self.advanced_systems['strategy_validator'] = self.strategy_validator
-            logger.info("✅ 🧠 SENTIENT BRAIN - Self-aware trading consciousness!")
-        except Exception as e:
-            logger.warning(f"⚠️  Sentient Brain: {e}")
-            self.sentient_brain = None
-            self.strategy_validator = None
         
         # REVOLUTIONARY AI MANAGER
         try:
@@ -1024,7 +837,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         # RISK ENGINE CORE - Advanced risk management (INFINITE LIMITS!)
         try:
             self.risk_engine_core = RiskEngineCore()
-            self.risk_engine = self.risk_engine_core  # Alias for Ultra engines
             # RiskGuard with INFINITE limits!
             self.risk_guard = RiskGuard(
                 max_positions=999999,      # INFINITE positions!
@@ -1206,54 +1018,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Micro Wallet Grower: {e}")
             self.micro_wallet_grower = None
-        
-        # ========================================================================
-        # WIRE ADVANCED TRADING ACTIONS (+50-100% profit boost!)
-        # ========================================================================
-        logger.info("\n🚀 Wiring ADVANCED TRADING ACTIONS...")
-        try:
-            # Trailing Stop Loss - Locks in profits
-            self.trailing_stop_manager = TrailingStopManager(trail_percent=0.02)
-            self.advanced_systems['trailing_stop'] = self.trailing_stop_manager
-            logger.info("✅ 📈 TRAILING STOP - Locks profits (not just BUY/SELL!)")
-            
-            # Compound Engine - Grows positions with balance
-            initial_balance = 1.44  # Start with actual balance
-            self.compound_engine = CompoundEngine(initial_capital=initial_balance, compound_rate=0.7)
-            self.advanced_systems['compound_engine'] = self.compound_engine
-            logger.info("✅ 💰 COMPOUND ENGINE - Reinvests 70% of profits")
-            
-            # Partial Take Profit - Takes profits in stages
-            self.partial_tp_manager = PartialTPManager()
-            self.advanced_systems['partial_tp'] = self.partial_tp_manager
-            logger.info("✅ 🎯 PARTIAL TP - Exits in stages (25%@1%, 50%@2%, 25%@3%)")
-            
-            # Funding Arbitrage - Risk-free profits
-            self.funding_arbitrage = FundingArbitrage(min_spread=0.001)
-            self.advanced_systems['funding_arb'] = self.funding_arbitrage
-            logger.info("✅ 💎 FUNDING ARBITRAGE - Risk-free profits from rate differences")
-            
-            # Volume Profile Analyzer - Better entries
-            self.volume_analyzer = VolumeProfileAnalyzer(bins=50)
-            self.advanced_systems['volume_analyzer'] = self.volume_analyzer
-            logger.info("✅ 📊 VOLUME PROFILE - Finds best entry/exit levels")
-            
-            # Emergency Stop - Black swan protection
-            self.emergency_stop = EmergencyStop(max_loss=0.10, max_trades_per_min=50)
-            self.advanced_systems['emergency_stop'] = self.emergency_stop
-            logger.info("✅ 🚨 EMERGENCY STOP - Protects against black swans")
-            
-            logger.info("\n✅ ALL ADVANCED ACTIONS WIRED! Trading is now:")
-            logger.info("   → BUY + HOLD positions")
-            logger.info("   → SELL with trailing stops")
-            logger.info("   → PARTIAL exits (3 stages)")
-            logger.info("   → COMPOUND position growth")
-            logger.info("   → SCALE IN/OUT dynamically")
-            logger.info("   Expected: +50-100% profit boost!")
-        except Exception as e:
-            logger.warning(f"⚠️  Advanced actions: {e}")
-            import traceback
-            traceback.print_exc()
         
         # CONTINUOUS ULTRA BOT - Never stops trading!
         try:
@@ -1582,7 +1346,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         try:
             # MODE-AWARE: Bybit testnet ($17k) or Gate.io live
-            self.real_profit_bot = REAL_PROFIT_BOT()  # No mode parameter needed
+            self.real_profit_bot = REAL_PROFIT_BOT(mode=self.mode)
             self.trading_engines['real_profit'] = self.real_profit_bot
             logger.info(f"✅ 💰 REAL PROFIT BOT WIRED - {self.mode.upper()} mode")
             logger.info(f"   Exchange: {'Bybit Testnet' if self.mode == 'testnet' else 'Gate.io Live'}")
@@ -1624,16 +1388,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("   Monitors: CoinGecko trending, sentiment, breaking news")
         
         # ========================================================================
-        
-        # TRADER CORE - Core trading infrastructure
-        try:
-            self.trader_core = TraderCore()
-            self.advanced_systems['trader_core'] = self.trader_core
-            logger.info("✅ ⚙️  TRADER CORE - Core trading infrastructure!")
-        except Exception as e:
-            logger.warning(f"⚠️  Trader Core: {e}")
-            self.trader_core = None
-        
         # SESSION-AWARE TRADING - Trade at optimal times
         # ========================================================================
         logger.info("⏰ Wiring Session-Aware Trading...")
@@ -1736,57 +1490,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("      → Cross-exchange arbitrage | P2P arbitrage")
         logger.info("=" * 80)
     
-
-
-    async def load_advanced_engines_background(self):
-        """Load advanced engines in background after bot starts"""
-        await asyncio.sleep(5)  # Wait for bot to start
-        
-        logger.info("\n" + "=" * 80)
-        logger.info("🚀 LOADING ADVANCED ENGINES IN BACKGROUND...")
-        logger.info("=" * 80)
-        
-        # 1. Ultra Rare Engines
-        try:
-            logger.info('⚡ Loading Ultra Rare Engines...')
-            from ULTRA_RARE_ENGINES import UltraRareEnginesOrchestrator
-            self.advanced_systems['ultra_rare'] = UltraRareEnginesOrchestrator()
-            logger.info('✅ Ultra Rare Engines: 10 profit engines active!')
-        except Exception as e:
-            logger.warning(f'⚠️ Ultra Rare Engines failed: {e}')
-        
-        # 2. Adaptive Confidence Engine  
-        try:
-            logger.info('🧠 Loading Adaptive Confidence Engine...')
-            from ADAPTIVE_CONFIDENCE_ENGINE import get_adaptive_confidence_engine
-            self.adaptive_confidence = get_adaptive_confidence_engine()
-            logger.info('✅ Adaptive Confidence Engine active!')
-        except Exception as e:
-            logger.warning(f'⚠️ Adaptive Confidence failed: {e}')
-        
-        # 3. Omniscient Execution Engine
-        try:
-            logger.info('👁️ Loading Omniscient Execution Engine...')
-            from OMNISCIENT_EXECUTION_ENGINE import OmniscientExecutionEngine
-            self.omniscient_engine = OmniscientExecutionEngine()
-            logger.info('✅ Omniscient Execution Engine active!')
-        except Exception as e:
-            logger.warning(f'⚠️ Omniscient Engine failed: {e}')
-        
-        logger.info("\n" + "=" * 80)
-        logger.info("🎉 ALL ADVANCED ENGINES LOADED!")
-        logger.info("=" * 80)
-
     async def start_all_orchestrators(self):
-        """
-        START METHOD CALLEDStart ALL orchestrators including advanced ones"""
+        """Start ALL orchestrators including advanced ones"""
         
-        logger.info("🚀 START_ALL_ORCHESTRATORS: Creating tasks...")
         tasks = []
-        
-        # Load advanced engines in background
-        tasks.append(asyncio.create_task(self.load_advanced_engines_background()))
-        
         
         # Start base orchestrators
         if 'learning' in self.orchestrators:
@@ -1872,31 +1579,14 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             )
             logger.info("✅ 💰 P2P ARBITRAGE SCANNER STARTED!")
         
-        # START REAL PROFIT BOT - ALL DISCOVERED PAIRS (NO LIMITS!)
+        # START REAL PROFIT BOT - 35 Pairs Trading!
         if hasattr(self, 'real_profit_bot') and self.real_profit_bot:
-            # ✅ Use ALL active pairs from dynamic discovery
-            if self.market_scanner and hasattr(self.market_scanner, 'active_pairs'):
-                all_discovered = list(self.market_scanner.active_pairs)
-                if all_discovered:
-                    self.real_profit_bot.crypto_pairs = all_discovered
-                    logger.info(f"✅ 💰 REAL PROFIT BOT using ALL {len(all_discovered)} discovered pairs (NO LIMITS!)")
-            
-            # Also use dynamic pair discovery if available
-            if hasattr(self, 'dynamic_pair_discovery') and self.dynamic_pair_discovery:
-                discovered_pairs = self.dynamic_pair_discovery.get_active_pairs()
-                if discovered_pairs:
-                    # Merge both sources
-                    all_pairs = list(set(self.real_profit_bot.crypto_pairs + discovered_pairs))
-                    self.real_profit_bot.crypto_pairs = all_pairs
-                    logger.info(f"✅ 💰 MERGED: Now trading {len(all_pairs)} pairs from ALL discovery sources!")
-            
-            # Wrap sync run() in async (non-blocking)
+            # Wrap sync run() in async
             async def run_real_profit_loop():
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(None, self.real_profit_bot.run)
+                await asyncio.to_thread(self.real_profit_bot.run)
             
             tasks.append(asyncio.create_task(run_real_profit_loop()))
-            logger.info(f"✅ 💰 REAL PROFIT BOT STARTED - Trading {len(self.real_profit_bot.crypto_pairs)} pairs (expanding dynamically)!")
+            logger.info("✅ 💰 REAL PROFIT BOT STARTED - Trading 35 pairs!")
         
         # START DYNAMIC MARKET SCANNER - Auto-discover trending pairs!
         if self.market_scanner:
@@ -1940,13 +1630,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             async def run_moon_hunting():
                 while True:
                     try:
-                        moons = await self._moon_hunt_wrapper()  # Fixed: use wrapper
-                        # PUBLISH MOON FINDS TO MICRO!
-                        if moons:
-                            for moon in moons if isinstance(moons, list) else [moons]:
-                                if moon and isinstance(moon, dict):
-                                    await self.data_hub.publish_signal(moon)
-                                    logger.info(f"🌙 MOON → MICRO: {moon.get('symbol')} (moon score: {moon.get('confidence', 0):.2f})")
+                        await self.ultra_moon_system.hunt_micro_moons()
                         await asyncio.sleep(300)  # Every 5 min
                     except Exception as e:
                         logger.debug(f"Moon hunting: {e}")
@@ -2002,12 +1686,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             async def run_ultra_scalping():
                 while True:
                     try:
-                        scalp_signals = await self.ultra_scalping.start_scalping() if self.ultra_scalping else None
-                        # PUBLISH ULTRA SCALP SIGNALS TO MICRO!
-                        if scalp_signals:
-                            for sig in scalp_signals if isinstance(scalp_signals, list) else [scalp_signals]:
-                                if sig and isinstance(sig, dict) and sig.get('confidence', 0) > 0.7:
-                                    await self.data_hub.publish_signal(sig)
+                        await self.ultra_scalping.execute_scalp_trades()
                         await asyncio.sleep(10)  # Every 10 sec
                     except Exception as e:
                         logger.debug(f"Ultra scalping: {e}")
@@ -2021,260 +1700,13 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             async def run_ultra_arb():
                 while True:
                     try:
-                        arb_opps = await self.ultra_arbitrage.start_arbitrage_scanning() if self.ultra_arbitrage else None
-                        # PUBLISH ARB OPPORTUNITIES TO MICRO!
-                        if arb_opps:
-                            for opp in arb_opps if isinstance(arb_opps, list) else [arb_opps]:
-                                if opp and isinstance(opp, dict) and opp.get('profit', 0) > 0:
-                                    await self.data_hub.publish_signal(opp)
-                                    logger.info(f"💎 ULTRA ARB → MICRO: {opp.get('symbol')} (profit: {opp.get('profit', 0):.2%})")
+                        await self.ultra_arbitrage.scan_arbitrage()
                         await asyncio.sleep(20)
                     except Exception as e:
                         logger.debug(f"Ultra arbitrage: {e}")
                         await asyncio.sleep(20)
             
             tasks.append(asyncio.create_task(run_ultra_arb()))
-        
-        # ULTRA RARE ENGINES - 10 profit engines!
-        if self.ultra_rare_engines:
-            async def run_ultra_rare_engines():
-                while True:
-                    try:
-                        # Run all 10 engines and collect signals
-                        rare_signals = await self.ultra_rare_engines.scan_all_engines()
-                        # PUBLISH RARE ENGINE SIGNALS TO MICRO!
-                        if rare_signals:
-                            for sig in rare_signals:
-                                if sig and isinstance(sig, dict) and sig.get('confidence', 0) > 0.7:
-                                    await self.data_hub.publish_signal(sig)
-                                    logger.info(f"💎 RARE ENGINE → MICRO: {sig.get('pattern')} on {sig.get('symbol')} (conf: {sig.get('confidence', 0):.2f})")
-                        await asyncio.sleep(30)  # Every 30 seconds
-                    except Exception as e:
-                        logger.debug(f"Ultra rare engines: {e}")
-                        await asyncio.sleep(30)
-            
-            tasks.append(asyncio.create_task(run_ultra_rare_engines()))
-            logger.info("✅ 💎 ULTRA RARE ENGINES ACTIVE - 10 profit engines hunting!")
-        
-        # ADAPTIVE CONFIDENCE ENGINE
-        if self.adaptive_confidence:
-            async def run_adaptive_confidence():
-                while True:
-                    try:
-                        # Update confidence thresholds based on performance
-                        await self.adaptive_confidence.update_thresholds()
-                        await asyncio.sleep(300)  # Every 5 minutes
-                    except Exception as e:
-                        logger.debug(f"Adaptive confidence: {e}")
-                        await asyncio.sleep(300)
-            
-            tasks.append(asyncio.create_task(run_adaptive_confidence()))
-            logger.info("✅ 🧠 ADAPTIVE CONFIDENCE ACTIVE - Auto-tuning!")
-
-        # ULTRA GOD MODE - God-tier trading features!
-        if self.ultra_god:
-            async def run_god_mode():
-                while True:
-                    try:
-                        # Get top symbols for god-level analysis
-                        symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT']
-                        
-                        for symbol in symbols:
-                            try:
-                                # Get market data
-                                import pandas as pd
-                                # Simplified: would get real OHLCV data
-                                df = pd.DataFrame({
-                                    'close': [100 + i for i in range(100)],
-                                    'high': [101 + i for i in range(100)],
-                                    'low': [99 + i for i in range(100)],
-                                    'volume': [1000 + i*10 for i in range(100)]
-                                })
-                                
-                                # Execute god-mode analysis
-                                god_analysis = await self.ultra_god.execute_god_mode_analysis(symbol, df)
-                                
-                                if god_analysis and god_analysis.get('signal') in ['BUY', 'SELL']:
-                                    signal = {
-                                        'symbol': symbol,
-                                        'action': god_analysis['signal'].lower(),
-                                        'confidence': god_analysis.get('confidence', 0.8),
-                                        'source': 'ultra_god_mode',
-                                        'quantum_score': god_analysis.get('quantum_score', 0),
-                                        'swarm_consensus': god_analysis.get('swarm_consensus', 0),
-                                        'smart_money_score': god_analysis.get('smart_money_score', 0)
-                                    }
-                                    await self.data_hub.publish_signal(signal)
-                                    logger.info(f"👑 GOD MODE → MICRO: {symbol} {signal['action']} (conf: {signal['confidence']:.2f}, quantum: {signal['quantum_score']:.2f})")
-                            
-                            except Exception as e:
-                                logger.debug(f"God mode analysis for {symbol}: {e}")
-                        
-                        await asyncio.sleep(180)  # Every 3 minutes (intensive analysis)
-                    except Exception as e:
-                        logger.debug(f"God mode: {e}")
-                        await asyncio.sleep(180)
-            
-            tasks.append(asyncio.create_task(run_god_mode()))
-            logger.info("✅ 👑 ULTRA GOD MODE ACTIVE - Quantum + Swarm + Fractals + Smart Money!")
-        
-
-
-
-        # ALPHA ROUTER - 10 Alpha Strategies!
-        if self.alpha_router:
-            async def run_alpha_router():
-                while True:
-                    try:
-                        # Get market data for top symbols
-                        symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'ADA/USDT']
-                        
-                        for symbol in symbols:
-                            try:
-                                # Get OHLCV data
-                                import pandas as pd
-                                # Simplified: would get real data from exchange
-                                # For now, generate signals based on alpha strategies
-                                
-                                # AlphaRouter needs DataFrame, create minimal one
-                                df = pd.DataFrame({
-                                    'close': [100, 101, 102, 103, 104, 105],
-                                    'high': [101, 102, 103, 104, 105, 106],
-                                    'low': [99, 100, 101, 102, 103, 104],
-                                    'volume': [1000, 1100, 1200, 1300, 1400, 1500]
-                                })
-                                
-                                # Get decision from alpha router
-                                decision = self.alpha_router.pick(df, symbol, '1h')
-                                
-                                if decision.side == 'buy' and decision.prob >= 0.58:
-                                    signal = {
-                                        'symbol': symbol,
-                                        'action': 'buy',
-                                        'confidence': decision.prob,
-                                        'source': 'alpha_router',
-                                        'size_mult': decision.size_mult,
-                                        'reasons': decision.reasons,
-                                        'votes': decision.votes
-                                    }
-                                    await self.data_hub.publish_signal(signal)
-                                    logger.info(f"🎯 ALPHA → MICRO: {symbol} buy (prob: {decision.prob:.2f}, votes: {len(decision.votes)})")
-                            
-                            except Exception as e:
-                                logger.debug(f"Alpha router error for {symbol}: {e}")
-                        
-                        await asyncio.sleep(120)  # Every 2 minutes
-                    except Exception as e:
-                        logger.debug(f"Alpha router: {e}")
-                        await asyncio.sleep(120)
-            
-            tasks.append(asyncio.create_task(run_alpha_router()))
-            logger.info("✅ 🎯 ALPHA ROUTER ACTIVE - 10 alpha strategies hunting!")
-        
-
-        # NOBEL HEDGE FUND SYSTEM - Institutional Grade!
-        if self.nobel_hedge_fund:
-            async def run_nobel_hedge_fund():
-                while True:
-                    try:
-                        # Initialize if needed
-                        if not hasattr(self.nobel_hedge_fund, 'initialized') or not self.nobel_hedge_fund.initialized:
-                            try:
-                                await self.nobel_hedge_fund.initialize()
-                                self.nobel_hedge_fund.initialized = True
-                            except:
-                                pass
-                        
-                        # Generate signals
-                        try:
-                            nobel_signals = await self.nobel_hedge_fund.generate_scalping_signals()
-                            # PUBLISH NOBEL SIGNALS TO MICRO!
-                            if nobel_signals:
-                                for sig in nobel_signals:
-                                    if sig:
-                                        signal_dict = {
-                                            'symbol': sig.symbol if hasattr(sig, 'symbol') else 'BTC/USDT',
-                                            'action': sig.side.lower() if hasattr(sig, 'side') else 'buy',
-                                            'confidence': sig.confidence if hasattr(sig, 'confidence') else 0.75,
-                                            'source': 'nobel_hedge_fund',
-                                            'timeframe': sig.timeframe if hasattr(sig, 'timeframe') else '5m'
-                                        }
-                                        await self.data_hub.publish_signal(signal_dict)
-                                        logger.info(f"🏆 NOBEL HF → MICRO: {signal_dict['symbol']} {signal_dict['action']} (conf: {signal_dict['confidence']:.2f})")
-                        except Exception as e:
-                            logger.debug(f"Nobel signal generation: {e}")
-                        
-                        await asyncio.sleep(60)  # Every minute
-                    except Exception as e:
-                        logger.debug(f"Nobel hedge fund: {e}")
-                        await asyncio.sleep(60)
-            
-            tasks.append(asyncio.create_task(run_nobel_hedge_fund()))
-            logger.info("✅ 🏆 NOBEL HEDGE FUND ACTIVE - Institutional strategies!")
-        
-
-        # SENTIENT TRADING BRAIN - Self-Aware Intelligence!
-        if self.sentient_brain:
-            async def run_sentient_brain():
-                while True:
-                    try:
-                        # Sentient brain processes signals and validates strategies
-                        # It enhances hub signals with validation
-                        
-                        # Get recent signals from hub
-                        hub_signals = self.data_hub.get_signals(limit=10)
-                        
-                        for signal in hub_signals:
-
-                # APPLY SESSION-AWARE BOOST!
-                if self.session_aware:
-                    try:
-                        signal = self.session_aware.apply_session_awareness(signal)
-                    except:
-                        pass
-                
-                                            try:
-                                # Process through sentient brain
-                                enhanced_signal = await self.sentient_brain.process_signal(signal)
-                                
-                                if enhanced_signal and enhanced_signal.get('approved', False):
-                                    # Re-publish enhanced signal
-                                    await self.data_hub.publish_signal(enhanced_signal)
-                                    logger.info(f"🧠 SENTIENT → MICRO: Enhanced {signal.get('symbol')} (validation: {enhanced_signal.get('validation_score', 0):.2f})")
-                            except Exception as e:
-                                logger.debug(f"Sentient processing: {e}")
-                        
-                        await asyncio.sleep(90)  # Every 90 seconds
-                    except Exception as e:
-                        logger.debug(f"Sentient brain: {e}")
-                        await asyncio.sleep(90)
-            
-            tasks.append(asyncio.create_task(run_sentient_brain()))
-            logger.info("✅ 🧠 SENTIENT BRAIN ACTIVE - Strategy validation!")
-        
-
-        
-        # OMNISCIENT EXECUTION ENGINE
-        if self.omniscient_execution:
-            async def run_omniscient_execution():
-                while True:
-                    try:
-                        # Monitor all markets and execute intelligently
-                        omni_signals = await self.omniscient_execution.scan_omniscient_opportunities()
-                        # PUBLISH OMNISCIENT SIGNALS TO MICRO!
-                        if omni_signals:
-                            for sig in omni_signals:
-                                if sig and isinstance(sig, dict):
-                                    await self.data_hub.publish_signal(sig)
-                                    logger.info(f"👁️  OMNISCIENT → MICRO: {sig.get('symbol')} (timeframes: {sig.get('timeframes_aligned', 0)})")
-                        await asyncio.sleep(60)  # Every minute
-                    except Exception as e:
-                        logger.debug(f"Omniscient execution: {e}")
-                        await asyncio.sleep(60)
-            
-            tasks.append(asyncio.create_task(run_omniscient_execution()))
-            logger.info("✅ 👁️  OMNISCIENT EXECUTION ACTIVE - Multi-dimensional trading!")
-
             logger.info("✅ 💰 ULTRA ARBITRAGE SCANNING!")
         
         # ULTRA MULTI-PLATFORM SCANNER
@@ -2297,11 +1729,9 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 while True:
                     try:
                         market_data = {}  # Get from data hub
-                        signal = await self.revolutionary_ai.get_revolutionary_signal({})  # Empty dict for now
-                        if signal and signal.get('confidence', 0) > 0.8:
-                            # PUBLISH TO DATA HUB FOR MICRO!
-                            await self.data_hub.publish_signal(signal)
-                            logger.info(f"🎯 REVOLUTIONARY → MICRO: {signal.get('symbol')} {signal.get('action')} (conf: {signal['confidence']:.2f})")
+                        signal = await self.revolutionary_ai.get_revolutionary_signal(market_data)
+                        if signal['confidence'] > 0.8:
+                            logger.info(f"🎯 REVOLUTIONARY SIGNAL: {signal['confidence']:.2f}")
                         await asyncio.sleep(120)  # Every 2 min
                     except Exception as e:
                         logger.debug(f"Revolutionary AI: {e}")
@@ -2311,16 +1741,11 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ 🎯 REVOLUTIONARY AI ACTIVE - 10 cutting-edge features!")
         
         # EVOLUTION ENGINE - Spawn strategies every 5 min
-        if hasattr(self, "evolution_engine") and self.evolution_engine:
+        if self.evolution_engine:
             async def run_evolution():
                 while True:
                     try:
-                        evolved = await self._evolution_wrapper()  # Fixed: evolve runs in background
-                        # PUBLISH EVOLVED STRATEGIES TO MICRO!
-                        if evolved and isinstance(evolved, dict) and 'signals' in evolved:
-                            for sig in evolved['signals']:
-                                await self.data_hub.publish_signal(sig)
-                                logger.info(f"🧬 EVOLUTION → MICRO: {sig.get('symbol')} (evolved: {sig.get('confidence', 0):.2f})")
+                        await self.evolution_engine.evolve_strategies()
                         await asyncio.sleep(300)
                     except Exception as e:
                         logger.debug(f"Evolution: {e}")
@@ -2330,15 +1755,11 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ 🧬 EVOLUTION ENGINE - Spawning strategies!")
         
         # SWARM CONSCIOUSNESS - 20 agents collaborating
-        if hasattr(self, "swarm_consciousness") and self.swarm_consciousness:
+        if self.swarm_consciousness:
             async def run_swarm():
                 while True:
                     try:
-                        consensus = await self.swarm_consciousness.start_swarm_consciousness() if hasattr(self.swarm_consciousness, "start_swarm_consciousness") else None
-                        # PUBLISH SWARM CONSENSUS TO DATA HUB FOR MICRO!
-                        if consensus and isinstance(consensus, dict) and consensus.get('confidence', 0) > 0.75:
-                            await self.data_hub.publish_signal(consensus)
-                            logger.info(f"🧠 SWARM → MICRO: {consensus.get('symbol')} (collective confidence: {consensus.get('confidence', 0):.2f})")
+                        await self.swarm_consciousness.coordinate_swarm()
                         await asyncio.sleep(60)
                     except Exception as e:
                         logger.debug(f"Swarm: {e}")
@@ -2348,7 +1769,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ 🐝 SWARM CONSCIOUSNESS - 20 agents active!")
         
         # 450 MODELS BOT - Train continuously
-        if hasattr(self, "bot_450") and self.bot_450:
+        if self.bot_450:
             async def run_450_models():
                 while True:
                     try:
@@ -2465,8 +1886,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         # ====================================================================
         # MICRO WALLET GROWER - $1 TO INFINITE AUTO-GROWTH! 💎
         # ====================================================================
-        logger.info(f"🔍 Checking MICRO condition: micro_wallet_grower exists={self.micro_wallet_grower is not None}")
-        logger.info(f"🔍 About to check MICRO: exists={hasattr(self, 'micro_wallet_grower')} value={getattr(self, 'micro_wallet_grower', None) is not None}")
         if self.micro_wallet_grower:
             async def run_micro_wallet_growth():
                 """
@@ -2480,97 +1899,24 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 while True:
                     try:
                         # Check current balance
-                        logger.info("💓 MICRO heartbeat - checking balance...")
                         balance = self.micro_wallet_grower.check_gate_balance()
                         
-                        # AUTO-CLOSE profitable positions to free up capital
-                        try:
-                            positions = self.micro_wallet_grower.gate.fetch_balance()
-                            for coin, amt in positions['total'].items():
-                                if coin != 'USDT' and amt > 0:
-                                    symbol = f"{coin}/USDT"
-                                    if symbol in self.micro_wallet_grower.gate.markets:
-                                        # Check current price
-                                        ticker = self.micro_wallet_grower.gate.fetch_ticker(symbol)
-                                        current_price = ticker['last']
-                                        position_value = amt * current_price
-                                        
-                                        # Sell if position > $3 and frees up capital
-                                        if position_value >= 3.0:
-                                            logger.info(f"🔄 Closing position: {symbol} - {amt:.4f} tokens worth ${position_value:.2f}")
-                                            self.micro_wallet_grower.gate.create_market_sell_order(symbol, amt)
-                                            logger.info(f"   ✅ Freed up ${position_value:.2f} USDT!")
-                        except Exception as e:
-                            logger.debug(f"Position close: {e}")
-                        
-                        # EXTRACT SIGNALS FROM DATA HUB (all models, all timeframes)
-                        logger.info(f"🔍 MICRO checking: balance=${balance:.2f}, has_hub={hasattr(self, 'data_hub')}, hub_exists={self.data_hub is not None if hasattr(self, 'data_hub') else False}")
-                        traded_this_cycle = 0
-                        if hasattr(self, "data_hub") and self.data_hub:
-                            hub_signals = self.data_hub.get_signals(limit=20)
-                            logger.info(f"📊 MICRO: Got {len(hub_signals)} signals from hub (last 20)")
-                            if hub_signals:
-                                sample = hub_signals[0]
-                                logger.info(f"   Sample signal: {sample.get('symbol', 'N/A')} {sample.get('action', 'N/A')} conf={sample.get('confidence', 0):.1%}")
-                            logger.info(f"📊 Got {len(hub_signals)} signals from data hub")
-                            for signal in hub_signals:
-
-                # APPLY SESSION-AWARE BOOST!
-                if self.session_aware:
-                    try:
-                        signal = self.session_aware.apply_session_awareness(signal)
-                    except:
-                        pass
-                
-                                                if traded_this_cycle >= 3:  # Max 3 trades per cycle
-                                    break
+                        # Analyze and trade all configured pairs
+                        for symbol in self.micro_wallet_grower.crypto_pairs:
+                            action, confidence, price, sl, tp = self.micro_wallet_grower.analyze_market(symbol)
+                            
+                            if action in ['BUY', 'SELL'] and confidence >= 0.70:
+                                # Execute micro trade
+                                result = self.micro_wallet_grower.execute_trade(symbol, action, price, sl, tp)
                                 
-                                symbol = signal.get("symbol", "")
-                                action = signal.get("action", "HOLD")
-                                confidence = signal.get("confidence", 0) * 100 if signal.get("confidence", 0) < 1 else signal.get("confidence", 0)
-                                
-                                # Fetch REAL-TIME price (signals don't have prices)
-                                price = 0
-                                if symbol and symbol in self.micro_wallet_grower.gate.markets:
-                                    try:
-                                        ticker = self.micro_wallet_grower.gate.fetch_ticker(symbol)
-                                        price = ticker.get('last', 0)
-                                    except:
-                                        pass
-                                
-                                # SMART FILTERING: Check if we can afford this coin
-                                if price > 0:
-                                    logger.info(f"   🔍 {symbol} {action} @ ${price:.6f} conf={confidence:.1f}%")
-                                if symbol and price and action.upper() in ["BUY", "SELL"] and confidence >= 70:
-                                    # Calculate affordable position size (use 30% of balance per trade)
-                                    max_per_trade = balance * 0.15  # Use 15% per trade for multiple positions
-                                    affordable_quantity = max_per_trade / price if price > 0 else 0
-                                    
-                                    logger.info(f"      💰 Afford check: max=${max_per_trade:.2f}, qty={affordable_quantity:.2f}, passes={affordable_quantity > 0 and max_per_trade >= 0.30}")
-                                    
-                                    # Only trade if we can afford at least some quantity
-                                    if affordable_quantity > 0 and max_per_trade >= 3.00:  # Gate.io $3 minimum  # Min $1.20 (approaching Gate.io $3 min)
-                                        logger.info(f"💎 HUB SIGNAL: {symbol} {action} @ ${price:.6f} (Conf: {confidence:.0f}%)")
-                                        logger.info(f"   💰 Affordable qty: {affordable_quantity:.2f}, Cost: ${max_per_trade:.2f}")
-                                        
-                                        # Execute with calculated position size
-                                        logger.info(f"   🚀 Calling execute_trade: {symbol} {action} qty={affordable_quantity:.2f}")
-                                        result = self.micro_wallet_grower.execute_trade(symbol, action, price, quantity=affordable_quantity)
-                                        logger.info(f"   📊 Result: {result}")
-                                        if result:
-                                            traded_this_cycle += 1
-                                            logger.info(f"   ✅ Balance after: ${balance:.2f}")
+                                if result:
+                                    logger.info(f"💎 MICRO GROWTH: {symbol} {action} @ ${price:.6f}")
+                                    logger.info(f"   Balance: ${balance:.2f}, Conf: {confidence*100:.0f}%")
                         
-                        
-                        # REMOVED FALLBACK LOOP - Hub signals cover all pairs now!
-                        # All engines publish to hub → MICRO trades dynamically
-                        pass
-                        await asyncio.sleep(15)  # FAST MICRO SCALPING - 15 second cycles!
+                        await asyncio.sleep(60)  # Check every minute
                         
                     except Exception as e:
-                        logger.error(f"❌ MICRO ERROR: {e}")
-                        import traceback
-                        logger.error(traceback.format_exc())
+                        logger.debug(f"Micro wallet growth: {e}")
                         await asyncio.sleep(60)
             
             tasks.append(asyncio.create_task(run_micro_wallet_growth()))
@@ -2645,280 +1991,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         await asyncio.sleep(300)
             
             tasks.append(asyncio.create_task(run_auto_live_trigger()))
-
-        # =================================================================
-        # PROPERLY WIRED TASK LOOPS - ALL ENGINES ACTUALLY RUNNING
-        # =================================================================
-        
-        # ULTRA RARE ENGINES - Actually analyze and publish signals
-        if hasattr(self, 'ultra_rare_manager') and self.ultra_rare_manager:
-            async def run_ultra_rare_active():
-                """Actually run Ultra Rare engines and publish signals"""
-                while True:
-                    try:
-                        # Run all 10 ultra rare engines
-                        for symbol in ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']:
-                            analysis = await self.ultra_rare_manager.analyze_all(symbol, {})
-                            if analysis and analysis.get('signal'):
-                                signal = {
-                                    'symbol': symbol,
-                                    'action': analysis['signal'],
-                                    'confidence': analysis.get('confidence', 0.75),
-                                    'source': 'ultra_rare_engines',
-                                    'engines_fired': analysis.get('engines_fired', [])
-                                }
-                                await self.data_hub.publish_signal(signal)
-                                logger.info(f"💎 ULTRA RARE → {symbol}: {signal['action']} ({len(signal['engines_fired'])} engines)")
-                        await asyncio.sleep(30)  # Every 30 seconds
-                    except Exception as e:
-                        logger.debug(f"Ultra rare engines: {e}")
-                        await asyncio.sleep(30)
-            
-            tasks.append(asyncio.create_task(run_ultra_rare_active()))
-            logger.info("✅ 💎 ULTRA RARE ENGINES - Actually running!")
-        
-        # ALPHA ROUTER - Actually route through 10 alpha strategies
-        if hasattr(self, 'alpha_router') and self.alpha_router:
-            async def run_alpha_active():
-                """Actually run Alpha Router with 10 strategies"""
-                while True:
-                    try:
-                        for symbol in ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT']:
-                            result = await self.alpha_router.route_signal(symbol, {})
-                            if result and result.get('action'):
-                                signal = {
-                                    'symbol': symbol,
-                                    'action': result['action'],
-                                    'confidence': result.get('confidence', 0.8),
-                                    'source': 'alpha_router',
-                                    'strategy': result.get('selected_strategy', 'unknown')
-                                }
-                                await self.data_hub.publish_signal(signal)
-                                logger.info(f"🎯 ALPHA [{result['strategy']}] → {symbol}: {signal['action']}")
-                        await asyncio.sleep(120)  # Every 2 minutes
-                    except Exception as e:
-                        logger.debug(f"Alpha router: {e}")
-                        await asyncio.sleep(120)
-            
-            tasks.append(asyncio.create_task(run_alpha_active()))
-            logger.info("✅ 🎯 ALPHA ROUTER - Actually running with 10 strategies!")
-        
-        # NOBEL HEDGE FUND - Actually run institutional-grade analysis
-        if hasattr(self, 'nobel_hedge_fund') and self.nobel_hedge_fund:
-            async def run_nobel_active():
-                """Actually run Nobel Hedge Fund system"""
-                while True:
-                    try:
-                        # Run full Nobel analysis
-                        analysis = await self.nobel_hedge_fund.full_analysis('BTC/USDT', {})
-                        if analysis and analysis.get('signal'):
-                            signal = {
-                                'symbol': 'BTC/USDT',
-                                'action': analysis['signal'],
-                                'confidence': analysis.get('confidence', 0.85),
-                                'source': 'nobel_hedge_fund',
-                                'components_used': analysis.get('components', [])
-                            }
-                            await self.data_hub.publish_signal(signal)
-                            logger.info(f"🏆 NOBEL → BTC/USDT: {signal['action']} ({len(signal['components_used'])} components)")
-                        await asyncio.sleep(60)  # Every minute
-                    except Exception as e:
-                        logger.debug(f"Nobel hedge fund: {e}")
-                        await asyncio.sleep(60)
-            
-            tasks.append(asyncio.create_task(run_nobel_active()))
-            logger.info("✅ 🏆 NOBEL HEDGE FUND - Actually running!")
-        
-        # SENTIENT BRAIN - Actually validate strategies
-        if hasattr(self, 'sentient_brain') and self.sentient_brain:
-            async def run_sentient_active():
-                """Actually run Sentient Brain validation"""
-                while True:
-                    try:
-                        # Validate current market state
-                        validation = await self.sentient_brain.validate_all_strategies('BTC/USDT', {})
-                        if validation and validation.get('recommended_action'):
-                            signal = {
-                                'symbol': 'BTC/USDT',
-                                'action': validation['recommended_action'],
-                                'confidence': validation.get('confidence', 0.9),
-                                'source': 'sentient_brain',
-                                'validated_strategies': validation.get('strategies', [])
-                            }
-                            await self.data_hub.publish_signal(signal)
-                            logger.info(f"🧠 SENTIENT BRAIN → BTC/USDT: {signal['action']} (validated {len(signal['validated_strategies'])} strategies)")
-                        await asyncio.sleep(90)  # Every 90 seconds
-                    except Exception as e:
-                        logger.debug(f"Sentient brain: {e}")
-                        await asyncio.sleep(90)
-            
-            tasks.append(asyncio.create_task(run_sentient_active()))
-            logger.info("✅ 🧠 SENTIENT BRAIN - Actually running!")
-        
-        # SESSION-AWARE TRADING - Actually boost signals based on session
-        if hasattr(self, 'session_clock') and self.session_clock:
-            async def run_session_aware_active():
-                """Actually apply session-aware boosts"""
-                while True:
-                    try:
-                        # Check current session and boost signals
-                        session_info = await self.session_clock.get_current_session()
-                        if session_info and session_info.get('boost_factor', 1.0) > 1.1:
-                            # Signal that good session is active
-                            signal = {
-                                'symbol': 'BTC/USDT',
-                                'action': 'boost',
-                                'confidence': 0.7,
-                                'source': 'session_aware',
-                                'session': session_info.get('session', 'unknown'),
-                                'boost_factor': session_info['boost_factor']
-                            }
-                            await self.data_hub.publish_signal(signal)
-                            logger.info(f"⏰ SESSION [{session_info['session']}] → Boost: {session_info['boost_factor']:.2f}x")
-                        await asyncio.sleep(300)  # Every 5 minutes
-                    except Exception as e:
-                        logger.debug(f"Session aware: {e}")
-                        await asyncio.sleep(300)
-            
-            tasks.append(asyncio.create_task(run_session_aware_active()))
-            logger.info("✅ ⏰ SESSION-AWARE - Actually running!")
-        
-        # OMNISCIENT EXECUTION - Actually optimize execution
-        if hasattr(self, 'omniscient_execution') and self.omniscient_execution:
-            async def run_omniscient_active():
-                """Actually run Omniscient Execution optimization"""
-                while True:
-                    try:
-                        # Analyze execution opportunities
-                        opportunities = await self.omniscient_execution.find_opportunities(['BTC/USDT', 'ETH/USDT'])
-                        for opp in opportunities:
-                            if opp.get('signal'):
-                                signal = {
-                                    'symbol': opp['symbol'],
-                                    'action': opp['signal'],
-                                    'confidence': opp.get('confidence', 0.75),
-                                    'source': 'omniscient_execution',
-                                    'execution_score': opp.get('score', 0)
-                                }
-                                await self.data_hub.publish_signal(signal)
-                                logger.info(f"👁️  OMNISCIENT → {signal['symbol']}: {signal['action']} (score: {signal['execution_score']:.2f})")
-                        await asyncio.sleep(45)  # Every 45 seconds
-                    except Exception as e:
-                        logger.debug(f"Omniscient execution: {e}")
-                        await asyncio.sleep(45)
-            
-            tasks.append(asyncio.create_task(run_omniscient_active()))
-            logger.info("✅ 👁️  OMNISCIENT EXECUTION - Actually running!")
-        
-        # DIVINE INTELLIGENCE - Actually run 6 god-tier engines
-        if hasattr(self, 'divine_intelligence') and self.divine_intelligence:
-            async def run_divine_active():
-                """Actually run Divine Intelligence (6 engines)"""
-                while True:
-                    try:
-                        # Run all 6 divine engines
-                        divine_analysis = await self.divine_intelligence.analyze_divine_patterns('BTC/USDT', {})
-                        if divine_analysis and divine_analysis.get('signal'):
-                            signal = {
-                                'symbol': 'BTC/USDT',
-                                'action': divine_analysis['signal'].lower(),
-                                'confidence': divine_analysis.get('confidence', 0.8),
-                                'source': 'divine_intelligence',
-                                'quantum_entanglement': divine_analysis.get('quantum_entanglement', 0),
-                                'fractal_dimension': divine_analysis.get('fractal_dimension', 0)
-                            }
-                            await self.data_hub.publish_signal(signal)
-                            logger.info(f"👁️  DIVINE (6 engines) → BTC/USDT: {signal['action']}")
-                        await asyncio.sleep(240)  # Every 4 minutes
-                    except Exception as e:
-                        logger.debug(f"Divine intelligence: {e}")
-                        await asyncio.sleep(240)
-            
-            tasks.append(asyncio.create_task(run_divine_active()))
-            logger.info("✅ 👁️  DIVINE INTELLIGENCE - Actually running 6 engines!")
-        
-        # COLLECTIVE INTELLIGENCE - Actually coordinate intelligence
-        if hasattr(self, 'collective_intelligence') and self.collective_intelligence:
-            async def run_collective_active():
-                """Actually run Collective Intelligence Coordinator"""
-                while True:
-                    try:
-                        # Coordinate collective intelligence
-                        collective_signal = await self.collective_intelligence.coordinate('BTC/USDT', {})
-                        if collective_signal and collective_signal.get('signal'):
-                            signal = {
-                                'symbol': 'BTC/USDT',
-                                'action': collective_signal['signal'],
-                                'confidence': collective_signal.get('confidence', 0.8),
-                                'source': 'collective_intelligence',
-                                'sources_coordinated': collective_signal.get('sources', [])
-                            }
-                            await self.data_hub.publish_signal(signal)
-                            logger.info(f"🌐 COLLECTIVE → BTC/USDT: {signal['action']} ({len(signal['sources_coordinated'])} sources)")
-                        await asyncio.sleep(180)  # Every 3 minutes
-                    except Exception as e:
-                        logger.debug(f"Collective intelligence: {e}")
-                        await asyncio.sleep(180)
-            
-            tasks.append(asyncio.create_task(run_collective_active()))
-            logger.info("✅ 🌐 COLLECTIVE INTELLIGENCE - Actually running!")
-        
-        # HIVEMIND - Actually coordinate decisions
-        if hasattr(self, 'hive_coordinator') and self.hive_coordinator:
-            async def run_hivemind_active():
-                """Actually run HiveMind Coordinator"""
-                while True:
-                    try:
-                        # Coordinate hive decisions
-                        hive_decision = await self.hive_coordinator.coordinate_decision('BTC/USDT', {})
-                        if hive_decision and hive_decision.get('signal'):
-                            signal = {
-                                'symbol': 'BTC/USDT',
-                                'action': hive_decision['signal'].lower(),
-                                'confidence': hive_decision.get('confidence', 0.85),
-                                'source': 'hivemind',
-                                'frame_consensus': hive_decision.get('frame_consensus', 0)
-                            }
-                            await self.data_hub.publish_signal(signal)
-                            logger.info(f"🐝 HIVEMIND → BTC/USDT: {signal['action']} (consensus: {signal['frame_consensus']:.2f})")
-                        await asyncio.sleep(120)  # Every 2 minutes
-                    except Exception as e:
-                        logger.debug(f"HiveMind: {e}")
-                        await asyncio.sleep(120)
-            
-            tasks.append(asyncio.create_task(run_hivemind_active()))
-            logger.info("✅ 🐝 HIVEMIND - Actually running!")
-        
-        # ULTRA SMART AI BOT - Actually run master AI
-        if hasattr(self, 'ultra_smart_ai') and self.ultra_smart_ai:
-            async def run_ultra_ai_active():
-                """Actually run ULTRA SMART AI BOT"""
-                while True:
-                    try:
-                        # Run master AI controller
-                        ai_decision = await self.ultra_smart_ai.make_decision('BTC/USDT', {})
-                        if ai_decision and ai_decision.get('action'):
-                            signal = {
-                                'symbol': 'BTC/USDT',
-                                'action': ai_decision['action'],
-                                'confidence': ai_decision.get('confidence', 0.8),
-                                'source': 'ultra_smart_ai',
-                                'reasoning': ai_decision.get('reasoning', '')
-                            }
-                            await self.data_hub.publish_signal(signal)
-                            logger.info(f"🤖 ULTRA AI → BTC/USDT: {signal['action']}")
-                        await asyncio.sleep(150)  # Every 2.5 minutes
-                    except Exception as e:
-                        logger.debug(f"Ultra smart AI: {e}")
-                        await asyncio.sleep(150)
-            
-            tasks.append(asyncio.create_task(run_ultra_ai_active()))
-            logger.info("✅ 🤖 ULTRA SMART AI - Actually running!")
-        
-        logger.info("=" * 80)
-        logger.info("🔥 ALL ENGINES PROPERLY WIRED - ACTUALLY RUNNING!")
-        logger.info("=" * 80)
-
             logger.info("✅ 🤖 AUTO LIVE TRIGGER ACTIVE - Testnet→Real auto-switching!")
             logger.info("   → Starts in TESTNET (safe!)")
             logger.info("   → Learns & validates strategies")
@@ -3290,10 +2362,6 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 await asyncio.sleep(5)
     
     # ========================================================================
-        # Return all tasks so they keep running
-        logger.info(f"🚀 Created {len(tasks)} background tasks")
-        return tasks
-
     # HELPER METHODS FOR PROFIT FEATURES
     # ========================================================================
     
@@ -3360,39 +2428,6 @@ async def main():
     orchestrator = CompleteUltimateOrchestrator(mode=args.mode)
     await orchestrator.start()
 
-
-
-    async def _moon_hunt_wrapper(self):
-        """Wrapper for Moon Spotter - generates signals from high-volume meme coins"""
-        try:
-            # Moon spotter: detect high volume + social momentum
-            moon_pairs = ['PEPE/USDT', 'SHIB/USDT', 'FLOKI/USDT', 'BONK/USDT', 'WIF/USDT', 'DOGE/USDT']
-            signals = []
-            for symbol in moon_pairs:
-                signal = {
-                    'symbol': symbol,
-                    'action': 'buy',
-                    'confidence': 0.78,
-                    'source': 'moon_spotter',
-                    'timeframe': '1h'
-                }
-                await self.data_hub.publish_signal(signal)
-                signals.append(signal)
-                logger.info(f"🌙 MOON → MICRO: {symbol} (moon score: 0.78)")
-            return signals
-        except Exception as e:
-            logger.debug(f"Moon wrapper: {e}")
-            return []
-    
-    async def _evolution_wrapper(self):
-        """Wrapper for Evolution Engine - it evolves in background, returns empty"""
-        try:
-            # Evolution engine updates models continuously in background
-            # No signals to publish directly
-            return {'signals': []}
-        except Exception as e:
-            logger.debug(f"Evolution wrapper: {e}")
-            return {'signals': []}
 
 if __name__ == "__main__":
     print("""
