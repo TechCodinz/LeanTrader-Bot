@@ -327,7 +327,12 @@ from november_growth_strategy import NovemberGrowthStrategy
 # STEADY PROFIT & ADVANCED EXECUTION SYSTEMS (10 MORE!)
 # ============================================================================
 from STEADY_PROFIT_EXTRACTOR import SteadyProfitExtractor
-from FINAL_PROFIT_OPTIMIZATION import ProfitOptimizer
+try:
+    from FINAL_PROFIT_OPTIMIZATION import ProfitOptimizer
+    PROFIT_OPTIMIZER_AVAILABLE = True
+except ImportError:
+    PROFIT_OPTIMIZER_AVAILABLE = False
+    logger.debug("FINAL_PROFIT_OPTIMIZATION not available")
 from allocators.sizing import vol_scaled_weights, apply_exposure_caps
 from allocators.portfolio import Portfolio
 from execution_adv import LimitMakerExecutor, place_market, safe_create_order
