@@ -15,6 +15,7 @@ def test_paper_ledger_persists_and_accounts_for_costs(tmp_path):
     restored = PaperLedger(path, 999.0)
     event = restored.sell("BTC/USDT", 110.0, fee_bps=10.0, slippage_bps=5.0, reason="test")
     assert event["realized_pnl"] > 0
+    assert event["realized_return"] == pytest.approx(event["realized_pnl"] / 5.005)
     assert restored.cash > 50.0
 
 

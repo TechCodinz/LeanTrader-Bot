@@ -28,4 +28,8 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
+    assert result["runtime"] == "verified-adaptive-v2"
+    assert set(result["engines"]) == {"market_data", "paper_ledger", "adaptive_intelligence"}
+    assert all(engine["healthy"] for engine in result["engines"].values())
+    assert result["decisions"]["BTC/USDT"]["quality_score"] == 1.0
     assert settings.heartbeat_path.exists()

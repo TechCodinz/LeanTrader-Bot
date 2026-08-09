@@ -6,12 +6,12 @@ Run this on your VPS: 75.119.149.117
 
 import os
 import subprocess
-import sys
+
 
 def run_command(cmd):
     """Run a shell command"""
     print(f"Running: {cmd}")
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         print(f"Error: {result.stderr}")
         return False
@@ -21,7 +21,7 @@ def run_command(cmd):
 def main():
     print("🚀 Setting up Professional Bybit Trading Bot")
     print("=" * 50)
-    
+
     # Create main bot file
     print("📝 Creating main.py...")
     main_py = '''#!/usr/bin/env python3
@@ -225,19 +225,18 @@ if __name__ == "__main__":
         logger.error(f"Bot crashed: {e}")
         sys.exit(1)
 '''
-    
+
     with open('main.py', 'w') as f:
         f.write(main_py)
-    
+
     # Create src directory and __init__.py
     os.makedirs('src', exist_ok=True)
     with open('src/__init__.py', 'w') as f:
         f.write('# Trading Bot Package\n')
-    
+
     print("✅ Basic bot structure created")
     print("🎯 Bot ready to run with: python main.py")
     print("📊 Dashboard will be available at: http://75.119.149.117:8501")
 
 if __name__ == "__main__":
     main()
-'''

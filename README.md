@@ -6,9 +6,11 @@ It does not promise profits and the supported runner cannot submit real exchange
 
 ## Current status
 
-- Supported: Bybit-compatible public OHLCV data through CCXT, EMA/Bollinger breakout signals, ATR stops, paper ledger persistence, simulated fees/slippage, daily-loss and drawdown halts, heartbeat health checks, Docker deployment, and blocking CI.
+- Supported: Bybit-compatible public OHLCV data through CCXT; strict candle validation; deterministic trend, momentum, and mean-reversion ensemble signals; measured market-regime detection; bounded evidence-gated weight adaptation; ATR stops; paper ledger persistence; simulated fees/slippage; daily-loss and drawdown halts; per-engine lifecycle/circuit breakers; explainable heartbeat decisions; Docker deployment; and blocking CI.
 - Not approved for real funds: live order execution, exchange reconciliation, restart-safe live order state, native exchange stops, or verified multi-week strategy performance.
 - Legacy: the repository still contains older research scripts and duplicated experimental systems. They are not part of the VPS image or supported release.
+
+The supported intelligence can adapt only after closed paper trades, moves weights slowly, and keeps every component between 10% and 70%. It cannot rewrite code, deploy itself, enable live trading, or bypass risk limits. See `ENGINE_AUDIT.md` for the branch-by-branch audit and supported-engine boundary.
 
 ## Local preflight
 

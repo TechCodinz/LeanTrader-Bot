@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +14,8 @@ class Position:
     entry_price: float
     peak_price: float
     atr: float
+    entry_fee: float = 0.0
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class PaperLedger:
@@ -96,6 +98,7 @@ class PaperLedger:
         atr: float,
         fee_bps: float,
         slippage_bps: float,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if symbol in self.positions:
             raise ValueError(f"position already open for {symbol}")
@@ -106,10 +109,19 @@ class PaperLedger:
             raise ValueError("insufficient paper cash")
         quantity = notional / fill
         self.cash -= total
-        self.positions[symbol] = Position(quantity=quantity, entry_price=fill, peak_price=fill, atr=atr)
+        self.positions[symbol] = Position(
+            quantity=quantity,
+            entry_price=fill,
+            peak_price=fill,
+            atr=atr,
+            entry_fee=fee,
+            metadata=dict(metadata or {}),
+        )
         self.trade_count += 1
         self.save()
-        return self._event("buy", symbol, quantity, fill, fee, "signal")
+        event = self._event("buy", symbol, quantity, fill, fee, "signal")
+        event["position_metadata"] = self.positions[symbol].metadata
+        return event
 
     def sell(
         self, symbol: str, market_price: float, fee_bps: float, slippage_bps: float, reason: str
@@ -118,7 +130,7 @@ class PaperLedger:
         fill = market_price * (1 - slippage_bps / 10_000)
         gross = position.quantity * fill
         fee = gross * fee_bps / 10_000
-        cost_basis = position.quantity * position.entry_price
+        cost_basis = position.quantity * position.entry_price + position.entry_fee
         pnl = gross - fee - cost_basis
         self.cash += gross - fee
         self.realized_pnl += pnl
@@ -126,6 +138,8 @@ class PaperLedger:
         self.save()
         event = self._event("sell", symbol, position.quantity, fill, fee, reason)
         event["realized_pnl"] = pnl
+        event["realized_return"] = pnl / max(cost_basis, 1e-9)
+        event["position_metadata"] = position.metadata
         return event
 
     def update_peak(self, symbol: str, price: float, atr: float) -> None:
@@ -133,6 +147,15 @@ class PaperLedger:
         position.peak_price = max(position.peak_price, price)
         if atr > 0:
             position.atr = atr
+
+    def health(self) -> dict[str, Any]:
+        return {
+            "persistent": True,
+            "state_path": str(self.path),
+            "open_positions": len(self.positions),
+            "trade_count": self.trade_count,
+            "halt_reason": self.halt_reason,
+        }
 
     @staticmethod
     def _event(side: str, symbol: str, quantity: float, price: float, fee: float, reason: str) -> dict[str, Any]:

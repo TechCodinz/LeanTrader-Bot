@@ -50,8 +50,13 @@ class Settings:
     atr_stop_multiple: float
     atr_trail_multiple: float
     state_path: Path
+    intelligence_state_path: Path
     heartbeat_path: Path
     log_path: Path
+    learning_rate: float
+    learning_min_samples: int
+    engine_failure_threshold: int
+    engine_recovery_seconds: float
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -90,8 +95,13 @@ class Settings:
             atr_stop_multiple=_float("ATR_STOP_MULT", 1.5),
             atr_trail_multiple=_float("ATR_TRAIL_MULT", 2.0),
             state_path=Path(os.getenv("PAPER_STATE_PATH", "runtime/vps_paper_state.json")),
+            intelligence_state_path=Path(os.getenv("INTELLIGENCE_STATE_PATH", "runtime/vps_intelligence_state.json")),
             heartbeat_path=Path(os.getenv("HEARTBEAT_PATH", "runtime/vps_heartbeat.json")),
             log_path=Path(os.getenv("TRADES_LOG_PATH", "logs/vps_trades.jsonl")),
+            learning_rate=_float("ADAPTIVE_LEARNING_RATE", 0.08),
+            learning_min_samples=_int("ADAPTIVE_MIN_SAMPLES", 5),
+            engine_failure_threshold=_int("ENGINE_FAILURE_THRESHOLD", 3),
+            engine_recovery_seconds=_float("ENGINE_RECOVERY_SECONDS", 60.0),
         )
         settings.validate()
         return settings
@@ -114,3 +124,9 @@ class Settings:
                 raise ValueError(f"{name} must be between 0 and 1")
         if self.fee_bps < 0 or self.slippage_bps < 0:
             raise ValueError("fee and slippage cannot be negative")
+        if not 0 < self.learning_rate <= 0.25:
+            raise ValueError("ADAPTIVE_LEARNING_RATE must be in (0, 0.25]")
+        if self.learning_min_samples < 3:
+            raise ValueError("ADAPTIVE_MIN_SAMPLES must be at least 3")
+        if self.engine_failure_threshold < 1 or self.engine_recovery_seconds < 0:
+            raise ValueError("invalid engine circuit-breaker configuration")
