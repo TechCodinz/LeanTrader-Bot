@@ -4,9 +4,8 @@ import base64
 import io
 import json
 import os
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
 from pathlib import Path
+from typing import Any
 
 
 def _ensure_dir(path: str) -> None:
@@ -15,7 +14,7 @@ def _ensure_dir(path: str) -> None:
         os.makedirs(d, exist_ok=True)
 
 
-def _render_chart_base64(pnl_q: List[float] | None, pnl_c: List[float] | None, solve_hist: List[float] | None) -> str:
+def _render_chart_base64(pnl_q: list[float] | None, pnl_c: list[float] | None, solve_hist: list[float] | None) -> str:
     """Render a simple chart (PNG) as base64 using plotly if available, else matplotlib.
 
     Returns a data URI string (image/png;base64, ...). If plotting not available, return empty string.
@@ -68,20 +67,20 @@ def _render_chart_base64(pnl_q: List[float] | None, pnl_c: List[float] | None, s
 
 def build_report_payload(
     date: str,
-    allocs: List[Any],
-    pnl_q: List[float] | float,
-    pnl_c: List[float] | float,
+    allocs: list[Any],
+    pnl_q: list[float] | float,
+    pnl_c: list[float] | float,
     var: float,
     cvar: float,
-    solve_histogram: List[float] | None,
+    solve_histogram: list[float] | None,
     fallbacks: int | None,
     notes: str | None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Assemble a normalized payload for rendering.
 
     pnl_q/pnl_c can be list (series) or single float for latest; we normalize to series in 'series' and include totals.
     """
-    def _to_series(x) -> List[float]:
+    def _to_series(x) -> list[float]:
         if x is None:
             return []
         if isinstance(x, (int, float)):
@@ -98,7 +97,7 @@ def build_report_payload(
     chart_uri = _render_chart_base64(ser_q, ser_c, solve_histogram or [])
     # Scan explanations for the date (best-effort)
     expl_dir = os.getenv("EXPL_DIR", os.path.join("out", "explanations"))
-    expl_list: List[str] = []
+    expl_list: list[str] = []
     try:
         d = Path(expl_dir) / date
         if d.exists():
@@ -107,7 +106,7 @@ def build_report_payload(
         expl_list = []
 
     # Try to load attribution summary for this date
-    attribution: Dict[str, Any] | None = None
+    attribution: dict[str, Any] | None = None
     try:
         from analytics.attribution import load_daily_attribution  # type: ignore
 
@@ -119,6 +118,7 @@ def build_report_payload(
     scenario_stress = None
     try:
         import json as _json
+
         from research.macro.simulator import run_scenarios  # type: ignore
 
         scen_path = os.path.join("reports", "scenario_input.json")
@@ -154,7 +154,7 @@ def build_report_payload(
     }
 
 
-def render_html(payload: Dict[str, Any]) -> str:
+def render_html(payload: dict[str, Any]) -> str:
     """Render payload to HTML using templates/report.html.j2 (fallback inline if missing)."""
     tmpl_path = os.path.join("templates", "report.html.j2")
     try:
@@ -168,6 +168,12 @@ def render_html(payload: Dict[str, Any]) -> str:
         pass
 
     # Fallback minimal HTML
+    report_date = payload.get("date", "")
+    explanation_items = "".join(
+        f'<li><a href="out/explanations/{report_date}/{filename}">{filename}</a></li>'
+        for filename in payload.get("explanations", [])
+    )
+    explanations_html = f"<ul>{explanation_items}</ul>" if explanation_items else "<i>No trade explanations found</i>"
     return f"""
 <!DOCTYPE html>
 <html><head><meta charset='utf-8'><title>Daily Report</title>
@@ -190,7 +196,7 @@ def render_html(payload: Dict[str, Any]) -> str:
   <h3>Notes</h3>
   <pre>{payload.get('notes','')}</pre>
   <h3>Trade Explanations</h3>
-  {('<ul>' + ''.join([f'<li><a href="out/explanations/{payload.get('date','')}/{fn}">{fn}</a></li>' for fn in payload.get('explanations', [])]) + '</ul>') if payload.get('explanations') else '<i>No trade explanations found</i>'}
+  {explanations_html}
   <h3>Attribution</h3>
   {('<b>Total PnL:</b> ' + str(payload.get('attribution',{}).get('total_pnl','')) + '<br/>'
     + '<b>Top Contributors:</b><ul>' + ''.join([f"<li>{k}: {v:.6f}</li>" for k,v in (payload.get('attribution',{}).get('top_contributors',[]) or [])]) + '</ul>'

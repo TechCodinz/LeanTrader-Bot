@@ -41,6 +41,10 @@ openai = ["openai"]
 optuna = ["optuna"]
 xgboost = ["xgboost"]
 
+[project.scripts]
+leantrader-paper = "leantrader.production.runner:main"
+leantrader-health = "leantrader.production.healthcheck:main"
+
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"

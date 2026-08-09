@@ -1,0 +1,74 @@
+# LeanTrader verified capability ledger
+
+This ledger prevents a named engine from being mistaken for a working capability. A capability is complete only when it has deterministic logic, explicit inputs and outputs, tests, lifecycle health, and a declared authority level.
+
+Canonical runtime release: `verified-multi-engine-v3`.
+
+## Canonical runtime authority
+
+- **Trade authority:** adaptive ensemble and capital/risk governors only, paper mode only.
+- **Shadow authority:** advanced, forecasting, scanner, memory, arbitrage, quantum, and experimental engines may observe and score but cannot place orders.
+- **Operations authority:** provenance and outbound Telegram alerts; no inbound commands.
+- **Live authority:** none. All live flags are rejected during startup.
+
+## Previous names mapped to real responsibilities
+
+| Previous engine or request | Canonical verified responsibility | Runtime status |
+|---|---|---|
+| Central nervous system / unified runner / ultra launcher | Dependency-aware registry, startup rollback, reverse shutdown, circuit breakers, health manifest | Active |
+| Divine intelligence | Deterministic decision synthesis, rationale, provenance fingerprint | Active; no random or spiritual signals |
+| Brain / Awareness / GloAware | Data quality, regime, multi-timeframe, sessions, news context, capital state | Active |
+| Hivemind / swarm consciousness | Confidence-weighted consensus with disagreement penalty | Shadow |
+| Photographic memory / pattern memory | Outcome-labelled nearest-pattern retrieval with persistent evidence | Shadow learning |
+| Frequency / harmonics / ultrasonic | Detrended FFT cycle measurement and concentration | Shadow |
+| Fluid mechanics | Observed order-book pressure, spread, impact and safe quantity | Shadow |
+| Dynamic scanner / Ultra Scout | Cross-sectional price, volume, liquidity and volatility anomaly ranking | Shadow |
+| Moon spotter / hype radar | Measured anomaly ranking; no invented tokens or opportunities | Shadow |
+| Smart scalping | EMA/RSI/volume signal with spread penalty | Shadow |
+| Main technical/microstructure indicators | Deterministic MACD, ADX, Stochastic, OBV and liquidity-sweep confirmation | Shadow |
+| Hedge-fund arsenal | Portfolio correlation, concentration, VaR and deterministic stress scenarios | Active risk observation |
+| Evolution engine | Bounded adaptive weights plus champion/challenger promotion and rollback | Adaptive weights active; model promotion offline |
+| Ultra ML pipeline | Cost-aware gradient-boosting walk-forward forecaster and calibration | Offline/shadow |
+| Kronos | Validated external predictor adapter; unavailable is reported explicitly until configured | Adapter complete; model not bundled |
+| Optuna | Seeded offline optimizer; unavailable is explicit when optional dependency is absent | Offline adapter |
+| IBM / ultra quantum | Candidate optimizer benchmarked against a classical baseline | Benchmark only |
+| Arbitrage engine | Observed cross-venue bid/ask spreads net of fees and slippage | Shadow, no execution |
+| Ultra Forex Master | XAUUSD/EURUSD normalization, pip/session and risk-unit calculations for Oanda/MT5 formats | Shadow; no broker orders |
+| Ultra business system | Win rate, profit factor and expectancy from realized paper events | Monitoring only |
+| News intelligence | Local auditable event state, decayed sentiment and high-impact blackout | Shadow gate |
+| Telegram notifier | Outbound paper event/halt alerts only | Optional |
+| Prometheus/Grafana monitoring | Atomic Prometheus textfile metrics from canonical heartbeat fields | Active monitoring |
+
+## Core trading capabilities
+
+| Capability | Status |
+|---|---|
+| EMA 50/200 trend | Active |
+| Bollinger squeeze breakout | Restored and active as an ensemble component |
+| Momentum and mean reversion | Active |
+| ATR risk sizing | Active, bounded by order and position caps |
+| ATR fixed and trailing stops | Active |
+| Partial take-profit and final take-profit | Active in paper ledger |
+| Paper OCO behavior | Active: any terminal exit removes the remaining position |
+| Controlled multi-entry / scale-in | Active with entry and confidence caps |
+| 1h/4h confirmation | Active and configurable |
+| FX session gate | Active; crypto remains 24/7 |
+| Fees and slippage | Active and included in realized P&L |
+| Daily loss and account drawdown halt | Active |
+| Normal / defensive / recovery / halt states | Active with recovery hysteresis |
+
+## Research and promotion gates
+
+| Gate | Requirement |
+|---|---|
+| Causal replay | Evaluator sees no future candle |
+| Walk-forward | Ordered train/test windows, explicit costs, and a canonical 30-day/7-day schedule |
+| Calibration | Brier score and expected calibration error |
+| Drift | Feature distribution shift measured before promotion |
+| Challenger promotion | Minimum evidence, return advantage, drawdown and calibration limits |
+| Rollback | Previous champion is retained and recoverable |
+| Quantum/Kronos/Optuna | Never treated as available or superior without a configured provider and benchmark evidence |
+
+## Required before live trading
+
+The code now includes reconciliation analysis and execution-reality simulation, but live orders remain intentionally absent. A future live release still requires broker-specific idempotent order IDs, authenticated reconciliation, native stop verification, restart recovery against real open orders, partial-fill event ingestion, rate-limit testing, and a separately approved capital gate.

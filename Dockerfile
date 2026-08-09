@@ -1,17 +1,24 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS runtime
 
-ENV PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/src
 
 WORKDIR /app
-COPY . /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+RUN groupadd --gid 10001 leantrader \
+    && useradd --uid 10001 --gid leantrader --no-create-home --shell /usr/sbin/nologin leantrader
 
-RUN python -m pip install --upgrade pip \
- && pip install -r requirements.txt || true \
- && pip install feedparser python-dotenv ccxt aiohttp web3 python-telegram-bot matplotlib scikit-learn nltk vaderSentiment || true
+COPY requirements.runtime.txt ./
+RUN pip install --no-cache-dir --requirement requirements.runtime.txt
 
-CMD ["python", "/app/ultra_launcher.py", "--mode", "paper", "--god-mode", "--moon-spotter", "--evolution", "--forex"]
+COPY src ./src
+RUN mkdir -p /app/runtime /app/logs \
+    && chown -R leantrader:leantrader /app/runtime /app/logs
+
+USER 10001:10001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+    CMD ["python", "-m", "leantrader.production.healthcheck"]
+
+CMD ["python", "-m", "leantrader.production.runner"]

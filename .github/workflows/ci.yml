@@ -1,13 +1,11 @@
-name: CI
+name: LeanTrader supported release
 
 on:
   push:
-    branches: [ main, master, 'feature/**' ]
   pull_request:
-    branches: [ main, master ]
 
 jobs:
-  test:
+  supported-paper-runtime:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,37 +16,39 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install supported runtime and test dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            python -m pip install -r requirements.txt
-          fi
-          python -m pip install pytest
+          python -m pip install -r requirements.runtime.txt pytest
 
-      - name: Lint (flake8)
-        run: |
-          python -m pip install flake8
-          python -m flake8 --max-line-length=120 || true
+      - name: Compile supported package
+        run: python -m compileall -q src/leantrader/production
 
-      - name: Import smoke
+      - name: Reject unsafe configuration
         env:
           ENABLE_LIVE: 'false'
+          ALLOW_LIVE: 'false'
+          LIVE_CONFIRM: 'NO'
+          TRADING_MODE: 'paper'
+          PYTHONPATH: src
         run: |
-          python - << 'PY'
-          try:
-              import importlib
-              importlib.import_module('router')
-              print('router import OK')
-          except Exception as e:
-              print('router import FAILED:', e)
-              raise
-          PY
+          python -m leantrader.production.runner --preflight
+          if ENABLE_LIVE=true python -m leantrader.production.runner --preflight; then
+            echo "unsafe live configuration was accepted"
+            exit 1
+          fi
 
-      - name: Run tests (if any)
+      - name: Run supported release tests
         env:
           ENABLE_LIVE: 'false'
-        run: |
-          if [ -d tests ]; then
-            pytest -q || true
-          fi
+          ALLOW_LIVE: 'false'
+          LIVE_CONFIRM: 'NO'
+          TRADING_MODE: 'paper'
+          PYTHONPATH: src
+        run: python -m pytest -q tests/test_production_*.py
+
+      - name: Validate Compose
+        run: docker compose config --quiet
+
+      - name: Build container
+        run: docker build --tag leantrader-paper:test .

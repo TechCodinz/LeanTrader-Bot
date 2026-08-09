@@ -1,7 +1,5 @@
 Paper run harness
 
-Quantum runtime connectivity: see README_QUANTUM.md
-
 Use `tools/paper_run.py` to run the bot in paper/dry-run mode for smoke testing.
 
 Examples (PowerShell):

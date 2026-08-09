@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from web3.guards import estimate_price_impact, is_safe_gas, token_safety_checks, is_safe_price_impact
+from web3_local.guards import estimate_price_impact, is_safe_gas, token_safety_checks, is_safe_price_impact
 
 
 def test_price_impact_calc():
@@ -30,5 +30,4 @@ def test_token_safety_flags_block():
     }
     res = token_safety_checks(meta)
     assert res["ok"] is False
-    assert any("flag:owner_can_mint" in r or "liquidity_usd_lt_min" in r for r in res["reasons"])  
-
+    assert any("flag:owner_can_mint" in r or "liquidity_usd_lt_min" in r for r in res["reasons"])

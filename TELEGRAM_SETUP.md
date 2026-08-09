@@ -31,7 +31,7 @@
 ```json
 {
   "telegram": {
-    "bot_token": "YOUR_BOT_TOKEN_HERE",
+    "bot_token": "REVOKED_DO_NOT_USE",
     "channel_id": "@ultra_signals",
     "vip_channel_id": "@ultra_vip"
   }

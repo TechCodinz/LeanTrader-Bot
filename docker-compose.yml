@@ -1,34 +1,51 @@
 services:
-  metrics:
-    image: python:3.11-slim
-    working_dir: /app
+  leantrader:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: leantrader-paper:local
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
     volumes:
-      - ./:/app
-    command: >-
-      bash -lc "pip install -r requirements.txt || pip install --no-cache-dir fastapi uvicorn prometheus_client &&
-      python -m observability.http_metrics --host 0.0.0.0 --port 8000"
-    ports:
-      - "8000:8000"
-
-  prometheus:
-    image: prom/prometheus:latest
-    volumes:
-      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./infra/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
-    ports:
-      - "9090:9090"
-    depends_on:
-      - metrics
-
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "${GRAFANA_HOST_PORT:-3001}:3000"
+      - ./runtime:/app/runtime
+      - ./logs:/app/logs
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
-    volumes:
-      - ./infra/grafana/provisioning:/etc/grafana/provisioning
-      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards
-      - ./infra/grafana/provisioning/alerting:/etc/grafana/provisioning/alerting
+      TRADING_MODE: paper
+      ENABLE_LIVE: "false"
+      ALLOW_LIVE: "false"
+      LIVE_CONFIRM: "NO"
+      DATA_EXCHANGE: ${DATA_EXCHANGE:-bybit}
+      PAPER_SYMBOLS: ${PAPER_SYMBOLS:-BTC/USDT,ETH/USDT,SOL/USDT}
+      PAPER_TIMEFRAME: ${PAPER_TIMEFRAME:-15m}
+      PAPER_CANDLE_LIMIT: ${PAPER_CANDLE_LIMIT:-320}
+      POLL_INTERVAL: ${POLL_INTERVAL:-60}
+      PAPER_START_CASH: ${PAPER_START_CASH:-50}
+      PAPER_ORDER_USD: ${PAPER_ORDER_USD:-2}
+      MAX_OPEN_POSITIONS: ${MAX_OPEN_POSITIONS:-2}
+      MAX_POSITION_PCT: ${MAX_POSITION_PCT:-0.10}
+      MAX_DAILY_LOSS_PCT: ${MAX_DAILY_LOSS_PCT:-0.02}
+      MAX_DRAWDOWN_PCT: ${MAX_DRAWDOWN_PCT:-0.10}
+      PAPER_FEE_BPS: ${PAPER_FEE_BPS:-10}
+      PAPER_SLIPPAGE_BPS: ${PAPER_SLIPPAGE_BPS:-5}
+      ATR_STOP_MULT: ${ATR_STOP_MULT:-1.5}
+      ATR_TRAIL_MULT: ${ATR_TRAIL_MULT:-2.0}
+      HEARTBEAT_MAX_AGE: ${HEARTBEAT_MAX_AGE:-180}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
