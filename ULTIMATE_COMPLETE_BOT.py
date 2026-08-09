@@ -416,7 +416,7 @@ class UltimateCompleteTradingBot:
         """Send Telegram message"""
         try:
             from telegram import Bot
-            bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+            bot = Bot(token="YOUR_TELEGRAM_BOT_TOKEN")
             await bot.send_message(chat_id=self.channels[channel], text=message)
             logger.info(f"📱 Message sent to {channel}")
         except Exception as e:

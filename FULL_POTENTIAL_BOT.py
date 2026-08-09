@@ -30,8 +30,8 @@ class FullPotentialTradingBot:
         
         # Bybit configuration
         self.bybit = ccxt.bybit({
-            'apiKey': 'g1mhPqKrOBp9rnqb4G',
-            'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+            'apiKey': 'REVOKED_DO_NOT_USE',
+            'secret': 'REVOKED_DO_NOT_USE',
             'sandbox': True,
             'testnet': True,
         })
@@ -222,7 +222,7 @@ class FullPotentialTradingBot:
         """Send Telegram message"""
         try:
             from telegram import Bot
-            bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+            bot = Bot(token="YOUR_TELEGRAM_BOT_TOKEN")
             await bot.send_message(chat_id=self.channels[channel], text=message)
             logger.info(f"📱 Message sent to {channel}")
         except Exception as e:

@@ -2,6 +2,10 @@ venv/
 .venv/
 # Local environment variables
 .env
+.env.*
+!.env.example
+!.env.template
+!.env.production.example
 # Python artifacts
 __pycache__/
 *.pyc
@@ -11,6 +15,20 @@ build/
 dist/
 *.egg-info/
 runtime/
+logs/
+reports/*.jsonl
+*.bak
+*.log
+*.db
+*.sqlite*
+*.zip
+*.tar
+*.tar.gz
+*_out.txt
+flake_output.txt
+checks_output.json
+scan_full.json
+strategy_scan.json
 tools/*.txt
 tools/*_out.txt
 *.pkl

@@ -3,8 +3,8 @@ import ccxt
 
 # Check actual Gate.io balance
 gate_config = {
-    'apiKey': 'a0508d8aadf3bcb76e16f4373e1f3a76',
-    'secret': '451770a07dbede1b87bb92f5ce98e24029d2fe91e0053be2ec41771c953113f9',
+    'apiKey': 'REVOKED_DO_NOT_USE',
+    'secret': 'REVOKED_DO_NOT_USE',
     'sandbox': False,
     'enableRateLimit': True
 }

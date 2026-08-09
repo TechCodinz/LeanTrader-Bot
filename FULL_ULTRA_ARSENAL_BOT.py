@@ -23,7 +23,7 @@ warnings.filterwarnings('ignore')
 class FULL_ULTRA_ARSENAL_BOT:
     def __init__(self):
         # TELEGRAM CONFIGURATION
-        self.telegram_bot_token = "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
+        self.telegram_bot_token = "REVOKED_DO_NOT_USE"
         self.admin_chat_id = "5329503447"
         self.vip_chat_id = "-1002983007302"
         self.free_chat_id = "-1002930953007"
@@ -31,44 +31,44 @@ class FULL_ULTRA_ARSENAL_BOT:
         # ALL EXCHANGE CONFIGURATIONS - FULL ARSENAL
         self.exchange_configs = {
             'gate': {
-                'apiKey': 'a0508d8aadf3bcb76e16f4373e1f3a76',
-                'secret': '451770a07dbede1b87bb92f5ce98e24029d2fe91e0053be2ec41771c953113f9',
+                'apiKey': 'REVOKED_DO_NOT_USE',
+                'secret': 'REVOKED_DO_NOT_USE',
                 'sandbox': False,
                 'enableRateLimit': True
             },
             'bybit': {
-                'apiKey': 'fX0py6Av5dFPmCPOMX',
-                'secret': 'P9lkTCsxMWhmnqmCeoZzjll0kR2Db7ykgek0',
+                'apiKey': 'REVOKED_DO_NOT_USE',
+                'secret': 'REVOKED_DO_NOT_USE',
                 'sandbox': False,
                 'enableRateLimit': True
             },
             'mexc': {
-                'apiKey': 'mx0vgl7ytNbnU44V5G',
-                'secret': '68562da9963e4666a32a4a73cda61062',
+                'apiKey': 'REVOKED_DO_NOT_USE',
+                'secret': 'REVOKED_DO_NOT_USE',
                 'sandbox': False,
                 'enableRateLimit': True
             },
             'bitget': {
-                'apiKey': 'bg_a76be18966412e3f95b11eac379edf91',
-                'secret': '7507beac89f798ea88f469747e5c8fd0094fc3c3887afc671c777380d9c95cff',
+                'apiKey': 'REVOKED_DO_NOT_USE',
+                'secret': 'REVOKED_DO_NOT_USE',
                 'sandbox': False,
                 'enableRateLimit': True
             },
             'binance': {
-                'apiKey': 'uxMw38StLFlWpqzi9OpFMMj4H7m3dWy8jnR2EAl2raL0n465jtxnlK9S2CYBflyf',
-                'secret': 'k6dCSRQfCiNYHn3PjWtORNUKP69EvnbyAHmEIio9my8qRBHbzNHbXdWV2HilzRrO',
+                'apiKey': 'REVOKED_DO_NOT_USE',
+                'secret': 'REVOKED_DO_NOT_USE',
                 'sandbox': False,
                 'enableRateLimit': True
             },
             'okx': {
-                'apiKey': '9b6e8a19-5a9c-44ca-942f-e98cc36d0354',
-                'secret': 'A59EF8A73CC7462F9B2C20FECB4C6723',
+                'apiKey': 'REVOKED_DO_NOT_USE',
+                'secret': 'REVOKED_DO_NOT_USE',
                 'sandbox': False,
                 'enableRateLimit': True
             },
             'kucoin': {
-                'apiKey': '68d494bd54d53500017383ed',
-                'secret': 'e25a93de-01c1-4d4a-8d70-cc33c47d89ab',
+                'apiKey': 'REVOKED_DO_NOT_USE',
+                'secret': 'REVOKED_DO_NOT_USE',
                 'sandbox': False,
                 'enableRateLimit': True
             }

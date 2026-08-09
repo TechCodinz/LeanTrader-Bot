@@ -40,8 +40,8 @@ class LivePriceProfessionalBot:
         
         # Bybit Testnet Configuration
         self.bybit_config = {
-            'api_key': 'g1mhPqKrOBp9rnqb4G',
-            'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+            'api_key': 'REVOKED_DO_NOT_USE',
+            'secret': 'REVOKED_DO_NOT_USE',
             'sandbox': True,
             'testnet': True
         }
@@ -55,7 +55,7 @@ class LivePriceProfessionalBot:
         self.initialize_exchanges()
         
         # Telegram Bot Configuration
-        self.telegram_bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+        self.telegram_bot = Bot(token="YOUR_TELEGRAM_BOT_TOKEN")
         
         # Channel IDs
         self.channels = {

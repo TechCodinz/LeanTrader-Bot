@@ -87,8 +87,8 @@ class LearntraderBot:
         try:
             # Initialize Bybit (Crypto)
             self.exchanges['bybit'] = ccxt.bybit({
-                'apiKey': 'g1mhPqKrOBp9rnqb4G',
-                'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+                'apiKey': 'REVOKED_DO_NOT_USE',
+                'secret': 'REVOKED_DO_NOT_USE',
                 'sandbox': True,
                 'enableRateLimit': True,
             })

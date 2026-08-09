@@ -23,8 +23,8 @@ class AutoTradingBot:
         
         # Bybit configuration with REAL trading enabled
         self.bybit = ccxt.bybit({
-            'apiKey': 'g1mhPqKrOBp9rnqb4G',
-            'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+            'apiKey': 'REVOKED_DO_NOT_USE',
+            'secret': 'REVOKED_DO_NOT_USE',
             'sandbox': True,
             'testnet': True,
             'enableRateLimit': True,
@@ -153,7 +153,7 @@ class AutoTradingBot:
     async def send_telegram(self, message, channel):
         """Send Telegram message"""
         try:
-            bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+            bot = Bot(token="YOUR_TELEGRAM_BOT_TOKEN")
             await bot.send_message(chat_id=self.channels[channel], text=message)
             logger.info(f"📱 Message sent to {channel}")
         except Exception as e:
@@ -162,7 +162,7 @@ class AutoTradingBot:
     async def send_telegram_with_buttons(self, message, channel, symbol, signal_data):
         """Send Telegram message with trading buttons"""
         try:
-            bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+            bot = Bot(token="YOUR_TELEGRAM_BOT_TOKEN")
             
             # Create inline keyboard with trading buttons
             keyboard = []

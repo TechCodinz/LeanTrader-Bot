@@ -91,16 +91,16 @@ Edit `api_config.json`:
   "exchanges": {
     "binance": {
       "enabled": true,
-      "api_key": "your_binance_api_key",
-      "secret": "your_binance_secret",
+      "api_key": "REVOKED_DO_NOT_USE",
+      "secret": "REVOKED_DO_NOT_USE",
       "sandbox": true,
       "markets": ["BTC/USDT", "ETH/USDT", "BNB/USDT"]
     },
     "coinbase": {
       "enabled": true,
-      "api_key": "your_coinbase_api_key",
-      "secret": "your_coinbase_secret",
-      "passphrase": "your_coinbase_passphrase",
+      "api_key": "REVOKED_DO_NOT_USE",
+      "secret": "REVOKED_DO_NOT_USE",
+      "passphrase": "REVOKED_DO_NOT_USE",
       "sandbox": true,
       "markets": ["BTC/USDT", "ETH/USDT", "ADA/USDT"]
     }

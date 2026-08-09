@@ -200,7 +200,7 @@ class WorkingTelegramBot:
     def telegram_demo_mode(self):
         """Setup demo Telegram mode"""
         # You can replace these with your actual bot token and chat ID
-        bot_token = "YOUR_BOT_TOKEN_HERE"  # Replace with your actual bot token
+        bot_token = "REVOKED_DO_NOT_USE"  # Replace with your actual bot token
         chat_id = "YOUR_CHAT_ID_HERE"      # Replace with your actual chat ID
         
         if bot_token != "YOUR_BOT_TOKEN_HERE" and chat_id != "YOUR_CHAT_ID_HERE":

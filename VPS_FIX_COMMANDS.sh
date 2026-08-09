@@ -25,15 +25,15 @@ from bs4 import BeautifulSoup
 class GATE_PROFIT_BOT:
     def __init__(self):
         # TELEGRAM CONFIGURATION
-        self.telegram_bot_token = "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
+        self.telegram_bot_token = "REVOKED_DO_NOT_USE"
         self.admin_chat_id = "5329503447"
         self.vip_chat_id = "-1002983007302"
         self.free_chat_id = "-1002930953007"
         
         # GATE.IO API CONFIGURATION (REAL TRADING)
         self.gate_config = {
-            'apiKey': 'a0508d8aadf3bcb76e16f4373e1f3a76',
-            'secret': '451770a07dbede1b87bb92f5ce98e24029d2fe91e0053be2ec41771c953113f9',
+            'apiKey': 'REVOKED_DO_NOT_USE',
+            'secret': 'REVOKED_DO_NOT_USE',
             'sandbox': False,  # REAL TRADING
             'enableRateLimit': True
         }

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
-
 import numpy as np
 
 
@@ -61,19 +59,16 @@ def vol_scaled_weights(
                 break
 
     # Optional risk scaling (keep L1 normalization for allocation semantics)
-    try:
-        port_var = float(w @ Sig @ w)
-        if port_var > 1e-12 and target_vol > 0:
-            s = float(target_vol / np.sqrt(port_var))
-            w = _l1_normalize(w * s)
-    except Exception:
-        pass
+    port_var = float(w @ Sig @ w)
+    if port_var > 1e-12 and target_vol > 0:
+        s = float(target_vol / np.sqrt(port_var))
+        w = _l1_normalize(w * s)
     return w
 
 
 def apply_exposure_caps(
     w: np.ndarray,
-    sector_map: Optional[Dict[int, str]] = None,
+    sector_map: dict[int, str] | None = None,
     sector_cap: float = 0.30,
 ) -> np.ndarray:
     """Cap total exposure per sector; renormalize to sum 1.
@@ -87,30 +82,39 @@ def apply_exposure_caps(
     for i, s in sector_map.items():
         if 0 <= i < w.shape[0]:
             sectors.setdefault(s, []).append(i)
-    out = w.copy()
+    out = _l1_normalize(w.copy())
     sector_cap = float(max(0.0, min(1.0, sector_cap)))
 
-    for _ in range(10):
-        changed = False
-        # Scale down overweight sectors
-        for s, idxs in sectors.items():
-            ssum = float(np.sum(out[idxs]))
-            if ssum > sector_cap and ssum > 0:
-                factor = sector_cap / ssum
-                out[idxs] *= factor
-                changed = True
-        # Renormalize
-        out = _l1_normalize(out)
-        # Check again
-        ok = True
-        for s, idxs in sectors.items():
-            if float(np.sum(out[idxs])) > sector_cap + 1e-6:
-                ok = False
-                break
-        if ok and not changed:
+    mapped = {index for indices in sectors.values() for index in indices}
+    if len(mapped) == len(out) and len(sectors) * sector_cap < 1.0 - 1e-12:
+        raise ValueError("sector_cap is infeasible for the number of sectors")
+
+    # Water-fill the remaining allocation after permanently fixing each
+    # overweight sector at its cap. Renormalizing the whole vector after every
+    # cap would make an already-capped sector overweight again.
+    fixed: set[str] = set()
+    for _ in range(len(sectors) + 1):
+        newly_fixed: list[str] = []
+        for sector, indices in sectors.items():
+            if sector in fixed:
+                continue
+            gross = float(np.sum(np.abs(out[indices])))
+            if gross > sector_cap + 1e-12:
+                out[indices] *= sector_cap / gross
+                newly_fixed.append(sector)
+        fixed.update(newly_fixed)
+
+        fixed_indices = {index for sector in fixed for index in sectors[sector]}
+        fixed_gross = float(np.sum(np.abs(out[list(fixed_indices)]))) if fixed_indices else 0.0
+        flexible = [index for index in range(len(out)) if index not in fixed_indices]
+        flexible_gross = float(np.sum(np.abs(out[flexible]))) if flexible else 0.0
+        target = max(0.0, 1.0 - fixed_gross)
+        if flexible_gross > 0:
+            out[flexible] *= target / flexible_gross
+
+        if not newly_fixed:
             break
     return out
 
 
-__all__ = ["vol_scaled_weights", "apply_exposure_caps"]
-
+__all__ = ["apply_exposure_caps", "vol_scaled_weights"]

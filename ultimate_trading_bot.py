@@ -17,8 +17,8 @@ class UltimateTradingBot:
     def __init__(self):
         # Bybit configuration
         self.bybit = ccxt.bybit({
-            'apiKey': 'g1mhPqKrOBp9rnqb4G',
-            'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+            'apiKey': 'REVOKED_DO_NOT_USE',
+            'secret': 'REVOKED_DO_NOT_USE',
             'sandbox': True,
             'testnet': True,
         })
@@ -127,7 +127,7 @@ class UltimateTradingBot:
     async def send_telegram(self, message, channel):
         """Send Telegram message"""
         try:
-            bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+            bot = Bot(token="YOUR_TELEGRAM_BOT_TOKEN")
             await bot.send_message(chat_id=self.channels[channel], text=message)
             logger.info(f"📱 Message sent to {channel}")
         except Exception as e:
@@ -136,7 +136,7 @@ class UltimateTradingBot:
     async def send_telegram_with_buttons(self, message, channel, symbol, signal_data):
         """Send Telegram with trading buttons"""
         try:
-            bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+            bot = Bot(token="YOUR_TELEGRAM_BOT_TOKEN")
             
             if channel == 'vip' and signal_data:
                 keyboard = [
@@ -443,7 +443,7 @@ class UltimateTradingBot:
         logger.info("🚀 STARTING ULTIMATE TRADING BOT!")
         
         # Setup Telegram
-        application = Application.builder().token("8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg").build()
+        application = Application.builder().token("YOUR_TELEGRAM_BOT_TOKEN").build()
         application.add_handler(CallbackQueryHandler(self.handle_callback))
         asyncio.create_task(application.run_polling())
         

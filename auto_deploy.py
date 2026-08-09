@@ -12,12 +12,12 @@ VPS_USER = "root"
 VPS_PASS = "pW65Yg036RettBb7"
 
 # API Keys provided
-TELEGRAM_BOT_TOKEN = "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
+TELEGRAM_BOT_TOKEN = "REVOKED_DO_NOT_USE"
 TG_ADMIN_CHAT_ID = "5329503447"
 TG_FREE_CHAT_ID = "-1002930953007"
 TG_VIP_CHAT_ID = "-1002983007302"
-BYBIT_API_KEY = "g1mhPqKrOBp9rnqb4G"
-BYBIT_API_SECRET = "s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG"
+BYBIT_API_KEY = "REVOKED_DO_NOT_USE"
+BYBIT_API_SECRET = "REVOKED_DO_NOT_USE"
 
 # Read the bot code
 with open('/workspace/ultimate_ultra_plus.py', 'r') as f:
@@ -209,8 +209,8 @@ class BybitTradingBot:
     def __init__(self):
         self.exchange = None
         self.running = False
-        self.api_key = "g1mhPqKrOBp9rnqb4G"
-        self.secret_key = "s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG"
+        self.api_key = "REVOKED_DO_NOT_USE"
+        self.secret_key = "REVOKED_DO_NOT_USE"
         self.sandbox = True
         
     async def initialize(self):
@@ -370,8 +370,8 @@ class BybitTradingBot:
     def __init__(self):
         self.exchange = None
         self.running = False
-        self.api_key = "g1mhPqKrOBp9rnqb4G"
-        self.secret_key = "s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG"
+        self.api_key = "REVOKED_DO_NOT_USE"
+        self.secret_key = "REVOKED_DO_NOT_USE"
         self.sandbox = True
         
     async def initialize(self):

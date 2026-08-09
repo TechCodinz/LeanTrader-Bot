@@ -46,8 +46,8 @@ echo ""
 
 if [ -z "$BYBIT_API_KEY" ] || [ -z "$BYBIT_SECRET_KEY" ]; then
     echo "⚠️ API keys not provided. You can configure them later in the .env file."
-    BYBIT_API_KEY="your_bybit_api_key"
-    BYBIT_SECRET_KEY="your_bybit_secret_key"
+    BYBIT_API_KEY="REVOKED_DO_NOT_USE"
+    BYBIT_SECRET_KEY="REVOKED_DO_NOT_USE"
 fi
 
 # Update .env file on VPS

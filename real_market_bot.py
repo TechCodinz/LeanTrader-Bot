@@ -56,7 +56,7 @@ class RealMarketUltraTradingSystem:
         }
         
         # Telegram Bot Configuration
-        self.telegram_bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+        self.telegram_bot = Bot(token="YOUR_TELEGRAM_BOT_TOKEN")
         
         # Channel IDs
         self.channels = {

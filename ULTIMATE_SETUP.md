@@ -299,8 +299,8 @@ class UltimateLearntraderBot:
         
         # Bybit
         self.exchanges['bybit'] = ccxt.bybit({
-            'apiKey': 'g1mhPqKrOBp9rnqb4G',
-            'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+            'apiKey': 'REVOKED_DO_NOT_USE',
+            'secret': 'REVOKED_DO_NOT_USE',
             'sandbox': True,
             'enableRateLimit': True,
         })
@@ -360,7 +360,7 @@ class UltimateLearntraderBot:
         
         try:
             # Telegram configuration (add your bot token and chat ID)
-            bot_token = "YOUR_TELEGRAM_BOT_TOKEN"  # Replace with your bot token
+            bot_token = "REVOKED_DO_NOT_USE"  # Replace with your bot token
             chat_id = "YOUR_TELEGRAM_CHAT_ID"      # Replace with your chat ID
             
             if bot_token != "YOUR_TELEGRAM_BOT_TOKEN":
@@ -501,7 +501,7 @@ class UltimateLearntraderBot:
             'smtp_server': 'smtp.gmail.com',
             'smtp_port': 587,
             'username': 'your_email@gmail.com',
-            'password': 'your_app_password',
+            'password': 'REVOKED_DO_NOT_USE',
             'recipient': 'your_email@gmail.com'
         }
         

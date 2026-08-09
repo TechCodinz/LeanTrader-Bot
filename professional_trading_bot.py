@@ -53,7 +53,7 @@ class ProfessionalTradingBot:
 
         # Telegram Bot Configuration (using centralized config)
         telegram_config = self.api_config.get('telegram', {})
-        self.telegram_bot = Bot(token=telegram_config.get('bot_token', "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"))
+        self.telegram_bot = Bot(token=telegram_config.get('bot_token', "YOUR_TELEGRAM_BOT_TOKEN"))
 
         # Channel IDs
         self.channels = {
