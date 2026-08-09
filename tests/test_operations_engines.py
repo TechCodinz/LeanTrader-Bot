@@ -12,6 +12,7 @@ from leantrader.production.operations_engines import (
     ExecutionRealityEngine,
     ForexEngine,
     MarketManipulationEngine,
+    PrometheusMetricsEngine,
     ReconciliationEngine,
     StrategyCapacityEngine,
     TelegramAlertEngine,
@@ -90,3 +91,23 @@ def test_provenance_is_stable_and_append_only(tmp_path):
 def test_telegram_is_safely_disabled_without_credentials():
     result = TelegramAlertEngine(token="", chat_id="").send("paper event")
     assert result == {"sent": False, "reason": "telegram not configured"}
+
+
+def test_prometheus_metrics_are_atomic_and_use_canonical_status(tmp_path):
+    path = tmp_path / "leantrader.prom"
+    result = PrometheusMetricsEngine(path).write(
+        {
+            "healthy": True,
+            "equity": 51.5,
+            "cash": 48.0,
+            "realized_pnl": 1.5,
+            "open_positions": ["BTC/USDT"],
+            "errors": {},
+            "halt_reason": None,
+            "engines": {"paper_ledger": {"healthy": True}},
+        }
+    )
+    text = path.read_text()
+    assert result["written"] is True
+    assert "leantrader_equity_usd 51.5" in text
+    assert 'leantrader_engine_healthy{engine="paper_ledger"} 1' in text

@@ -66,6 +66,81 @@ class SmartScalpingEngine:
         return {"deterministic": True, "spread_aware": True}
 
 
+class TechnicalStructureEngine:
+    """Deterministic MACD/ADX/Stochastic/OBV and liquidity-sweep confirmation."""
+
+    VERSION = "1.0"
+
+    def evaluate(self, frame: pd.DataFrame) -> EngineSignal:
+        if len(frame) < 60:
+            raise ValueError("technical structure requires at least 60 candles")
+        close = pd.to_numeric(frame["close"], errors="raise")
+        high = pd.to_numeric(frame["high"], errors="raise")
+        low = pd.to_numeric(frame["low"], errors="raise")
+        volume = pd.to_numeric(frame["volume"], errors="raise")
+
+        previous_close = close.shift(1)
+        true_range = pd.concat(
+            [high - low, (high - previous_close).abs(), (low - previous_close).abs()], axis=1
+        ).max(axis=1)
+        atr = true_range.ewm(alpha=1 / 14, adjust=False).mean()
+        up_move = high.diff()
+        down_move = -low.diff()
+        plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+        minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+        plus_di = 100 * plus_dm.ewm(alpha=1 / 14, adjust=False).mean() / atr.replace(0, np.nan)
+        minus_di = 100 * minus_dm.ewm(alpha=1 / 14, adjust=False).mean() / atr.replace(0, np.nan)
+        dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+        adx = float(dx.ewm(alpha=1 / 14, adjust=False).mean().iloc[-1])
+        adx = adx if math.isfinite(adx) else 0.0
+
+        macd = close.ewm(span=12, adjust=False).mean() - close.ewm(span=26, adjust=False).mean()
+        macd_histogram = float((macd - macd.ewm(span=9, adjust=False).mean()).iloc[-1])
+        low_14 = low.rolling(14).min()
+        high_14 = high.rolling(14).max()
+        stochastic = float(100 * (close.iloc[-1] - low_14.iloc[-1]) / max(high_14.iloc[-1] - low_14.iloc[-1], 1e-12))
+        obv = (np.sign(close.diff()).fillna(0.0) * volume).cumsum()
+        obv_change = float(obv.iloc[-1] - obv.iloc[-10]) / max(float(volume.tail(10).sum()), 1e-12)
+
+        prior_high = float(high.shift(1).rolling(20).max().iloc[-1])
+        prior_low = float(low.shift(1).rolling(20).min().iloc[-1])
+        high_sweep = bool(high.iloc[-1] > prior_high and close.iloc[-1] < prior_high)
+        low_sweep = bool(low.iloc[-1] < prior_low and close.iloc[-1] > prior_low)
+        plus_value = float(plus_di.iloc[-1])
+        minus_value = float(minus_di.iloc[-1])
+        plus_value = plus_value if math.isfinite(plus_value) else 0.0
+        minus_value = minus_value if math.isfinite(minus_value) else 0.0
+        direction = _clip((plus_value - minus_value) / 50.0)
+        trend_strength = _clip(adx / 35.0, 0.0, 1.0)
+        macd_score = float(np.tanh(macd_histogram / max(float(atr.iloc[-1]), 1e-12)))
+        stochastic_score = _clip((stochastic - 50.0) / 50.0)
+        sweep_score = 1.0 if low_sweep else (-1.0 if high_sweep else 0.0)
+        score = _clip(
+            0.35 * macd_score
+            + 0.30 * direction * trend_strength
+            + 0.15 * stochastic_score
+            + 0.10 * _clip(obv_change * 4.0)
+            + 0.10 * sweep_score
+        )
+        confidence = _clip(0.35 + 0.35 * trend_strength + 0.20 * abs(score) + 0.10 * abs(sweep_score), 0.0, 1.0)
+        return EngineSignal(
+            "technical_structure",
+            score,
+            confidence,
+            (
+                f"adx={adx:.1f},stochastic={stochastic:.1f},obv_change={obv_change:.3f},"
+                f"high_sweep={high_sweep},low_sweep={low_sweep}"
+            ),
+        )
+
+    def health(self) -> dict[str, Any]:
+        return {
+            "indicators": ["macd", "adx", "stochastic", "obv", "liquidity_sweeps"],
+            "lookahead": False,
+            "execution_authority": False,
+        }
+
+
 class SpectralHarmonicsEngine:
     """Measured cycle detector replacing fictional frequency/ultrasonic signals."""
 
@@ -476,6 +551,7 @@ class UltraEngineSuite:
 
     def __init__(self, memory_path: Path, news_path: Path) -> None:
         self.scalping = SmartScalpingEngine()
+        self.technical_structure = TechnicalStructureEngine()
         self.spectral = SpectralHarmonicsEngine()
         self.liquidity = LiquidityFluidEngine()
         self.news = NewsAwarenessEngine(news_path)
@@ -487,7 +563,11 @@ class UltraEngineSuite:
         self.business = BusinessPerformanceEngine()
 
     def evaluate_symbol(self, symbol: str, frame: pd.DataFrame) -> dict[str, Any]:
-        signals = [self.scalping.evaluate(frame), self.spectral.evaluate(frame)]
+        signals = [
+            self.scalping.evaluate(frame),
+            self.technical_structure.evaluate(frame),
+            self.spectral.evaluate(frame),
+        ]
         news = self.news.evaluate(symbol)
         signals.append(
             EngineSignal(
@@ -528,6 +608,7 @@ class UltraEngineSuite:
             "legacy_random_engines_loaded": False,
             "capabilities": {
                 "smart_scalping": self.scalping.health(),
+                "technical_structure": self.technical_structure.health(),
                 "frequency_harmonics_ultrasonic": self.spectral.health(),
                 "fluid_liquidity": self.liquidity.health(),
                 "news_awareness": self.news.health(),

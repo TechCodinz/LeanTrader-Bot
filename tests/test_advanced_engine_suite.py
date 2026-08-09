@@ -18,6 +18,7 @@ from leantrader.production.advanced_engines import (
     SmartScalpingEngine,
     SpectralHarmonicsEngine,
     SwarmConsensusEngine,
+    TechnicalStructureEngine,
     UltraEngineSuite,
 )
 
@@ -47,6 +48,22 @@ def test_smart_scalping_and_spectral_signals_are_deterministic():
     assert spectral.evaluate(market) == spectral.evaluate(market)
     assert -1 <= scalp.evaluate(market).score <= 1
     assert "dominant_period" in spectral.evaluate(market).rationale
+
+
+def test_technical_structure_rehabilitates_main_indicators_without_lookahead():
+    engine = TechnicalStructureEngine()
+    result = engine.evaluate(frame())
+    assert result == engine.evaluate(frame())
+    assert -1 <= result.score <= 1
+    assert "adx=" in result.rationale
+    assert engine.health()["indicators"] == ["macd", "adx", "stochastic", "obv", "liquidity_sweeps"]
+
+    flat = frame(slope=0.0)
+    flat["close"] = 100.0
+    flat["open"] = 100.0
+    flat["high"] = 100.0
+    flat["low"] = 100.0
+    assert np.isfinite(engine.evaluate(flat).score)
 
 
 def test_liquidity_engine_measures_spread_imbalance_and_impact():
@@ -163,6 +180,7 @@ def test_ultra_suite_exposes_real_capability_map(tmp_path):
     suite = UltraEngineSuite(tmp_path / "memory.json", tmp_path / "news.json")
     result = suite.evaluate_symbol("BTC/USDT", frame())
     assert result["swarm"]["engine"] == "swarm_hivemind"
+    assert any(signal["engine"] == "technical_structure" for signal in result["signals"])
     health = suite.health()
     assert health["legacy_random_engines_loaded"] is False
     assert "frequency_harmonics_ultrasonic" in health["capabilities"]

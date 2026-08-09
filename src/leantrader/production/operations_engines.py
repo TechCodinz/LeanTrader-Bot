@@ -232,6 +232,52 @@ class DataProvenanceEngine:
         return {"append_only": True, "sha256": True, "path": str(self.path)}
 
 
+class PrometheusMetricsEngine:
+    """Atomic Prometheus textfile snapshot derived only from canonical heartbeat fields."""
+
+    VERSION = "1.0"
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    @staticmethod
+    def _number(value: Any) -> float:
+        number = float(value)
+        return number if math.isfinite(number) else 0.0
+
+    def write(self, status: dict[str, Any]) -> dict[str, Any]:
+        engines = status.get("engines", {})
+        lines = [
+            "# HELP leantrader_healthy Whether the canonical paper runtime is healthy.",
+            "# TYPE leantrader_healthy gauge",
+            f"leantrader_healthy {1 if status.get('healthy') else 0}",
+            "# TYPE leantrader_equity_usd gauge",
+            f"leantrader_equity_usd {self._number(status.get('equity', 0.0)):.12g}",
+            "# TYPE leantrader_cash_usd gauge",
+            f"leantrader_cash_usd {self._number(status.get('cash', 0.0)):.12g}",
+            "# TYPE leantrader_realized_pnl_usd gauge",
+            f"leantrader_realized_pnl_usd {self._number(status.get('realized_pnl', 0.0)):.12g}",
+            "# TYPE leantrader_open_positions gauge",
+            f"leantrader_open_positions {len(status.get('open_positions', []))}",
+            "# TYPE leantrader_cycle_errors gauge",
+            f"leantrader_cycle_errors {len(status.get('errors', {}))}",
+            "# TYPE leantrader_risk_halted gauge",
+            f"leantrader_risk_halted {1 if status.get('halt_reason') else 0}",
+            "# TYPE leantrader_engine_healthy gauge",
+        ]
+        for name, state in sorted(engines.items()):
+            safe_name = "".join(character if character.isalnum() or character == "_" else "_" for character in name)
+            lines.append(f'leantrader_engine_healthy{{engine="{safe_name}"}} {1 if state.get("healthy") else 0}')
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = self.path.with_suffix(self.path.suffix + ".tmp")
+        temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        os.replace(temporary, self.path)
+        return {"written": True, "path": str(self.path), "series": len(lines)}
+
+    def health(self) -> dict[str, Any]:
+        return {"format": "prometheus_textfile", "atomic": True, "path": str(self.path)}
+
+
 class TelegramAlertEngine:
     """Optional outbound paper alerts; no inbound commands or execution capability."""
 
@@ -262,19 +308,23 @@ class TelegramAlertEngine:
 
 
 class OperationsEngineSuite:
-    VERSION = "2.0"
+    VERSION = "2.1"
 
-    def __init__(self, provenance_path: Path) -> None:
+    def __init__(self, provenance_path: Path, metrics_path: Path | None = None) -> None:
         self.execution_reality = ExecutionRealityEngine()
         self.forex = ForexEngine()
         self.reconciliation = ReconciliationEngine()
         self.manipulation = MarketManipulationEngine()
         self.capacity = StrategyCapacityEngine()
         self.provenance = DataProvenanceEngine(provenance_path)
+        self.metrics = PrometheusMetricsEngine(metrics_path or provenance_path.with_name("vps_metrics.prom"))
         self.telegram = TelegramAlertEngine()
 
     def record_decision(self, symbol: str, payload: dict[str, Any]) -> str:
         return self.provenance.record(symbol, payload)
+
+    def record_metrics(self, status: dict[str, Any]) -> dict[str, Any]:
+        return self.metrics.write(status)
 
     def alert_events(self, events: list[dict[str, Any]], halt_reason: str | None) -> list[dict[str, Any]]:
         results = []
@@ -295,5 +345,6 @@ class OperationsEngineSuite:
             "market_manipulation": self.manipulation.health(),
             "strategy_capacity": self.capacity.health(),
             "data_provenance": self.provenance.health(),
+            "prometheus_metrics": self.metrics.health(),
             "telegram": self.telegram.health(),
         }

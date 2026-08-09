@@ -25,6 +25,7 @@ Canonical runtime release: `verified-multi-engine-v3`.
 | Dynamic scanner / Ultra Scout | Cross-sectional price, volume, liquidity and volatility anomaly ranking | Shadow |
 | Moon spotter / hype radar | Measured anomaly ranking; no invented tokens or opportunities | Shadow |
 | Smart scalping | EMA/RSI/volume signal with spread penalty | Shadow |
+| Main technical/microstructure indicators | Deterministic MACD, ADX, Stochastic, OBV and liquidity-sweep confirmation | Shadow |
 | Hedge-fund arsenal | Portfolio correlation, concentration, VaR and deterministic stress scenarios | Active risk observation |
 | Evolution engine | Bounded adaptive weights plus champion/challenger promotion and rollback | Adaptive weights active; model promotion offline |
 | Ultra ML pipeline | Cost-aware gradient-boosting walk-forward forecaster and calibration | Offline/shadow |
@@ -36,6 +37,7 @@ Canonical runtime release: `verified-multi-engine-v3`.
 | Ultra business system | Win rate, profit factor and expectancy from realized paper events | Monitoring only |
 | News intelligence | Local auditable event state, decayed sentiment and high-impact blackout | Shadow gate |
 | Telegram notifier | Outbound paper event/halt alerts only | Optional |
+| Prometheus/Grafana monitoring | Atomic Prometheus textfile metrics from canonical heartbeat fields | Active monitoring |
 
 ## Core trading capabilities
 

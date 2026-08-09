@@ -80,7 +80,7 @@ class PaperRunner:
         )
         self.advanced = UltraEngineSuite(settings.pattern_memory_path, settings.news_state_path)
         self.research = ResearchEngineSuite(settings.research_state_path)
-        self.operations = OperationsEngineSuite(settings.provenance_path)
+        self.operations = OperationsEngineSuite(settings.provenance_path, settings.metrics_path)
         self.engines = EngineRegistry(
             failure_threshold=settings.engine_failure_threshold,
             recovery_seconds=settings.engine_recovery_seconds,
@@ -366,6 +366,12 @@ class PaperRunner:
             "research_governor": research_state,
             "operation_alerts": operation_alerts,
         }
+        try:
+            status["operation_metrics"] = self.engines.call("operations_safety", "record_metrics", status)
+        except Exception as exc:  # noqa: BLE001 - metrics cannot interrupt heartbeat persistence
+            errors["operations_safety:metrics"] = f"{type(exc).__name__}: {exc}"
+            status["operation_metrics"] = {"written": False, "reason": "metrics_engine_unavailable"}
+        status["engines"] = self.engines.snapshot()
         self._write_json_atomic(self.settings.heartbeat_path, status)
         return status
 
@@ -419,6 +425,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
     settings.news_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.research_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.provenance_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.metrics_path.parent.mkdir(parents=True, exist_ok=True)
     settings.heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
     settings.log_path.parent.mkdir(parents=True, exist_ok=True)
     return {

@@ -62,6 +62,7 @@ class Settings:
     news_state_path: Path
     research_state_path: Path
     provenance_path: Path
+    metrics_path: Path
     heartbeat_path: Path
     log_path: Path
     learning_rate: float
@@ -121,6 +122,7 @@ class Settings:
             news_state_path=Path(os.getenv("NEWS_STATE_PATH", "runtime/vps_news_state.json")),
             research_state_path=Path(os.getenv("RESEARCH_STATE_PATH", "runtime/vps_research_governor.json")),
             provenance_path=Path(os.getenv("PROVENANCE_PATH", "runtime/vps_decision_provenance.jsonl")),
+            metrics_path=Path(os.getenv("PROMETHEUS_METRICS_PATH", "runtime/vps_metrics.prom")),
             heartbeat_path=Path(os.getenv("HEARTBEAT_PATH", "runtime/vps_heartbeat.json")),
             log_path=Path(os.getenv("TRADES_LOG_PATH", "logs/vps_trades.jsonl")),
             learning_rate=_float("ADAPTIVE_LEARNING_RATE", 0.08),

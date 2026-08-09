@@ -19,13 +19,29 @@ Every remote branch was fetched and compared with the hardened VPS branch.
 |---|---|---|
 | 12 ancestor branches | Already represented in current history; no missing branch-only files | No merge needed |
 | `main`, `integration/all-in`, `copilot/fix-a…`, `cursor/*6078`, `cursor/*cff8`, `cursor/honest*` | Divergent from an older snapshot | Reviewed file-by-file; do not bulk merge |
-| Older monitoring/status/systemd files | Status endpoints expose raw logs without authentication; units target obsolete runners and root paths | Replaced by Docker healthcheck, atomic heartbeat, and engine health manifest |
-| `tools/market_data_ultra.py` | Large experimental aggregator with placeholder sources and unverified fallbacks | Not promoted; supported feed remains public read-only CCXT plus strict validation |
-| Telegram integration | Adds credential and outbound-message surface unrelated to safe trading correctness | Deferred until the paper runtime proves stable |
+| Older monitoring/status/systemd files | Status endpoints expose raw logs without authentication; units target obsolete runners and root paths | Replaced by Docker healthcheck, atomic heartbeat, engine health manifest, and canonical Prometheus textfile metrics |
+| `tools/market_data_ultra.py` | Contains a syntax error, placeholder news/on-chain sources, broad exception swallowing, and in-sample pseudo-ML | Not promoted; its valid MACD/ADX/Stochastic/OBV/liquidity-sweep ideas were rebuilt deterministically in the shadow suite |
+| Telegram integration | Mixed formatting, multiple credential surfaces, and broad retries | Rebuilt as an optional outbound-only paper event/halt alert engine |
 | IBM/“quantum” hooks | Optional experiments without demonstrated execution advantage | Research-only |
 | `divine_*` files on `cursor/*6078` | Signals include random “void whispers,” randomized timelines, and simulated karma | Rejected as non-measurable and unsafe for decisions |
 
 Files named `.env` and `.env.recover` on old branches were intentionally not restored. Historical credentials must still be revoked before any account is funded.
+
+### Final `main` reconciliation audit
+
+Before reconciling the divergent `main` history, all 50 `main`-only commits and 36 `main`-only paths were inspected again. The useful ideas and their dispositions are:
+
+| Main-only area | Result |
+|---|---|
+| Prometheus/Grafana monitoring | Preserved as atomic Prometheus textfile metrics derived from the canonical heartbeat; the old dashboard may be redesigned against these stable series |
+| MACD, ADX, Stochastic, OBV and liquidity-sweep features | Reimplemented as deterministic shadow confirmation with no lookahead or execution authority |
+| Training scheduler and weekly digest | Superseded by causal replay, evidence-gated model promotion, the canonical 30-day/7-day walk-forward path, and the existing weekly research workflow |
+| Arbitrage daemon | Superseded by the net-cost arbitrage engine, which has no execution authority |
+| IBM connectivity CLI | Retained only as historical research; connectivity did not implement or prove a superior optimizer, while the canonical adapter requires a benchmark against the classical baseline |
+| Status API | Rejected because it exposed raw log tails without authentication; canonical health is the bounded heartbeat/healthcheck |
+| Testnet preflight | Superseded by startup rejection of every live flag and the canonical paper preflight |
+| Old Compose/systemd units | Rejected because they launch obsolete `ultra_launcher.py` paths and pass Telegram secrets on the command line |
+| `.env`, `.env.recover`, live-enable commits | Rejected; they contain or enable credential-bearing/live behavior |
 
 ## Supported engine manifest
 
@@ -46,7 +62,7 @@ Files named `.env` and `.env.recover` on old branches were intentionally not res
 
 ## Verification record
 
-- Full test suite: 76 passed, 1 intentionally skipped.
+- Full test suite: 108 passed, 1 intentionally skipped.
 - Python compile check: all tracked Python sources compile.
 - Focused lint: supported production package and production tests pass.
 - Paper preflight: safe defaults accepted; all live flags remain hard-rejected.

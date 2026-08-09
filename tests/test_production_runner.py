@@ -44,6 +44,8 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["decisions"]["BTC/USDT"]["quality_score"] == 1.0
     assert result["advanced_shadow"]["execution_authority"] is False
     assert result["research_governor"]["capital_preservation"]["state"] == "normal"
+    assert result["operation_metrics"]["written"] is True
+    assert settings.metrics_path.exists()
     assert settings.heartbeat_path.exists()
 
 

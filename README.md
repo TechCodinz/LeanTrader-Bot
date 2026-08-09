@@ -12,7 +12,7 @@ It does not promise profits and the supported runner cannot submit real exchange
 
 The supported intelligence can adapt only after closed paper trades, moves weights slowly, and keeps every component between 10% and 70%. It cannot rewrite code, deploy itself, enable live trading, or bypass risk limits. See `ENGINE_AUDIT.md` for the branch-by-branch audit and supported-engine boundary.
 
-Wave 2 rehabilitates the former “ultra” concepts as deterministic shadow engines: smart scalping, spectral cycles, liquidity impact, news awareness, pattern memory, swarm consensus, moon/scout ranking, portfolio risk, net-cost arbitrage, walk-forward forecasting, champion/challenger rollback, FX normalization, execution reality, reconciliation, manipulation alerts, strategy capacity, provenance, and outbound-only Telegram alerts. See `ENGINE_CAPABILITY_LEDGER.md` for the exact name-to-responsibility mapping.
+Wave 2 rehabilitates the former “ultra” concepts as deterministic shadow engines: smart scalping, MACD/ADX/Stochastic/OBV structure confirmation, spectral cycles, liquidity impact, news awareness, pattern memory, swarm consensus, moon/scout ranking, portfolio risk, net-cost arbitrage, walk-forward forecasting, champion/challenger rollback, FX normalization, execution reality, reconciliation, manipulation alerts, strategy capacity, provenance, Prometheus textfile metrics, and outbound-only Telegram alerts. See `ENGINE_CAPABILITY_LEDGER.md` for the exact name-to-responsibility mapping.
 
 ## Local preflight
 
