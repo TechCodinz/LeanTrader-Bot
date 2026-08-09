@@ -15,6 +15,10 @@ class Position:
     peak_price: float
     atr: float
     entry_fee: float = 0.0
+    entry_count: int = 1
+    partial_taken: bool = False
+    cycle_entry_cost: float = 0.0
+    cycle_realized_pnl: float = 0.0
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -99,8 +103,9 @@ class PaperLedger:
         fee_bps: float,
         slippage_bps: float,
         metadata: dict[str, Any] | None = None,
+        allow_add: bool = False,
     ) -> dict[str, Any]:
-        if symbol in self.positions:
+        if symbol in self.positions and not allow_add:
             raise ValueError(f"position already open for {symbol}")
         fill = market_price * (1 + slippage_bps / 10_000)
         fee = notional * fee_bps / 10_000
@@ -109,37 +114,77 @@ class PaperLedger:
             raise ValueError("insufficient paper cash")
         quantity = notional / fill
         self.cash -= total
-        self.positions[symbol] = Position(
-            quantity=quantity,
-            entry_price=fill,
-            peak_price=fill,
-            atr=atr,
-            entry_fee=fee,
-            metadata=dict(metadata or {}),
-        )
+        if symbol in self.positions:
+            position = self.positions[symbol]
+            old_notional = position.quantity * position.entry_price
+            if position.cycle_entry_cost <= 0:
+                position.cycle_entry_cost = old_notional + position.entry_fee
+            position.quantity += quantity
+            position.entry_price = (old_notional + notional) / position.quantity
+            position.peak_price = max(position.peak_price, fill)
+            position.atr = max(atr, 0.0) or position.atr
+            position.entry_fee += fee
+            position.entry_count += 1
+            position.cycle_entry_cost += total
+            history = position.metadata.setdefault("entry_history", [])
+            history.append(dict(metadata or {}))
+            reason = "scale_in"
+        else:
+            self.positions[symbol] = Position(
+                quantity=quantity,
+                entry_price=fill,
+                peak_price=fill,
+                atr=atr,
+                entry_fee=fee,
+                cycle_entry_cost=total,
+                metadata=dict(metadata or {}),
+            )
+            reason = "signal"
         self.trade_count += 1
         self.save()
-        event = self._event("buy", symbol, quantity, fill, fee, "signal")
+        event = self._event("buy", symbol, quantity, fill, fee, reason)
         event["position_metadata"] = self.positions[symbol].metadata
         return event
 
     def sell(
-        self, symbol: str, market_price: float, fee_bps: float, slippage_bps: float, reason: str
+        self,
+        symbol: str,
+        market_price: float,
+        fee_bps: float,
+        slippage_bps: float,
+        reason: str,
+        fraction: float = 1.0,
     ) -> dict[str, Any]:
-        position = self.positions.pop(symbol)
+        if not 0 < fraction <= 1:
+            raise ValueError("sell fraction must be in (0, 1]")
+        position = self.positions[symbol]
+        quantity = position.quantity * fraction
         fill = market_price * (1 - slippage_bps / 10_000)
-        gross = position.quantity * fill
+        gross = quantity * fill
         fee = gross * fee_bps / 10_000
-        cost_basis = position.quantity * position.entry_price + position.entry_fee
+        allocated_entry_fee = position.entry_fee * fraction
+        cost_basis = quantity * position.entry_price + allocated_entry_fee
         pnl = gross - fee - cost_basis
         self.cash += gross - fee
         self.realized_pnl += pnl
+        position.cycle_realized_pnl += pnl
+        position.quantity -= quantity
+        position.entry_fee -= allocated_entry_fee
+        if fraction < 1:
+            position.partial_taken = True
+        if position.quantity <= 1e-12 or fraction == 1:
+            self.positions.pop(symbol)
         self.trade_count += 1
         self.save()
-        event = self._event("sell", symbol, position.quantity, fill, fee, reason)
+        event = self._event("sell", symbol, quantity, fill, fee, reason)
         event["realized_pnl"] = pnl
         event["realized_return"] = pnl / max(cost_basis, 1e-9)
+        event["trade_realized_pnl_total"] = position.cycle_realized_pnl
+        event["trade_realized_return_total"] = position.cycle_realized_pnl / max(
+            position.cycle_entry_cost or cost_basis, 1e-9
+        )
         event["position_metadata"] = position.metadata
+        event["remaining_quantity"] = max(0.0, position.quantity)
         return event
 
     def update_peak(self, symbol: str, price: float, atr: float) -> None:

@@ -1,0 +1,6 @@
+-r requirements.runtime.txt
+
+# Offline/shadow research only; never required by the execution loop.
+scikit-learn>=1.5,<2
+scipy>=1.13,<2
+optuna>=4,<5

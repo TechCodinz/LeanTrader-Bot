@@ -1,7 +1,9 @@
 # LeanTrader engine and branch audit
 
 Audit date: 2026-08-09
-Supported runtime: `src/leantrader/production` (`verified-adaptive-v2`)
+Supported runtime: `src/leantrader/production` (`verified-multi-engine-v3`)
+
+The original audit established the safe boundary. `ENGINE_CAPABILITY_LEDGER.md` records the subsequent Wave 2 rehabilitation of the named advanced and ultra engines.
 
 ## Executive result
 

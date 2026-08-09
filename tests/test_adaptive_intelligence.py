@@ -30,11 +30,18 @@ def test_decision_is_deterministic_explainable_and_bounded(tmp_path):
 
     assert first == second
     assert first.regime in {"trend", "range", "high_volatility"}
-    assert set(first.component_scores) == {"trend", "momentum", "mean_reversion"}
+    assert set(first.component_scores) == {
+        "trend",
+        "momentum",
+        "mean_reversion",
+        "bollinger_breakout",
+    }
     assert sum(first.weights.values()) == pytest.approx(1.0)
     assert all(0.10 <= value <= 0.70 for value in first.weights.values())
     assert first.quality_score == 1.0
-    assert len(first.rationale) == 4
+    assert len(first.rationale) == 6
+    assert first.multi_timeframe_confirmed is True
+    assert first.session_allowed is True
 
 
 def test_bad_market_data_is_rejected_before_signals(tmp_path):
@@ -45,12 +52,30 @@ def test_bad_market_data_is_rejected_before_signals(tmp_path):
         intelligence.evaluate(frame)
 
 
+def test_multi_timeframe_and_fx_session_are_fail_closed(tmp_path):
+    falling = market_frame()
+    falling["close"] = falling["close"].iloc[::-1].to_numpy()
+    intelligence = AdaptiveIntelligence(tmp_path / "intelligence.json")
+    decision = intelligence.evaluate(
+        market_frame(),
+        context_frames={"1h": falling},
+        symbol="EUR/USD",
+    )
+    assert decision.multi_timeframe_confirmed is False
+    assert decision.enter_long is False
+
+
 def test_learning_promotes_only_after_evidence_gate_and_persists(tmp_path):
     path = tmp_path / "intelligence.json"
     intelligence = AdaptiveIntelligence(path, min_samples=3, learning_rate=0.20)
     metadata = {
         "regime": "trend",
-        "component_scores": {"trend": 1.0, "momentum": 0.5, "mean_reversion": -1.0},
+        "component_scores": {
+            "trend": 1.0,
+            "momentum": 0.5,
+            "mean_reversion": -1.0,
+            "bollinger_breakout": 1.0,
+        },
     }
     original = intelligence.weights["trend"].copy()
 

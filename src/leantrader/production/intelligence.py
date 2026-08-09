@@ -11,11 +11,16 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-COMPONENTS = ("trend", "momentum", "mean_reversion")
+COMPONENTS = ("trend", "momentum", "mean_reversion", "bollinger_breakout")
 DEFAULT_WEIGHTS = {
-    "trend": {"trend": 0.55, "momentum": 0.35, "mean_reversion": 0.10},
-    "range": {"trend": 0.15, "momentum": 0.20, "mean_reversion": 0.65},
-    "high_volatility": {"trend": 0.45, "momentum": 0.35, "mean_reversion": 0.20},
+    "trend": {"trend": 0.40, "momentum": 0.25, "mean_reversion": 0.10, "bollinger_breakout": 0.25},
+    "range": {"trend": 0.10, "momentum": 0.15, "mean_reversion": 0.55, "bollinger_breakout": 0.20},
+    "high_volatility": {
+        "trend": 0.30,
+        "momentum": 0.20,
+        "mean_reversion": 0.20,
+        "bollinger_breakout": 0.30,
+    },
 }
 
 
@@ -38,6 +43,8 @@ class IntelligenceDecision:
     component_scores: dict[str, float]
     weights: dict[str, float]
     rationale: tuple[str, ...]
+    multi_timeframe_confirmed: bool
+    session_allowed: bool
 
 
 class AdaptiveIntelligence:
@@ -70,7 +77,13 @@ class AdaptiveIntelligence:
         self.last_promotion: str | None = None
         self._load()
 
-    def evaluate(self, frame: pd.DataFrame) -> IntelligenceDecision:
+    def evaluate(
+        self,
+        frame: pd.DataFrame,
+        *,
+        context_frames: dict[str, pd.DataFrame] | None = None,
+        symbol: str = "",
+    ) -> IntelligenceDecision:
         quality = self._quality(frame)
         if not quality.valid:
             raise ValueError("market data rejected: " + "; ".join(quality.issues))
@@ -100,22 +113,40 @@ class AdaptiveIntelligence:
 
         mean_20 = close.rolling(20).mean().iloc[-1]
         std_20 = max(float(close.rolling(20).std(ddof=0).iloc[-1]), atr_floor * 0.25)
+        rolling_mean = close.rolling(20).mean()
+        rolling_std = close.rolling(20).std(ddof=0)
+        upper = rolling_mean + 2.0 * rolling_std
+        lower = rolling_mean - 2.0 * rolling_std
+        bandwidth = (4.0 * rolling_std) / rolling_mean.replace(0, np.nan)
+        squeeze_threshold = bandwidth.rolling(120).quantile(0.50)
+        was_squeezed = bool(bandwidth.iloc[-2] <= squeeze_threshold.iloc[-2])
+        if was_squeezed and close.iloc[-1] > upper.iloc[-2]:
+            bollinger_score = 1.0
+        elif was_squeezed and close.iloc[-1] < lower.iloc[-2]:
+            bollinger_score = -1.0
+        else:
+            bollinger_score = 0.0
         component_scores = {
             "trend": float(np.tanh((ema_fast.iloc[-1] - ema_slow.iloc[-1]) / (2.0 * atr_floor))),
             "momentum": float(np.tanh((close.iloc[-1] - close.iloc[-20]) / (3.0 * atr_floor))),
             "mean_reversion": float(-np.tanh((close.iloc[-1] - mean_20) / (2.0 * std_20))),
+            "bollinger_breakout": bollinger_score,
         }
         weights = self.weights[regime].copy()
         score = sum(component_scores[name] * weights[name] for name in COMPONENTS)
         confidence = min(1.0, abs(score)) * quality.score
         threshold = 0.30 if regime != "high_volatility" else 0.55
-        enter_long = score >= threshold and quality.score >= 0.90
+        multi_timeframe_confirmed = self._multi_timeframe_confirmed(context_frames or {})
+        session_allowed = self._session_allowed(symbol)
+        enter_long = score >= threshold and quality.score >= 0.90 and multi_timeframe_confirmed and session_allowed
         trend_up = bool(ema_fast.iloc[-1] > ema_slow.iloc[-1])
         rationale = (
             f"regime={regime}",
             f"ensemble={score:.3f}",
             f"threshold={threshold:.2f}",
             f"data_quality={quality.score:.2f}",
+            f"multi_timeframe={multi_timeframe_confirmed}",
+            f"session_allowed={session_allowed}",
         )
         return IntelligenceDecision(
             close=float(close.iloc[-1]),
@@ -128,7 +159,33 @@ class AdaptiveIntelligence:
             component_scores=component_scores,
             weights=weights,
             rationale=rationale,
+            multi_timeframe_confirmed=multi_timeframe_confirmed,
+            session_allowed=session_allowed,
         )
+
+    @staticmethod
+    def _multi_timeframe_confirmed(context_frames: dict[str, pd.DataFrame]) -> bool:
+        for frame in context_frames.values():
+            if len(frame) < 200 or "close" not in frame:
+                return False
+            close = pd.to_numeric(frame["close"], errors="coerce")
+            if close.isna().any():
+                return False
+            if close.ewm(span=50, adjust=False).mean().iloc[-1] <= close.ewm(span=200, adjust=False).mean().iloc[-1]:
+                return False
+        return True
+
+    @staticmethod
+    def _session_allowed(symbol: str, when: dt.datetime | None = None) -> bool:
+        normalized = symbol.upper().replace("/", "").replace("_", "")
+        if not normalized:
+            return True
+        if any(token in normalized for token in ("USDT", "USDC", "BTC", "ETH")):
+            return True
+        now = when or dt.datetime.now(dt.UTC)
+        if now.weekday() >= 5:
+            return False
+        return 6 <= now.hour < 21
 
     def learn(self, metadata: dict[str, Any], realized_return: float) -> bool:
         """Stage evidence and promote a bounded weight update after enough closed trades."""
