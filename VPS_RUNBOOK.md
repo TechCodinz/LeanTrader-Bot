@@ -2,6 +2,8 @@
 
 This runbook deploys the supported paper-authority runtime. It consumes public Bybit market data and simulates fills locally. An optional, separately confirmed mirror can place orders on Bybit Testnet with test funds only. Production endpoints and live flags are rejected.
 
+The supported VPS configuration uses `PAPER_SYMBOLS=AUTO`. It discovers every active, sufficiently liquid USDT spot market, excludes instruments that cannot be tested responsibly, intersects the result with Bybit Testnet availability, and rotates across the entire eligible set. `MARKET_SCAN_BATCH_SIZE=18` limits API/CPU work in one cycle but does not cap the universe. Watch `eligible_symbols`, `last_scan`, and `full_sweeps` to prove coverage.
+
 ## Security incident first
 
 Real-looking exchange and Telegram credentials were committed to this public repository in September 2025. Treat every credential ever stored in `.env`, `.env.recover`, or `api_config.json` as compromised.
@@ -113,7 +115,7 @@ docker compose config --quiet
 docker compose up -d --build --force-recreate
 docker compose ps
 sleep 70
-jq '{healthy, runtime, errors, testnet_execution, testnet_engine: .engines.bybit_testnet_execution}' runtime/vps_heartbeat.json
+jq '{healthy, runtime, errors, market_universe: .engines.market_universe, testnet_execution, testnet_engine: .engines.bybit_testnet_execution}' runtime/vps_heartbeat.json
 jq '[.engines | to_entries[] | select(.value.required == true and .value.healthy != true)]' runtime/vps_heartbeat.json
 ```
 

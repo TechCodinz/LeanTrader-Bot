@@ -12,7 +12,7 @@ if [[ ! -f "${APP_DIR}/docker-compose.yml" ]]; then
   echo "ERROR: ${APP_DIR} is not a deployed LeanTrader checkout." >&2
   exit 1
 fi
-if ! grep -q 'verified-multi-engine-v4-testnet' "${APP_DIR}/src/leantrader/production/runner.py"; then
+if ! grep -q 'verified-multi-engine-v5-dynamic-testnet' "${APP_DIR}/src/leantrader/production/runner.py"; then
   echo "ERROR: upgrade the VPS to the verified testnet release before enabling testnet." >&2
   exit 1
 fi
@@ -54,6 +54,13 @@ set_env() {
 
 set_env BYBIT_TESTNET_ENABLED true
 set_env BYBIT_TESTNET_CONFIRM "${CONFIRMATION}"
+set_env PAPER_SYMBOLS AUTO
+set_env MARKET_QUOTE USDT
+set_env MARKET_UNIVERSE_STATE_PATH runtime/vps_market_universe.json
+set_env MARKET_SCAN_BATCH_SIZE 18
+set_env MARKET_REFRESH_SECONDS 3600
+set_env MARKET_MIN_QUOTE_VOLUME_USD 250000
+set_env MARKET_MAX_SPREAD_BPS 75
 set_env BYBIT_TESTNET_MAX_ORDER_USD 10
 set_env BYBIT_TESTNET_MAX_POSITION_USD 20
 set_env BYBIT_TESTNET_MAX_DAILY_SUBMITTED_USD 50
@@ -87,6 +94,10 @@ if ! jq -e '
   .engines.bybit_testnet_execution.authenticated == true and
   .engines.bybit_testnet_execution.sandbox_endpoint_verified == true and
   .engines.bybit_testnet_execution.live_authority == false and
+  .engines.market_universe.healthy == true and
+  .engines.market_universe.mode == "dynamic" and
+  .engines.market_universe.eligible_symbols > 0 and
+  .engines.market_universe.all_eligible_markets_rotate == true and
   ([.engines | to_entries[] | select(.value.required == true and .value.healthy != true)] | length) == 0
 ' "${heartbeat}" >/dev/null; then
   echo "ERROR: heartbeat verification failed; new entries remain halted." >&2
@@ -96,6 +107,7 @@ fi
 
 echo "LEANTRADER_TESTNET_READY"
 echo "Authenticated Bybit Testnet: yes"
+echo "Dynamic eligible-market universe: yes"
 echo "Live authority: no"
 echo "New testnet entries: HALTED for manual acceptance"
 echo "Review runtime/vps_heartbeat.json and the Bybit Testnet account."

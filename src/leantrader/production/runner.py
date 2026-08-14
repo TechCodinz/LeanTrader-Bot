@@ -15,6 +15,7 @@ from .advanced_engines import UltraEngineSuite
 from .engine_control import EngineRegistry
 from .intelligence import AdaptiveIntelligence, IntelligenceDecision
 from .ledger import PaperLedger
+from .market_universe import MarketUniverse
 from .operations_engines import OperationsEngineSuite
 from .research_engines import ResearchEngineSuite
 from .settings import Settings
@@ -55,18 +56,93 @@ class MarketFeed:
             raise ValueError(f"unknown CCXT exchange: {exchange_id}")
         self.exchange = exchange_class({"enableRateLimit": True, "timeout": 20_000})
         self._markets_loaded = False
+        self._last_discovery: dict[str, Any] = {}
 
-    def candles(self, symbol: str, timeframe: str, limit: int) -> pd.DataFrame:
+    def _load_markets(self) -> None:
         if not self._markets_loaded:
             self.exchange.load_markets()
             self._markets_loaded = True
+
+    def candles(self, symbol: str, timeframe: str, limit: int) -> pd.DataFrame:
+        self._load_markets()
         rows = self.exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
         if not rows:
             raise RuntimeError(f"no candles returned for {symbol}")
         return pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
 
+    def discover_markets(
+        self,
+        *,
+        quote: str,
+        min_quote_volume_usd: float,
+        max_spread_bps: float,
+    ) -> dict[str, Any]:
+        """Return every active, liquid spot market ranked by quote volume."""
+        self._load_markets()
+        if not self.exchange.has.get("fetchTickers", False):
+            raise RuntimeError("exchange does not support bulk ticker discovery")
+        tickers = self.exchange.fetch_tickers()
+        accepted: list[dict[str, Any]] = []
+        rejected: dict[str, int] = {}
+
+        def reject(reason: str) -> None:
+            rejected[reason] = rejected.get(reason, 0) + 1
+
+        for symbol, market in self.exchange.markets.items():
+            if not market.get("spot") or market.get("active") is False:
+                reject("not_active_spot")
+                continue
+            if str(market.get("quote", "")).upper() != quote.upper():
+                reject("quote_mismatch")
+                continue
+            if market.get("leveraged") is True or self._looks_leveraged(str(market.get("base", ""))):
+                reject("leveraged_token")
+                continue
+            ticker = tickers.get(symbol) or {}
+            last = float(ticker.get("last") or ticker.get("close") or 0.0)
+            quote_volume = float(ticker.get("quoteVolume") or 0.0)
+            if quote_volume <= 0:
+                quote_volume = float(ticker.get("baseVolume") or 0.0) * last
+            if last <= 0 or quote_volume < min_quote_volume_usd:
+                reject("insufficient_volume")
+                continue
+            bid = float(ticker.get("bid") or 0.0)
+            ask = float(ticker.get("ask") or 0.0)
+            if bid <= 0 or ask <= 0 or ask < bid:
+                reject("invalid_spread")
+                continue
+            spread_bps = (ask - bid) / ((ask + bid) / 2.0) * 10_000.0
+            if spread_bps > max_spread_bps:
+                reject("spread_too_wide")
+                continue
+            accepted.append(
+                {
+                    "symbol": symbol.upper(),
+                    "quote_volume_usd": quote_volume,
+                    "spread_bps": spread_bps,
+                    "last": last,
+                }
+            )
+        accepted.sort(key=lambda item: (-float(item["quote_volume_usd"]), str(item["symbol"])))
+        self._last_discovery = {
+            "quote": quote.upper(),
+            "eligible": len(accepted),
+            "markets_seen": len(self.exchange.markets),
+            "rejection_counts": rejected,
+        }
+        return {"candidates": accepted, **self._last_discovery}
+
+    @staticmethod
+    def _looks_leveraged(base: str) -> bool:
+        upper = base.upper()
+        return upper.endswith(("3L", "3S", "5L", "5S", "BULL", "BEAR"))
+
     def health(self) -> dict[str, Any]:
-        return {"read_only": True, "markets_loaded": self._markets_loaded}
+        return {
+            "read_only": True,
+            "markets_loaded": self._markets_loaded,
+            "last_discovery": dict(self._last_discovery),
+        }
 
 
 class PaperRunner:
@@ -82,6 +158,14 @@ class PaperRunner:
         self.advanced = UltraEngineSuite(settings.pattern_memory_path, settings.news_state_path)
         self.research = ResearchEngineSuite(settings.research_state_path)
         self.operations = OperationsEngineSuite(settings.provenance_path, settings.metrics_path)
+        self.universe = MarketUniverse(
+            state_path=settings.market_universe_state_path,
+            mode=settings.market_universe_mode,
+            configured_symbols=settings.symbols,
+            quote=settings.market_quote,
+            batch_size=settings.market_scan_batch_size,
+            refresh_seconds=settings.market_refresh_seconds,
+        )
         self._logged_event_ids = self._load_logged_event_ids(settings.log_path)
         self.testnet = (
             BybitTestnetExecutionEngine(
@@ -102,6 +186,13 @@ class PaperRunner:
             recovery_seconds=settings.engine_recovery_seconds,
         )
         self.engines.register("market_data", self.feed, version="ccxt-public-v1")
+        universe_dependencies = ("market_data", "bybit_testnet_execution") if self.testnet is not None else ("market_data",)
+        self.engines.register(
+            "market_universe",
+            self.universe,
+            dependencies=universe_dependencies,
+            version=self.universe.VERSION,
+        )
         self.engines.register("paper_ledger", self.ledger, version="2")
         self.engines.register(
             "adaptive_intelligence",
@@ -144,7 +235,38 @@ class PaperRunner:
         frames: dict[str, pd.DataFrame] = {}
         advanced_decisions: dict[str, dict[str, Any]] = {}
         errors: dict[str, str] = {}
-        for symbol in self.settings.symbols:
+        allowed_testnet_symbols = (
+            self.engines.call("bybit_testnet_execution", "eligible_symbols", self.settings.market_quote)
+            if self.testnet is not None
+            else None
+        )
+        if self.universe.needs_refresh():
+            discovery = self.engines.call(
+                "market_data",
+                "discover_markets",
+                quote=self.settings.market_quote,
+                min_quote_volume_usd=self.settings.market_min_quote_volume_usd,
+                max_spread_bps=self.settings.market_max_spread_bps,
+            )
+            self.engines.call(
+                "market_universe",
+                "refresh",
+                discovery["candidates"],
+                allowed_symbols=allowed_testnet_symbols,
+                rejection_counts=discovery["rejection_counts"],
+            )
+        elif allowed_testnet_symbols is not None:
+            self.engines.call(
+                "market_universe",
+                "apply_testnet_intersection",
+                allowed_testnet_symbols,
+            )
+        cycle_symbols = self.engines.call(
+            "market_universe",
+            "next_batch",
+            mandatory_symbols=set(self.ledger.positions),
+        )
+        for symbol in cycle_symbols:
             try:
                 frame = self.engines.call(
                     "market_data", "candles", symbol, self.settings.timeframe, self.settings.candle_limit
@@ -374,8 +496,9 @@ class PaperRunner:
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v4-testnet",
+            "runtime": "verified-multi-engine-v5-dynamic-testnet",
             "exchange": self.settings.exchange,
+            "cycle_symbols": cycle_symbols,
             "equity": equity,
             "cash": self.ledger.cash,
             "open_positions": sorted(self.ledger.positions),
@@ -490,6 +613,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
     settings.intelligence_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.pattern_memory_path.parent.mkdir(parents=True, exist_ok=True)
     settings.news_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.market_universe_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.research_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.provenance_path.parent.mkdir(parents=True, exist_ok=True)
     settings.metrics_path.parent.mkdir(parents=True, exist_ok=True)
@@ -502,9 +626,17 @@ def preflight(settings: Settings) -> dict[str, Any]:
         "mode": "paper",
         "exchange": settings.exchange,
         "symbols": settings.symbols,
+        "market_universe": {
+            "mode": settings.market_universe_mode,
+            "quote": settings.market_quote,
+            "scan_batch_size": settings.market_scan_batch_size,
+            "refresh_seconds": settings.market_refresh_seconds,
+            "minimum_quote_volume_usd": settings.market_min_quote_volume_usd,
+            "maximum_spread_bps": settings.market_max_spread_bps,
+        },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v4-testnet",
+        "runtime": "verified-multi-engine-v5-dynamic-testnet",
         "testnet_execution": {
             "enabled": settings.testnet_enabled,
             "provider": "bybit" if settings.testnet_enabled else None,

@@ -32,9 +32,10 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
-    assert result["runtime"] == "verified-multi-engine-v4-testnet"
+    assert result["runtime"] == "verified-multi-engine-v5-dynamic-testnet"
     assert set(result["engines"]) == {
         "market_data",
+        "market_universe",
         "paper_ledger",
         "adaptive_intelligence",
         "advanced_shadow_suite",
@@ -139,6 +140,10 @@ def test_testnet_engine_is_required_and_visible_when_enabled(monkeypatch, tmp_pa
         def mirror_events(self, events):
             return [{"mirrored": event["side"]} for event in events]
 
+        def eligible_symbols(self, quote="USDT"):
+            assert quote == "USDT"
+            return {"BTC/USDT"}
+
         def health(self):
             return {
                 "environment": "testnet",
@@ -159,3 +164,33 @@ def test_testnet_engine_is_required_and_visible_when_enabled(monkeypatch, tmp_pa
     assert testnet["environment"] == "testnet"
     assert testnet["sandbox_endpoint_verified"] is True
     assert testnet["live_authority"] is False
+
+
+def test_dynamic_universe_scans_exchange_candidates_in_rotating_batches(monkeypatch, tmp_path):
+    class DynamicFeed(FakeFeed):
+        def discover_markets(self, **_kwargs):
+            return {
+                "candidates": [
+                    {"symbol": "BTC/USDT"},
+                    {"symbol": "ETH/USDT"},
+                    {"symbol": "SOL/USDT"},
+                ],
+                "rejection_counts": {"insufficient_volume": 4},
+            }
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PAPER_SYMBOLS", "AUTO")
+    monkeypatch.setenv("MARKET_SCAN_BATCH_SIZE", "2")
+    settings = Settings.from_env()
+    runner = PaperRunner(settings, DynamicFeed())
+    first = runner.cycle()
+    second = runner.cycle()
+
+    assert first["cycle_symbols"] == ["BTC/USDT", "ETH/USDT"]
+    # Positions opened in the first batch stay at the front for exit safety;
+    # SOL still enters the next rotating batch, proving forward coverage.
+    assert second["cycle_symbols"] == ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+    universe = second["engines"]["market_universe"]
+    assert universe["eligible_symbols"] == 3
+    assert universe["full_sweeps"] == 1
+    assert universe["all_eligible_markets_rotate"] is True

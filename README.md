@@ -6,7 +6,7 @@ It does not promise profits and the supported runner cannot submit real exchange
 
 ## Current status
 
-- Supported: Bybit-compatible public OHLCV data through CCXT; strict candle validation; deterministic trend, momentum, and mean-reversion ensemble signals; measured market-regime detection; bounded evidence-gated weight adaptation; ATR stops; paper ledger persistence; simulated fees/slippage; daily-loss and drawdown halts; per-engine lifecycle/circuit breakers; explainable heartbeat decisions; Docker deployment; blocking CI; and an optional Bybit Testnet mirror with private credential validation, deterministic client IDs, durable event delivery, persistent order state, partial-fill accounting, restart reconciliation, exchange-balance and execution-performance evidence, endpoint verification, entry limits, and a local kill switch.
+- Supported: Bybit-compatible public OHLCV data through CCXT; dynamic discovery of every active, sufficiently liquid USDT spot market; fair rotating coverage with persistent sweep progress; Bybit Testnet market intersection; strict candle validation; deterministic trend, momentum, and mean-reversion ensemble signals; measured market-regime detection; bounded evidence-gated weight adaptation; ATR stops; paper ledger persistence; simulated fees/slippage; daily-loss and drawdown halts; per-engine lifecycle/circuit breakers; explainable heartbeat decisions; Docker deployment; blocking CI; and an optional Bybit Testnet mirror with private credential validation, deterministic client IDs, durable event delivery, persistent order state, partial-fill accounting, restart reconciliation, exchange-balance and execution-performance evidence, endpoint verification, entry limits, and a local kill switch.
 - Not approved for real funds: live order execution, production exchange credentials, native live exchange stops, or any claim of verified future profitability.
 - Legacy: the repository still contains older research scripts and duplicated experimental systems. They are not part of the VPS image or supported release.
 
@@ -29,6 +29,8 @@ To run one cycle against public market data:
 ```bash
 PYTHONPATH=src python -m leantrader.production.runner --once
 ```
+
+Set `PAPER_SYMBOLS=AUTO` to discover the full eligible Bybit USDT spot universe. The runtime removes inactive, leveraged-token, low-volume, invalid-spread, and excessive-spread markets, intersects the result with markets actually available on Bybit Testnet when the mirror is enabled, and rotates through every remaining symbol. `MARKET_SCAN_BATCH_SIZE` controls work per cycle, not the total universe; persistent `full_sweeps` telemetry proves complete eligible-set coverage over time. Existing positions are always evaluated even when outside the current rotation batch.
 
 ## Docker
 
