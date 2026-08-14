@@ -18,6 +18,7 @@ from .ledger import PaperLedger
 from .operations_engines import OperationsEngineSuite
 from .research_engines import ResearchEngineSuite
 from .settings import Settings
+from .testnet_execution import BybitTestnetExecutionEngine
 
 LOGGER = logging.getLogger("leantrader.production")
 
@@ -81,6 +82,21 @@ class PaperRunner:
         self.advanced = UltraEngineSuite(settings.pattern_memory_path, settings.news_state_path)
         self.research = ResearchEngineSuite(settings.research_state_path)
         self.operations = OperationsEngineSuite(settings.provenance_path, settings.metrics_path)
+        self._logged_event_ids = self._load_logged_event_ids(settings.log_path)
+        self.testnet = (
+            BybitTestnetExecutionEngine(
+                api_key_path=settings.testnet_api_key_path,
+                api_secret_path=settings.testnet_api_secret_path,
+                state_path=settings.testnet_state_path,
+                confirmation=settings.testnet_confirmation,
+                max_order_usd=settings.testnet_max_order_usd,
+                max_position_usd=settings.testnet_max_position_usd,
+                max_daily_submitted_usd=settings.testnet_max_daily_submitted_usd,
+                max_orders_per_day=settings.testnet_max_orders_per_day,
+            )
+            if settings.testnet_enabled
+            else None
+        )
         self.engines = EngineRegistry(
             failure_threshold=settings.engine_failure_threshold,
             recovery_seconds=settings.engine_recovery_seconds,
@@ -113,6 +129,13 @@ class PaperRunner:
             dependencies=("adaptive_intelligence", "paper_ledger"),
             version=self.operations.VERSION,
         )
+        if self.testnet is not None:
+            self.engines.register(
+                "bybit_testnet_execution",
+                self.testnet,
+                dependencies=("market_data", "paper_ledger", "operations_safety"),
+                version=self.testnet.VERSION,
+            )
         self.engines.start_all()
         self.stop_requested = False
 
@@ -310,8 +333,26 @@ class PaperRunner:
 
         equity = self.engines.call("paper_ledger", "equity", prices)
         self.engines.call("paper_ledger", "save")
-        for event in events:
+        delivery_events = list(self.ledger.pending_events)
+        for event in delivery_events:
             self._append_event(event)
+        testnet_events: list[dict[str, Any]] = []
+        if self.testnet is not None:
+            try:
+                testnet_events = self.engines.call("bybit_testnet_execution", "mirror_events", delivery_events)
+                self.engines.call(
+                    "paper_ledger",
+                    "acknowledge_events",
+                    [str(event["event_id"]) for event in delivery_events],
+                )
+            except Exception as exc:  # noqa: BLE001 - expose and fail health; never fall through to live
+                errors["bybit_testnet_execution"] = f"{type(exc).__name__}: {exc}"
+        else:
+            self.engines.call(
+                "paper_ledger",
+                "acknowledge_events",
+                [str(event["event_id"]) for event in delivery_events],
+            )
         try:
             operation_alerts = self.engines.call(
                 "operations_safety", "alert_events", events, self.ledger.halt_reason
@@ -333,7 +374,7 @@ class PaperRunner:
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v3",
+            "runtime": "verified-multi-engine-v4-testnet",
             "exchange": self.settings.exchange,
             "equity": equity,
             "cash": self.ledger.cash,
@@ -365,6 +406,11 @@ class PaperRunner:
             },
             "research_governor": research_state,
             "operation_alerts": operation_alerts,
+            "testnet_execution": {
+                "enabled": self.testnet is not None,
+                "events": testnet_events,
+                "live_authority": False,
+            },
         }
         try:
             status["operation_metrics"] = self.engines.call("operations_safety", "record_metrics", status)
@@ -399,9 +445,30 @@ class PaperRunner:
             self.engines.stop_all()
 
     def _append_event(self, event: dict[str, Any]) -> None:
+        event_id = str(event.get("event_id", ""))
+        if event_id and event_id in self._logged_event_ids:
+            return
         self.settings.log_path.parent.mkdir(parents=True, exist_ok=True)
         with self.settings.log_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(event, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        if event_id:
+            self._logged_event_ids.add(event_id)
+
+    @staticmethod
+    def _load_logged_event_ids(path: Path) -> set[str]:
+        if not path.exists():
+            return set()
+        output: set[str] = set()
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                event_id = str(json.loads(line).get("event_id", ""))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if event_id:
+                output.add(event_id)
+        return output
 
     @staticmethod
     def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
@@ -428,6 +495,8 @@ def preflight(settings: Settings) -> dict[str, Any]:
     settings.metrics_path.parent.mkdir(parents=True, exist_ok=True)
     settings.heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
     settings.log_path.parent.mkdir(parents=True, exist_ok=True)
+    if settings.testnet_enabled:
+        settings.testnet_state_path.parent.mkdir(parents=True, exist_ok=True)
     return {
         "ok": True,
         "mode": "paper",
@@ -435,7 +504,13 @@ def preflight(settings: Settings) -> dict[str, Any]:
         "symbols": settings.symbols,
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v3",
+        "runtime": "verified-multi-engine-v4-testnet",
+        "testnet_execution": {
+            "enabled": settings.testnet_enabled,
+            "provider": "bybit" if settings.testnet_enabled else None,
+            "environment": "testnet" if settings.testnet_enabled else None,
+            "live_authority": False,
+        },
         "adaptive_learning": {
             "learning_rate": settings.learning_rate,
             "minimum_closed_trades_per_promotion": settings.learning_min_samples,
@@ -452,7 +527,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="LeanTrader supported paper-only VPS runner")
+    parser = argparse.ArgumentParser(description="LeanTrader paper runner with optional bounded Bybit testnet mirror")
     parser.add_argument("--once", action="store_true", help="run one market cycle and exit")
     parser.add_argument("--preflight", action="store_true", help="validate safe configuration without network access")
     args = parser.parse_args()

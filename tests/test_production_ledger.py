@@ -10,13 +10,17 @@ def test_paper_ledger_persists_and_accounts_for_costs(tmp_path):
     ledger = PaperLedger(path, 50.0)
     buy = ledger.buy("BTC/USDT", 100.0, 5.0, 2.0, fee_bps=10.0, slippage_bps=5.0)
     assert buy["side"] == "buy"
+    assert buy["event_id"].startswith("paper-")
     assert ledger.cash < 45.0
 
     restored = PaperLedger(path, 999.0)
+    assert restored.pending_events == [buy]
     event = restored.sell("BTC/USDT", 110.0, fee_bps=10.0, slippage_bps=5.0, reason="test")
     assert event["realized_pnl"] > 0
     assert event["realized_return"] == pytest.approx(event["realized_pnl"] / 5.005)
     assert restored.cash > 50.0
+    restored.acknowledge_events([event["event_id"]])
+    assert [pending["event_id"] for pending in restored.pending_events] == [buy["event_id"]]
 
 
 def test_paper_ledger_rejects_overspend(tmp_path):

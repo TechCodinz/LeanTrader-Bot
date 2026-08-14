@@ -16,6 +16,7 @@ dist/
 *.egg-info/
 runtime/
 logs/
+secrets/
 reports/*.jsonl
 *.bak
 *.log

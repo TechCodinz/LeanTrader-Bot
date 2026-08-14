@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import os
 from dataclasses import asdict, dataclass, field
@@ -36,6 +37,7 @@ class PaperLedger:
         self.day_start_equity = float(starting_cash)
         self.halt_reason: str | None = None
         self.trade_count = 0
+        self.pending_events: list[dict[str, Any]] = []
         self._load()
 
     def _load(self) -> None:
@@ -51,6 +53,7 @@ class PaperLedger:
         self.day_start_equity = float(data.get("day_start_equity", self.initial_cash))
         self.halt_reason = data.get("halt_reason")
         self.trade_count = int(data.get("trade_count", 0))
+        self.pending_events = list(data.get("pending_events", []))
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -64,6 +67,7 @@ class PaperLedger:
             "day_start_equity": self.day_start_equity,
             "halt_reason": self.halt_reason,
             "trade_count": self.trade_count,
+            "pending_events": self.pending_events,
         }
         temporary = self.path.with_suffix(self.path.suffix + ".tmp")
         temporary.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
@@ -141,9 +145,10 @@ class PaperLedger:
             )
             reason = "signal"
         self.trade_count += 1
-        self.save()
         event = self._event("buy", symbol, quantity, fill, fee, reason)
         event["position_metadata"] = self.positions[symbol].metadata
+        self._enqueue_event(event)
+        self.save()
         return event
 
     def sell(
@@ -175,7 +180,6 @@ class PaperLedger:
         if position.quantity <= 1e-12 or fraction == 1:
             self.positions.pop(symbol)
         self.trade_count += 1
-        self.save()
         event = self._event("sell", symbol, quantity, fill, fee, reason)
         event["realized_pnl"] = pnl
         event["realized_return"] = pnl / max(cost_basis, 1e-9)
@@ -185,7 +189,18 @@ class PaperLedger:
         )
         event["position_metadata"] = position.metadata
         event["remaining_quantity"] = max(0.0, position.quantity)
+        self._enqueue_event(event)
+        self.save()
         return event
+
+    def acknowledge_events(self, event_ids: list[str]) -> None:
+        acknowledged = set(event_ids)
+        if not acknowledged:
+            return
+        self.pending_events = [
+            event for event in self.pending_events if str(event.get("event_id")) not in acknowledged
+        ]
+        self.save()
 
     def update_peak(self, symbol: str, price: float, atr: float) -> None:
         position = self.positions[symbol]
@@ -199,8 +214,14 @@ class PaperLedger:
             "state_path": str(self.path),
             "open_positions": len(self.positions),
             "trade_count": self.trade_count,
+            "pending_events": len(self.pending_events),
             "halt_reason": self.halt_reason,
         }
+
+    def _enqueue_event(self, event: dict[str, Any]) -> None:
+        canonical = json.dumps(event, sort_keys=True, separators=(",", ":"))
+        event["event_id"] = f"paper-{hashlib.sha256(canonical.encode('utf-8')).hexdigest()[:24]}"
+        self.pending_events.append(event)
 
     @staticmethod
     def _event(side: str, symbol: str, quantity: float, price: float, fee: float, reason: str) -> dict[str, Any]:

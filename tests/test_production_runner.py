@@ -6,6 +6,7 @@ import json
 import numpy as np
 import pandas as pd
 
+import leantrader.production.runner as runner_module
 from leantrader.production.runner import PaperRunner, atr_sized_notional
 from leantrader.production.settings import Settings
 
@@ -31,7 +32,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
-    assert result["runtime"] == "verified-multi-engine-v3"
+    assert result["runtime"] == "verified-multi-engine-v4-testnet"
     assert set(result["engines"]) == {
         "market_data",
         "paper_ledger",
@@ -120,3 +121,41 @@ def test_shadow_context_failure_blocks_entry_and_alert_failure_does_not_crash(mo
     assert result["open_positions"] == []
     assert result["operation_alerts"] == [{"sent": False, "reason": "alert_engine_unavailable"}]
     assert "operations_safety:alerts" in result["errors"]
+
+
+def test_testnet_engine_is_required_and_visible_when_enabled(monkeypatch, tmp_path):
+    class FakeTestnetEngine:
+        VERSION = "fake-testnet"
+
+        def __init__(self, **_kwargs):
+            self.started = False
+
+        def start(self):
+            self.started = True
+
+        def stop(self):
+            self.started = False
+
+        def mirror_events(self, events):
+            return [{"mirrored": event["side"]} for event in events]
+
+        def health(self):
+            return {
+                "environment": "testnet",
+                "sandbox_endpoint_verified": self.started,
+                "live_authority": False,
+            }
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PAPER_SYMBOLS", "BTC/USDT")
+    monkeypatch.setenv("BYBIT_TESTNET_ENABLED", "true")
+    monkeypatch.setenv("BYBIT_TESTNET_CONFIRM", "I_UNDERSTAND_TESTNET_ONLY")
+    monkeypatch.setattr(runner_module, "BybitTestnetExecutionEngine", FakeTestnetEngine)
+
+    result = PaperRunner(Settings.from_env(), FakeFeed()).cycle()
+    testnet = result["engines"]["bybit_testnet_execution"]
+    assert testnet["required"] is True
+    assert testnet["healthy"] is True
+    assert testnet["environment"] == "testnet"
+    assert testnet["sandbox_endpoint_verified"] is True
+    assert testnet["live_authority"] is False

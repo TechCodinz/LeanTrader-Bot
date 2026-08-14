@@ -1,13 +1,13 @@
 # LeanTrader
 
-LeanTrader is an experimental trading research repository. The only currently supported production path is a **paper-only VPS runner** that consumes public market data, simulates fees and slippage, persists its ledger, and stops opening positions when daily-loss or drawdown limits are reached.
+LeanTrader is an experimental trading research repository. The supported VPS path is a **paper-authority runner** that consumes public market data, simulates fees and slippage, persists its ledger, and stops opening positions when daily-loss or drawdown limits are reached. It can optionally mirror approved paper events to **Bybit Testnet only** to exercise authenticated order placement and reconciliation with test funds.
 
-It does not promise profits and the supported runner cannot submit real exchange orders.
+It does not promise profits and the supported runner cannot submit real exchange orders. Production endpoints and live-mode flags are rejected.
 
 ## Current status
 
-- Supported: Bybit-compatible public OHLCV data through CCXT; strict candle validation; deterministic trend, momentum, and mean-reversion ensemble signals; measured market-regime detection; bounded evidence-gated weight adaptation; ATR stops; paper ledger persistence; simulated fees/slippage; daily-loss and drawdown halts; per-engine lifecycle/circuit breakers; explainable heartbeat decisions; Docker deployment; and blocking CI.
-- Not approved for real funds: live order execution, exchange reconciliation, restart-safe live order state, native exchange stops, or verified multi-week strategy performance.
+- Supported: Bybit-compatible public OHLCV data through CCXT; strict candle validation; deterministic trend, momentum, and mean-reversion ensemble signals; measured market-regime detection; bounded evidence-gated weight adaptation; ATR stops; paper ledger persistence; simulated fees/slippage; daily-loss and drawdown halts; per-engine lifecycle/circuit breakers; explainable heartbeat decisions; Docker deployment; blocking CI; and an optional Bybit Testnet mirror with private credential validation, deterministic client IDs, durable event delivery, persistent order state, partial-fill accounting, restart reconciliation, exchange-balance and execution-performance evidence, endpoint verification, entry limits, and a local kill switch.
+- Not approved for real funds: live order execution, production exchange credentials, native live exchange stops, or any claim of verified future profitability.
 - Legacy: the repository still contains older research scripts and duplicated experimental systems. They are not part of the VPS image or supported release.
 
 The supported intelligence can adapt only after closed paper trades, moves weights slowly, and keeps every component between 10% and 70%. It cannot rewrite code, deploy itself, enable live trading, or bypass risk limits. See `ENGINE_AUDIT.md` for the branch-by-branch audit and supported-engine boundary.

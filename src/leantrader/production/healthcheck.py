@@ -21,7 +21,9 @@ def main() -> None:
     if payload.get("healthy") is not True:
         print(f"unhealthy: market cycle errors: {payload.get('errors', {})}")
         raise SystemExit(1)
-    print(f"healthy: paper heartbeat is {age:.1f}s old")
+    testnet = bool((payload.get("testnet_execution") or {}).get("enabled"))
+    mode = "paper + Bybit testnet mirror" if testnet else "paper"
+    print(f"healthy: {mode} heartbeat is {age:.1f}s old")
 
 
 if __name__ == "__main__":

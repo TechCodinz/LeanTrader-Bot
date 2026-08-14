@@ -284,9 +284,17 @@ class TelegramAlertEngine:
     VERSION = "1.0"
 
     def __init__(self, token: str = "", chat_id: str = "", timeout: float = 5.0) -> None:
-        self.token = token or os.getenv("TELEGRAM_BOT_TOKEN", "")
+        token_path = Path(os.getenv("TELEGRAM_BOT_TOKEN_FILE", "/run/secrets/telegram_bot_token"))
+        self.token = token or self._read_optional_secret(token_path) or os.getenv("TELEGRAM_BOT_TOKEN", "")
         self.chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID", "")
         self.timeout = timeout
+
+    @staticmethod
+    def _read_optional_secret(path: Path) -> str:
+        try:
+            return path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
 
     def send(self, message: str) -> dict[str, Any]:
         if not self.token or not self.chat_id:
