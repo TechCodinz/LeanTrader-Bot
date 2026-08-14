@@ -46,3 +46,30 @@ def test_testnet_configuration_cannot_grant_live_authority(monkeypatch, tmp_path
     assert settings.testnet_enabled is True
     assert settings.exchange == "bybit"
     assert settings.testnet_max_order_usd == 10.0
+
+
+def test_auto_symbols_enable_dynamic_all_eligible_market_rotation(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PAPER_SYMBOLS", "AUTO")
+    settings = Settings.from_env()
+    assert settings.market_universe_mode == "dynamic"
+    assert settings.symbols == ()
+    assert settings.market_quote == "USDT"
+    assert settings.market_scan_batch_size == 18
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("MARKET_SCAN_BATCH_SIZE", "0", "MARKET_SCAN_BATCH_SIZE"),
+        ("MARKET_REFRESH_SECONDS", "30", "MARKET_REFRESH_SECONDS"),
+        ("MARKET_MIN_QUOTE_VOLUME_USD", "-1", "MARKET_MIN_QUOTE_VOLUME_USD"),
+        ("MARKET_MAX_SPREAD_BPS", "0", "MARKET_MAX_SPREAD_BPS"),
+    ],
+)
+def test_dynamic_market_safety_bounds(monkeypatch, tmp_path, name, value, message):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PAPER_SYMBOLS", "AUTO")
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ValueError, match=message):
+        Settings.from_env()

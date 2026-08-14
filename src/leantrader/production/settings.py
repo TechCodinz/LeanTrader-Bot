@@ -36,6 +36,13 @@ def _int(name: str, default: int) -> int:
 class Settings:
     exchange: str
     symbols: tuple[str, ...]
+    market_universe_mode: str
+    market_quote: str
+    market_universe_state_path: Path
+    market_scan_batch_size: int
+    market_refresh_seconds: int
+    market_min_quote_volume_usd: float
+    market_max_spread_bps: float
     timeframe: str
     confirm_timeframes: tuple[str, ...]
     candle_limit: int
@@ -91,12 +98,14 @@ class Settings:
                 "ENABLE_LIVE=false, ALLOW_LIVE=false, and LIVE_CONFIRM=NO."
             )
 
+        raw_symbols = os.getenv("PAPER_SYMBOLS", "BTC/USDT,ETH/USDT,SOL/USDT").strip()
+        market_universe_mode = "dynamic" if raw_symbols.upper() in {"AUTO", "ALL", "DYNAMIC", "*"} else "configured"
         symbols = tuple(
             value.strip().upper()
-            for value in os.getenv("PAPER_SYMBOLS", "BTC/USDT,ETH/USDT,SOL/USDT").split(",")
+            for value in raw_symbols.split(",")
             if value.strip()
-        )
-        if not symbols:
+        ) if market_universe_mode == "configured" else ()
+        if market_universe_mode == "configured" and not symbols:
             raise ValueError("PAPER_SYMBOLS must contain at least one symbol")
         confirm_timeframes = tuple(
             value.strip() for value in os.getenv("CONFIRM_TIMEFRAMES", "1h,4h").split(",") if value.strip()
@@ -105,6 +114,15 @@ class Settings:
         settings = cls(
             exchange=os.getenv("DATA_EXCHANGE", "bybit").strip().lower(),
             symbols=symbols,
+            market_universe_mode=market_universe_mode,
+            market_quote=os.getenv("MARKET_QUOTE", "USDT").strip().upper(),
+            market_universe_state_path=Path(
+                os.getenv("MARKET_UNIVERSE_STATE_PATH", "runtime/vps_market_universe.json")
+            ),
+            market_scan_batch_size=_int("MARKET_SCAN_BATCH_SIZE", 18),
+            market_refresh_seconds=_int("MARKET_REFRESH_SECONDS", 3600),
+            market_min_quote_volume_usd=_float("MARKET_MIN_QUOTE_VOLUME_USD", 250_000.0),
+            market_max_spread_bps=_float("MARKET_MAX_SPREAD_BPS", 75.0),
             timeframe=os.getenv("PAPER_TIMEFRAME", "15m").strip(),
             confirm_timeframes=confirm_timeframes,
             candle_limit=_int("PAPER_CANDLE_LIMIT", 320),
@@ -158,6 +176,18 @@ class Settings:
         return settings
 
     def validate(self) -> None:
+        if self.market_universe_mode == "dynamic" and self.exchange != "bybit":
+            raise ValueError("dynamic market discovery is currently verified only for Bybit")
+        if not self.market_quote or "/" in self.market_quote:
+            raise ValueError("MARKET_QUOTE must be a quote asset such as USDT")
+        if not 1 <= self.market_scan_batch_size <= 100:
+            raise ValueError("MARKET_SCAN_BATCH_SIZE must be in [1, 100]")
+        if self.market_refresh_seconds < 60:
+            raise ValueError("MARKET_REFRESH_SECONDS must be at least 60")
+        if self.market_min_quote_volume_usd < 0:
+            raise ValueError("MARKET_MIN_QUOTE_VOLUME_USD cannot be negative")
+        if not 0 < self.market_max_spread_bps <= 1_000:
+            raise ValueError("MARKET_MAX_SPREAD_BPS must be in (0, 1000]")
         if self.candle_limit < 220:
             raise ValueError("PAPER_CANDLE_LIMIT must be at least 220")
         if self.poll_seconds < 10:

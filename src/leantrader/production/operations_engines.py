@@ -247,6 +247,7 @@ class PrometheusMetricsEngine:
 
     def write(self, status: dict[str, Any]) -> dict[str, Any]:
         engines = status.get("engines", {})
+        universe = engines.get("market_universe", {})
         lines = [
             "# HELP leantrader_healthy Whether the canonical paper runtime is healthy.",
             "# TYPE leantrader_healthy gauge",
@@ -263,6 +264,12 @@ class PrometheusMetricsEngine:
             f"leantrader_cycle_errors {len(status.get('errors', {}))}",
             "# TYPE leantrader_risk_halted gauge",
             f"leantrader_risk_halted {1 if status.get('halt_reason') else 0}",
+            "# TYPE leantrader_market_universe_eligible gauge",
+            f"leantrader_market_universe_eligible {int(universe.get('eligible_symbols', 0))}",
+            "# TYPE leantrader_market_universe_scanned gauge",
+            f"leantrader_market_universe_scanned {int(universe.get('last_scan_count', 0))}",
+            "# TYPE leantrader_market_universe_full_sweeps counter",
+            f"leantrader_market_universe_full_sweeps {int(universe.get('full_sweeps', 0))}",
             "# TYPE leantrader_engine_healthy gauge",
         ]
         for name, state in sorted(engines.items()):

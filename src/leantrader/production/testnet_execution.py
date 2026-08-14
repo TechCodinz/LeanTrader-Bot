@@ -60,6 +60,7 @@ class BybitTestnetExecutionEngine:
         self.endpoint_verified = False
         self.authenticated = False
         self.credential_fingerprint: str | None = None
+        self._eligible_symbols: set[str] = set()
         self.state: dict[str, Any] = self._load_state()
 
     def start(self) -> None:
@@ -88,6 +89,13 @@ class BybitTestnetExecutionEngine:
             self.exchange = exchange
             self._verify_testnet_urls()
             self.exchange.load_markets()
+            self._eligible_symbols = {
+                str(symbol).upper()
+                for symbol, market in self.exchange.markets.items()
+                if market.get("spot") and market.get("active") is not False
+            }
+            if not self._eligible_symbols:
+                raise TestnetSafetyError("Bybit Testnet returned no active spot markets")
             self._verify_testnet_urls()
             self._update_balance_snapshot(self.exchange.fetch_balance())
             self.authenticated = True
@@ -116,6 +124,11 @@ class BybitTestnetExecutionEngine:
             except Exception as exc:
                 raise RuntimeError(self._redact(str(exc))) from exc
         return results
+
+    def eligible_symbols(self, quote: str = "USDT") -> set[str]:
+        self._require_started()
+        suffix = f"/{quote.upper()}"
+        return {symbol for symbol in self._eligible_symbols if symbol.endswith(suffix)}
 
     def reconcile(self) -> dict[str, Any]:
         self._require_started()
@@ -164,6 +177,7 @@ class BybitTestnetExecutionEngine:
             "sandbox_endpoint_verified": self.endpoint_verified,
             "authenticated": self.authenticated,
             "credential_fingerprint": self.credential_fingerprint,
+            "eligible_spot_markets": len(self._eligible_symbols),
             "persistent": True,
             "state_path": str(self.state_path),
             "orders": len(orders),
@@ -198,6 +212,9 @@ class BybitTestnetExecutionEngine:
         existing = self.state["orders"].get(client_id)
         if existing is not None:
             return {"client_order_id": client_id, "idempotent": True, **self._public_record(existing)}
+
+        if symbol not in self._eligible_symbols:
+            return self._skip(client_id, symbol, side, "market_unavailable_on_bybit_testnet")
 
         self._refresh_day()
         if side == "buy" and (self.state_path.parent / "TESTNET_HALT").exists():

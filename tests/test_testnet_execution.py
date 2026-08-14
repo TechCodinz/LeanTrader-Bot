@@ -14,6 +14,11 @@ class FakeBybit:
         self.created = []
         self.orders = {}
         self.unsafe_urls = unsafe_urls
+        self.markets = {
+            "BTC/USDT": {"symbol": "BTC/USDT", "spot": True, "active": True, "quote": "USDT"},
+            "ETH/USDT": {"symbol": "ETH/USDT", "spot": True, "active": True, "quote": "USDT"},
+            "BTC/USDC": {"symbol": "BTC/USDC", "spot": True, "active": True, "quote": "USDC"},
+        }
         self.urls = {"api": {"public": "https://api.bybit.com", "private": "https://api.bybit.com"}}
 
     def set_sandbox_mode(self, enabled):
@@ -115,6 +120,17 @@ def test_sandbox_switch_is_first_call_and_endpoint_is_verified(tmp_path):
     assert instance.health()["sandbox_endpoint_verified"] is True
     assert instance.health()["authenticated"] is True
     assert instance.health()["live_authority"] is False
+    assert instance.eligible_symbols("USDT") == {"BTC/USDT", "ETH/USDT"}
+
+
+def test_market_unavailable_on_testnet_is_skipped_without_provider_call(tmp_path):
+    instance, fake = engine(tmp_path)
+    instance.start()
+    event = {**buy_event(), "symbol": "DOGE/USDT"}
+    result = instance.mirror_events([event])[0]
+    assert result["status"] == "skipped"
+    assert result["skip_reason"] == "market_unavailable_on_bybit_testnet"
+    assert fake.created == []
 
 
 def test_production_endpoint_is_rejected(tmp_path):

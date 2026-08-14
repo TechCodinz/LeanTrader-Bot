@@ -33,6 +33,15 @@ while true; do
         pending_samples: .engines.adaptive_intelligence.pending_samples,
         weights: .engines.adaptive_intelligence.weights
       },
+      market_universe: {
+        mode: .engines.market_universe.mode,
+        quote: .engines.market_universe.quote,
+        eligible_symbols: .engines.market_universe.eligible_symbols,
+        scan_batch_size: .engines.market_universe.scan_batch_size,
+        last_scan: .engines.market_universe.last_scan,
+        full_sweeps: .engines.market_universe.full_sweeps,
+        rejection_counts: .engines.market_universe.rejection_counts
+      },
       testnet: {
         authenticated: .engines.bybit_testnet_execution.authenticated,
         sandbox_verified: .engines.bybit_testnet_execution.sandbox_endpoint_verified,

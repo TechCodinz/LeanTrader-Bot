@@ -2,7 +2,7 @@
 
 This ledger prevents a named engine from being mistaken for a working capability. A capability is complete only when it has deterministic logic, explicit inputs and outputs, tests, lifecycle health, and a declared authority level.
 
-Canonical runtime release: `verified-multi-engine-v4-testnet`.
+Canonical runtime release: `verified-multi-engine-v5-dynamic-testnet`.
 
 ## Canonical runtime authority
 
@@ -39,6 +39,7 @@ Canonical runtime release: `verified-multi-engine-v4-testnet`.
 | Telegram notifier | Outbound paper event/halt alerts only | Optional |
 | Prometheus/Grafana monitoring | Atomic Prometheus textfile metrics from canonical heartbeat fields | Active monitoring |
 | Bybit testnet execution | Sandbox-first CCXT initialization, private credential validation, deterministic client order IDs, durable paper-event delivery, persistent state, partial fills, restart reconciliation, exchange-balance snapshots, execution slippage/P&L evidence, entry caps and kill switch | Optional testnet-only mirror; no strategy or live authority |
+| Dynamic market universe | Discovers all active, liquid, spread-bounded Bybit USDT spot markets, removes leveraged/unsupported instruments, intersects with Testnet availability, persists cursor state, prioritizes open positions, and rotates fairly until every eligible symbol is evaluated | Required in the supported runtime; batch size limits per-cycle load, never total coverage |
 
 ## Core trading capabilities
 
