@@ -13,6 +13,7 @@ from leantrader.production.research_engines import (
     OptunaResearchEngine,
     QuantumResearchAdapter,
     ReplayEngine,
+    ResearchEngineSuite,
     StressEngine,
 )
 
@@ -134,3 +135,20 @@ def test_capital_preservation_requires_healthy_recovery_cycles():
 def test_stress_engine_has_no_random_scenarios():
     result = StressEngine().evaluate({"BTC/USDT": 10.0, "ETH/USDT": 5.0})
     assert result["worst_case_pnl"] == -3.75
+
+
+def test_research_suite_reports_active_and_explicitly_blocked_engines(tmp_path):
+    suite = ResearchEngineSuite(tmp_path / "governor.json")
+    observed = suite.observe_symbol("BTC/USDT", market_frame(100))
+    assert observed["state"] == "active"
+    snapshot = suite.runtime_snapshot(
+        notionals={"BTC/USDT": 10.0},
+        drawdown=0.0,
+        daily_loss=0.0,
+        data_healthy=True,
+        required_engines_healthy=True,
+    )
+    assert snapshot["engine_activity"]["distribution_drift"]["calls"] == 1
+    assert snapshot["engine_activity"]["capital_preservation"]["calls"] == 1
+    assert suite.health()["activity"]["kronos"]["state"] == "blocked_unconfigured"
+    assert suite.health()["execution_authority"] is False

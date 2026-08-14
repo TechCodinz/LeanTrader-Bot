@@ -32,7 +32,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
-    assert result["runtime"] == "verified-multi-engine-v5-dynamic-testnet"
+    assert result["runtime"] == "verified-multi-engine-v6-attested-routing"
     assert set(result["engines"]) == {
         "market_data",
         "market_universe",
@@ -40,6 +40,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
         "adaptive_intelligence",
         "advanced_shadow_suite",
         "research_governor",
+        "decision_router",
         "operations_safety",
     }
     assert all(engine["healthy"] for engine in result["engines"].values())
@@ -118,7 +119,7 @@ def test_shadow_context_failure_blocks_entry_and_alert_failure_does_not_crash(mo
     monkeypatch.setattr(runner.engines, "call", fail_optional_engines)
     result = runner.cycle()
 
-    assert result["entry_blocks"] == {"BTC/USDT": "advanced_context_unavailable"}
+    assert result["entry_blocks"] == {"BTC/USDT": "decision_route_unavailable"}
     assert result["open_positions"] == []
     assert result["operation_alerts"] == [{"sent": False, "reason": "alert_engine_unavailable"}]
     assert "operations_safety:alerts" in result["errors"]

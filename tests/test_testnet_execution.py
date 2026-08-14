@@ -10,10 +10,21 @@ from leantrader.production.testnet_execution import TestnetSafetyError as Sandbo
 
 class FakeBybit:
     def __init__(self, _config=None, *, unsafe_urls: bool = False):
+        self.id = "bybit"
         self.calls = []
         self.created = []
         self.orders = {}
         self.unsafe_urls = unsafe_urls
+        self.has = {
+            "fetchBalance": True,
+            "createOrder": True,
+            "createMarketOrder": True,
+            "fetchOrder": True,
+            "fetchOpenOrders": True,
+            "fetchClosedOrders": True,
+            "cancelOrder": True,
+            "fetchMyTrades": True,
+        }
         self.markets = {
             "BTC/USDT": {"symbol": "BTC/USDT", "spot": True, "active": True, "quote": "USDT"},
             "ETH/USDT": {"symbol": "ETH/USDT", "spot": True, "active": True, "quote": "USDT"},
@@ -40,6 +51,17 @@ class FakeBybit:
     def fetch_balance(self):
         self.calls.append(("fetch_balance",))
         return {"total": {"USDT": 10_000.0}}
+
+    def private_get_v5_user_query_api(self):
+        self.calls.append(("query_api_key",))
+        return {
+            "result": {
+                "readOnly": 0,
+                "permissions": {"Spot": ["SpotTrade"], "Wallet": []},
+                "ips": ["169.58.175.192"],
+                "type": 1,
+            }
+        }
 
     def amount_to_precision(self, _symbol, amount):
         return f"{amount:.6f}"
@@ -116,10 +138,15 @@ def test_sandbox_switch_is_first_call_and_endpoint_is_verified(tmp_path):
     instance.start()
     assert fake.calls[0] == ("sandbox", True)
     assert fake.calls[1] == ("load_markets",)
-    assert fake.calls[2] == ("fetch_balance",)
+    assert fake.calls[2] == ("query_api_key",)
+    assert fake.calls[3] == ("fetch_balance",)
     assert instance.health()["sandbox_endpoint_verified"] is True
     assert instance.health()["authenticated"] is True
     assert instance.health()["live_authority"] is False
+    assert instance.health()["api_attestation"]["verified"] is True
+    assert instance.health()["api_attestation"]["withdrawal_permission"] is False
+    assert instance.health()["exchange_capabilities"]["execution_market_type"] == "spot"
+    assert instance.health()["exchange_capabilities"]["market_types_observed"]["spot"] == 3
     assert instance.eligible_symbols("USDT") == {"BTC/USDT", "ETH/USDT"}
 
 
@@ -159,6 +186,43 @@ def test_invalid_private_credentials_cannot_report_ready(tmp_path):
     with pytest.raises(RuntimeError, match="invalid api key"):
         instance.start()
     assert instance.authenticated is False
+
+
+def test_read_only_or_withdrawal_enabled_key_is_rejected(tmp_path):
+    read_only = FakeBybit()
+    read_only.private_get_v5_user_query_api = lambda: {
+        "result": {"readOnly": 1, "permissions": {"Spot": [], "Wallet": []}}
+    }
+    instance, _ = engine(tmp_path, read_only)
+    with pytest.raises(SandboxSafetyError, match="read-only"):
+        instance.start()
+
+    withdrawal = FakeBybit()
+    withdrawal.private_get_v5_user_query_api = lambda: {
+        "result": {
+            "readOnly": 0,
+            "permissions": {"Spot": ["SpotTrade"], "Wallet": ["Withdraw"]},
+        }
+    }
+    instance, _ = engine(tmp_path, withdrawal)
+    with pytest.raises(SandboxSafetyError, match="withdrawal"):
+        instance.start()
+
+
+def test_missing_required_exchange_capability_is_rejected(tmp_path):
+    fake = FakeBybit()
+    fake.has["createOrder"] = False
+    instance, _ = engine(tmp_path, fake)
+    with pytest.raises(SandboxSafetyError, match="createOrder"):
+        instance.start()
+
+
+def test_non_bybit_adapter_is_rejected(tmp_path):
+    fake = FakeBybit()
+    fake.id = "binance"
+    instance, _ = engine(tmp_path, fake)
+    with pytest.raises(SandboxSafetyError, match="unsupported testnet exchange"):
+        instance.start()
 
 
 def test_order_is_minimum_aware_idempotent_and_persistent(tmp_path):

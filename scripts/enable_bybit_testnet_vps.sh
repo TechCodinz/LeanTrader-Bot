@@ -12,7 +12,7 @@ if [[ ! -f "${APP_DIR}/docker-compose.yml" ]]; then
   echo "ERROR: ${APP_DIR} is not a deployed LeanTrader checkout." >&2
   exit 1
 fi
-if ! grep -q 'verified-multi-engine-v5-dynamic-testnet' "${APP_DIR}/src/leantrader/production/runner.py"; then
+if ! grep -q 'verified-multi-engine-v6-attested-routing' "${APP_DIR}/src/leantrader/production/runner.py"; then
   echo "ERROR: upgrade the VPS to the verified testnet release before enabling testnet." >&2
   exit 1
 fi
@@ -61,6 +61,11 @@ set_env MARKET_SCAN_BATCH_SIZE 18
 set_env MARKET_REFRESH_SECONDS 3600
 set_env MARKET_MIN_QUOTE_VOLUME_USD 250000
 set_env MARKET_MAX_SPREAD_BPS 75
+set_env MARKET_EVIDENCE_MIN_SAMPLES 8
+set_env MARKET_EVIDENCE_WINDOW 50
+set_env ROUTER_MIN_ADVANCED_CONFIDENCE 0.20
+set_env ROUTER_MIN_COMBINED_SCORE 0.20
+set_env ROUTER_NEGATIVE_CONSENSUS_VETO -0.25
 set_env BYBIT_TESTNET_MAX_ORDER_USD 10
 set_env BYBIT_TESTNET_MAX_POSITION_USD 20
 set_env BYBIT_TESTNET_MAX_DAILY_SUBMITTED_USD 50
@@ -94,10 +99,26 @@ if ! jq -e '
   .engines.bybit_testnet_execution.authenticated == true and
   .engines.bybit_testnet_execution.sandbox_endpoint_verified == true and
   .engines.bybit_testnet_execution.live_authority == false and
+  .engines.bybit_testnet_execution.api_attestation.verified == true and
+  .engines.bybit_testnet_execution.api_attestation.environment == "testnet" and
+  .engines.bybit_testnet_execution.api_attestation.spot_trade == true and
+  .engines.bybit_testnet_execution.api_attestation.withdrawal_permission == false and
   .engines.market_universe.healthy == true and
   .engines.market_universe.mode == "dynamic" and
   .engines.market_universe.eligible_symbols > 0 and
   .engines.market_universe.all_eligible_markets_rotate == true and
+  .engines.advanced_shadow_suite.healthy == true and
+  .engines.advanced_shadow_suite.activity.smart_scalping.successes > 0 and
+  .engines.advanced_shadow_suite.activity.technical_structure.successes > 0 and
+  .engines.advanced_shadow_suite.activity.spectral_harmonics.successes > 0 and
+  .engines.advanced_shadow_suite.activity.news_awareness.successes > 0 and
+  .engines.advanced_shadow_suite.activity.pattern_memory.successes > 0 and
+  .engines.advanced_shadow_suite.activity.swarm_hivemind.successes > 0 and
+  .engines.research_governor.activity.distribution_drift.calls > 0 and
+  .engines.research_governor.activity.capital_preservation.calls > 0 and
+  .engines.decision_router.healthy == true and
+  .engines.decision_router.routes > 0 and
+  .engines.decision_router.live_authority == false and
   ([.engines | to_entries[] | select(.value.required == true and .value.healthy != true)] | length) == 0
 ' "${heartbeat}" >/dev/null; then
   echo "ERROR: heartbeat verification failed; new entries remain halted." >&2
@@ -108,6 +129,8 @@ fi
 echo "LEANTRADER_TESTNET_READY"
 echo "Authenticated Bybit Testnet: yes"
 echo "Dynamic eligible-market universe: yes"
+echo "API environment and permissions attested: yes"
+echo "Adaptive + ultra decision router: yes"
 echo "Live authority: no"
 echo "New testnet entries: HALTED for manual acceptance"
 echo "Review runtime/vps_heartbeat.json and the Bybit Testnet account."

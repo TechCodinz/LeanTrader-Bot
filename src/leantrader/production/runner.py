@@ -12,6 +12,7 @@ from typing import Any
 import pandas as pd
 
 from .advanced_engines import UltraEngineSuite
+from .decision_router import BoundedDecisionRouter, MarketEvidenceGate
 from .engine_control import EngineRegistry
 from .intelligence import AdaptiveIntelligence, IntelligenceDecision
 from .ledger import PaperLedger
@@ -69,6 +70,12 @@ class MarketFeed:
         if not rows:
             raise RuntimeError(f"no candles returned for {symbol}")
         return pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
+
+    def order_book(self, symbol: str, limit: int = 10) -> dict[str, Any]:
+        self._load_markets()
+        if not self.exchange.has.get("fetchOrderBook", False):
+            raise RuntimeError("exchange does not support order-book inspection")
+        return self.exchange.fetch_order_book(symbol, limit=limit)
 
     def discover_markets(
         self,
@@ -138,8 +145,17 @@ class MarketFeed:
         return upper.endswith(("3L", "3S", "5L", "5S", "BULL", "BEAR"))
 
     def health(self) -> dict[str, Any]:
+        capabilities = {
+            name: bool(self.exchange.has.get(name, False))
+            for name in ("fetchMarkets", "fetchTickers", "fetchOHLCV", "fetchOrderBook")
+        }
         return {
             "read_only": True,
+            "environment": "live_public_market_data",
+            "credentials_loaded": False,
+            "trading_authority": False,
+            "exchange_id": str(getattr(self.exchange, "id", "unknown")),
+            "capabilities": capabilities,
             "markets_loaded": self._markets_loaded,
             "last_discovery": dict(self._last_discovery),
         }
@@ -157,6 +173,16 @@ class PaperRunner:
         )
         self.advanced = UltraEngineSuite(settings.pattern_memory_path, settings.news_state_path)
         self.research = ResearchEngineSuite(settings.research_state_path)
+        self.decision_router = BoundedDecisionRouter(
+            MarketEvidenceGate(
+                settings.decision_router_state_path,
+                minimum_samples=settings.market_evidence_min_samples,
+                rolling_window=settings.market_evidence_window,
+            ),
+            minimum_advanced_confidence=settings.router_min_advanced_confidence,
+            minimum_combined_score=settings.router_min_combined_score,
+            negative_consensus_veto=settings.router_negative_consensus_veto,
+        )
         self.operations = OperationsEngineSuite(settings.provenance_path, settings.metrics_path)
         self.universe = MarketUniverse(
             state_path=settings.market_universe_state_path,
@@ -203,7 +229,6 @@ class PaperRunner:
         self.engines.register(
             "advanced_shadow_suite",
             self.advanced,
-            required=False,
             dependencies=("market_data",),
             version=self.advanced.VERSION,
         )
@@ -212,6 +237,12 @@ class PaperRunner:
             self.research,
             dependencies=("adaptive_intelligence", "paper_ledger"),
             version=self.research.VERSION,
+        )
+        self.engines.register(
+            "decision_router",
+            self.decision_router,
+            dependencies=("adaptive_intelligence", "advanced_shadow_suite", "research_governor", "market_universe"),
+            version=self.decision_router.VERSION,
         )
         self.engines.register(
             "operations_safety",
@@ -234,6 +265,8 @@ class PaperRunner:
         decisions: dict[str, IntelligenceDecision] = {}
         frames: dict[str, pd.DataFrame] = {}
         advanced_decisions: dict[str, dict[str, Any]] = {}
+        routed_decisions: dict[str, dict[str, Any]] = {}
+        research_observations: dict[str, dict[str, Any]] = {}
         errors: dict[str, str] = {}
         allowed_testnet_symbols = (
             self.engines.call("bybit_testnet_execution", "eligible_symbols", self.settings.market_quote)
@@ -272,6 +305,9 @@ class PaperRunner:
                     "market_data", "candles", symbol, self.settings.timeframe, self.settings.candle_limit
                 )
                 frames[symbol] = frame
+                research_observations[symbol] = self.engines.call(
+                    "research_governor", "observe_symbol", symbol, frame
+                )
                 context_frames = {
                     timeframe: self.engines.call(
                         "market_data", "candles", symbol, timeframe, self.settings.candle_limit
@@ -285,8 +321,35 @@ class PaperRunner:
                     context_frames=context_frames,
                     symbol=symbol,
                 )
+                order_book = None
+                if hasattr(self.feed, "order_book"):
+                    try:
+                        # Depth is an optional enhancement to an otherwise valid
+                        # candle decision, so an unavailable book is observable
+                        # without falsely degrading the required candle feed.
+                        order_book = self.feed.order_book(symbol, 10)
+                    except Exception as exc:  # noqa: BLE001 - candle decisions remain observable without depth
+                        errors[f"{symbol}:order_book"] = f"{type(exc).__name__}: {exc}"
                 advanced_decisions[symbol] = self.engines.call(
-                    "advanced_shadow_suite", "evaluate_symbol", symbol, frame
+                    "advanced_shadow_suite",
+                    "evaluate_symbol",
+                    symbol,
+                    frame,
+                    order_book,
+                    self.settings.order_usd / max(decisions[symbol].close, 1e-12),
+                )
+                base_score = sum(
+                    decisions[symbol].component_scores[name] * decisions[symbol].weights[name]
+                    for name in decisions[symbol].component_scores
+                )
+                routed_decisions[symbol] = self.engines.call(
+                    "decision_router",
+                    "route",
+                    symbol=symbol,
+                    base_enter=decisions[symbol].enter_long,
+                    base_score=base_score,
+                    base_confidence=decisions[symbol].confidence,
+                    advanced=advanced_decisions[symbol],
                 )
                 self.engines.call(
                     "operations_safety",
@@ -300,6 +363,8 @@ class PaperRunner:
                         "component_scores": decisions[symbol].component_scores,
                         "weights": decisions[symbol].weights,
                         "advanced_shadow": advanced_decisions[symbol],
+                        "decision_route": routed_decisions[symbol],
+                        "research_observation": research_observations[symbol],
                     },
                 )
             except Exception as exc:  # noqa: BLE001 - isolate individual symbol/feed failures
@@ -353,6 +418,11 @@ class PaperRunner:
                 reason = "atr_stop"
             elif decision.close >= position.entry_price + self.settings.final_take_profit_atr * position.atr:
                 reason = "take_profit_final"
+            elif (
+                float((advanced_decisions.get(symbol, {}).get("swarm") or {}).get("score") or 0.0) <= -0.55
+                and float((advanced_decisions.get(symbol, {}).get("swarm") or {}).get("confidence") or 0.0) >= 0.50
+            ):
+                reason = "ultra_consensus_exit"
             elif not decision.trend_up:
                 reason = "trend_reversal"
             elif (
@@ -389,18 +459,28 @@ class PaperRunner:
                             event.get("trade_realized_return_total", 0.0),
                             symbol,
                         )
+                        event["market_evidence"] = self.engines.call(
+                            "decision_router",
+                            "record_outcome",
+                            symbol,
+                            event.get("trade_realized_return_total", 0.0),
+                            (
+                                event.get("position_metadata", {})
+                                .get("decision_route", {})
+                                .get("predicted_probability")
+                            ),
+                        )
                     except Exception as exc:  # noqa: BLE001 - execution completed; expose learning failure
                         errors[f"{symbol}:learning"] = f"{type(exc).__name__}: {exc}"
 
         if not halt:
             for symbol, decision in decisions.items():
-                if not decision.enter_long:
+                route = routed_decisions.get(symbol)
+                if route is None:
+                    entry_blocks[symbol] = "decision_route_unavailable"
                     continue
-                if symbol not in advanced_decisions:
-                    entry_blocks[symbol] = "advanced_context_unavailable"
-                    continue
-                if advanced_decisions.get(symbol, {}).get("news_blackout") is True:
-                    entry_blocks[symbol] = "high_impact_news_blackout"
+                if not route["allowed"]:
+                    entry_blocks[symbol] = str(route["reason"])
                     continue
                 position = self.ledger.positions.get(symbol)
                 if position and (
@@ -422,7 +502,7 @@ class PaperRunner:
                     order_cap=self.settings.order_usd,
                     existing_notional=existing_notional,
                 )
-                notional *= float(capital_state["size_multiplier"])
+                notional *= float(capital_state["size_multiplier"]) * float(route["size_multiplier"])
                 if notional <= 0:
                     continue
                 try:
@@ -446,6 +526,7 @@ class PaperRunner:
                                 "multi_timeframe_confirmed": decision.multi_timeframe_confirmed,
                                 "session_allowed": decision.session_allowed,
                                 "advanced_feature_vector": advanced_decisions.get(symbol, {}).get("feature_vector", {}),
+                                "decision_route": route,
                             },
                             allow_add=position is not None,
                         )
@@ -488,7 +569,9 @@ class PaperRunner:
         }
         try:
             advanced_market = self.engines.call("advanced_shadow_suite", "market_snapshot", frames, notionals)
-            advanced_market["business_performance"] = self.advanced.business.summarize(events)
+            advanced_market["business_performance"] = self.engines.call(
+                "advanced_shadow_suite", "business_snapshot", events
+            )
         except Exception as exc:  # noqa: BLE001 - advanced suite is shadow-only
             advanced_market = {"error": f"{type(exc).__name__}: {exc}"}
         engine_status = self.engines.snapshot()
@@ -496,7 +579,7 @@ class PaperRunner:
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v5-dynamic-testnet",
+            "runtime": "verified-multi-engine-v6-attested-routing",
             "exchange": self.settings.exchange,
             "cycle_symbols": cycle_symbols,
             "equity": equity,
@@ -518,6 +601,7 @@ class PaperRunner:
                     "rationale": list(decision.rationale),
                     "multi_timeframe_confirmed": decision.multi_timeframe_confirmed,
                     "session_allowed": decision.session_allowed,
+                    "route": routed_decisions.get(symbol),
                 }
                 for symbol, decision in decisions.items()
             },
@@ -528,6 +612,7 @@ class PaperRunner:
                 "execution_authority": False,
             },
             "research_governor": research_state,
+            "research_observations": research_observations,
             "operation_alerts": operation_alerts,
             "testnet_execution": {
                 "enabled": self.testnet is not None,
@@ -615,6 +700,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
     settings.news_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.market_universe_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.research_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.decision_router_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.provenance_path.parent.mkdir(parents=True, exist_ok=True)
     settings.metrics_path.parent.mkdir(parents=True, exist_ok=True)
     settings.heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
@@ -636,7 +722,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v5-dynamic-testnet",
+        "runtime": "verified-multi-engine-v6-attested-routing",
         "testnet_execution": {
             "enabled": settings.testnet_enabled,
             "provider": "bybit" if settings.testnet_enabled else None,

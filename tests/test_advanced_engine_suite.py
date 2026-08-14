@@ -178,9 +178,27 @@ def test_arbitrage_subtracts_all_costs_and_never_executes():
 
 def test_ultra_suite_exposes_real_capability_map(tmp_path):
     suite = UltraEngineSuite(tmp_path / "memory.json", tmp_path / "news.json")
-    result = suite.evaluate_symbol("BTC/USDT", frame())
+    result = suite.evaluate_symbol(
+        "BTC/USDT",
+        frame(),
+        {"bids": [[99.9, 5.0]], "asks": [[100.1, 5.0]]},
+        desired_qty=0.01,
+    )
     assert result["swarm"]["engine"] == "swarm_hivemind"
     assert any(signal["engine"] == "technical_structure" for signal in result["signals"])
+    assert any(signal["engine"] == "fluid_liquidity" for signal in result["signals"])
+    assert result["liquidity"]["available"] is True
     health = suite.health()
     assert health["legacy_random_engines_loaded"] is False
     assert "frequency_harmonics_ultrasonic" in health["capabilities"]
+    assert health["activity"]["fluid_liquidity"]["state"] == "active"
+
+
+def test_ultra_suite_isolates_and_reports_individual_engine_failure(tmp_path):
+    suite = UltraEngineSuite(tmp_path / "memory.json", tmp_path / "news.json")
+    suite.spectral.evaluate = lambda _frame: (_ for _ in ()).throw(RuntimeError("spectral failure"))
+    result = suite.evaluate_symbol("BTC/USDT", frame())
+    spectral = next(signal for signal in result["signals"] if signal["engine"] == "spectral_harmonics")
+    assert spectral["confidence"] == 0.0
+    assert suite.health()["activity"]["spectral_harmonics"]["state"] == "failed"
+    assert "spectral failure" in suite.health()["activity"]["spectral_harmonics"]["last_error"]

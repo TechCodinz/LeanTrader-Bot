@@ -33,6 +33,16 @@ while true; do
         pending_samples: .engines.adaptive_intelligence.pending_samples,
         weights: .engines.adaptive_intelligence.weights
       },
+      decision_router: {
+        routes: .engines.decision_router.routes,
+        approved: .engines.decision_router.approved,
+        blocked: .engines.decision_router.blocked,
+        market_evidence: .engines.decision_router.market_evidence,
+        live_authority: .engines.decision_router.live_authority
+      },
+      ultra_engine_activity: .engines.advanced_shadow_suite.activity,
+      research_engine_activity: .engines.research_governor.activity,
+      research_drift: .research_governor.distribution_drift,
       market_universe: {
         mode: .engines.market_universe.mode,
         quote: .engines.market_universe.quote,
@@ -44,6 +54,8 @@ while true; do
       },
       testnet: {
         authenticated: .engines.bybit_testnet_execution.authenticated,
+        api_attestation: .engines.bybit_testnet_execution.api_attestation,
+        exchange_capabilities: .engines.bybit_testnet_execution.exchange_capabilities,
         sandbox_verified: .engines.bybit_testnet_execution.sandbox_endpoint_verified,
         live_authority: .engines.bybit_testnet_execution.live_authority,
         orders: .engines.bybit_testnet_execution.orders,

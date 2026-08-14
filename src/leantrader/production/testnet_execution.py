@@ -21,7 +21,7 @@ class BybitTestnetExecutionEngine:
     exchange test funds only. It never accepts production credentials or URLs.
     """
 
-    VERSION = "1.1"
+    VERSION = "2.0"
     TESTNET_CONFIRMATION = "I_UNDERSTAND_TESTNET_ONLY"
 
     def __init__(
@@ -61,6 +61,8 @@ class BybitTestnetExecutionEngine:
         self.authenticated = False
         self.credential_fingerprint: str | None = None
         self._eligible_symbols: set[str] = set()
+        self.api_attestation: dict[str, Any] = {"verified": False}
+        self.exchange_capabilities: dict[str, Any] = {}
         self.state: dict[str, Any] = self._load_state()
 
     def start(self) -> None:
@@ -97,6 +99,8 @@ class BybitTestnetExecutionEngine:
             if not self._eligible_symbols:
                 raise TestnetSafetyError("Bybit Testnet returned no active spot markets")
             self._verify_testnet_urls()
+            self._attest_exchange_capabilities()
+            self._attest_api_key()
             self._update_balance_snapshot(self.exchange.fetch_balance())
             self.authenticated = True
             self.credential_fingerprint = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:12]
@@ -178,6 +182,8 @@ class BybitTestnetExecutionEngine:
             "authenticated": self.authenticated,
             "credential_fingerprint": self.credential_fingerprint,
             "eligible_spot_markets": len(self._eligible_symbols),
+            "exchange_capabilities": dict(self.exchange_capabilities),
+            "api_attestation": dict(self.api_attestation),
             "persistent": True,
             "state_path": str(self.state_path),
             "orders": len(orders),
@@ -488,6 +494,87 @@ class BybitTestnetExecutionEngine:
         if not all("bybit" in url.lower() for url in flattened):
             raise TestnetSafetyError("unexpected non-Bybit sandbox endpoint")
         self.endpoint_verified = True
+
+    def _attest_exchange_capabilities(self) -> None:
+        exchange_id = str(getattr(self.exchange, "id", "bybit")).lower()
+        if exchange_id != "bybit":
+            raise TestnetSafetyError(f"unsupported testnet exchange adapter: {exchange_id}")
+        advertised = getattr(self.exchange, "has", {}) or {}
+        methods = {
+            name: bool(advertised.get(name, False))
+            for name in (
+                "fetchBalance",
+                "createOrder",
+                "createMarketOrder",
+                "fetchOrder",
+                "fetchOpenOrders",
+                "fetchClosedOrders",
+                "cancelOrder",
+                "fetchMyTrades",
+            )
+        }
+        market_types = {
+            market_type: sum(bool(market.get(market_type)) for market in self.exchange.markets.values())
+            for market_type in ("spot", "swap", "future", "option")
+        }
+        quotes = sorted(
+            {
+                str(market.get("quote")).upper()
+                for market in self.exchange.markets.values()
+                if market.get("spot") and market.get("quote")
+            }
+        )
+        self.exchange_capabilities = {
+            "exchange_id": exchange_id,
+            "environment": "testnet",
+            "execution_market_type": "spot",
+            "market_types_observed": market_types,
+            "spot_quote_assets": quotes,
+            "methods": methods,
+        }
+        required = ("fetchBalance", "createOrder")
+        missing = [name for name in required if not methods[name]]
+        recoverable = methods["fetchOrder"] or (
+            methods["fetchOpenOrders"] and methods["fetchClosedOrders"]
+        )
+        if missing or not recoverable:
+            detail = missing + ([] if recoverable else ["order_recovery"])
+            raise TestnetSafetyError(f"Bybit Testnet lacks required execution capabilities: {', '.join(detail)}")
+
+    def _attest_api_key(self) -> None:
+        query = None
+        for method_name in ("private_get_v5_user_query_api", "privateGetV5UserQueryApi"):
+            candidate = getattr(self.exchange, method_name, None)
+            if callable(candidate):
+                query = candidate
+                break
+        if query is None:
+            raise TestnetSafetyError("CCXT cannot inspect Bybit API-key permissions")
+        payload = query()
+        result = payload.get("result", payload) if isinstance(payload, dict) else {}
+        permissions = result.get("permissions") or {}
+        spot_permissions = {str(value) for value in permissions.get("Spot", [])}
+        wallet_permissions = {str(value) for value in permissions.get("Wallet", [])}
+        read_only = int(result.get("readOnly", 1))
+        if read_only != 0:
+            raise TestnetSafetyError("Bybit Testnet API key is read-only; SpotTrade permission is required")
+        if "SpotTrade" not in spot_permissions:
+            raise TestnetSafetyError("Bybit Testnet API key does not grant SpotTrade permission")
+        if "Withdraw" in wallet_permissions:
+            raise TestnetSafetyError("API keys with withdrawal permission are rejected")
+        ips = [str(value) for value in result.get("ips", []) if str(value).strip()]
+        self.api_attestation = {
+            "verified": True,
+            "provider": "bybit",
+            "environment": "testnet",
+            "read_write": True,
+            "spot_trade": True,
+            "withdrawal_permission": False,
+            "ip_bound": bool(ips),
+            "bound_ip_count": len(ips),
+            "key_type": int(result.get("type", 0) or 0),
+            "checked_at": dt.datetime.now(dt.UTC).isoformat(),
+        }
 
     @classmethod
     def _flatten_urls(cls, value: Any) -> list[str]:

@@ -547,7 +547,7 @@ class BusinessPerformanceEngine:
 class UltraEngineSuite:
     """Canonical, deterministic replacements for the legacy ultra concepts."""
 
-    VERSION = "2.0"
+    VERSION = "3.0"
 
     def __init__(self, memory_path: Path, news_path: Path) -> None:
         self.scalping = SmartScalpingEngine()
@@ -561,14 +561,41 @@ class UltraEngineSuite:
         self.portfolio = PortfolioRiskEngine()
         self.arbitrage = ArbitrageEngine()
         self.business = BusinessPerformanceEngine()
+        self.activity: dict[str, dict[str, Any]] = {
+            name: {"calls": 0, "successes": 0, "failures": 0, "last_error": None}
+            for name in (
+                "smart_scalping",
+                "technical_structure",
+                "spectral_harmonics",
+                "fluid_liquidity",
+                "news_awareness",
+                "pattern_memory",
+                "swarm_hivemind",
+                "moon_scout_dynamic_scanner",
+                "portfolio_risk",
+                "arbitrage",
+                "business_performance",
+            )
+        }
 
-    def evaluate_symbol(self, symbol: str, frame: pd.DataFrame) -> dict[str, Any]:
+    def evaluate_symbol(
+        self,
+        symbol: str,
+        frame: pd.DataFrame,
+        order_book: dict[str, Any] | None = None,
+        desired_qty: float = 0.0,
+    ) -> dict[str, Any]:
         signals = [
-            self.scalping.evaluate(frame),
-            self.technical_structure.evaluate(frame),
-            self.spectral.evaluate(frame),
+            self._signal("smart_scalping", lambda: self.scalping.evaluate(frame)),
+            self._signal("technical_structure", lambda: self.technical_structure.evaluate(frame)),
+            self._signal("spectral_harmonics", lambda: self.spectral.evaluate(frame)),
         ]
-        news = self.news.evaluate(symbol)
+        news = self._call("news_awareness", lambda: self.news.evaluate(symbol), default={
+            "sentiment": 0.0,
+            "confidence": 0.0,
+            "blackout": False,
+            "matched_items": 0,
+        })
         signals.append(
             EngineSignal(
                 "news_awareness",
@@ -578,13 +605,37 @@ class UltraEngineSuite:
             )
         )
         feature_vector = {signal.engine: signal.score for signal in signals}
-        signals.append(self.memory.recall(feature_vector))
-        swarm = self.swarm.combine(signals)
+        signals.append(self._signal("pattern_memory", lambda: self.memory.recall(feature_vector)))
+        liquidity: dict[str, Any] = {"available": False, "reason": "order_book_unavailable"}
+        if order_book is not None:
+            liquidity = self._call(
+                "fluid_liquidity",
+                lambda: self.liquidity.evaluate(order_book, desired_qty=desired_qty),
+                default={"available": False, "reason": "liquidity_evaluation_failed"},
+            )
+            if "imbalance" in liquidity:
+                spread_bps = float(liquidity.get("spread_bps", 0.0))
+                signals.append(
+                    EngineSignal(
+                        "fluid_liquidity",
+                        _clip(float(liquidity["imbalance"])),
+                        _clip(1.0 - spread_bps / 75.0, 0.0, 1.0),
+                        f"spread_bps={spread_bps:.2f},imbalance={float(liquidity['imbalance']):.3f}",
+                    )
+                )
+                liquidity["available"] = True
+        swarm = self._call(
+            "swarm_hivemind",
+            lambda: self.swarm.combine(signals),
+            default=EngineSignal("swarm_hivemind", 0.0, 0.0, "consensus failed"),
+        )
         return {
             "signals": [asdict(signal) for signal in signals],
             "swarm": asdict(swarm),
             "news_blackout": news["blackout"],
             "feature_vector": feature_vector,
+            "liquidity": liquidity,
+            "engine_activity": self._activity_snapshot(),
         }
 
     def learn(self, metadata: dict[str, Any], realized_return: float, label: str = "") -> None:
@@ -598,14 +649,48 @@ class UltraEngineSuite:
         notionals: dict[str, float],
     ) -> dict[str, Any]:
         return {
-            "moon_scout_ranking": self.moon_scout.rank(frames),
-            "portfolio_risk": self.portfolio.analyze(frames, notionals),
+            "moon_scout_ranking": self._call(
+                "moon_scout_dynamic_scanner", lambda: self.moon_scout.rank(frames), default=[]
+            ),
+            "portfolio_risk": self._call(
+                "portfolio_risk", lambda: self.portfolio.analyze(frames, notionals), default={"available": False}
+            ),
+        }
+
+    def business_snapshot(self, events: list[dict[str, Any]]) -> dict[str, float]:
+        return self._call("business_performance", lambda: self.business.summarize(events), default={})
+
+    def _signal(self, name: str, operation: Any) -> EngineSignal:
+        return self._call(name, operation, default=EngineSignal(name, 0.0, 0.0, "engine evaluation failed"))
+
+    def _call(self, name: str, operation: Any, *, default: Any) -> Any:
+        state = self.activity[name]
+        state["calls"] += 1
+        try:
+            result = operation()
+        except Exception as exc:  # noqa: BLE001 - isolate and expose individual ultra-engine failures
+            state["failures"] += 1
+            state["last_error"] = f"{type(exc).__name__}: {exc}"
+            return default
+        state["successes"] += 1
+        state["last_error"] = None
+        return result
+
+    def _activity_snapshot(self) -> dict[str, dict[str, Any]]:
+        return {
+            name: {
+                **state,
+                "state": "failed" if state["last_error"] else ("active" if state["successes"] else "ready"),
+            }
+            for name, state in self.activity.items()
         }
 
     def health(self) -> dict[str, Any]:
         return {
             "version": self.VERSION,
             "legacy_random_engines_loaded": False,
+            "routing_authority": "bounded_input_to_decision_router",
+            "activity": self._activity_snapshot(),
             "capabilities": {
                 "smart_scalping": self.scalping.health(),
                 "technical_structure": self.technical_structure.health(),
