@@ -2,11 +2,11 @@
 
 This ledger prevents a named engine from being mistaken for a working capability. A capability is complete only when it has deterministic logic, explicit inputs and outputs, tests, lifecycle health, and a declared authority level.
 
-Canonical runtime release: `verified-multi-engine-v3`.
+Canonical runtime release: `verified-multi-engine-v4-testnet`.
 
 ## Canonical runtime authority
 
-- **Trade authority:** adaptive ensemble and capital/risk governors only, paper mode only.
+- **Trade authority:** adaptive ensemble and capital/risk governors in the paper ledger; an optional mirror may reproduce those approved events on Bybit Testnet only.
 - **Shadow authority:** advanced, forecasting, scanner, memory, arbitrage, quantum, and experimental engines may observe and score but cannot place orders.
 - **Operations authority:** provenance and outbound Telegram alerts; no inbound commands.
 - **Live authority:** none. All live flags are rejected during startup.
@@ -38,6 +38,7 @@ Canonical runtime release: `verified-multi-engine-v3`.
 | News intelligence | Local auditable event state, decayed sentiment and high-impact blackout | Shadow gate |
 | Telegram notifier | Outbound paper event/halt alerts only | Optional |
 | Prometheus/Grafana monitoring | Atomic Prometheus textfile metrics from canonical heartbeat fields | Active monitoring |
+| Bybit testnet execution | Sandbox-first CCXT initialization, private credential validation, deterministic client order IDs, durable paper-event delivery, persistent state, partial fills, restart reconciliation, exchange-balance snapshots, execution slippage/P&L evidence, entry caps and kill switch | Optional testnet-only mirror; no strategy or live authority |
 
 ## Core trading capabilities
 
@@ -71,4 +72,4 @@ Canonical runtime release: `verified-multi-engine-v3`.
 
 ## Required before live trading
 
-The code now includes reconciliation analysis and execution-reality simulation, but live orders remain intentionally absent. A future live release still requires broker-specific idempotent order IDs, authenticated reconciliation, native stop verification, restart recovery against real open orders, partial-fill event ingestion, rate-limit testing, and a separately approved capital gate.
+The testnet mirror now provides broker-specific idempotent order IDs, authenticated reconciliation, restart recovery, partial-fill accounting, entry limits and a kill switch against test funds. Live orders remain intentionally absent. A future live release still requires sustained testnet burn-in, exchange-native stop verification, websocket execution ingestion, rate-limit and disconnection testing, independent reconciliation/alerting, measured strategy evidence, and a separately reviewed capital-promotion gate.

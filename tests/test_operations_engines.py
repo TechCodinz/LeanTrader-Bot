@@ -93,6 +93,15 @@ def test_telegram_is_safely_disabled_without_credentials():
     assert result == {"sent": False, "reason": "telegram not configured"}
 
 
+def test_telegram_token_can_be_loaded_from_secret_file(monkeypatch, tmp_path):
+    token_file = tmp_path / "telegram_bot_token"
+    token_file.write_text("test-token-value", encoding="utf-8")
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN_FILE", str(token_file))
+    engine = TelegramAlertEngine(chat_id="test-chat")
+    assert engine.token == "test-token-value"
+    assert engine.health()["configured"] is True
+
+
 def test_prometheus_metrics_are_atomic_and_use_canonical_status(tmp_path):
     path = tmp_path / "leantrader.prom"
     result = PrometheusMetricsEngine(path).write(

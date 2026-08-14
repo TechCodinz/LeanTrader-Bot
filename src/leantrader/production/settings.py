@@ -69,6 +69,15 @@ class Settings:
     learning_min_samples: int
     engine_failure_threshold: int
     engine_recovery_seconds: float
+    testnet_enabled: bool
+    testnet_confirmation: str
+    testnet_api_key_path: Path
+    testnet_api_secret_path: Path
+    testnet_state_path: Path
+    testnet_max_order_usd: float
+    testnet_max_position_usd: float
+    testnet_max_daily_submitted_usd: float
+    testnet_max_orders_per_day: int
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -129,6 +138,21 @@ class Settings:
             learning_min_samples=_int("ADAPTIVE_MIN_SAMPLES", 5),
             engine_failure_threshold=_int("ENGINE_FAILURE_THRESHOLD", 3),
             engine_recovery_seconds=_float("ENGINE_RECOVERY_SECONDS", 60.0),
+            testnet_enabled=_bool("BYBIT_TESTNET_ENABLED"),
+            testnet_confirmation=os.getenv("BYBIT_TESTNET_CONFIRM", "").strip(),
+            testnet_api_key_path=Path(
+                os.getenv("BYBIT_TESTNET_API_KEY_FILE", "/run/secrets/bybit_testnet_api_key")
+            ),
+            testnet_api_secret_path=Path(
+                os.getenv("BYBIT_TESTNET_API_SECRET_FILE", "/run/secrets/bybit_testnet_api_secret")
+            ),
+            testnet_state_path=Path(
+                os.getenv("BYBIT_TESTNET_STATE_PATH", "runtime/vps_testnet_execution.json")
+            ),
+            testnet_max_order_usd=_float("BYBIT_TESTNET_MAX_ORDER_USD", 10.0),
+            testnet_max_position_usd=_float("BYBIT_TESTNET_MAX_POSITION_USD", 20.0),
+            testnet_max_daily_submitted_usd=_float("BYBIT_TESTNET_MAX_DAILY_SUBMITTED_USD", 50.0),
+            testnet_max_orders_per_day=_int("BYBIT_TESTNET_MAX_ORDERS_PER_DAY", 20),
         )
         settings.validate()
         return settings
@@ -166,3 +190,16 @@ class Settings:
             raise ValueError("ADAPTIVE_MIN_SAMPLES must be at least 3")
         if self.engine_failure_threshold < 1 or self.engine_recovery_seconds < 0:
             raise ValueError("invalid engine circuit-breaker configuration")
+        if self.testnet_enabled:
+            if self.exchange != "bybit":
+                raise SafetyError("authenticated testnet execution is supported only for Bybit")
+            if self.testnet_confirmation != "I_UNDERSTAND_TESTNET_ONLY":
+                raise SafetyError("BYBIT_TESTNET_CONFIRM must explicitly confirm testnet-only execution")
+            if not 0 < self.testnet_max_order_usd <= 100:
+                raise SafetyError("BYBIT_TESTNET_MAX_ORDER_USD must be in (0, 100]")
+            if not self.testnet_max_order_usd <= self.testnet_max_position_usd <= 500:
+                raise SafetyError("BYBIT_TESTNET_MAX_POSITION_USD exceeds the safe testnet boundary")
+            if not self.testnet_max_order_usd <= self.testnet_max_daily_submitted_usd <= 1_000:
+                raise SafetyError("BYBIT_TESTNET_MAX_DAILY_SUBMITTED_USD exceeds the safe boundary")
+            if not 1 <= self.testnet_max_orders_per_day <= 100:
+                raise SafetyError("BYBIT_TESTNET_MAX_ORDERS_PER_DAY must be in [1, 100]")
