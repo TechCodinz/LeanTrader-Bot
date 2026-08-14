@@ -73,3 +73,22 @@ def test_dynamic_market_safety_bounds(monkeypatch, tmp_path, name, value, messag
     monkeypatch.setenv(name, value)
     with pytest.raises(ValueError, match=message):
         Settings.from_env()
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("MARKET_EVIDENCE_MIN_SAMPLES", "2", "MARKET_EVIDENCE_MIN_SAMPLES"),
+        ("MARKET_EVIDENCE_WINDOW", "4", "MARKET_EVIDENCE_WINDOW"),
+        ("ROUTER_MIN_ADVANCED_CONFIDENCE", "1.1", "ROUTER_MIN_ADVANCED_CONFIDENCE"),
+        ("ROUTER_MIN_COMBINED_SCORE", "1.1", "ROUTER_MIN_COMBINED_SCORE"),
+        ("ROUTER_NEGATIVE_CONSENSUS_VETO", "0.1", "ROUTER_NEGATIVE_CONSENSUS_VETO"),
+    ],
+)
+def test_decision_router_safety_bounds(monkeypatch, tmp_path, name, value, message):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(name, value)
+    if name == "MARKET_EVIDENCE_WINDOW":
+        monkeypatch.setenv("MARKET_EVIDENCE_MIN_SAMPLES", "5")
+    with pytest.raises(ValueError, match=message):
+        Settings.from_env()

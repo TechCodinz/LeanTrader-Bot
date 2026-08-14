@@ -68,12 +68,18 @@ class Settings:
     pattern_memory_path: Path
     news_state_path: Path
     research_state_path: Path
+    decision_router_state_path: Path
     provenance_path: Path
     metrics_path: Path
     heartbeat_path: Path
     log_path: Path
     learning_rate: float
     learning_min_samples: int
+    market_evidence_min_samples: int
+    market_evidence_window: int
+    router_min_advanced_confidence: float
+    router_min_combined_score: float
+    router_negative_consensus_veto: float
     engine_failure_threshold: int
     engine_recovery_seconds: float
     testnet_enabled: bool
@@ -148,12 +154,20 @@ class Settings:
             pattern_memory_path=Path(os.getenv("PATTERN_MEMORY_PATH", "runtime/vps_pattern_memory.json")),
             news_state_path=Path(os.getenv("NEWS_STATE_PATH", "runtime/vps_news_state.json")),
             research_state_path=Path(os.getenv("RESEARCH_STATE_PATH", "runtime/vps_research_governor.json")),
+            decision_router_state_path=Path(
+                os.getenv("DECISION_ROUTER_STATE_PATH", "runtime/vps_decision_router.json")
+            ),
             provenance_path=Path(os.getenv("PROVENANCE_PATH", "runtime/vps_decision_provenance.jsonl")),
             metrics_path=Path(os.getenv("PROMETHEUS_METRICS_PATH", "runtime/vps_metrics.prom")),
             heartbeat_path=Path(os.getenv("HEARTBEAT_PATH", "runtime/vps_heartbeat.json")),
             log_path=Path(os.getenv("TRADES_LOG_PATH", "logs/vps_trades.jsonl")),
             learning_rate=_float("ADAPTIVE_LEARNING_RATE", 0.08),
             learning_min_samples=_int("ADAPTIVE_MIN_SAMPLES", 5),
+            market_evidence_min_samples=_int("MARKET_EVIDENCE_MIN_SAMPLES", 8),
+            market_evidence_window=_int("MARKET_EVIDENCE_WINDOW", 50),
+            router_min_advanced_confidence=_float("ROUTER_MIN_ADVANCED_CONFIDENCE", 0.20),
+            router_min_combined_score=_float("ROUTER_MIN_COMBINED_SCORE", 0.20),
+            router_negative_consensus_veto=_float("ROUTER_NEGATIVE_CONSENSUS_VETO", -0.25),
             engine_failure_threshold=_int("ENGINE_FAILURE_THRESHOLD", 3),
             engine_recovery_seconds=_float("ENGINE_RECOVERY_SECONDS", 60.0),
             testnet_enabled=_bool("BYBIT_TESTNET_ENABLED"),
@@ -218,6 +232,16 @@ class Settings:
             raise ValueError("ADAPTIVE_LEARNING_RATE must be in (0, 0.25]")
         if self.learning_min_samples < 3:
             raise ValueError("ADAPTIVE_MIN_SAMPLES must be at least 3")
+        if self.market_evidence_min_samples < 3:
+            raise ValueError("MARKET_EVIDENCE_MIN_SAMPLES must be at least 3")
+        if self.market_evidence_window < self.market_evidence_min_samples:
+            raise ValueError("MARKET_EVIDENCE_WINDOW cannot be smaller than MARKET_EVIDENCE_MIN_SAMPLES")
+        if not 0 <= self.router_min_advanced_confidence <= 1:
+            raise ValueError("ROUTER_MIN_ADVANCED_CONFIDENCE must be between 0 and 1")
+        if not -1 <= self.router_min_combined_score <= 1:
+            raise ValueError("ROUTER_MIN_COMBINED_SCORE must be between -1 and 1")
+        if not -1 <= self.router_negative_consensus_veto <= 0:
+            raise ValueError("ROUTER_NEGATIVE_CONSENSUS_VETO must be between -1 and 0")
         if self.engine_failure_threshold < 1 or self.engine_recovery_seconds < 0:
             raise ValueError("invalid engine circuit-breaker configuration")
         if self.testnet_enabled:

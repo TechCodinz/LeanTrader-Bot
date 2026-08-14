@@ -514,7 +514,7 @@ class StressEngine:
 class ResearchEngineSuite:
     """Research, evolution, rollback, drift, and capital-preservation control plane."""
 
-    VERSION = "2.0"
+    VERSION = "3.0"
 
     def __init__(self, governor_path: Path) -> None:
         self.replay = ReplayEngine()
@@ -527,6 +527,51 @@ class ResearchEngineSuite:
         self.champion_challenger = ChampionChallengerGovernor(governor_path)
         self.capital_preservation = CapitalPreservationEngine()
         self.stress = StressEngine()
+        self.activity: dict[str, dict[str, Any]] = {
+            "causal_replay": {"state": "ready_offline", "calls": 0, "failures": 0},
+            "walk_forward_gradient_boost": {
+                "state": "scheduled_offline",
+                "calls": 0,
+                "failures": 0,
+            },
+            "kronos": {"state": "blocked_unconfigured", "calls": 0, "failures": 0},
+            "optuna": {
+                "state": "ready_offline" if self.optuna.health()["available"] else "blocked_dependency_missing",
+                "calls": 0,
+                "failures": 0,
+            },
+            "quantum_benchmark": {"state": "blocked_unconfigured", "calls": 0, "failures": 0},
+            "calibration": {"state": "active_in_decision_router", "calls": 0, "failures": 0},
+            "distribution_drift": {"state": "waiting_for_market_data", "calls": 0, "failures": 0},
+            "champion_challenger": {"state": "active_bounded", "calls": 0, "failures": 0},
+            "capital_preservation": {"state": "active", "calls": 0, "failures": 0},
+            "stress": {"state": "active", "calls": 0, "failures": 0},
+        }
+        self.last_drift: dict[str, dict[str, Any]] = {}
+
+    def observe_symbol(self, symbol: str, frame: pd.DataFrame) -> dict[str, Any]:
+        """Measure recent distribution drift without granting trade authority."""
+        activity = self.activity["distribution_drift"]
+        activity["calls"] = int(activity["calls"]) + 1
+        if len(frame) < 40:
+            result = {"state": "insufficient_data", "rows": len(frame), "drifted": False}
+        else:
+            midpoint = len(frame) // 2
+            reference = frame.iloc[:midpoint]
+            current = frame.iloc[midpoint:]
+            try:
+                result = self.drift.compare(reference, current)
+                result["state"] = "active"
+                result["rows"] = len(frame)
+                activity["state"] = "active"
+                activity["last_error"] = None
+            except Exception as exc:  # noqa: BLE001 - report research failure without inventing a result
+                activity["failures"] = int(activity["failures"]) + 1
+                activity["state"] = "degraded"
+                activity["last_error"] = f"{type(exc).__name__}: {exc}"
+                result = {"state": "degraded", "drifted": False, "error": activity["last_error"]}
+        self.last_drift[symbol] = result
+        return result
 
     def runtime_snapshot(
         self,
@@ -537,6 +582,13 @@ class ResearchEngineSuite:
         data_healthy: bool,
         required_engines_healthy: bool,
     ) -> dict[str, Any]:
+        self.activity["capital_preservation"]["calls"] = int(
+            self.activity["capital_preservation"]["calls"]
+        ) + 1
+        self.activity["stress"]["calls"] = int(self.activity["stress"]["calls"]) + 1
+        self.activity["champion_challenger"]["calls"] = int(
+            self.activity["champion_challenger"]["calls"]
+        ) + 1
         return {
             "capital_preservation": self.capital_preservation.update(
                 drawdown=drawdown,
@@ -546,6 +598,8 @@ class ResearchEngineSuite:
             ),
             "stress": self.stress.evaluate(notionals),
             "champion_challenger": self.champion_challenger.health(),
+            "distribution_drift": dict(self.last_drift),
+            "engine_activity": self.activity,
         }
 
     def health(self) -> dict[str, Any]:
@@ -562,4 +616,7 @@ class ResearchEngineSuite:
             "capital_preservation": self.capital_preservation.health(),
             "stress": self.stress.health(),
             "live_model_promotion": False,
+            "activity": self.activity,
+            "last_drift": dict(self.last_drift),
+            "execution_authority": False,
         }

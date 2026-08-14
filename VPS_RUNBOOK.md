@@ -119,7 +119,7 @@ jq '{healthy, runtime, errors, market_universe: .engines.market_universe, testne
 jq '[.engines | to_entries[] | select(.value.required == true and .value.healthy != true)]' runtime/vps_heartbeat.json
 ```
 
-The second `jq` command must print `[]`. The testnet engine must report `environment: "testnet"`, `authenticated: true`, `sandbox_endpoint_verified: true`, `execution_authority: "testnet_only"`, and `live_authority: false`.
+The second `jq` command must print `[]`. The testnet engine must report `environment: "testnet"`, `authenticated: true`, `sandbox_endpoint_verified: true`, `api_attestation.verified: true`, `api_attestation.spot_trade: true`, `api_attestation.withdrawal_permission: false`, `exchange_capabilities.exchange_id: "bybit"`, `exchange_capabilities.execution_market_type: "spot"`, `execution_authority: "testnet_only"`, and `live_authority: false`. The required decision router must be healthy and every ultra/research engine must show an active, ready, degraded, or explicitly blocked state—never an invented success.
 
 To stop new testnet entries immediately without blocking position-reducing sells:
 
