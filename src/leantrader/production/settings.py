@@ -94,6 +94,8 @@ class Settings:
     cns_state_path: Path
     brain_state_path: Path
     memory_retention_state_path: Path
+    legacy_memory_path: Path
+    error_attribution_state_path: Path
     capital_growth_state_path: Path
     memory_max_episodes: int
     memory_half_life_hours: float
@@ -236,6 +238,10 @@ class Settings:
             brain_state_path=Path(os.getenv("BRAIN_STATE_PATH", "runtime/vps_brain_state.json")),
             memory_retention_state_path=Path(
                 os.getenv("MEMORY_RETENTION_STATE_PATH", "runtime/vps_memory_retention.json")
+            ),
+            legacy_memory_path=Path(os.getenv("LEGACY_MEMORY_PATH", "runtime/memory.jsonl")),
+            error_attribution_state_path=Path(
+                os.getenv("ERROR_ATTRIBUTION_STATE_PATH", "runtime/vps_error_attribution.json")
             ),
             capital_growth_state_path=Path(
                 os.getenv("CAPITAL_GROWTH_STATE_PATH", "runtime/vps_capital_growth.json")

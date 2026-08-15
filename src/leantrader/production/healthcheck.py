@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 
-DEFAULT_RUNTIME_ID = "verified-multi-engine-v12-cns-brain-memory"
+DEFAULT_RUNTIME_ID = "verified-multi-engine-v12.2-cns-brain-memory"
 
 
 def main() -> None:

@@ -20,7 +20,7 @@ class TradingBrain:
     code, or deploy itself.
     """
 
-    VERSION = "2.0"
+    VERSION = "2.1"
     SAVE_INTERVAL = 10
 
     def __init__(
@@ -88,6 +88,13 @@ class TradingBrain:
         risk_pressure = _clip(float(cns.get("risk_pressure") or 0.0))
         memory_support = _clip(float(memory.get("support") or 0.0))
         memory_return = float(memory.get("weighted_net_return") or 0.0)
+        if "contextual_samples" in memory or "samples" in memory:
+            memory_samples = int(memory.get("contextual_samples") or memory.get("samples") or 0)
+        else:
+            # Backward-compatible input contract for callers that supplied only
+            # support/return before v12.2. Runtime v12.2 always sends samples.
+            memory_samples = 4 if memory_support >= 0.50 else 0
+        memory_source = str(memory.get("source") or "none")
         samples, expectancy = self.strategy_expectancy(strategy_evidence)
 
         reasons: list[str] = []
@@ -148,10 +155,13 @@ class TradingBrain:
             confidence_multiplier = min(confidence_multiplier, 0.65)
             reasons.append("negative_strategy_evidence")
 
-        if memory_support >= 0.50 and memory_return < self.negative_expectancy_floor:
+        # Only contextual v12 closed outcomes may materially alter risk. A
+        # legacy fill prior can inform CNS context at very low weight, but it
+        # cannot veto/downsize until at least four fingerprinted outcomes exist.
+        if memory_samples >= 4 and memory_support >= 0.50 and memory_return < self.negative_expectancy_floor:
             risk_multiplier = min(risk_multiplier, 0.25)
             reasons.append("negative_similar_memory")
-        elif memory_support >= 0.50 and memory_return > 0:
+        elif memory_samples >= 4 and memory_support >= 0.50 and memory_return > 0:
             # Positive memory may recover confidence but can never enlarge the
             # upstream risk allocation.
             confidence_multiplier = min(1.0, confidence_multiplier + 0.10 * memory_support)
@@ -181,6 +191,8 @@ class TradingBrain:
             "preferred_action": preferred_action,
             "reasons": list(dict.fromkeys(reasons)),
             "memory_support": memory_support,
+            "memory_samples": memory_samples,
+            "memory_source": memory_source,
             "memory_weighted_net_return": memory_return,
             "strategy_samples": samples,
             "strategy_expectancy": expectancy,
