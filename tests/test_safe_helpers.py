@@ -4,7 +4,8 @@ from order_utils import safe_create_order
 from paper_broker import PaperBroker
 
 
-def test_safe_create_order_market():
+def test_safe_create_order_market(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
     ex = PaperBroker(1000.0)
     res = safe_create_order(ex, "market", "BTC/USDT", "buy", 0.001)
     assert isinstance(res, dict)

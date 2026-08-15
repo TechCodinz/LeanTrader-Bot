@@ -13,6 +13,8 @@ from typing import Any, ClassVar
 import numpy as np
 import pandas as pd
 
+from .intelligence import TIMEFRAME_GROUPS, evaluate_timeframe_matrix
+
 
 @dataclass(frozen=True)
 class EngineSignal:
@@ -63,7 +65,41 @@ class SmartScalpingEngine:
         )
 
     def health(self) -> dict[str, Any]:
-        return {"deterministic": True, "spread_aware": True}
+        return {
+            "deterministic": True,
+            "spread_aware": True,
+            "preferred_timeframes": ["1m", "3m", "5m"],
+        }
+
+
+class MultiTimeframeMatrixEngine:
+    """Fast, tactical and strategic consensus across every Bybit kline interval."""
+
+    VERSION = "1.0"
+
+    def evaluate(self, frames: dict[str, pd.DataFrame]) -> tuple[EngineSignal, dict[str, Any]]:
+        matrix = evaluate_timeframe_matrix(frames)
+        confidence = float(matrix["coverage"]) * (0.5 + 0.5 * abs(float(matrix["score"])))
+        signal = EngineSignal(
+            "multi_timeframe_matrix",
+            float(matrix["score"]),
+            _clip(confidence, 0.0, 1.0),
+            (
+                f"valid={matrix['valid']}/{matrix['expected']},"
+                f"fast={float(matrix['groups'].get('fast', 0.0)):.3f},"
+                f"tactical={float(matrix['groups'].get('tactical', 0.0)):.3f},"
+                f"strategic={float(matrix['groups'].get('strategic', 0.0)):.3f}"
+            ),
+        )
+        return signal, matrix
+
+    def health(self) -> dict[str, Any]:
+        return {
+            "groups": {name: list(timeframes) for name, timeframes in TIMEFRAME_GROUPS.items()},
+            "unanimous_veto": False,
+            "missing_timeframes_visible": True,
+            "lookahead": False,
+        }
 
 
 class TechnicalStructureEngine:
@@ -229,7 +265,7 @@ class LiquidityFluidEngine:
 class NewsAwarenessEngine:
     """Local, auditable news/event state with sentiment decay and blackout gates."""
 
-    VERSION = "1.0"
+    VERSION = "2.0"
     POSITIVE: ClassVar[set[str]] = {
         "beat",
         "bullish",
@@ -251,13 +287,33 @@ class NewsAwarenessEngine:
         "hike",
     }
 
-    def __init__(self, state_path: Path) -> None:
+    def __init__(
+        self,
+        state_path: Path,
+        *,
+        max_age_seconds: int = 86_400,
+        max_future_skew_seconds: int = 300,
+        blackout_before_minutes: int = 30,
+        blackout_after_minutes: int = 30,
+    ) -> None:
         self.state_path = state_path
+        self.max_age_seconds = max_age_seconds
+        self.max_future_skew_seconds = max_future_skew_seconds
+        self.blackout_before_minutes = blackout_before_minutes
+        self.blackout_after_minutes = blackout_after_minutes
+        self.invalid_items = 0
+        self.future_items_rejected = 0
+        self.last_ingest_at: str | None = None
 
     def evaluate(self, symbol: str, now: dt.datetime | None = None) -> dict[str, Any]:
         current = now or dt.datetime.now(dt.UTC)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=dt.UTC)
+        current = current.astimezone(dt.UTC)
         score, weight, blackout = 0.0, 0.0, False
         matched = 0
+        freshest_age_seconds: float | None = None
+        recent_high_impact = 0
         for item in self._items():
             try:
                 timestamp = dt.datetime.fromisoformat(str(item["timestamp"]))
@@ -266,14 +322,24 @@ class NewsAwarenessEngine:
             if timestamp.tzinfo is None:
                 timestamp = timestamp.replace(tzinfo=dt.UTC)
             tokens = set(re.findall(r"[a-z0-9]+", str(item.get("title", "")).lower()))
-            symbols = {str(value).upper().replace("/", "") for value in item.get("symbols", [])}
-            normalized = symbol.upper().replace("/", "").replace("_", "")
-            if symbols and normalized not in symbols and normalized[:3] not in symbols:
+            if not self._symbol_matches(symbol, item.get("symbols", [])):
                 continue
-            age_minutes = (current - timestamp).total_seconds() / 60.0
-            if -30 <= age_minutes <= 30 and str(item.get("impact", "")).lower() == "high":
+            age_seconds = (current - timestamp.astimezone(dt.UTC)).total_seconds()
+            if age_seconds < -self.max_future_skew_seconds:
+                continue
+            freshest_age_seconds = (
+                max(0.0, age_seconds)
+                if freshest_age_seconds is None
+                else min(freshest_age_seconds, max(0.0, age_seconds))
+            )
+            age_minutes = age_seconds / 60.0
+            if (
+                -self.blackout_before_minutes <= age_minutes <= self.blackout_after_minutes
+                and str(item.get("impact", "")).lower() == "high"
+            ):
                 blackout = True
-            if age_minutes < 0 or age_minutes > 1_440:
+                recent_high_impact += 1
+            if age_seconds < 0 or age_seconds > self.max_age_seconds:
                 continue
             sentiment = (len(tokens & self.POSITIVE) - len(tokens & self.NEGATIVE)) / max(len(tokens), 1)
             decay = math.exp(-age_minutes / 180.0)
@@ -285,6 +351,9 @@ class NewsAwarenessEngine:
             "confidence": _clip(weight / 3.0, 0.0, 1.0),
             "blackout": blackout,
             "matched_items": matched,
+            "recent_high_impact": recent_high_impact,
+            "freshest_item_age_seconds": freshest_age_seconds,
+            "fresh": freshest_age_seconds is not None and freshest_age_seconds <= self.max_age_seconds,
         }
 
     def ingest(self, items: list[dict[str, Any]], max_items: int = 5_000) -> int:
@@ -296,17 +365,25 @@ class NewsAwarenessEngine:
         added = 0
         for item in items:
             try:
-                dt.datetime.fromisoformat(str(item["timestamp"]))
+                timestamp = dt.datetime.fromisoformat(str(item["timestamp"]))
             except (KeyError, TypeError, ValueError):
+                self.invalid_items += 1
+                continue
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=dt.UTC)
+            timestamp = timestamp.astimezone(dt.UTC)
+            if timestamp.timestamp() - dt.datetime.now(dt.UTC).timestamp() > self.max_future_skew_seconds:
+                self.future_items_rejected += 1
                 continue
             title = str(item.get("title", "")).strip()
             if not title:
+                self.invalid_items += 1
                 continue
             clean = {
-                "timestamp": str(item["timestamp"]),
+                "timestamp": timestamp.isoformat(),
                 "title": title,
                 "source": str(item.get("source", "unknown")),
-                "symbols": [str(value).upper().replace("/", "") for value in item.get("symbols", [])],
+                "symbols": [self._normalize_symbol(value) for value in item.get("symbols", [])],
                 "impact": str(item.get("impact", "unknown")).lower(),
             }
             key = (clean["timestamp"], clean["title"], clean["source"])
@@ -320,7 +397,22 @@ class NewsAwarenessEngine:
         temporary = self.state_path.with_suffix(self.state_path.suffix + ".tmp")
         temporary.write_text(json.dumps({"schema_version": 1, "items": merged}, indent=2), encoding="utf-8")
         os.replace(temporary, self.state_path)
+        self.last_ingest_at = dt.datetime.now(dt.UTC).isoformat()
         return added
+
+    @classmethod
+    def _symbol_matches(cls, symbol: str, values: Any) -> bool:
+        identifiers = {cls._normalize_symbol(value) for value in values if str(value).strip()}
+        if not identifiers:
+            return True
+        normalized = cls._normalize_symbol(symbol)
+        raw = str(symbol).upper().split(":", 1)[0].replace("_", "/").replace("-", "/")
+        base = raw.split("/", 1)[0] if "/" in raw else normalized[:3]
+        return normalized in identifiers or base in identifiers
+
+    @staticmethod
+    def _normalize_symbol(value: Any) -> str:
+        return "".join(character for character in str(value).upper().split(":", 1)[0] if character.isalnum())
 
     def _items(self) -> list[dict[str, Any]]:
         if not self.state_path.exists():
@@ -332,7 +424,39 @@ class NewsAwarenessEngine:
             return []
 
     def health(self) -> dict[str, Any]:
-        return {"state_path": str(self.state_path), "items": len(self._items()), "outbound_network": False}
+        items = self._items()
+        timestamps: list[dt.datetime] = []
+        sources: dict[str, int] = {}
+        for item in items:
+            try:
+                timestamp = dt.datetime.fromisoformat(str(item["timestamp"]))
+                if timestamp.tzinfo is None:
+                    timestamp = timestamp.replace(tzinfo=dt.UTC)
+                timestamps.append(timestamp.astimezone(dt.UTC))
+            except (KeyError, TypeError, ValueError):
+                continue
+            source = str(item.get("source", "unknown"))
+            sources[source] = sources.get(source, 0) + 1
+        newest = max(timestamps) if timestamps else None
+        age = max(0.0, (dt.datetime.now(dt.UTC) - newest).total_seconds()) if newest else None
+        return {
+            "state_path": str(self.state_path),
+            "items": len(items),
+            "sources": sources,
+            "latest_item_at": newest.isoformat() if newest else None,
+            "latest_item_age_seconds": age,
+            "fresh": age is not None and age <= self.max_age_seconds,
+            "max_age_seconds": self.max_age_seconds,
+            "max_future_skew_seconds": self.max_future_skew_seconds,
+            "blackout_before_minutes": self.blackout_before_minutes,
+            "blackout_after_minutes": self.blackout_after_minutes,
+            "invalid_items": self.invalid_items,
+            "future_items_rejected": self.future_items_rejected,
+            "last_ingest_at": self.last_ingest_at,
+            "outbound_network": False,
+            "external_collector": "public_market_context",
+            "collector_managed": True,
+        }
 
 
 class PatternMemoryEngine:
@@ -417,9 +541,15 @@ class SwarmConsensusEngine:
 class MoonScoutEngine:
     """Cross-sectional anomaly ranking from real price and volume frames."""
 
-    VERSION = "1.0"
+    VERSION = "2.0"
+
+    def __init__(self) -> None:
+        self.scans = 0
+        self.symbols_ranked = 0
+        self.last_top_candidate: dict[str, float | str] | None = None
 
     def rank(self, frames: dict[str, pd.DataFrame]) -> list[dict[str, float | str]]:
+        self.scans += 1
         raw: dict[str, dict[str, float]] = {}
         for symbol, frame in frames.items():
             if len(frame) < 60:
@@ -435,6 +565,7 @@ class MoonScoutEngine:
                 "liquidity": float(close.iloc[-1] * volume.tail(20).median()),
             }
         if not raw:
+            self.last_top_candidate = None
             return []
         fields = tuple(next(iter(raw.values())))
         ranked = []
@@ -447,10 +578,20 @@ class MoonScoutEngine:
                 - 0.25 * max(0.0, z["volatility"])
             )
             ranked.append({"symbol": symbol, "score": float(score), **values})
-        return sorted(ranked, key=lambda row: float(row["score"]), reverse=True)
+        output = sorted(ranked, key=lambda row: float(row["score"]), reverse=True)
+        self.symbols_ranked += len(output)
+        self.last_top_candidate = dict(output[0]) if output else None
+        return output
 
     def health(self) -> dict[str, Any]:
-        return {"cross_sectional": True, "random_opportunities": False}
+        return {
+            "cross_sectional": True,
+            "random_opportunities": False,
+            "scans": self.scans,
+            "symbols_ranked": self.symbols_ranked,
+            "last_top_candidate": self.last_top_candidate,
+            "execution_authority": False,
+        }
 
 
 class PortfolioRiskEngine:
@@ -485,9 +626,17 @@ class PortfolioRiskEngine:
 class ArbitrageEngine:
     """Net executable spread detector; consumes observed venue quotes only."""
 
-    VERSION = "1.0"
+    VERSION = "2.0"
+
+    def __init__(self) -> None:
+        self.scans = 0
+        self.quotes_seen = 0
+        self.opportunities_seen = 0
+        self.last_opportunities: list[dict[str, Any]] = []
 
     def scan(self, quotes: list[dict[str, Any]], minimum_net_bps: float = 5.0) -> list[dict[str, Any]]:
+        self.scans += 1
+        self.quotes_seen += len(quotes)
         opportunities: list[dict[str, Any]] = []
         for symbol in sorted({str(quote["symbol"]) for quote in quotes}):
             rows = [quote for quote in quotes if str(quote["symbol"]) == symbol]
@@ -504,24 +653,44 @@ class ArbitrageEngine:
                         + float(sell.get("fee_bps", 0))
                         + float(buy.get("slippage_bps", 0))
                         + float(sell.get("slippage_bps", 0))
+                        + float(buy.get("transfer_bps", 0))
+                        + float(sell.get("transfer_bps", 0))
                     )
                     net_bps = gross_bps - costs
                     if net_bps >= minimum_net_bps:
+                        max_quantity = min(
+                            float(buy.get("ask_quantity", 0)), float(sell.get("bid_quantity", 0))
+                        )
                         opportunities.append(
                             {
                                 "symbol": symbol,
                                 "buy_venue": buy["venue"],
                                 "sell_venue": sell["venue"],
+                                "buy_price": ask,
+                                "sell_price": bid,
+                                "gross_bps": gross_bps,
+                                "cost_bps": costs,
                                 "net_bps": net_bps,
-                                "max_quantity": min(
-                                    float(buy.get("ask_quantity", 0)), float(sell.get("bid_quantity", 0))
-                                ),
+                                "max_quantity": max_quantity,
+                                "liquidity_verified": max_quantity > 0,
+                                "execution_authority": False,
                             }
                         )
-        return sorted(opportunities, key=lambda row: row["net_bps"], reverse=True)
+        output = sorted(opportunities, key=lambda row: row["net_bps"], reverse=True)
+        self.opportunities_seen += len(output)
+        self.last_opportunities = output[:20]
+        return output
 
     def health(self) -> dict[str, Any]:
-        return {"cost_adjusted": True, "execution_authority": False}
+        return {
+            "cost_adjusted": True,
+            "cross_venue_quotes_required": True,
+            "scans": self.scans,
+            "quotes_seen": self.quotes_seen,
+            "opportunities_seen": self.opportunities_seen,
+            "last_opportunities": list(self.last_opportunities),
+            "execution_authority": False,
+        }
 
 
 class BusinessPerformanceEngine:
@@ -549,12 +718,24 @@ class UltraEngineSuite:
 
     VERSION = "3.0"
 
-    def __init__(self, memory_path: Path, news_path: Path) -> None:
+    def __init__(
+        self,
+        memory_path: Path,
+        news_path: Path,
+        *,
+        news_max_age_seconds: int = 86_400,
+        news_max_future_skew_seconds: int = 300,
+    ) -> None:
         self.scalping = SmartScalpingEngine()
+        self.multi_timeframe = MultiTimeframeMatrixEngine()
         self.technical_structure = TechnicalStructureEngine()
         self.spectral = SpectralHarmonicsEngine()
         self.liquidity = LiquidityFluidEngine()
-        self.news = NewsAwarenessEngine(news_path)
+        self.news = NewsAwarenessEngine(
+            news_path,
+            max_age_seconds=news_max_age_seconds,
+            max_future_skew_seconds=news_max_future_skew_seconds,
+        )
         self.memory = PatternMemoryEngine(memory_path)
         self.swarm = SwarmConsensusEngine()
         self.moon_scout = MoonScoutEngine()
@@ -565,6 +746,8 @@ class UltraEngineSuite:
             name: {"calls": 0, "successes": 0, "failures": 0, "last_error": None}
             for name in (
                 "smart_scalping",
+                "multi_timeframe_matrix",
+                "fundamental_market_context",
                 "technical_structure",
                 "spectral_harmonics",
                 "fluid_liquidity",
@@ -584,12 +767,46 @@ class UltraEngineSuite:
         frame: pd.DataFrame,
         order_book: dict[str, Any] | None = None,
         desired_qty: float = 0.0,
+        context_frames: dict[str, pd.DataFrame] | None = None,
+        market_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        all_frames = dict(context_frames or {})
+        scalping_frame = next(
+            (all_frames[name] for name in ("1m", "3m", "5m") if name in all_frames and not all_frames[name].empty),
+            frame,
+        )
+        timeframe_signal, timeframe_matrix = self._call(
+            "multi_timeframe_matrix",
+            lambda: self.multi_timeframe.evaluate(all_frames),
+            default=(EngineSignal("multi_timeframe_matrix", 0.0, 0.0, "matrix failed"), {}),
+        )
         signals = [
-            self._signal("smart_scalping", lambda: self.scalping.evaluate(frame)),
+            self._signal("smart_scalping", lambda: self.scalping.evaluate(scalping_frame)),
+            timeframe_signal,
             self._signal("technical_structure", lambda: self.technical_structure.evaluate(frame)),
             self._signal("spectral_harmonics", lambda: self.spectral.evaluate(frame)),
         ]
+        context = market_context or {
+            "available": False,
+            "score": 0.0,
+            "confidence": 0.0,
+            "reason": "market_context_unavailable",
+        }
+        context_signal = self._call(
+            "fundamental_market_context",
+            lambda: EngineSignal(
+                "fundamental_market_context",
+                _clip(float(context.get("score") or 0.0)),
+                _clip(float(context.get("confidence") or 0.0), 0.0, 1.0),
+                (
+                    f"available={bool(context.get('available'))},"
+                    f"market_cap={float(context.get('market_cap_usd') or 0.0):.0f},"
+                    f"rank={context.get('market_cap_rank')},trending={bool(context.get('trending'))}"
+                ),
+            ),
+            default=EngineSignal("fundamental_market_context", 0.0, 0.0, "context failed"),
+        )
+        signals.append(context_signal)
         news = self._call("news_awareness", lambda: self.news.evaluate(symbol), default={
             "sentiment": 0.0,
             "confidence": 0.0,
@@ -636,6 +853,8 @@ class UltraEngineSuite:
             "feature_vector": feature_vector,
             "liquidity": liquidity,
             "engine_activity": self._activity_snapshot(),
+            "timeframe_matrix": timeframe_matrix,
+            "market_context": context,
         }
 
     def learn(self, metadata: dict[str, Any], realized_return: float, label: str = "") -> None:
@@ -647,6 +866,7 @@ class UltraEngineSuite:
         self,
         frames: dict[str, pd.DataFrame],
         notionals: dict[str, float],
+        arbitrage_quotes: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         return {
             "moon_scout_ranking": self._call(
@@ -654,6 +874,11 @@ class UltraEngineSuite:
             ),
             "portfolio_risk": self._call(
                 "portfolio_risk", lambda: self.portfolio.analyze(frames, notionals), default={"available": False}
+            ),
+            "arbitrage_opportunities": self._call(
+                "arbitrage",
+                lambda: self.arbitrage.scan(list(arbitrage_quotes or [])),
+                default=[],
             ),
         }
 
@@ -693,6 +918,13 @@ class UltraEngineSuite:
             "activity": self._activity_snapshot(),
             "capabilities": {
                 "smart_scalping": self.scalping.health(),
+                "multi_timeframe_matrix": self.multi_timeframe.health(),
+                "fundamental_market_context": {
+                    "market_cap": True,
+                    "global_context": True,
+                    "trending": True,
+                    "execution_authority": False,
+                },
                 "technical_structure": self.technical_structure.health(),
                 "frequency_harmonics_ultrasonic": self.spectral.health(),
                 "fluid_liquidity": self.liquidity.health(),

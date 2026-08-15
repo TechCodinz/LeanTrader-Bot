@@ -115,6 +115,34 @@ def test_news_ingestion_validates_and_deduplicates(tmp_path):
     assert engine.health()["items"] == 1
 
 
+def test_news_matching_supports_long_base_symbols_and_rejects_future_clock_skew(tmp_path):
+    now = dt.datetime.now(dt.UTC)
+    path = tmp_path / "news.json"
+    engine = NewsAwarenessEngine(path, max_future_skew_seconds=300)
+    assert engine.ingest(
+        [
+            {
+                "timestamp": now.isoformat(),
+                "title": "DOGE bullish adoption surge",
+                "source": "feed",
+                "symbols": ["DOGE"],
+                "impact": "high",
+            },
+            {
+                "timestamp": (now + dt.timedelta(hours=1)).isoformat(),
+                "title": "DOGE impossible future item",
+                "source": "feed",
+                "symbols": ["DOGE"],
+                "impact": "high",
+            },
+        ]
+    ) == 1
+    result = engine.evaluate("DOGE/USDT", now)
+    assert result["matched_items"] == 1
+    assert result["blackout"] is True
+    assert engine.health()["future_items_rejected"] == 1
+
+
 def test_pattern_memory_requires_evidence_and_persists(tmp_path):
     path = tmp_path / "memory.json"
     memory = PatternMemoryEngine(path)
@@ -146,6 +174,38 @@ def test_moon_scout_and_portfolio_risk_use_observed_frames():
     assert risk["concentration"] == pytest.approx(0.625)
 
 
+def test_market_snapshot_actively_runs_moon_scout_and_arbitrage(tmp_path):
+    suite = UltraEngineSuite(tmp_path / "memory.json", tmp_path / "news.json")
+    quotes = [
+        {
+            "venue": "bybit",
+            "symbol": "BTC/USDT",
+            "bid": 100.0,
+            "ask": 100.1,
+            "bid_quantity": 2.0,
+            "ask_quantity": 2.0,
+            "fee_bps": 1.0,
+            "slippage_bps": 1.0,
+        },
+        {
+            "venue": "okx",
+            "symbol": "BTC/USDT",
+            "bid": 100.5,
+            "ask": 100.6,
+            "bid_quantity": 2.0,
+            "ask_quantity": 2.0,
+            "fee_bps": 1.0,
+            "slippage_bps": 1.0,
+        },
+    ]
+    snapshot = suite.market_snapshot({"BTC/USDT": frame()}, {}, quotes)
+    assert snapshot["moon_scout_ranking"][0]["symbol"] == "BTC/USDT"
+    assert snapshot["arbitrage_opportunities"][0]["buy_venue"] == "bybit"
+    health = suite.health()
+    assert health["activity"]["moon_scout_dynamic_scanner"]["state"] == "active"
+    assert health["activity"]["arbitrage"]["state"] == "active"
+
+
 def test_arbitrage_subtracts_all_costs_and_never_executes():
     opportunities = ArbitrageEngine().scan(
         [
@@ -174,6 +234,8 @@ def test_arbitrage_subtracts_all_costs_and_never_executes():
     )
     assert opportunities[0]["net_bps"] == pytest.approx(14.0)
     assert opportunities[0]["max_quantity"] == 1.0
+    assert opportunities[0]["liquidity_verified"] is True
+    assert opportunities[0]["execution_authority"] is False
 
 
 def test_ultra_suite_exposes_real_capability_map(tmp_path):
@@ -192,6 +254,19 @@ def test_ultra_suite_exposes_real_capability_map(tmp_path):
     assert health["legacy_random_engines_loaded"] is False
     assert "frequency_harmonics_ultrasonic" in health["capabilities"]
     assert health["activity"]["fluid_liquidity"]["state"] == "active"
+
+
+def test_ultra_suite_uses_fast_scalping_frame_and_complete_timeframe_matrix(tmp_path):
+    suite = UltraEngineSuite(tmp_path / "memory.json", tmp_path / "news.json")
+    contexts = {
+        timeframe: frame(slope=0.02)
+        for timeframe in ("1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d", "1w", "1M")
+    }
+    result = suite.evaluate_symbol("BTC/USDT", frame(), context_frames=contexts)
+    assert result["timeframe_matrix"]["valid"] == 13
+    assert set(result["timeframe_matrix"]["groups"]) == {"fast", "tactical", "strategic"}
+    assert any(signal["engine"] == "multi_timeframe_matrix" for signal in result["signals"])
+    assert suite.health()["activity"]["multi_timeframe_matrix"]["successes"] == 1
 
 
 def test_ultra_suite_isolates_and_reports_individual_engine_failure(tmp_path):

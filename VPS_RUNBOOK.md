@@ -1,8 +1,8 @@
 # LeanTrader VPS runbook
 
-This runbook deploys the supported paper-authority runtime. It consumes public Bybit market data and simulates fills locally. An optional, separately confirmed mirror can place orders on Bybit Testnet with test funds only. Production endpoints and live flags are rejected.
+This runbook deploys the supported paper-authority runtime. It consumes public data from a runtime-attested CCXT exchange and simulates fills locally. An optional, separately confirmed mirror can place orders on Bybit Testnet with test funds only. Production endpoints and live flags are rejected.
 
-The supported VPS configuration uses `PAPER_SYMBOLS=AUTO`. It discovers every active, sufficiently liquid USDT spot market, excludes instruments that cannot be tested responsibly, intersects the result with Bybit Testnet availability, and rotates across the entire eligible set. `MARKET_SCAN_BATCH_SIZE=18` limits API/CPU work in one cycle but does not cap the universe. Watch `eligible_symbols`, `last_scan`, and `full_sweeps` to prove coverage.
+The supported VPS configuration uses `CONFIRM_TIMEFRAMES=AUTO` and `PAPER_SYMBOLS=AUTO`. Exchange intelligence verifies the configured CCXT adapter and discovers its advertised intervals, products, methods, precision, limits, fees and contract rules without credentials. The exchange protection orchestrator then converts those observed capabilities into a per-market engine plan and refuses authenticated execution if identity, environment, least-privilege IP-bound permissions, market rules, reconciliation, recovery, caps, kill switch or required engine health is incomplete. The required temporal guard measures exchange-server clock offset, normalizes internal time to UTC, removes still-forming candles, rejects stale series and reports DST-aware FX sessions. It then discovers every active, sufficiently liquid USDT spot market, excludes instruments that cannot be tested responsibly, and rotates across the eligible set. Moon Scout ranks the current measured batch while the cross-venue monitor collects read-only Bybit/OKX quotes for cost-adjusted arbitrage observation. When Bybit Testnet is enabled, it additionally requires all 13 verified Bybit intervals and intersects the universe with Testnet availability. `MARKET_SCAN_BATCH_SIZE=18` limits API/CPU work in one cycle but does not cap the universe. Every engine and timeframe prediction is scored independently in the ungated paper observatory, even when the shared Testnet router rejects an order. Optional OpenAI, Anthropic or Gemini research is structured and journaled for causal validation; it has no order authority. Watch `exchange_intelligence`, `exchange_protection`, `market_temporal_guard`, `cross_venue_arbitrage`, `eligible_symbols`, `full_sweeps`, `timeframe_matrix`, `public_market_context`, `strategy_observatory`, and `model_research` to prove coverage and boundaries.
 
 ## Security incident first
 
@@ -68,6 +68,12 @@ docker compose logs -f --tail=100 leantrader
 
 The service persists its ledger in `runtime/vps_paper_state.json`, writes its current health snapshot to `runtime/vps_heartbeat.json`, and appends fills to `logs/vps_trades.jsonl`.
 
+## Optional structured AI research
+
+LeanTrader can call one configured `openai`, `anthropic`, or `gemini` model on a scheduled interval. The model receives compact derived evidence—not exchange credentials or order authority—and must return a bounded JSON challenger. Unsupported controls such as leverage or direct orders are rejected. Accepted proposals remain `pending_causal_replay`; only measured validation can qualify them for paper challenger status, and no proposal can promote itself to Testnet or live trading.
+
+Store the provider key only in `/opt/leantrader/app/secrets/model_research_api_key`, owned by `root:10001` with mode `0440`. Then set `MODEL_RESEARCH_ENABLED=true`, the matching `MODEL_RESEARCH_PROVIDER`, the provider's current `MODEL_RESEARCH_MODEL` identifier, and `MODEL_RESEARCH_INTERVAL_CYCLES`. Keep `MODEL_RESEARCH_ENDPOINT` empty for the official provider endpoint. Restart the container and verify `.engines.model_research.configured == true`, `.structured_output_validated == true`, and `.execution_authority == false` in the heartbeat. Do not place the key in `.env`, Git, chat, logs, or screenshots.
+
 ## Enable the bounded Bybit Testnet mirror
 
 Create the key from a [Bybit Testnet](https://testnet.bybit.com/) account, not the production or Demo Trading account. Testnet keys are separate from production keys. Grant only the trading permissions needed for spot orders, disable withdrawals, and restrict the key to the VPS IP when Bybit offers that control. Never paste a key into chat, a GitHub issue, Git, or `.env`.
@@ -115,11 +121,11 @@ docker compose config --quiet
 docker compose up -d --build --force-recreate
 docker compose ps
 sleep 70
-jq '{healthy, runtime, errors, market_universe: .engines.market_universe, testnet_execution, testnet_engine: .engines.bybit_testnet_execution}' runtime/vps_heartbeat.json
+jq '{healthy, runtime, errors, exchange_protection: .engines.exchange_protection, market_time: .engines.market_temporal_guard, news_collector: .engines.public_market_context, news_engine: .engines.advanced_shadow_suite.capabilities.news_awareness, market_universe: .engines.market_universe, testnet_execution, testnet_engine: .engines.bybit_testnet_execution}' runtime/vps_heartbeat.json
 jq '[.engines | to_entries[] | select(.value.required == true and .value.healthy != true)]' runtime/vps_heartbeat.json
 ```
 
-The second `jq` command must print `[]`. The testnet engine must report `environment: "testnet"`, `authenticated: true`, `sandbox_endpoint_verified: true`, `api_attestation.verified: true`, `api_attestation.spot_trade: true`, `api_attestation.withdrawal_permission: false`, `exchange_capabilities.exchange_id: "bybit"`, `exchange_capabilities.execution_market_type: "spot"`, `execution_authority: "testnet_only"`, and `live_authority: false`. The required decision router must be healthy and every ultra/research engine must show an active, ready, degraded, or explicitly blocked state—never an invented success.
+The second `jq` command must print `[]`. The exchange protection engine must report `capability_driven: true`, `fail_closed: true`, `authenticated_executor: "bybit_testnet_spot_only"`, and no missing protection on an authorized event. The temporal guard must report `clock.verified: true`, `clock.safe: true`, `closed_candles_only: true`, no stale timeframe, and all 13 Bybit timeframe checks. The public collector and local news engine must each report fresh news independently. The testnet engine must report `environment: "testnet"`, `authenticated: true`, `sandbox_endpoint_verified: true`, `api_attestation.verified: true`, `api_attestation.ip_bound: true`, `api_attestation.spot_trade: true`, `api_attestation.withdrawal_permission: false`, `exchange_capabilities.exchange_id: "bybit"`, `exchange_capabilities.execution_market_type: "spot"`, a fully true `protection_contract`, `execution_authority: "testnet_only"`, and `live_authority: false`. The required decision router must be healthy and every ultra/research engine must show an active, ready, degraded, or explicitly blocked state—never an invented success.
 
 To stop new testnet entries immediately without blocking position-reducing sells:
 
@@ -137,6 +143,19 @@ cd /opt/leantrader/app
 ```
 
 Press `Ctrl+C` to leave the monitor; stopping the monitor does not stop LeanTrader.
+
+## Telegram signals and monitoring
+
+Create a fresh bot through `@BotFather`, start a private conversation with it, and obtain the numeric chat ID. Never reuse the Telegram token previously exposed in repository history. Then run:
+
+```bash
+cd /opt/leantrader/app
+bash scripts/configure_telegram_vps.sh
+```
+
+The script stores the token in a root-owned secret file, verifies the bot through Telegram, sends an admin attestation message, configures optional free and paid chats/channels, rebuilds the container, and checks the canonical heartbeat. Admin receives fills, halts, Moon Scout/arbitrage alerts and periodic health. The paid channel receives full gated signal details and a Bybit Testnet button; the free channel receives a higher-confidence summary without the button. Cooldowns prevent repeated spam.
+
+This is distribution-tier configuration, not billing verification. Do not advertise a user as paid until a payment provider or Telegram Stars subscription webhook has verified the subscription. Telegram remains outbound-only: it does not accept order commands, cannot bypass the router, and cannot reach production exchange endpoints.
 
 ## Operate
 

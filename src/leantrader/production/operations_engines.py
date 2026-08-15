@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import html
 import json
 import math
 import os
+import time
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -12,6 +14,8 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+from .temporal_guard import MarketTemporalGuard
 
 
 @dataclass(frozen=True)
@@ -111,11 +115,17 @@ class ForexEngine:
 
     @staticmethod
     def session_allowed(when: dt.datetime) -> bool:
-        utc = when.astimezone(dt.UTC)
-        return utc.weekday() < 5 and 6 <= utc.hour < 21
+        return bool(MarketTemporalGuard.forex_session_status(when)["allowed"])
 
     def health(self) -> dict[str, Any]:
-        return {"providers": ["oanda", "mt5"], "execution_authority": False, "xauusd": True}
+        return {
+            "providers": ["oanda", "mt5"],
+            "execution_authority": False,
+            "xauusd": True,
+            "session_timezone": "America/New_York",
+            "dst_aware": True,
+            "rollover_buffer": True,
+        }
 
 
 class ReconciliationEngine:
@@ -248,6 +258,12 @@ class PrometheusMetricsEngine:
     def write(self, status: dict[str, Any]) -> dict[str, Any]:
         engines = status.get("engines", {})
         universe = engines.get("market_universe", {})
+        advanced = engines.get("advanced_shadow_suite", {})
+        capabilities = advanced.get("capabilities", {})
+        moon = capabilities.get("moon_scout_dynamic_scanner", {})
+        arbitrage = capabilities.get("arbitrage", {})
+        telegram = (engines.get("operations_safety", {}).get("telegram", {}))
+        exchange_protection = engines.get("exchange_protection", {})
         lines = [
             "# HELP leantrader_healthy Whether the canonical paper runtime is healthy.",
             "# TYPE leantrader_healthy gauge",
@@ -270,6 +286,22 @@ class PrometheusMetricsEngine:
             f"leantrader_market_universe_scanned {int(universe.get('last_scan_count', 0))}",
             "# TYPE leantrader_market_universe_full_sweeps counter",
             f"leantrader_market_universe_full_sweeps {int(universe.get('full_sweeps', 0))}",
+            "# TYPE leantrader_moon_scout_scans counter",
+            f"leantrader_moon_scout_scans {int(moon.get('scans', 0))}",
+            "# TYPE leantrader_arbitrage_scans counter",
+            f"leantrader_arbitrage_scans {int(arbitrage.get('scans', 0))}",
+            "# TYPE leantrader_arbitrage_opportunities counter",
+            f"leantrader_arbitrage_opportunities {int(arbitrage.get('opportunities_seen', 0))}",
+            "# TYPE leantrader_telegram_messages_sent counter",
+            f"leantrader_telegram_messages_sent {int(telegram.get('sent', 0))}",
+            "# TYPE leantrader_telegram_delivery_failures counter",
+            f"leantrader_telegram_delivery_failures {int(telegram.get('failed', 0))}",
+            "# TYPE leantrader_exchange_authorization_checks counter",
+            f"leantrader_exchange_authorization_checks {int(exchange_protection.get('authorization_checks', 0))}",
+            "# TYPE leantrader_exchange_authorizations counter",
+            f"leantrader_exchange_authorizations {int(exchange_protection.get('authorized', 0))}",
+            "# TYPE leantrader_exchange_authority_blocks counter",
+            f"leantrader_exchange_authority_blocks {int(exchange_protection.get('blocked', 0))}",
             "# TYPE leantrader_engine_healthy gauge",
         ]
         for name, state in sorted(engines.items()):
@@ -286,15 +318,59 @@ class PrometheusMetricsEngine:
 
 
 class TelegramAlertEngine:
-    """Optional outbound paper alerts; no inbound commands or execution capability."""
+    """Tiered outbound paper/Testnet intelligence with no order authority."""
 
-    VERSION = "1.0"
+    VERSION = "2.0"
 
-    def __init__(self, token: str = "", chat_id: str = "", timeout: float = 5.0) -> None:
+    def __init__(
+        self,
+        token: str = "",
+        chat_id: str = "",
+        timeout: float = 5.0,
+        cooldown_seconds: int | None = None,
+        monitor_interval_cycles: int | None = None,
+    ) -> None:
         token_path = Path(os.getenv("TELEGRAM_BOT_TOKEN_FILE", "/run/secrets/telegram_bot_token"))
         self.token = token or self._read_optional_secret(token_path) or os.getenv("TELEGRAM_BOT_TOKEN", "")
-        self.chat_id = chat_id or os.getenv("TELEGRAM_CHAT_ID", "")
+        admin = chat_id or os.getenv("TELEGRAM_ADMIN_CHAT_ID", "") or os.getenv("TELEGRAM_CHAT_ID", "")
+        self.audiences = {
+            "admin": self._chat_ids(admin, os.getenv("TELEGRAM_ADMIN_CHAT_IDS", "")),
+            "free": self._chat_ids(os.getenv("TELEGRAM_FREE_CHAT_ID", ""), os.getenv("TELEGRAM_FREE_CHAT_IDS", "")),
+            "paid": self._chat_ids(os.getenv("TELEGRAM_PAID_CHAT_ID", ""), os.getenv("TELEGRAM_PAID_CHAT_IDS", "")),
+        }
+        self.chat_id = admin
         self.timeout = timeout
+        self.cooldown_seconds = (
+            int(os.getenv("TELEGRAM_SIGNAL_COOLDOWN_SECONDS", "900"))
+            if cooldown_seconds is None
+            else cooldown_seconds
+        )
+        self.monitor_interval_cycles = (
+            int(os.getenv("TELEGRAM_MONITOR_INTERVAL_CYCLES", "60"))
+            if monitor_interval_cycles is None
+            else monitor_interval_cycles
+        )
+        self.free_min_confidence = float(os.getenv("TELEGRAM_FREE_MIN_CONFIDENCE", "0.85"))
+        self.paid_min_confidence = float(os.getenv("TELEGRAM_PAID_MIN_CONFIDENCE", "0.70"))
+        self.moon_min_score = float(os.getenv("TELEGRAM_MOON_MIN_SCORE", "1.0"))
+        self.testnet_trade_url = os.getenv("TELEGRAM_TESTNET_TRADE_URL", "https://testnet.bybit.com/").strip()
+        if not 0 <= self.paid_min_confidence <= self.free_min_confidence <= 1:
+            raise ValueError("Telegram confidence thresholds must satisfy 0 <= paid <= free <= 1")
+        if self.cooldown_seconds < 60:
+            raise ValueError("TELEGRAM_SIGNAL_COOLDOWN_SECONDS must be at least 60")
+        if self.monitor_interval_cycles < 1:
+            raise ValueError("TELEGRAM_MONITOR_INTERVAL_CYCLES must be positive")
+        if self.moon_min_score < 0:
+            raise ValueError("TELEGRAM_MOON_MIN_SCORE cannot be negative")
+        self.sent = 0
+        self.failed = 0
+        self.sent_by_audience = {"admin": 0, "free": 0, "paid": 0}
+        self.failed_by_audience = {"admin": 0, "free": 0, "paid": 0}
+        self.skipped_cooldown = 0
+        self.publish_cycles = 0
+        self.last_error: str | None = None
+        self.last_sent_at: str | None = None
+        self.last_keys: dict[str, float] = {}
 
     @staticmethod
     def _read_optional_secret(path: Path) -> str:
@@ -303,27 +379,215 @@ class TelegramAlertEngine:
         except OSError:
             return ""
 
-    def send(self, message: str) -> dict[str, Any]:
-        if not self.token or not self.chat_id:
-            return {"sent": False, "reason": "telegram not configured"}
-        body = urllib.parse.urlencode({"chat_id": self.chat_id, "text": message[:4000]}).encode()
-        request = urllib.request.Request(
-            f"https://api.telegram.org/bot{self.token}/sendMessage",
-            data=body,
-            method="POST",
+    @staticmethod
+    def _chat_ids(*values: str) -> tuple[str, ...]:
+        return tuple(
+            dict.fromkeys(
+                item.strip()
+                for value in values
+                for item in value.split(",")
+                if item.strip()
+            )
         )
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                return {"sent": 200 <= response.status < 300, "status": response.status}
-        except OSError as exc:
-            return {"sent": False, "reason": type(exc).__name__}
+
+    def send(
+        self,
+        message: str,
+        *,
+        audience: str = "admin",
+        reply_markup: dict[str, Any] | None = None,
+        dedupe_key: str = "",
+    ) -> dict[str, Any]:
+        chats = self.audiences.get(audience, ())
+        if not self.token or not chats:
+            return {"sent": False, "reason": "telegram not configured"}
+        now = time.time()
+        if dedupe_key and now - float(self.last_keys.get(dedupe_key) or 0.0) < self.cooldown_seconds:
+            self.skipped_cooldown += 1
+            return {"sent": False, "reason": "cooldown", "audience": audience}
+        deliveries: list[dict[str, Any]] = []
+        for target in chats:
+            payload: dict[str, Any] = {
+                "chat_id": target,
+                "text": message[:4000],
+                "parse_mode": "HTML",
+                "disable_web_page_preview": True,
+            }
+            if reply_markup:
+                payload["reply_markup"] = json.dumps(reply_markup, separators=(",", ":"))
+            body = urllib.parse.urlencode(payload).encode()
+            request = urllib.request.Request(
+                f"https://api.telegram.org/bot{self.token}/sendMessage",
+                data=body,
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    response_payload = json.loads(response.read().decode("utf-8") or "{}")
+                    delivered = 200 <= response.status < 300 and response_payload.get("ok") is True
+                    deliveries.append({"chat_id": target, "sent": delivered, "status": response.status})
+                    if delivered:
+                        self.sent += 1
+                        self.sent_by_audience[audience] = self.sent_by_audience.get(audience, 0) + 1
+                    else:
+                        self.failed += 1
+                        self.failed_by_audience[audience] = self.failed_by_audience.get(audience, 0) + 1
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                self.failed += 1
+                self.failed_by_audience[audience] = self.failed_by_audience.get(audience, 0) + 1
+                self.last_error = f"{type(exc).__name__}: {exc}"
+                deliveries.append({"chat_id": target, "sent": False, "reason": type(exc).__name__})
+        delivered = any(item["sent"] for item in deliveries)
+        if delivered:
+            if dedupe_key:
+                self.last_keys[dedupe_key] = now
+            self.last_sent_at = dt.datetime.now(dt.UTC).isoformat()
+            self.last_error = None
+        return {"sent": delivered, "audience": audience, "deliveries": deliveries}
+
+    def publish_cycle(self, status: dict[str, Any]) -> list[dict[str, Any]]:
+        """Publish gated signals, Moon Scout, arbitrage and periodic admin health."""
+        self.publish_cycles += 1
+        if not self.token:
+            return [{"sent": False, "reason": "telegram not configured"}]
+        results: list[dict[str, Any]] = []
+        testnet_enabled = bool((status.get("testnet_execution") or {}).get("enabled"))
+        keyboard = (
+            {"inline_keyboard": [[{"text": "Open Bybit Testnet", "url": self.testnet_trade_url}]]}
+            if testnet_enabled and self._safe_testnet_url()
+            else None
+        )
+        for symbol, decision in (status.get("decisions") or {}).items():
+            route = decision.get("route") or {}
+            if route.get("allowed") is not True:
+                continue
+            confidence = float(decision.get("confidence") or 0.0)
+            safe_symbol = html.escape(str(symbol))
+            side = "BUY" if decision.get("enter_long") else "OBSERVE"
+            if confidence >= self.paid_min_confidence:
+                paid_message = (
+                    f"<b>LeanTrader verified signal</b>\n"
+                    f"Market: <code>{safe_symbol}</code>\nAction: <b>{side}</b>\n"
+                    f"Confidence: {confidence:.1%}\nRegime: {html.escape(str(decision.get('regime')))}\n"
+                    f"Timeframe score: {float(decision.get('multi_timeframe_score') or 0.0):.3f}\n"
+                    f"Route: {html.escape(str(route.get('reason')))}\n"
+                    "Authority: paper/Testnet only"
+                )
+                results.append(
+                    self.send(
+                        paid_message,
+                        audience="paid",
+                        reply_markup=keyboard,
+                        dedupe_key=f"paid:signal:{symbol}:{side}",
+                    )
+                )
+            if confidence >= self.free_min_confidence:
+                free_message = (
+                    f"<b>LeanTrader market signal</b>\nMarket: <code>{safe_symbol}</code>\n"
+                    f"Direction: <b>{side}</b>\nConfidence band: high\nPaper research—not financial advice"
+                )
+                results.append(
+                    self.send(free_message, audience="free", dedupe_key=f"free:signal:{symbol}:{side}")
+                )
+
+        advanced_market = ((status.get("advanced_shadow") or {}).get("market") or {})
+        moon = list(advanced_market.get("moon_scout_ranking") or [])
+        if moon and float(moon[0].get("score") or 0.0) >= self.moon_min_score:
+            top = moon[0]
+            message = (
+                f"<b>Moon Scout anomaly</b>\nMarket: <code>{html.escape(str(top.get('symbol')))}</code>\n"
+                f"Cross-sectional score: {float(top.get('score') or 0.0):.3f}\n"
+                f"Momentum: {float(top.get('momentum') or 0.0):.2%}\n"
+                f"Volume spike: {float(top.get('volume_spike') or 0.0):.2f}x\n"
+                "Scanner observation only"
+            )
+            results.append(
+                self.send(message, audience="paid", dedupe_key=f"paid:moon:{top.get('symbol')}")
+            )
+            results.append(
+                self.send(message, audience="admin", dedupe_key=f"admin:moon:{top.get('symbol')}")
+            )
+
+        opportunities = list(advanced_market.get("arbitrage_opportunities") or [])
+        if opportunities:
+            top = opportunities[0]
+            message = (
+                f"<b>Cross-venue spread observed</b>\nMarket: <code>{html.escape(str(top.get('symbol')))}</code>\n"
+                f"Buy: {html.escape(str(top.get('buy_venue')))} @ {float(top.get('buy_price') or 0.0):.8g}\n"
+                f"Sell: {html.escape(str(top.get('sell_venue')))} @ {float(top.get('sell_price') or 0.0):.8g}\n"
+                f"Net after modeled costs: {float(top.get('net_bps') or 0.0):.2f} bps\n"
+                f"Liquidity verified: {bool(top.get('liquidity_verified'))}\nNo execution authority"
+            )
+            results.append(
+                self.send(message, audience="paid", dedupe_key=f"paid:arbitrage:{top.get('symbol')}")
+            )
+            results.append(
+                self.send(message, audience="admin", dedupe_key=f"admin:arbitrage:{top.get('symbol')}")
+            )
+
+        protection = ((status.get("engines") or {}).get("exchange_protection") or {})
+        block_reasons = dict(protection.get("block_reasons") or {})
+        if block_reasons:
+            reason_text = ", ".join(
+                f"{html.escape(str(reason))}={int(count)}"
+                for reason, count in sorted(block_reasons.items())
+            )
+            message = (
+                "<b>Exchange protection blocked authority</b>\n"
+                f"Reasons: {reason_text}\n"
+                f"Checks: {int(protection.get('authorization_checks') or 0)}\n"
+                "No blocked order was submitted"
+            )
+            results.append(
+                self.send(
+                    message,
+                    audience="admin",
+                    dedupe_key=f"admin:exchange-protection:{','.join(sorted(block_reasons))}",
+                )
+            )
+
+        if self.publish_cycles % self.monitor_interval_cycles == 0:
+            message = (
+                f"<b>LeanTrader monitor</b>\nHealthy: {bool(status.get('healthy'))}\n"
+                f"Equity: ${float(status.get('equity') or 0.0):.2f}\n"
+                f"Open positions: {len(status.get('open_positions') or [])}\n"
+                f"Cycle errors: {len(status.get('errors') or {})}\n"
+                f"Runtime: <code>{html.escape(str(status.get('runtime')))}</code>"
+            )
+            results.append(self.send(message, audience="admin", dedupe_key=f"admin:monitor:{self.publish_cycles}"))
+        return results
+
+    def _safe_testnet_url(self) -> bool:
+        parsed = urllib.parse.urlparse(self.testnet_trade_url)
+        return parsed.scheme == "https" and "testnet" in parsed.netloc.lower()
 
     def health(self) -> dict[str, Any]:
-        return {"configured": bool(self.token and self.chat_id), "outbound_only": True, "execution_authority": False}
+        return {
+            "configured": bool(self.token and any(self.audiences.values())),
+            "audiences": {name: len(chats) for name, chats in self.audiences.items()},
+            "free_min_confidence": self.free_min_confidence,
+            "paid_min_confidence": self.paid_min_confidence,
+            "cooldown_seconds": self.cooldown_seconds,
+            "monitor_interval_cycles": self.monitor_interval_cycles,
+            "testnet_trade_link_safe": self._safe_testnet_url(),
+            "sent": self.sent,
+            "failed": self.failed,
+            "sent_by_audience": dict(self.sent_by_audience),
+            "failed_by_audience": dict(self.failed_by_audience),
+            "skipped_cooldown": self.skipped_cooldown,
+            "publish_cycles": self.publish_cycles,
+            "last_sent_at": self.last_sent_at,
+            "last_error": self.last_error,
+            "outbound_only": True,
+            "inbound_commands": False,
+            "paid_access_source": "configured_channel_or_chat",
+            "payment_verification": False,
+            "execution_authority": False,
+        }
 
 
 class OperationsEngineSuite:
-    VERSION = "2.1"
+    VERSION = "3.0"
 
     def __init__(self, provenance_path: Path, metrics_path: Path | None = None) -> None:
         self.execution_reality = ExecutionRealityEngine()
@@ -341,14 +605,20 @@ class OperationsEngineSuite:
     def record_metrics(self, status: dict[str, Any]) -> dict[str, Any]:
         return self.metrics.write(status)
 
+    def notify_cycle(self, status: dict[str, Any]) -> list[dict[str, Any]]:
+        return self.telegram.publish_cycle(status)
+
     def alert_events(self, events: list[dict[str, Any]], halt_reason: str | None) -> list[dict[str, Any]]:
         results = []
         for event in events:
             results.append(
-                self.telegram.send(f"LeanTrader paper {event['side']} {event['symbol']} reason={event['reason']}")
+                self.telegram.send(
+                    f"LeanTrader paper {event['side']} {event['symbol']} reason={event['reason']}",
+                    audience="admin",
+                )
             )
         if halt_reason:
-            results.append(self.telegram.send(f"LeanTrader paper halt: {halt_reason}"))
+            results.append(self.telegram.send(f"LeanTrader paper halt: {halt_reason}", audience="admin"))
         return results
 
     def health(self) -> dict[str, Any]:

@@ -33,6 +33,10 @@ while true; do
         pending_samples: .engines.adaptive_intelligence.pending_samples,
         weights: .engines.adaptive_intelligence.weights
       },
+      exchange_intelligence: .engines.exchange_intelligence,
+      exchange_protection: .engines.exchange_protection,
+      market_time_integrity: .engines.market_temporal_guard,
+      cross_venue_arbitrage: .engines.cross_venue_arbitrage,
       decision_router: {
         routes: .engines.decision_router.routes,
         approved: .engines.decision_router.approved,
@@ -41,8 +45,18 @@ while true; do
         live_authority: .engines.decision_router.live_authority
       },
       ultra_engine_activity: .engines.advanced_shadow_suite.activity,
+      timeframe_matrix: .advanced_shadow.symbols | with_entries(.value |= .timeframe_matrix),
       research_engine_activity: .engines.research_governor.activity,
       research_drift: .research_governor.distribution_drift,
+      model_research: .engines.model_research,
+      latest_model_research_observation: .model_research_observation,
+      public_market_context: .engines.public_market_context,
+      news_awareness: .engines.advanced_shadow_suite.capabilities.news_awareness,
+      moon_scout: .engines.advanced_shadow_suite.capabilities.moon_scout_dynamic_scanner,
+      arbitrage_engine: .engines.advanced_shadow_suite.capabilities.arbitrage,
+      telegram: .engines.operations_safety.telegram,
+      latest_telegram_notifications: .telegram_notifications,
+      ungated_strategy_observatory: .engines.strategy_observatory,
       market_universe: {
         mode: .engines.market_universe.mode,
         quote: .engines.market_universe.quote,
@@ -55,6 +69,9 @@ while true; do
       testnet: {
         authenticated: .engines.bybit_testnet_execution.authenticated,
         api_attestation: .engines.bybit_testnet_execution.api_attestation,
+        protection_contract: .engines.bybit_testnet_execution.protection_contract,
+        risk_limits: .engines.bybit_testnet_execution.risk_limits,
+        kill_switch_active: .engines.bybit_testnet_execution.kill_switch_active,
         exchange_capabilities: .engines.bybit_testnet_execution.exchange_capabilities,
         sandbox_verified: .engines.bybit_testnet_execution.sandbox_endpoint_verified,
         live_authority: .engines.bybit_testnet_execution.live_authority,

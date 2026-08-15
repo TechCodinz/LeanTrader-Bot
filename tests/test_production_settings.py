@@ -56,6 +56,40 @@ def test_auto_symbols_enable_dynamic_all_eligible_market_rotation(monkeypatch, t
     assert settings.symbols == ()
     assert settings.market_quote == "USDT"
     assert settings.market_scan_batch_size == 18
+    assert settings.confirm_timeframes == ()
+
+
+def test_non_bybit_exchange_uses_dynamic_capability_attestation(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DATA_EXCHANGE", "okx")
+    monkeypatch.setenv("PAPER_SYMBOLS", "AUTO")
+    monkeypatch.setenv("CONFIRM_TIMEFRAMES", "AUTO")
+    settings = Settings.from_env()
+    assert settings.exchange == "okx"
+    assert settings.market_universe_mode == "dynamic"
+    assert settings.confirm_timeframes == ()
+
+
+def test_non_bybit_cannot_reuse_bybit_testnet_execution(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DATA_EXCHANGE", "okx")
+    monkeypatch.setenv("BYBIT_TESTNET_ENABLED", "true")
+    monkeypatch.setenv("BYBIT_TESTNET_CONFIRM", "I_UNDERSTAND_TESTNET_ONLY")
+    with pytest.raises(SafetyError, match="only for Bybit"):
+        Settings.from_env()
+
+
+def test_model_research_requires_known_provider_model_and_https(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("MODEL_RESEARCH_ENABLED", "true")
+    monkeypatch.setenv("MODEL_RESEARCH_PROVIDER", "unknown")
+    with pytest.raises(ValueError, match="MODEL_RESEARCH_PROVIDER"):
+        Settings.from_env()
+    monkeypatch.setenv("MODEL_RESEARCH_PROVIDER", "openai")
+    monkeypatch.setenv("MODEL_RESEARCH_MODEL", "research-model")
+    monkeypatch.setenv("MODEL_RESEARCH_ENDPOINT", "http://unsafe.example")
+    with pytest.raises(ValueError, match="HTTPS"):
+        Settings.from_env()
 
 
 @pytest.mark.parametrize(

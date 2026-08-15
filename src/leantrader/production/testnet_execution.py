@@ -21,7 +21,7 @@ class BybitTestnetExecutionEngine:
     exchange test funds only. It never accepts production credentials or URLs.
     """
 
-    VERSION = "2.0"
+    VERSION = "2.1"
     TESTNET_CONFIRMATION = "I_UNDERSTAND_TESTNET_ONLY"
 
     def __init__(
@@ -173,6 +173,7 @@ class BybitTestnetExecutionEngine:
             if execution_notional > 0
             else 0.0
         )
+        methods = dict(self.exchange_capabilities.get("methods") or {})
         return {
             "provider": "bybit",
             "environment": "testnet",
@@ -204,6 +205,23 @@ class BybitTestnetExecutionEngine:
             "daily_order_count": int(self.state["daily_order_count"]),
             "last_reconciliation": self.state.get("last_reconciliation"),
             "last_reconciliation_errors": list(self.state.get("last_reconciliation_errors", [])),
+            "protection_contract": {
+                "market_precision_and_limits": True,
+                "fee_and_slippage_model": True,
+                "balance_reconciliation": True,
+                "order_idempotency": True,
+                "order_state_recovery": bool(methods.get("fetchOrder"))
+                or (bool(methods.get("fetchOpenOrders")) and bool(methods.get("fetchClosedOrders"))),
+                "position_and_daily_caps": True,
+                "kill_switch": True,
+            },
+            "risk_limits": {
+                "max_order_usd": self.max_order_usd,
+                "max_position_usd": self.max_position_usd,
+                "max_daily_submitted_usd": self.max_daily_submitted_usd,
+                "max_orders_per_day": self.max_orders_per_day,
+            },
+            "kill_switch_active": (self.state_path.parent / "TESTNET_HALT").exists(),
         }
 
     def _mirror_event(self, event: dict[str, Any]) -> dict[str, Any]:

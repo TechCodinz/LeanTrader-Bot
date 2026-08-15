@@ -7,6 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 TRUE_VALUES = {"1", "true", "yes", "y", "on"}
+BYBIT_KLINE_TIMEFRAMES = ("1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d", "1w", "1M")
 
 
 class SafetyError(ValueError):
@@ -39,6 +40,7 @@ class Settings:
     market_universe_mode: str
     market_quote: str
     market_universe_state_path: Path
+    exchange_intelligence_state_path: Path
     market_scan_batch_size: int
     market_refresh_seconds: int
     market_min_quote_volume_usd: float
@@ -67,7 +69,27 @@ class Settings:
     intelligence_state_path: Path
     pattern_memory_path: Path
     news_state_path: Path
+    public_context_state_path: Path
+    public_context_enabled: bool
+    public_context_refresh_seconds: int
+    news_max_age_seconds: int
+    news_max_future_skew_seconds: int
+    max_clock_offset_ms: float
+    clock_sync_seconds: int
+    candle_stale_multiplier: float
+    arbitrage_enabled: bool
+    arbitrage_venues: tuple[str, ...]
+    arbitrage_refresh_seconds: int
+    arbitrage_slippage_bps: float
+    strategy_observatory_state_path: Path
     research_state_path: Path
+    model_research_state_path: Path
+    model_research_enabled: bool
+    model_research_provider: str
+    model_research_model: str
+    model_research_api_key_path: Path
+    model_research_endpoint: str
+    model_research_interval_cycles: int
     decision_router_state_path: Path
     provenance_path: Path
     metrics_path: Path
@@ -104,6 +126,7 @@ class Settings:
                 "ENABLE_LIVE=false, ALLOW_LIVE=false, and LIVE_CONFIRM=NO."
             )
 
+        exchange = os.getenv("DATA_EXCHANGE", "bybit").strip().lower()
         raw_symbols = os.getenv("PAPER_SYMBOLS", "BTC/USDT,ETH/USDT,SOL/USDT").strip()
         market_universe_mode = "dynamic" if raw_symbols.upper() in {"AUTO", "ALL", "DYNAMIC", "*"} else "configured"
         symbols = tuple(
@@ -113,17 +136,28 @@ class Settings:
         ) if market_universe_mode == "configured" else ()
         if market_universe_mode == "configured" and not symbols:
             raise ValueError("PAPER_SYMBOLS must contain at least one symbol")
-        confirm_timeframes = tuple(
-            value.strip() for value in os.getenv("CONFIRM_TIMEFRAMES", "1h,4h").split(",") if value.strip()
+        raw_timeframes = os.getenv("CONFIRM_TIMEFRAMES", "AUTO").strip()
+        confirm_timeframes = () if raw_timeframes.upper() == "AUTO" else tuple(
+            dict.fromkeys(value.strip() for value in raw_timeframes.split(",") if value.strip())
+        )
+        arbitrage_venues = tuple(
+            dict.fromkeys(
+                value.strip().lower()
+                for value in os.getenv("ARBITRAGE_VENUES", "bybit,okx").split(",")
+                if value.strip()
+            )
         )
 
         settings = cls(
-            exchange=os.getenv("DATA_EXCHANGE", "bybit").strip().lower(),
+            exchange=exchange,
             symbols=symbols,
             market_universe_mode=market_universe_mode,
             market_quote=os.getenv("MARKET_QUOTE", "USDT").strip().upper(),
             market_universe_state_path=Path(
                 os.getenv("MARKET_UNIVERSE_STATE_PATH", "runtime/vps_market_universe.json")
+            ),
+            exchange_intelligence_state_path=Path(
+                os.getenv("EXCHANGE_INTELLIGENCE_STATE_PATH", "runtime/vps_exchange_intelligence.json")
             ),
             market_scan_batch_size=_int("MARKET_SCAN_BATCH_SIZE", 18),
             market_refresh_seconds=_int("MARKET_REFRESH_SECONDS", 3600),
@@ -153,7 +187,35 @@ class Settings:
             intelligence_state_path=Path(os.getenv("INTELLIGENCE_STATE_PATH", "runtime/vps_intelligence_state.json")),
             pattern_memory_path=Path(os.getenv("PATTERN_MEMORY_PATH", "runtime/vps_pattern_memory.json")),
             news_state_path=Path(os.getenv("NEWS_STATE_PATH", "runtime/vps_news_state.json")),
+            public_context_state_path=Path(
+                os.getenv("PUBLIC_CONTEXT_STATE_PATH", "runtime/vps_public_context.json")
+            ),
+            public_context_enabled=_bool("PUBLIC_CONTEXT_ENABLED", True),
+            public_context_refresh_seconds=_int("PUBLIC_CONTEXT_REFRESH_SECONDS", 900),
+            news_max_age_seconds=_int("NEWS_MAX_AGE_SECONDS", 86_400),
+            news_max_future_skew_seconds=_int("NEWS_MAX_FUTURE_SKEW_SECONDS", 300),
+            max_clock_offset_ms=_float("MAX_CLOCK_OFFSET_MS", 5_000.0),
+            clock_sync_seconds=_int("CLOCK_SYNC_SECONDS", 300),
+            candle_stale_multiplier=_float("CANDLE_STALE_MULTIPLIER", 2.5),
+            arbitrage_enabled=_bool("ARBITRAGE_MONITOR_ENABLED", True),
+            arbitrage_venues=arbitrage_venues,
+            arbitrage_refresh_seconds=_int("ARBITRAGE_REFRESH_SECONDS", 60),
+            arbitrage_slippage_bps=_float("ARBITRAGE_SLIPPAGE_BPS", 3.0),
+            strategy_observatory_state_path=Path(
+                os.getenv("STRATEGY_OBSERVATORY_STATE_PATH", "runtime/vps_strategy_observatory.json")
+            ),
             research_state_path=Path(os.getenv("RESEARCH_STATE_PATH", "runtime/vps_research_governor.json")),
+            model_research_state_path=Path(
+                os.getenv("MODEL_RESEARCH_STATE_PATH", "runtime/vps_model_research.json")
+            ),
+            model_research_enabled=_bool("MODEL_RESEARCH_ENABLED"),
+            model_research_provider=os.getenv("MODEL_RESEARCH_PROVIDER", "").strip().lower(),
+            model_research_model=os.getenv("MODEL_RESEARCH_MODEL", "").strip(),
+            model_research_api_key_path=Path(
+                os.getenv("MODEL_RESEARCH_API_KEY_FILE", "/run/secrets/model_research_api_key")
+            ),
+            model_research_endpoint=os.getenv("MODEL_RESEARCH_ENDPOINT", "").strip(),
+            model_research_interval_cycles=_int("MODEL_RESEARCH_INTERVAL_CYCLES", 60),
             decision_router_state_path=Path(
                 os.getenv("DECISION_ROUTER_STATE_PATH", "runtime/vps_decision_router.json")
             ),
@@ -190,8 +252,8 @@ class Settings:
         return settings
 
     def validate(self) -> None:
-        if self.market_universe_mode == "dynamic" and self.exchange != "bybit":
-            raise ValueError("dynamic market discovery is currently verified only for Bybit")
+        if not self.exchange:
+            raise ValueError("DATA_EXCHANGE must name a CCXT exchange adapter")
         if not self.market_quote or "/" in self.market_quote:
             raise ValueError("MARKET_QUOTE must be a quote asset such as USDT")
         if not 1 <= self.market_scan_batch_size <= 100:
@@ -204,6 +266,44 @@ class Settings:
             raise ValueError("MARKET_MAX_SPREAD_BPS must be in (0, 1000]")
         if self.candle_limit < 220:
             raise ValueError("PAPER_CANDLE_LIMIT must be at least 220")
+        if self.exchange == "bybit" and self.confirm_timeframes:
+            unsupported_timeframes = sorted(set(self.confirm_timeframes) - set(BYBIT_KLINE_TIMEFRAMES))
+            if unsupported_timeframes:
+                raise ValueError(
+                    "CONFIRM_TIMEFRAMES contains unsupported Bybit intervals: "
+                    + ",".join(unsupported_timeframes)
+                )
+            if set(self.confirm_timeframes) != set(BYBIT_KLINE_TIMEFRAMES):
+                raise ValueError("Bybit CONFIRM_TIMEFRAMES must include the complete verified matrix or AUTO")
+        if self.public_context_refresh_seconds < 300:
+            raise ValueError("PUBLIC_CONTEXT_REFRESH_SECONDS must be at least 300")
+        if self.news_max_age_seconds < 3_600:
+            raise ValueError("NEWS_MAX_AGE_SECONDS must be at least 3600")
+        if not 0 <= self.news_max_future_skew_seconds <= 3_600:
+            raise ValueError("NEWS_MAX_FUTURE_SKEW_SECONDS must be in [0, 3600]")
+        if not 100 <= self.max_clock_offset_ms <= 60_000:
+            raise ValueError("MAX_CLOCK_OFFSET_MS must be in [100, 60000]")
+        if self.clock_sync_seconds < 60:
+            raise ValueError("CLOCK_SYNC_SECONDS must be at least 60")
+        if not 1.0 <= self.candle_stale_multiplier <= 10.0:
+            raise ValueError("CANDLE_STALE_MULTIPLIER must be in [1, 10]")
+        if self.arbitrage_enabled and len(self.arbitrage_venues) < 2:
+            raise ValueError("ARBITRAGE_VENUES must contain at least two venues when enabled")
+        if len(self.arbitrage_venues) > 5:
+            raise ValueError("ARBITRAGE_VENUES supports at most five public venues")
+        if self.arbitrage_refresh_seconds < 30:
+            raise ValueError("ARBITRAGE_REFRESH_SECONDS must be at least 30")
+        if not 0 <= self.arbitrage_slippage_bps <= 100:
+            raise ValueError("ARBITRAGE_SLIPPAGE_BPS must be in [0, 100]")
+        if self.model_research_interval_cycles < 10:
+            raise ValueError("MODEL_RESEARCH_INTERVAL_CYCLES must be at least 10")
+        if self.model_research_enabled:
+            if self.model_research_provider not in {"openai", "anthropic", "gemini"}:
+                raise ValueError("MODEL_RESEARCH_PROVIDER must be openai, anthropic, or gemini")
+            if not self.model_research_model:
+                raise ValueError("MODEL_RESEARCH_MODEL is required when model research is enabled")
+            if self.model_research_endpoint and not self.model_research_endpoint.startswith("https://"):
+                raise ValueError("MODEL_RESEARCH_ENDPOINT must use HTTPS")
         if self.poll_seconds < 10:
             raise ValueError("POLL_INTERVAL must be at least 10 seconds")
         if self.starting_cash <= 0 or self.order_usd <= 0:
