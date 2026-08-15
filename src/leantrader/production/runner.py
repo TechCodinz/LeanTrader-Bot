@@ -543,6 +543,10 @@ class PaperRunner:
                     if timeframe == self.settings.timeframe:
                         context_frames[timeframe] = frame
                         continue
+                    error_key = f"{symbol}:timeframe:{timeframe}"
+                    if not self.error_attribution.should_attempt(error_key):
+                        context_frames[timeframe] = pd.DataFrame()
+                        continue
                     try:
                         context_frame = self.feed.candles(
                             symbol, timeframe, self.settings.candle_limit
@@ -554,13 +558,22 @@ class PaperRunner:
                             timeframe,
                             source_requires_timestamp=hasattr(self.feed, "exchange"),
                         )
+                        self.error_attribution.success(error_key)
                     except Exception as exc:  # noqa: BLE001 - one interval must not hide all others
                         context_frames[timeframe] = pd.DataFrame()
-                        error_key = f"{symbol}:timeframe:{timeframe}"
-                        errors[error_key] = f"{type(exc).__name__}: {exc}"
-                        self.error_attribution.failure(
-                            error_key, errors[error_key], optional=True, component="multi_timeframe", symbol=symbol
-                        )
+                        error_text = f"{type(exc).__name__}: {exc}"
+                        # A newly listed asset can legitimately have no completed
+                        # weekly/monthly candle yet.  Treat that as unavailable
+                        # evidence, not as a runtime failure.
+                        if isinstance(exc, ValueError) and "has no closed candles" in str(exc):
+                            self.error_attribution.unavailable(
+                                error_key, error_text, component="multi_timeframe", symbol=symbol
+                            )
+                        else:
+                            errors[error_key] = error_text
+                            self.error_attribution.failure(
+                                error_key, error_text, optional=True, component="multi_timeframe", symbol=symbol
+                            )
                 decisions[symbol] = self.engines.call(
                     "adaptive_intelligence",
                     "evaluate",
@@ -749,6 +762,12 @@ class PaperRunner:
                 )
             except Exception as exc:  # noqa: BLE001 - isolate individual symbol/feed failures
                 errors[symbol] = f"{type(exc).__name__}: {exc}"
+                self.error_attribution.failure(
+                    symbol, errors[symbol], optional=False, component="symbol_pipeline", symbol=symbol
+                )
+                LOGGER.warning(
+                    "symbol pipeline failure symbol=%s error=%s", symbol, errors[symbol]
+                )
 
         prices = {symbol: decision.close for symbol, decision in decisions.items()}
         events: list[dict[str, Any]] = []
@@ -1110,7 +1129,7 @@ class PaperRunner:
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v12.2-cns-brain-memory",
+            "runtime": "verified-multi-engine-v12.3-cns-brain-memory",
             "exchange": self.settings.exchange,
             "resolved_timeframes": list(resolved_timeframes),
             "cycle_symbols": cycle_symbols,
@@ -1424,7 +1443,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v12.2-cns-brain-memory",
+        "runtime": "verified-multi-engine-v12.3-cns-brain-memory",
         "cns_brain_memory": {
             "cns_execution_authority": False,
             "brain_can_only_reduce_or_veto": True,

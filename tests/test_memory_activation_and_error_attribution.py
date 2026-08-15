@@ -71,3 +71,29 @@ def test_optional_error_cooldown_and_recovery(tmp_path: Path):
     assert tracker.should_attempt("BTC:order_book", now=163)
     tracker.success("BTC:order_book", now=164)
     assert tracker.should_attempt("BTC:order_book", now=165)
+
+
+def test_error_attribution_unavailable_is_observable_but_not_failure(tmp_path):
+    tracker = ErrorAttributionTracker(tmp_path / "errors.json")
+    row = tracker.unavailable(
+        "KII/USDT:timeframe:1M",
+        "ValueError: 1M has no closed candles",
+        component="multi_timeframe",
+        symbol="KII/USDT",
+        now=100.0,
+    )
+    assert row["availability_state"] == "unavailable"
+    assert row["failures"] == 0
+    assert row["unavailable_count"] == 1
+    assert tracker.cycle_summary({})["count"] == 0
+    health = tracker.health()
+    assert health["total_unavailable"] == 1
+
+
+def test_error_attribution_success_clears_unavailable_state(tmp_path):
+    tracker = ErrorAttributionTracker(tmp_path / "errors.json")
+    key = "KII/USDT:timeframe:1w"
+    tracker.unavailable(key, "ValueError: 1w has no closed candles", component="multi_timeframe")
+    row = tracker.success(key, now=200.0)
+    assert row["availability_state"] == "available"
+    assert row["consecutive_failures"] == 0

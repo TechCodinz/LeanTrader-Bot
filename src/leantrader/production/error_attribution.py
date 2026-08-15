@@ -16,7 +16,7 @@ class ErrorAttributionTracker:
     suppressed here; EngineRegistry remains their fail-closed authority.
     """
 
-    VERSION = "1.0"
+    VERSION = "1.1"
 
     def __init__(
         self,
@@ -35,6 +35,7 @@ class ErrorAttributionTracker:
         self.records: dict[str, dict[str, Any]] = {}
         self.total_failures = 0
         self.total_successes = 0
+        self.total_unavailable = 0
         self.last_error: str | None = None
         self._load()
 
@@ -94,9 +95,52 @@ class ErrorAttributionTracker:
         record["consecutive_failures"] = 0
         record["suppressed_until"] = 0.0
         record["last_success_at"] = epoch
+        record["availability_state"] = "available"
         self.total_successes += 1
         if self.total_successes % 20 == 0:
             self._save()
+        return dict(record)
+
+
+    def unavailable(
+        self,
+        key: str,
+        reason: str,
+        *,
+        component: str,
+        symbol: str | None = None,
+        now: float | None = None,
+    ) -> dict[str, Any]:
+        """Record an expected data-availability gap without making the cycle erroneous.
+
+        Newly listed markets may legitimately have no closed weekly/monthly candle.
+        That is missing evidence, not an engine failure.  The condition remains
+        observable and is cleared automatically once data becomes available.
+        """
+        epoch = float(now or time.time())
+        record = self.records.setdefault(
+            key,
+            {
+                "component": component,
+                "symbol": symbol,
+                "optional": True,
+                "failures": 0,
+                "successes": 0,
+                "consecutive_failures": 0,
+                "suppressed_until": 0.0,
+            },
+        )
+        record["component"] = component
+        record["symbol"] = symbol
+        record["optional"] = True
+        record["availability_state"] = "unavailable"
+        record["last_unavailable_reason"] = str(reason)[:800]
+        record["last_unavailable_at"] = epoch
+        record["unavailable_count"] = int(record.get("unavailable_count", 0)) + 1
+        record["consecutive_failures"] = 0
+        record["suppressed_until"] = 0.0
+        self.total_unavailable += 1
+        self._save()
         return dict(record)
 
     def cycle_summary(self, errors: dict[str, str], *, now: float | None = None) -> dict[str, Any]:
@@ -141,6 +185,7 @@ class ErrorAttributionTracker:
             "tracked_error_keys": len(self.records),
             "total_failures": self.total_failures,
             "total_successes": self.total_successes,
+            "total_unavailable": self.total_unavailable,
             "cooldown_after": self.cooldown_after,
             "cooldown_seconds": self.cooldown_seconds,
             "suppressed_optional_keys": suppressed,
@@ -158,6 +203,7 @@ class ErrorAttributionTracker:
             self.records = dict(payload.get("records") or {})
             self.total_failures = int(payload.get("total_failures", 0))
             self.total_successes = int(payload.get("total_successes", 0))
+            self.total_unavailable = int(payload.get("total_unavailable", 0))
             self.last_error = None
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
             self.last_error = f"{type(exc).__name__}: {exc}"
@@ -171,6 +217,7 @@ class ErrorAttributionTracker:
             "records": self.records,
             "total_failures": self.total_failures,
             "total_successes": self.total_successes,
+            "total_unavailable": self.total_unavailable,
             "updated_at": time.time(),
         }
         temporary.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")

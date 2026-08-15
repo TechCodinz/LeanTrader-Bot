@@ -32,7 +32,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
-    assert result["runtime"] == "verified-multi-engine-v12.2-cns-brain-memory"
+    assert result["runtime"] == "verified-multi-engine-v12.3-cns-brain-memory"
     assert set(result["engines"]) == {
         "market_data",
         "exchange_intelligence",
