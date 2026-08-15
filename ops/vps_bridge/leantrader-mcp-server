@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+exec /opt/leantrader-ops/venv/bin/python /opt/leantrader-ops/server.py
