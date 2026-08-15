@@ -39,8 +39,9 @@ def test_decision_is_deterministic_explainable_and_bounded(tmp_path):
     assert sum(first.weights.values()) == pytest.approx(1.0)
     assert all(0.10 <= value <= 0.70 for value in first.weights.values())
     assert first.quality_score == 1.0
-    assert len(first.rationale) == 6
+    assert len(first.rationale) == 8
     assert first.multi_timeframe_confirmed is True
+    assert first.multi_timeframe_coverage == 1.0
     assert first.session_allowed is True
 
 
@@ -62,6 +63,7 @@ def test_multi_timeframe_and_fx_session_are_fail_closed(tmp_path):
         symbol="EUR/USD",
     )
     assert decision.multi_timeframe_confirmed is False
+    assert decision.multi_timeframe_score < 0
     assert decision.enter_long is False
 
 

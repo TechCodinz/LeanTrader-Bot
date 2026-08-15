@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import urllib.parse
 
 import numpy as np
 import pandas as pd
@@ -100,6 +101,88 @@ def test_telegram_token_can_be_loaded_from_secret_file(monkeypatch, tmp_path):
     engine = TelegramAlertEngine(chat_id="test-chat")
     assert engine.token == "test-token-value"
     assert engine.health()["configured"] is True
+
+
+def test_telegram_publishes_gated_free_paid_moon_arbitrage_and_testnet_link(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_FREE_CHAT_ID", "free-chat")
+    monkeypatch.setenv("TELEGRAM_PAID_CHAT_ID", "paid-chat")
+    monkeypatch.setenv("TELEGRAM_TESTNET_TRADE_URL", "https://testnet.bybit.com/")
+    requests = []
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        @staticmethod
+        def read():
+            return b'{"ok":true}'
+
+    def fake_urlopen(request, timeout):
+        requests.append((urllib.parse.parse_qs(request.data.decode()), timeout))
+        return Response()
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    engine = TelegramAlertEngine(token="test-token", chat_id="admin-chat", monitor_interval_cycles=1)
+    status = {
+        "healthy": True,
+        "runtime": "verified-test",
+        "equity": 50.0,
+        "open_positions": [],
+        "errors": {},
+        "engines": {
+            "exchange_protection": {
+                "authorization_checks": 3,
+                "block_reasons": {"api_key_ip_bound": 1},
+            }
+        },
+        "testnet_execution": {"enabled": True},
+        "decisions": {
+            "BTC/USDT": {
+                "confidence": 0.90,
+                "enter_long": True,
+                "regime": "trend",
+                "multi_timeframe_score": 0.5,
+                "route": {"allowed": True, "reason": "approved"},
+            }
+        },
+        "advanced_shadow": {
+            "market": {
+                "moon_scout_ranking": [
+                    {"symbol": "SOL/USDT", "score": 1.5, "momentum": 0.08, "volume_spike": 3.0}
+                ],
+                "arbitrage_opportunities": [
+                    {
+                        "symbol": "BTC/USDT",
+                        "buy_venue": "bybit",
+                        "sell_venue": "okx",
+                        "buy_price": 100.0,
+                        "sell_price": 100.5,
+                        "net_bps": 20.0,
+                        "liquidity_verified": True,
+                    }
+                ],
+            }
+        },
+    }
+    results = engine.publish_cycle(status)
+    assert any(result.get("sent") for result in results)
+    chats = [payload["chat_id"][0] for payload, _timeout in requests]
+    assert {"admin-chat", "free-chat", "paid-chat"} <= set(chats)
+    paid_payloads = [payload for payload, _timeout in requests if payload["chat_id"] == ["paid-chat"]]
+    assert any("reply_markup" in payload for payload in paid_payloads)
+    assert any(
+        "Exchange protection blocked authority" in payload["text"][0]
+        for payload, _timeout in requests
+    )
+    health = engine.health()
+    assert health["sent"] == len(requests)
+    assert health["outbound_only"] is True
+    assert health["execution_authority"] is False
 
 
 def test_prometheus_metrics_are_atomic_and_use_canonical_status(tmp_path):

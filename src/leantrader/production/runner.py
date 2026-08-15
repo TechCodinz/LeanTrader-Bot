@@ -12,14 +12,21 @@ from typing import Any
 import pandas as pd
 
 from .advanced_engines import UltraEngineSuite
+from .arbitrage_monitor import CrossVenueQuoteCollector
 from .decision_router import BoundedDecisionRouter, MarketEvidenceGate
 from .engine_control import EngineRegistry
+from .exchange_intelligence import ExchangeIntelligence, timeframe_seconds
+from .exchange_protection import ExchangeProtectionOrchestrator
 from .intelligence import AdaptiveIntelligence, IntelligenceDecision
 from .ledger import PaperLedger
 from .market_universe import MarketUniverse
+from .model_research import ModelResearchEngine, StructuredResearchProvider
 from .operations_engines import OperationsEngineSuite
+from .public_context import PublicMarketContextEngine
 from .research_engines import ResearchEngineSuite
 from .settings import Settings
+from .strategy_observatory import StrategyObservatory
+from .temporal_guard import MarketTemporalGuard
 from .testnet_execution import BybitTestnetExecutionEngine
 
 LOGGER = logging.getLogger("leantrader.production")
@@ -58,6 +65,9 @@ class MarketFeed:
         self.exchange = exchange_class({"enableRateLimit": True, "timeout": 20_000})
         self._markets_loaded = False
         self._last_discovery: dict[str, Any] = {}
+        self._candle_cache: dict[tuple[str, str, int], tuple[float, pd.DataFrame]] = {}
+        self._candle_cache_hits = 0
+        self._candle_cache_misses = 0
 
     def _load_markets(self) -> None:
         if not self._markets_loaded:
@@ -66,10 +76,27 @@ class MarketFeed:
 
     def candles(self, symbol: str, timeframe: str, limit: int) -> pd.DataFrame:
         self._load_markets()
+        key = (symbol, timeframe, limit)
+        cached = self._candle_cache.get(key)
+        ttl = self._timeframe_cache_seconds(timeframe)
+        if cached is not None and time.monotonic() - cached[0] < ttl:
+            self._candle_cache_hits += 1
+            return cached[1].copy()
+        self._candle_cache_misses += 1
         rows = self.exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
         if not rows:
             raise RuntimeError(f"no candles returned for {symbol}")
-        return pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        frame = pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume"])
+        self._candle_cache[key] = (time.monotonic(), frame)
+        return frame.copy()
+
+    @staticmethod
+    def _timeframe_cache_seconds(timeframe: str) -> float:
+        try:
+            seconds = timeframe_seconds(timeframe)
+        except ValueError:
+            seconds = 60
+        return max(15.0, min(float(seconds) * 0.25, 3_600.0))
 
     def order_book(self, symbol: str, limit: int = 10) -> dict[str, Any]:
         self._load_markets()
@@ -147,7 +174,7 @@ class MarketFeed:
     def health(self) -> dict[str, Any]:
         capabilities = {
             name: bool(self.exchange.has.get(name, False))
-            for name in ("fetchMarkets", "fetchTickers", "fetchOHLCV", "fetchOrderBook")
+            for name in ("fetchMarkets", "fetchTickers", "fetchOHLCV", "fetchOrderBook", "fetchTime")
         }
         return {
             "read_only": True,
@@ -158,6 +185,12 @@ class MarketFeed:
             "capabilities": capabilities,
             "markets_loaded": self._markets_loaded,
             "last_discovery": dict(self._last_discovery),
+            "candle_cache": {
+                "entries": len(getattr(self, "_candle_cache", {})),
+                "hits": getattr(self, "_candle_cache_hits", 0),
+                "misses": getattr(self, "_candle_cache_misses", 0),
+                "timeframe_aware": True,
+            },
         }
 
 
@@ -171,8 +204,59 @@ class PaperRunner:
             learning_rate=settings.learning_rate,
             min_samples=settings.learning_min_samples,
         )
-        self.advanced = UltraEngineSuite(settings.pattern_memory_path, settings.news_state_path)
+        self.advanced = UltraEngineSuite(
+            settings.pattern_memory_path,
+            settings.news_state_path,
+            news_max_age_seconds=settings.news_max_age_seconds,
+            news_max_future_skew_seconds=settings.news_max_future_skew_seconds,
+        )
         self.research = ResearchEngineSuite(settings.research_state_path)
+        model_provider = (
+            StructuredResearchProvider(
+                provider=settings.model_research_provider,
+                model=settings.model_research_model,
+                api_key_path=settings.model_research_api_key_path,
+                endpoint=settings.model_research_endpoint,
+            )
+            if settings.model_research_enabled
+            else None
+        )
+        self.model_research = ModelResearchEngine(
+            settings.model_research_state_path,
+            enabled=settings.model_research_enabled,
+            interval_cycles=settings.model_research_interval_cycles,
+            provider=model_provider,
+        )
+        self.public_context = PublicMarketContextEngine(
+            settings.public_context_state_path,
+            enabled=settings.public_context_enabled,
+            refresh_seconds=settings.public_context_refresh_seconds,
+        )
+        self.exchange_intelligence = ExchangeIntelligence(
+            state_path=settings.exchange_intelligence_state_path,
+            exchange_id=settings.exchange,
+            feed=feed,
+            base_timeframe=settings.timeframe,
+            requested_timeframes=settings.confirm_timeframes,
+        )
+        self.exchange_protection = ExchangeProtectionOrchestrator(self.exchange_intelligence)
+        self.temporal_guard = MarketTemporalGuard(
+            feed,
+            max_clock_offset_ms=settings.max_clock_offset_ms,
+            clock_sync_seconds=settings.clock_sync_seconds,
+            candle_stale_multiplier=settings.candle_stale_multiplier,
+        )
+        self.arbitrage_monitor = CrossVenueQuoteCollector(
+            primary_feed=feed,
+            venues=settings.arbitrage_venues,
+            enabled=settings.arbitrage_enabled and hasattr(feed, "exchange"),
+            refresh_seconds=settings.arbitrage_refresh_seconds,
+            assumed_slippage_bps=settings.arbitrage_slippage_bps,
+        )
+        self.strategy_observatory = StrategyObservatory(
+            settings.strategy_observatory_state_path,
+            round_trip_cost_bps=2 * (settings.fee_bps + settings.slippage_bps),
+        )
         self.decision_router = BoundedDecisionRouter(
             MarketEvidenceGate(
                 settings.decision_router_state_path,
@@ -212,7 +296,36 @@ class PaperRunner:
             recovery_seconds=settings.engine_recovery_seconds,
         )
         self.engines.register("market_data", self.feed, version="ccxt-public-v1")
-        universe_dependencies = ("market_data", "bybit_testnet_execution") if self.testnet is not None else ("market_data",)
+        self.engines.register(
+            "exchange_intelligence",
+            self.exchange_intelligence,
+            dependencies=("market_data",),
+            version=self.exchange_intelligence.VERSION,
+        )
+        self.engines.register(
+            "market_temporal_guard",
+            self.temporal_guard,
+            dependencies=("market_data", "exchange_intelligence"),
+            version=self.temporal_guard.VERSION,
+        )
+        self.engines.register(
+            "exchange_protection",
+            self.exchange_protection,
+            dependencies=("exchange_intelligence", "market_temporal_guard"),
+            version=self.exchange_protection.VERSION,
+        )
+        self.engines.register(
+            "cross_venue_arbitrage",
+            self.arbitrage_monitor,
+            required=False,
+            dependencies=("market_data", "exchange_intelligence"),
+            version=self.arbitrage_monitor.VERSION,
+        )
+        universe_dependencies = (
+            ("market_data", "exchange_intelligence", "bybit_testnet_execution")
+            if self.testnet is not None
+            else ("market_data", "exchange_intelligence")
+        )
         self.engines.register(
             "market_universe",
             self.universe,
@@ -233,16 +346,36 @@ class PaperRunner:
             version=self.advanced.VERSION,
         )
         self.engines.register(
+            "public_market_context",
+            self.public_context,
+            required=False,
+            dependencies=("market_data",),
+            version=self.public_context.VERSION,
+        )
+        self.engines.register(
             "research_governor",
             self.research,
             dependencies=("adaptive_intelligence", "paper_ledger"),
             version=self.research.VERSION,
         )
         self.engines.register(
+            "model_research",
+            self.model_research,
+            required=False,
+            dependencies=("research_governor", "public_market_context", "strategy_observatory"),
+            version=self.model_research.VERSION,
+        )
+        self.engines.register(
             "decision_router",
             self.decision_router,
             dependencies=("adaptive_intelligence", "advanced_shadow_suite", "research_governor", "market_universe"),
             version=self.decision_router.VERSION,
+        )
+        self.engines.register(
+            "strategy_observatory",
+            self.strategy_observatory,
+            dependencies=("advanced_shadow_suite", "market_data"),
+            version=self.strategy_observatory.VERSION,
         )
         self.engines.register(
             "operations_safety",
@@ -255,7 +388,12 @@ class PaperRunner:
             self.engines.register(
                 "bybit_testnet_execution",
                 self.testnet,
-                dependencies=("market_data", "paper_ledger", "operations_safety"),
+                dependencies=(
+                    "market_data",
+                    "paper_ledger",
+                    "operations_safety",
+                    "exchange_protection",
+                ),
                 version=self.testnet.VERSION,
             )
         self.engines.start_all()
@@ -268,6 +406,7 @@ class PaperRunner:
         routed_decisions: dict[str, dict[str, Any]] = {}
         research_observations: dict[str, dict[str, Any]] = {}
         errors: dict[str, str] = {}
+        self.engines.call("market_temporal_guard", "sync_clock")
         allowed_testnet_symbols = (
             self.engines.call("bybit_testnet_execution", "eligible_symbols", self.settings.market_quote)
             if self.testnet is not None
@@ -299,21 +438,55 @@ class PaperRunner:
             "next_batch",
             mandatory_symbols=set(self.ledger.positions),
         )
+        context_refresh = self.engines.call(
+            "public_market_context", "refresh", tuple(self.universe.symbols)
+        )
+        try:
+            arbitrage_collection = self.engines.call(
+                "cross_venue_arbitrage", "collect", tuple(cycle_symbols)
+            )
+        except Exception as exc:  # noqa: BLE001 - cross-venue research cannot interrupt canonical trading
+            errors["cross_venue_arbitrage"] = f"{type(exc).__name__}: {exc}"
+            arbitrage_collection = {"available": False, "quotes": [], "error": errors["cross_venue_arbitrage"]}
+        resolved_timeframes = self.engines.call("exchange_intelligence", "resolve_timeframes")
+        news_items = list(context_refresh.get("news_items") or [])
+        if news_items:
+            self.advanced.news.ingest(news_items)
         for symbol in cycle_symbols:
             try:
                 frame = self.engines.call(
                     "market_data", "candles", symbol, self.settings.timeframe, self.settings.candle_limit
                 )
+                frame = self.engines.call(
+                    "market_temporal_guard",
+                    "filter_closed_candles",
+                    frame,
+                    self.settings.timeframe,
+                    source_requires_timestamp=hasattr(self.feed, "exchange"),
+                )
                 frames[symbol] = frame
                 research_observations[symbol] = self.engines.call(
                     "research_governor", "observe_symbol", symbol, frame
                 )
-                context_frames = {
-                    timeframe: self.engines.call(
-                        "market_data", "candles", symbol, timeframe, self.settings.candle_limit
-                    )
-                    for timeframe in self.settings.confirm_timeframes
-                }
+                context_frames: dict[str, pd.DataFrame] = {}
+                for timeframe in resolved_timeframes:
+                    if timeframe == self.settings.timeframe:
+                        context_frames[timeframe] = frame
+                        continue
+                    try:
+                        context_frame = self.feed.candles(
+                            symbol, timeframe, self.settings.candle_limit
+                        )
+                        context_frames[timeframe] = self.engines.call(
+                            "market_temporal_guard",
+                            "filter_closed_candles",
+                            context_frame,
+                            timeframe,
+                            source_requires_timestamp=hasattr(self.feed, "exchange"),
+                        )
+                    except Exception as exc:  # noqa: BLE001 - one interval must not hide all others
+                        context_frames[timeframe] = pd.DataFrame()
+                        errors[f"{symbol}:timeframe:{timeframe}"] = f"{type(exc).__name__}: {exc}"
                 decisions[symbol] = self.engines.call(
                     "adaptive_intelligence",
                     "evaluate",
@@ -337,6 +510,8 @@ class PaperRunner:
                     frame,
                     order_book,
                     self.settings.order_usd / max(decisions[symbol].close, 1e-12),
+                    context_frames,
+                    self.engines.call("public_market_context", "evaluate", symbol),
                 )
                 base_score = sum(
                     decisions[symbol].component_scores[name] * decisions[symbol].weights[name]
@@ -350,6 +525,75 @@ class PaperRunner:
                     base_score=base_score,
                     base_confidence=decisions[symbol].confidence,
                     advanced=advanced_decisions[symbol],
+                )
+                temporal_session = self.engines.call(
+                    "market_temporal_guard",
+                    "session_status",
+                    symbol,
+                    market_rules=self.engines.call("exchange_intelligence", "market_rules", symbol),
+                )
+                routed_decisions[symbol]["temporal_session"] = temporal_session
+                routed_decisions[symbol]["exchange_research_plan"] = self.engines.call(
+                    "exchange_protection", "research_plan", symbol
+                )
+                if not temporal_session["allowed"]:
+                    routed_decisions[symbol]["allowed"] = False
+                    routed_decisions[symbol]["reason"] = str(temporal_session["reason"])
+                    routed_decisions[symbol]["size_multiplier"] = 0.0
+                if self.testnet is not None and not self.temporal_guard.testnet_clock_safe():
+                    routed_decisions[symbol]["allowed"] = False
+                    routed_decisions[symbol]["reason"] = "exchange_clock_not_verified"
+                    routed_decisions[symbol]["size_multiplier"] = 0.0
+                if self.testnet is not None:
+                    protection = self.engines.call(
+                        "exchange_protection",
+                        "authorize_execution",
+                        symbol=symbol,
+                        side="buy",
+                        execution_health=self.testnet.health(),
+                        engine_health=self.engines.snapshot(),
+                    )
+                    routed_decisions[symbol]["exchange_protection"] = protection
+                    if not protection["allowed"]:
+                        routed_decisions[symbol]["allowed"] = False
+                        routed_decisions[symbol]["reason"] = (
+                            f"exchange_protection:{protection['reason']}"
+                        )
+                        routed_decisions[symbol]["size_multiplier"] = 0.0
+                observatory_signals = list(advanced_decisions[symbol].get("signals", []))
+                observatory_signals.extend(
+                    {
+                        "engine": f"adaptive_component:{name}",
+                        "score": score,
+                        "confidence": decisions[symbol].confidence,
+                    }
+                    for name, score in decisions[symbol].component_scores.items()
+                )
+                observatory_signals.extend(
+                    [
+                        {
+                            "engine": "adaptive_ensemble",
+                            "score": base_score,
+                            "confidence": decisions[symbol].confidence,
+                        },
+                        advanced_decisions[symbol].get(
+                            "swarm",
+                            {"engine": "swarm_hivemind", "score": 0.0, "confidence": 0.0},
+                        ),
+                        {
+                            "engine": "bounded_decision_router",
+                            "score": routed_decisions[symbol].get("combined_score", 0.0),
+                            "confidence": routed_decisions[symbol].get("predicted_probability", 0.0),
+                        },
+                    ]
+                )
+                self.engines.call(
+                    "strategy_observatory",
+                    "observe",
+                    symbol,
+                    decisions[symbol].close,
+                    observatory_signals,
+                    decisions[symbol].timeframe_signals,
                 )
                 self.engines.call(
                     "operations_safety",
@@ -397,6 +641,37 @@ class PaperRunner:
             required_engines_healthy=self.engines.required_healthy(),
         )
         capital_state = research_state["capital_preservation"]
+        try:
+            model_research_observation = self.engines.call(
+                "model_research",
+                "observe",
+                {
+                    "timestamp": time.time(),
+                    "exchange": self.settings.exchange,
+                    "resolved_timeframes": list(resolved_timeframes),
+                    "cycle_symbols": list(cycle_symbols),
+                    "decisions": {
+                        symbol: {
+                            "regime": decision.regime,
+                            "confidence": decision.confidence,
+                            "quality_score": decision.quality_score,
+                            "component_scores": decision.component_scores,
+                            "timeframe_score": decision.multi_timeframe_score,
+                            "timeframe_coverage": decision.multi_timeframe_coverage,
+                            "route": routed_decisions.get(symbol),
+                        }
+                        for symbol, decision in decisions.items()
+                    },
+                    "distribution_drift": research_state["distribution_drift"],
+                    "strategy_evidence": self.strategy_observatory.health()["strategies"],
+                    "public_context": {
+                        key: value for key, value in context_refresh.items() if key != "news_items"
+                    },
+                },
+            )
+        except Exception as exc:  # noqa: BLE001 - external research never interrupts trading/accounting
+            errors["model_research"] = f"{type(exc).__name__}: {exc}"
+            model_research_observation = {"requested": True, "accepted": False, "error": errors["model_research"]}
         if capital_state["state"] == "halt" and not halt:
             self.ledger.halt_reason = "capital_preservation"
             halt = self.ledger.halt_reason
@@ -524,6 +799,9 @@ class PaperRunner:
                                 "weights": decision.weights,
                                 "rationale": list(decision.rationale),
                                 "multi_timeframe_confirmed": decision.multi_timeframe_confirmed,
+                                "multi_timeframe_score": decision.multi_timeframe_score,
+                                "multi_timeframe_coverage": decision.multi_timeframe_coverage,
+                                "timeframe_signals": decision.timeframe_signals,
                                 "session_allowed": decision.session_allowed,
                                 "advanced_feature_vector": advanced_decisions.get(symbol, {}).get("feature_vector", {}),
                                 "decision_route": route,
@@ -542,7 +820,34 @@ class PaperRunner:
         testnet_events: list[dict[str, Any]] = []
         if self.testnet is not None:
             try:
-                testnet_events = self.engines.call("bybit_testnet_execution", "mirror_events", delivery_events)
+                protected_events: list[dict[str, Any]] = []
+                for event in delivery_events:
+                    protection = self.engines.call(
+                        "exchange_protection",
+                        "authorize_execution",
+                        symbol=str(event["symbol"]),
+                        side=str(event["side"]),
+                        execution_health=self.testnet.health(),
+                        engine_health=self.engines.snapshot(),
+                    )
+                    if protection["allowed"]:
+                        protected_events.append(event)
+                    else:
+                        testnet_events.append(
+                            {
+                                "symbol": event["symbol"],
+                                "side": event["side"],
+                                "status": "blocked",
+                                "skip_reason": f"exchange_protection:{protection['reason']}",
+                                "protection": protection,
+                            }
+                        )
+                if protected_events:
+                    testnet_events.extend(
+                        self.engines.call(
+                            "bybit_testnet_execution", "mirror_events", protected_events
+                        )
+                    )
                 self.engines.call(
                     "paper_ledger",
                     "acknowledge_events",
@@ -568,7 +873,13 @@ class PaperRunner:
             for symbol, position in self.ledger.positions.items()
         }
         try:
-            advanced_market = self.engines.call("advanced_shadow_suite", "market_snapshot", frames, notionals)
+            advanced_market = self.engines.call(
+                "advanced_shadow_suite",
+                "market_snapshot",
+                frames,
+                notionals,
+                list(arbitrage_collection.get("quotes") or []),
+            )
             advanced_market["business_performance"] = self.engines.call(
                 "advanced_shadow_suite", "business_snapshot", events
             )
@@ -579,8 +890,9 @@ class PaperRunner:
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v6-attested-routing",
+            "runtime": "verified-multi-engine-v11-exchange-protection",
             "exchange": self.settings.exchange,
+            "resolved_timeframes": list(resolved_timeframes),
             "cycle_symbols": cycle_symbols,
             "equity": equity,
             "cash": self.ledger.cash,
@@ -600,6 +912,9 @@ class PaperRunner:
                     "weights": decision.weights,
                     "rationale": list(decision.rationale),
                     "multi_timeframe_confirmed": decision.multi_timeframe_confirmed,
+                    "multi_timeframe_score": decision.multi_timeframe_score,
+                    "multi_timeframe_coverage": decision.multi_timeframe_coverage,
+                    "timeframe_signals": decision.timeframe_signals,
                     "session_allowed": decision.session_allowed,
                     "route": routed_decisions.get(symbol),
                 }
@@ -613,6 +928,13 @@ class PaperRunner:
             },
             "research_governor": research_state,
             "research_observations": research_observations,
+            "model_research_observation": model_research_observation,
+            "public_context_refresh": {
+                key: value for key, value in context_refresh.items() if key != "news_items"
+            },
+            "arbitrage_collection": {
+                key: value for key, value in arbitrage_collection.items() if key != "quotes"
+            },
             "operation_alerts": operation_alerts,
             "testnet_execution": {
                 "enabled": self.testnet is not None,
@@ -620,6 +942,16 @@ class PaperRunner:
                 "live_authority": False,
             },
         }
+        try:
+            status["telegram_notifications"] = self.engines.call(
+                "operations_safety", "notify_cycle", status
+            )
+        except Exception as exc:  # noqa: BLE001 - notification failure cannot interrupt accounting
+            errors["operations_safety:telegram"] = f"{type(exc).__name__}: {exc}"
+            status["telegram_notifications"] = [
+                {"sent": False, "reason": "notification_engine_unavailable"}
+            ]
+        status["engines"] = self.engines.snapshot()
         try:
             status["operation_metrics"] = self.engines.call("operations_safety", "record_metrics", status)
         except Exception as exc:  # noqa: BLE001 - metrics cannot interrupt heartbeat persistence
@@ -698,8 +1030,12 @@ def preflight(settings: Settings) -> dict[str, Any]:
     settings.intelligence_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.pattern_memory_path.parent.mkdir(parents=True, exist_ok=True)
     settings.news_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.public_context_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.exchange_intelligence_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.strategy_observatory_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.market_universe_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.research_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.model_research_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.decision_router_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.provenance_path.parent.mkdir(parents=True, exist_ok=True)
     settings.metrics_path.parent.mkdir(parents=True, exist_ok=True)
@@ -722,7 +1058,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v6-attested-routing",
+        "runtime": "verified-multi-engine-v11-exchange-protection",
         "testnet_execution": {
             "enabled": settings.testnet_enabled,
             "provider": "bybit" if settings.testnet_enabled else None,
@@ -735,11 +1071,36 @@ def preflight(settings: Settings) -> dict[str, Any]:
             "weight_bounds": [0.10, 0.70],
         },
         "strategy_controls": {
-            "confirm_timeframes": settings.confirm_timeframes,
+            "confirm_timeframes": settings.confirm_timeframes or ("AUTO_FROM_EXCHANGE",),
             "risk_per_trade_pct": settings.risk_per_trade_pct,
             "max_entries_per_symbol": settings.max_entries_per_symbol,
             "partial_take_profit_atr": settings.partial_take_profit_atr,
             "final_take_profit_atr": settings.final_take_profit_atr,
+        },
+        "time_integrity": {
+            "utc_internal": True,
+            "exchange_clock_max_offset_ms": settings.max_clock_offset_ms,
+            "clock_sync_seconds": settings.clock_sync_seconds,
+            "closed_candles_only": True,
+            "candle_stale_multiplier": settings.candle_stale_multiplier,
+            "dst_aware_forex": True,
+        },
+        "news_integrity": {
+            "max_age_seconds": settings.news_max_age_seconds,
+            "max_future_skew_seconds": settings.news_max_future_skew_seconds,
+            "collector": "coingecko_plus_rss",
+        },
+        "arbitrage_monitor": {
+            "enabled": settings.arbitrage_enabled,
+            "venues": settings.arbitrage_venues,
+            "refresh_seconds": settings.arbitrage_refresh_seconds,
+            "execution_authority": False,
+        },
+        "exchange_protection": {
+            "capability_driven": True,
+            "fail_closed": True,
+            "authenticated_executor": "bybit_testnet_spot_only",
+            "live_authority": False,
         },
     }
 

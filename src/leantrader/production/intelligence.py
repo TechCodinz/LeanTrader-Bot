@@ -11,7 +11,16 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .exchange_intelligence import timeframe_seconds
+from .temporal_guard import MarketTemporalGuard
+
 COMPONENTS = ("trend", "momentum", "mean_reversion", "bollinger_breakout")
+TIMEFRAME_GROUPS = {
+    "fast": ("1m", "3m", "5m"),
+    "tactical": ("15m", "30m", "1h"),
+    "strategic": ("2h", "4h", "6h", "12h", "1d", "1w", "1M"),
+}
+TIMEFRAME_GROUP_WEIGHTS = {"fast": 0.30, "tactical": 0.35, "strategic": 0.35}
 DEFAULT_WEIGHTS = {
     "trend": {"trend": 0.40, "momentum": 0.25, "mean_reversion": 0.10, "bollinger_breakout": 0.25},
     "range": {"trend": 0.10, "momentum": 0.15, "mean_reversion": 0.55, "bollinger_breakout": 0.20},
@@ -22,6 +31,22 @@ DEFAULT_WEIGHTS = {
         "bollinger_breakout": 0.30,
     },
 }
+
+
+def group_timeframes(timeframes: Any) -> dict[str, tuple[str, ...]]:
+    """Group any CCXT-advertised interval by trading horizon."""
+    groups: dict[str, list[tuple[int, str]]] = {"fast": [], "tactical": [], "strategic": []}
+    for timeframe in timeframes:
+        try:
+            seconds = timeframe_seconds(str(timeframe))
+        except ValueError:
+            continue
+        group = "fast" if seconds <= 300 else ("tactical" if seconds <= 3_600 else "strategic")
+        groups[group].append((seconds, str(timeframe)))
+    return {
+        name: tuple(value for _, value in sorted(rows))
+        for name, rows in groups.items()
+    }
 
 
 @dataclass(frozen=True)
@@ -44,7 +69,68 @@ class IntelligenceDecision:
     weights: dict[str, float]
     rationale: tuple[str, ...]
     multi_timeframe_confirmed: bool
+    multi_timeframe_score: float
+    multi_timeframe_coverage: float
+    timeframe_signals: dict[str, float]
     session_allowed: bool
+
+
+def evaluate_timeframe_matrix(frames: dict[str, pd.DataFrame]) -> dict[str, Any]:
+    """Measure every supplied timeframe without requiring unanimous direction."""
+    if not frames:
+        return {
+            "confirmed": True,
+            "score": 0.0,
+            "coverage": 1.0,
+            "signals": {},
+            "groups": {},
+            "expected": 0,
+            "valid": 0,
+        }
+
+    signals: dict[str, float] = {}
+    invalid: dict[str, str] = {}
+    for timeframe, frame in frames.items():
+        if len(frame) < 200 or "close" not in frame:
+            invalid[timeframe] = "insufficient_candles"
+            continue
+        close = pd.to_numeric(frame["close"], errors="coerce")
+        if close.isna().any() or (close <= 0).any():
+            invalid[timeframe] = "invalid_close"
+            continue
+        ema_fast = close.ewm(span=50, adjust=False).mean()
+        ema_slow = close.ewm(span=200, adjust=False).mean()
+        scale = max(float(close.pct_change().rolling(100).std(ddof=0).iloc[-1]), 1e-6)
+        normalized_gap = float((ema_fast.iloc[-1] / ema_slow.iloc[-1] - 1.0) / (2.0 * scale))
+        signals[timeframe] = float(np.tanh(normalized_gap))
+
+    group_scores: dict[str, float] = {}
+    dynamic_groups = group_timeframes(frames)
+    for group, timeframes in dynamic_groups.items():
+        values = [signals[timeframe] for timeframe in timeframes if timeframe in signals]
+        if values:
+            group_scores[group] = float(np.mean(values))
+    available_weight = sum(TIMEFRAME_GROUP_WEIGHTS[group] for group in group_scores)
+    score = (
+        sum(group_scores[group] * TIMEFRAME_GROUP_WEIGHTS[group] for group in group_scores)
+        / available_weight
+        if available_weight
+        else 0.0
+    )
+    coverage = len(signals) / len(frames)
+    # Majority alignment replaces the former unanimous-timeframe veto. Data
+    # coverage remains required so missing feeds cannot masquerade as support.
+    confirmed = coverage >= 0.60 and score >= -0.05
+    return {
+        "confirmed": confirmed,
+        "score": float(np.clip(score, -1.0, 1.0)),
+        "coverage": coverage,
+        "signals": signals,
+        "groups": group_scores,
+        "invalid": invalid,
+        "expected": len(frames),
+        "valid": len(signals),
+    }
 
 
 class AdaptiveIntelligence:
@@ -136,7 +222,8 @@ class AdaptiveIntelligence:
         score = sum(component_scores[name] * weights[name] for name in COMPONENTS)
         confidence = min(1.0, abs(score)) * quality.score
         threshold = 0.30 if regime != "high_volatility" else 0.55
-        multi_timeframe_confirmed = self._multi_timeframe_confirmed(context_frames or {})
+        timeframe_matrix = evaluate_timeframe_matrix(context_frames or {})
+        multi_timeframe_confirmed = bool(timeframe_matrix["confirmed"])
         session_allowed = self._session_allowed(symbol)
         enter_long = score >= threshold and quality.score >= 0.90 and multi_timeframe_confirmed and session_allowed
         trend_up = bool(ema_fast.iloc[-1] > ema_slow.iloc[-1])
@@ -146,6 +233,8 @@ class AdaptiveIntelligence:
             f"threshold={threshold:.2f}",
             f"data_quality={quality.score:.2f}",
             f"multi_timeframe={multi_timeframe_confirmed}",
+            f"timeframe_score={timeframe_matrix['score']:.3f}",
+            f"timeframe_coverage={timeframe_matrix['coverage']:.2f}",
             f"session_allowed={session_allowed}",
         )
         return IntelligenceDecision(
@@ -160,32 +249,23 @@ class AdaptiveIntelligence:
             weights=weights,
             rationale=rationale,
             multi_timeframe_confirmed=multi_timeframe_confirmed,
+            multi_timeframe_score=float(timeframe_matrix["score"]),
+            multi_timeframe_coverage=float(timeframe_matrix["coverage"]),
+            timeframe_signals=dict(timeframe_matrix["signals"]),
             session_allowed=session_allowed,
         )
 
     @staticmethod
-    def _multi_timeframe_confirmed(context_frames: dict[str, pd.DataFrame]) -> bool:
-        for frame in context_frames.values():
-            if len(frame) < 200 or "close" not in frame:
-                return False
-            close = pd.to_numeric(frame["close"], errors="coerce")
-            if close.isna().any():
-                return False
-            if close.ewm(span=50, adjust=False).mean().iloc[-1] <= close.ewm(span=200, adjust=False).mean().iloc[-1]:
-                return False
-        return True
-
-    @staticmethod
     def _session_allowed(symbol: str, when: dt.datetime | None = None) -> bool:
-        normalized = symbol.upper().replace("/", "").replace("_", "")
-        if not normalized:
+        if not symbol:
             return True
-        if any(token in normalized for token in ("USDT", "USDC", "BTC", "ETH")):
+        base, quote = MarketTemporalGuard._base_quote(symbol)
+        if quote in MarketTemporalGuard.CRYPTO_QUOTES:
             return True
         now = when or dt.datetime.now(dt.UTC)
-        if now.weekday() >= 5:
-            return False
-        return 6 <= now.hour < 21
+        if base in MarketTemporalGuard.FX_ASSETS and quote in MarketTemporalGuard.FX_ASSETS:
+            return bool(MarketTemporalGuard.forex_session_status(now)["allowed"])
+        return False
 
     def learn(self, metadata: dict[str, Any], realized_return: float) -> bool:
         """Stage evidence and promote a bounded weight update after enough closed trades."""

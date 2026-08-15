@@ -32,15 +32,22 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
-    assert result["runtime"] == "verified-multi-engine-v6-attested-routing"
+    assert result["runtime"] == "verified-multi-engine-v11-exchange-protection"
     assert set(result["engines"]) == {
         "market_data",
+        "exchange_intelligence",
+        "exchange_protection",
+        "market_temporal_guard",
+        "cross_venue_arbitrage",
         "market_universe",
+        "model_research",
         "paper_ledger",
         "adaptive_intelligence",
         "advanced_shadow_suite",
+        "public_market_context",
         "research_governor",
         "decision_router",
+        "strategy_observatory",
         "operations_safety",
     }
     assert all(engine["healthy"] for engine in result["engines"].values())
@@ -50,6 +57,19 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["operation_metrics"]["written"] is True
     assert settings.metrics_path.exists()
     assert settings.heartbeat_path.exists()
+    observatory = json.loads(settings.strategy_observatory_state_path.read_text())
+    pending = observatory["pending"]["BTC/USDT"]
+    assert {
+        "engine:adaptive_component:trend",
+        "engine:adaptive_component:momentum",
+        "engine:adaptive_component:mean_reversion",
+        "engine:adaptive_component:bollinger_breakout",
+        "engine:adaptive_ensemble",
+        "engine:swarm_hivemind",
+        "engine:bounded_decision_router",
+        "timeframe:1m",
+        "timeframe:1M",
+    } <= set(pending)
 
 
 def test_atr_sizing_respects_risk_position_and_order_caps():
