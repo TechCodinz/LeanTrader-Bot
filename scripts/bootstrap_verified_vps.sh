@@ -4,8 +4,8 @@ set -Eeuo pipefail
 readonly APP_ROOT="/opt/leantrader"
 readonly APP_DIR="${APP_ROOT}/app"
 readonly REPOSITORY_URL="https://github.com/TechCodinz/LeanTrader-Bot.git"
-readonly RELEASE_COMMIT="51c65082eb922394801b478d3c7178a3fb200e44"
-readonly RELEASE_TREE="1a8fe846192d7697248442dfad6c030833638264"
+readonly RELEASE_COMMIT="a165020d8b913f399d35de515550a3d53a69a346"
+readonly RELEASE_TREE="3795fcb53df579c6f4a4410bb42816223217c6a4"
 readonly LOG_FILE="/var/log/leantrader-bootstrap.log"
 
 if [[ "${EUID}" -ne 0 ]]; then
