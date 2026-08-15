@@ -87,6 +87,8 @@ printf '%s  %s\n' "${tunnel_sha}" "${WORK_DIR}/${tunnel_archive}" | \
   sha256sum --check --status || fail "tunnel-client integrity check failed"
 unzip -q "${WORK_DIR}/${tunnel_archive}" -d "${WORK_DIR}/tunnel-client"
 "${WORK_DIR}/tunnel-client/tunnel-client" --version
+install -m 0555 -o root -g root \
+  "${WORK_DIR}/tunnel-client/tunnel-client" /usr/local/bin/tunnel-client
 
 id -u leanops >/dev/null 2>&1 || \
   useradd --system --create-home --home-dir /var/lib/leantrader-ops --shell /usr/sbin/nologin leanops

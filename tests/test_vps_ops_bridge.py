@@ -128,3 +128,10 @@ def test_sudoers_has_no_wildcard_or_shell_entry():
     assert "/bin/bash" not in sudoers
     assert "/bin/sh" not in sudoers
     assert "NOPASSWD: ALL" not in sudoers
+
+
+def test_installer_persists_tunnel_client_before_profile_initialization():
+    installer = Path("scripts/install_vps_ops_bridge.sh").read_text(encoding="utf-8")
+    install_binary = installer.index('"${WORK_DIR}/tunnel-client/tunnel-client" /usr/local/bin/tunnel-client')
+    initialize_profile = installer.index("runuser -u leantunnel -- /usr/local/bin/tunnel-client init")
+    assert install_binary < initialize_profile
