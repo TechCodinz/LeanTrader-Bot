@@ -13,6 +13,9 @@ import pandas as pd
 
 from .advanced_engines import UltraEngineSuite
 from .arbitrage_monitor import CrossVenueQuoteCollector
+from .brain import TradingBrain
+from .capital_growth import CapitalGrowthGovernor
+from .cns import CentralNervousSystem
 from .decision_router import BoundedDecisionRouter, MarketEvidenceGate
 from .engine_control import EngineRegistry
 from .exchange_intelligence import ExchangeIntelligence, timeframe_seconds
@@ -20,6 +23,7 @@ from .exchange_protection import ExchangeProtectionOrchestrator
 from .intelligence import AdaptiveIntelligence, IntelligenceDecision
 from .ledger import PaperLedger
 from .market_universe import MarketUniverse
+from .memory_retention import MarketFingerprint, MemoryRetentionEngine
 from .model_research import ModelResearchEngine, StructuredResearchProvider
 from .operations_engines import OperationsEngineSuite
 from .public_context import PublicMarketContextEngine
@@ -257,6 +261,26 @@ class PaperRunner:
             settings.strategy_observatory_state_path,
             round_trip_cost_bps=2 * (settings.fee_bps + settings.slippage_bps),
         )
+        self.memory = MemoryRetentionEngine(
+            settings.memory_retention_state_path,
+            max_episodes=settings.memory_max_episodes,
+            half_life_hours=settings.memory_half_life_hours,
+        )
+        self.cns = CentralNervousSystem(settings.cns_state_path)
+        self.brain = TradingBrain(
+            settings.brain_state_path,
+            min_strategy_samples=settings.brain_min_strategy_samples,
+            negative_expectancy_floor=settings.brain_negative_expectancy_floor,
+            quarantine_min_samples=settings.brain_quarantine_min_samples,
+            quarantine_expectancy_floor=settings.brain_quarantine_expectancy_floor,
+            recovery_expectancy_floor=settings.brain_recovery_expectancy_floor,
+        )
+        self.capital_growth = CapitalGrowthGovernor(
+            settings.capital_growth_state_path,
+            starting_equity=settings.starting_cash,
+            principal_floor_fraction=settings.capital_principal_floor_fraction,
+            profit_reinvest_fraction=settings.capital_profit_reinvest_fraction,
+        )
         self.decision_router = BoundedDecisionRouter(
             MarketEvidenceGate(
                 settings.decision_router_state_path,
@@ -378,6 +402,30 @@ class PaperRunner:
             version=self.strategy_observatory.VERSION,
         )
         self.engines.register(
+            "memory_retention",
+            self.memory,
+            dependencies=("paper_ledger",),
+            version=self.memory.VERSION,
+        )
+        self.engines.register(
+            "central_nervous_system",
+            self.cns,
+            dependencies=("adaptive_intelligence", "advanced_shadow_suite", "decision_router", "memory_retention"),
+            version=self.cns.VERSION,
+        )
+        self.engines.register(
+            "trading_brain",
+            self.brain,
+            dependencies=("central_nervous_system", "memory_retention", "strategy_observatory", "decision_router"),
+            version=self.brain.VERSION,
+        )
+        self.engines.register(
+            "capital_growth",
+            self.capital_growth,
+            dependencies=("paper_ledger", "research_governor"),
+            version=self.capital_growth.VERSION,
+        )
+        self.engines.register(
             "operations_safety",
             self.operations,
             required=False,
@@ -397,6 +445,7 @@ class PaperRunner:
                 version=self.testnet.VERSION,
             )
         self.engines.start_all()
+        self._recover_open_position_memory()
         self.stop_requested = False
 
     def cycle(self) -> dict[str, Any]:
@@ -405,6 +454,10 @@ class PaperRunner:
         advanced_decisions: dict[str, dict[str, Any]] = {}
         routed_decisions: dict[str, dict[str, Any]] = {}
         research_observations: dict[str, dict[str, Any]] = {}
+        memory_fingerprints: dict[str, MarketFingerprint] = {}
+        memory_summaries: dict[str, dict[str, Any]] = {}
+        cns_packets: dict[str, dict[str, Any]] = {}
+        brain_decisions: dict[str, dict[str, Any]] = {}
         errors: dict[str, str] = {}
         self.engines.call("market_temporal_guard", "sync_clock")
         allowed_testnet_symbols = (
@@ -560,6 +613,61 @@ class PaperRunner:
                             f"exchange_protection:{protection['reason']}"
                         )
                         routed_decisions[symbol]["size_multiplier"] = 0.0
+
+                fingerprint = self._market_fingerprint(decisions[symbol], advanced_decisions[symbol])
+                memory_fingerprints[symbol] = fingerprint
+                memory_summaries[symbol] = self.engines.call(
+                    "memory_retention", "summarize", symbol=symbol, fingerprint=fingerprint
+                )
+                cns_packets[symbol] = self.engines.call(
+                    "central_nervous_system",
+                    "integrate",
+                    symbol=symbol,
+                    adaptive={
+                        "score": base_score,
+                        "confidence": decisions[symbol].confidence,
+                        "regime": decisions[symbol].regime,
+                    },
+                    advanced=advanced_decisions[symbol],
+                    routed=routed_decisions[symbol],
+                    memory_summary=memory_summaries[symbol],
+                    exchange_protection=routed_decisions[symbol].get("exchange_protection", {}),
+                    runtime_errors=errors,
+                )
+                upstream_allowed = bool(routed_decisions[symbol].get("allowed"))
+                brain_decisions[symbol] = self.engines.call(
+                    "trading_brain",
+                    "evaluate",
+                    symbol=symbol,
+                    cns=cns_packets[symbol],
+                    memory=memory_summaries[symbol],
+                    strategy_evidence=self.engines.call(
+                        "strategy_observatory",
+                        "evidence",
+                        "engine:bounded_decision_router",
+                        symbol,
+                    ),
+                    upstream_allowed=upstream_allowed,
+                    strategy_name=f"bounded_decision_router:{symbol}",
+                )
+                routed_decisions[symbol]["brain"] = brain_decisions[symbol]
+                routed_decisions[symbol]["size_multiplier"] = max(
+                    0.0,
+                    min(
+                        1.0,
+                        float(routed_decisions[symbol].get("size_multiplier", 1.0))
+                        * float(brain_decisions[symbol]["risk_multiplier"]),
+                    ),
+                )
+                if upstream_allowed and not brain_decisions[symbol]["allow_entry"]:
+                    routed_decisions[symbol]["allowed"] = False
+                    reason = next(
+                        (value for value in brain_decisions[symbol]["reasons"] if value != "upstream_router_rejected"),
+                        "brain_veto",
+                    )
+                    routed_decisions[symbol]["reason"] = f"brain:{reason}"
+                    routed_decisions[symbol]["size_multiplier"] = 0.0
+
                 observatory_signals = list(advanced_decisions[symbol].get("signals", []))
                 observatory_signals.extend(
                     {
@@ -608,6 +716,9 @@ class PaperRunner:
                         "weights": decisions[symbol].weights,
                         "advanced_shadow": advanced_decisions[symbol],
                         "decision_route": routed_decisions[symbol],
+                        "cns": cns_packets[symbol],
+                        "brain": brain_decisions[symbol],
+                        "memory_summary": memory_summaries[symbol],
                         "research_observation": research_observations[symbol],
                     },
                 )
@@ -747,6 +858,26 @@ class PaperRunner:
                         )
                     except Exception as exc:  # noqa: BLE001 - execution completed; expose learning failure
                         errors[f"{symbol}:learning"] = f"{type(exc).__name__}: {exc}"
+                    try:
+                        event["memory_retention"] = self._settle_trade_memory(event)
+                    except Exception as exc:  # noqa: BLE001 - closed accounting is final; expose memory failure
+                        errors[f"{symbol}:memory_retention"] = f"{type(exc).__name__}: {exc}"
+
+        # Re-evaluate protected capital after exits so a realized loss can
+        # block same-cycle re-entry instead of waiting for the next poll.
+        post_exit_equity = self.engines.call("paper_ledger", "equity", prices)
+        post_exit_notional = sum(
+            position.quantity * prices.get(symbol, position.entry_price)
+            for symbol, position in self.ledger.positions.items()
+        )
+        growth_state = self.engines.call(
+            "capital_growth",
+            "evaluate",
+            equity=post_exit_equity,
+            realized_pnl=self.ledger.realized_pnl,
+            open_notional=post_exit_notional,
+        )
+        available_deployable_notional = float(growth_state["remaining_deployable_notional"])
 
         if not halt:
             for symbol, decision in decisions.items():
@@ -756,6 +887,9 @@ class PaperRunner:
                     continue
                 if not route["allowed"]:
                     entry_blocks[symbol] = str(route["reason"])
+                    continue
+                if not growth_state["new_entries_allowed"]:
+                    entry_blocks[symbol] = "capital_growth:principal_floor"
                     continue
                 position = self.ledger.positions.get(symbol)
                 if position and (
@@ -777,42 +911,94 @@ class PaperRunner:
                     order_cap=self.settings.order_usd,
                     existing_notional=existing_notional,
                 )
-                notional *= float(capital_state["size_multiplier"]) * float(route["size_multiplier"])
+                notional *= (
+                    float(capital_state["size_multiplier"])
+                    * float(route["size_multiplier"])
+                    * float(growth_state["risk_multiplier"])
+                )
+                notional = min(notional, available_deployable_notional)
                 if notional <= 0:
+                    entry_blocks[symbol] = "capital_growth:no_remaining_deployable_notional"
                     continue
-                try:
-                    events.append(
-                        self.engines.call(
-                            "paper_ledger",
-                            "buy",
-                            symbol,
-                            decision.close,
-                            notional,
-                            decision.atr,
-                            self.settings.fee_bps,
-                            self.settings.slippage_bps,
-                            metadata={
-                                "regime": decision.regime,
-                                "confidence": decision.confidence,
-                                "quality_score": decision.quality_score,
-                                "component_scores": decision.component_scores,
-                                "weights": decision.weights,
-                                "rationale": list(decision.rationale),
-                                "multi_timeframe_confirmed": decision.multi_timeframe_confirmed,
-                                "multi_timeframe_score": decision.multi_timeframe_score,
-                                "multi_timeframe_coverage": decision.multi_timeframe_coverage,
-                                "timeframe_signals": decision.timeframe_signals,
-                                "session_allowed": decision.session_allowed,
-                                "advanced_feature_vector": advanced_decisions.get(symbol, {}).get("feature_vector", {}),
-                                "decision_route": route,
-                            },
-                            allow_add=position is not None,
-                        )
+                memory_decision_id = None
+                entry_metadata = {
+                    "regime": decision.regime,
+                    "confidence": decision.confidence,
+                    "quality_score": decision.quality_score,
+                    "component_scores": decision.component_scores,
+                    "weights": decision.weights,
+                    "rationale": list(decision.rationale),
+                    "multi_timeframe_confirmed": decision.multi_timeframe_confirmed,
+                    "multi_timeframe_score": decision.multi_timeframe_score,
+                    "multi_timeframe_coverage": decision.multi_timeframe_coverage,
+                    "timeframe_signals": decision.timeframe_signals,
+                    "session_allowed": decision.session_allowed,
+                    "advanced_feature_vector": advanced_decisions.get(symbol, {}).get("feature_vector", {}),
+                    "decision_route": route,
+                    "cns": cns_packets.get(symbol, {}),
+                    "brain": brain_decisions.get(symbol, {}),
+                    "memory_summary": memory_summaries.get(symbol, {}),
+                    "capital_growth": growth_state,
+                }
+                if position is None:
+                    memory_decision_id = f"memory-{symbol.replace('/', '_')}-{time.time_ns()}"
+                    fingerprint = memory_fingerprints[symbol]
+                    entry_metadata.update(
+                        {
+                            "memory_decision_id": memory_decision_id,
+                            "memory_strategy": "bounded_decision_router",
+                            "memory_fingerprint": dict(fingerprint.__dict__),
+                            "memory_observed_at": time.time(),
+                        }
                     )
+                try:
+                    event = self.engines.call(
+                        "paper_ledger",
+                        "buy",
+                        symbol,
+                        decision.close,
+                        notional,
+                        decision.atr,
+                        self.settings.fee_bps,
+                        self.settings.slippage_bps,
+                        metadata=entry_metadata,
+                        allow_add=position is not None,
+                    )
+                    events.append(event)
+                    available_deployable_notional = max(0.0, available_deployable_notional - notional)
+                    if position is None and memory_decision_id is not None:
+                        try:
+                            self.engines.call(
+                                "memory_retention",
+                                "remember_decision",
+                                memory_decision_id,
+                                symbol=symbol,
+                                strategy="bounded_decision_router",
+                                fingerprint=memory_fingerprints[symbol],
+                                confidence=decision.confidence,
+                                metadata={
+                                    "route_reason": route.get("reason"),
+                                    "brain_reasons": brain_decisions.get(symbol, {}).get("reasons", []),
+                                },
+                                observed_at=entry_metadata["memory_observed_at"],
+                            )
+                        except Exception as exc:  # noqa: BLE001 - paper fill is final; expose memory capture failure
+                            errors[f"{symbol}:memory_capture"] = f"{type(exc).__name__}: {exc}"
                 except ValueError as exc:
                     errors[symbol] = str(exc)
 
         equity = self.engines.call("paper_ledger", "equity", prices)
+        final_open_notional = sum(
+            position.quantity * prices.get(symbol, position.entry_price)
+            for symbol, position in self.ledger.positions.items()
+        )
+        growth_state = self.engines.call(
+            "capital_growth",
+            "evaluate",
+            equity=equity,
+            realized_pnl=self.ledger.realized_pnl,
+            open_notional=final_open_notional,
+        )
         self.engines.call("paper_ledger", "save")
         delivery_events = list(self.ledger.pending_events)
         for event in delivery_events:
@@ -890,7 +1076,7 @@ class PaperRunner:
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v11-exchange-protection",
+            "runtime": "verified-multi-engine-v12-cns-brain-memory",
             "exchange": self.settings.exchange,
             "resolved_timeframes": list(resolved_timeframes),
             "cycle_symbols": cycle_symbols,
@@ -927,6 +1113,21 @@ class PaperRunner:
                 "execution_authority": False,
             },
             "research_governor": research_state,
+            "capital_growth": growth_state,
+            "cns": {
+                "symbols": cns_packets,
+                "execution_authority": False,
+            },
+            "brain": {
+                "symbols": brain_decisions,
+                "execution_authority": False,
+                "can_increase_upstream_risk": False,
+            },
+            "memory_retention": {
+                "summaries": memory_summaries,
+                "health": self.memory.health(),
+                "execution_authority": False,
+            },
             "research_observations": research_observations,
             "model_research_observation": model_research_observation,
             "public_context_refresh": {
@@ -984,6 +1185,73 @@ class PaperRunner:
         finally:
             self.engines.stop_all()
 
+    @staticmethod
+    def _market_fingerprint(decision: IntelligenceDecision, advanced: dict[str, Any]) -> MarketFingerprint:
+        swarm = advanced.get("swarm") or {}
+        liquidity = advanced.get("liquidity") or {}
+        scores = decision.component_scores
+        return MarketFingerprint(
+            regime=str(decision.regime or "unknown"),
+            volatility=float(decision.atr / max(decision.close, 1e-12)),
+            trend=float(scores.get("trend") or 0.0),
+            momentum=float(scores.get("momentum") or 0.0),
+            spread_bps=float(liquidity.get("spread_bps") or 0.0),
+            liquidity_imbalance=float(liquidity.get("imbalance") or 0.0),
+            ultra_score=float(swarm.get("score") or 0.0),
+            ultra_confidence=float(swarm.get("confidence") or 0.0),
+        )
+
+    def _settle_trade_memory(self, event: dict[str, Any]) -> dict[str, Any]:
+        metadata = dict(event.get("position_metadata") or {})
+        decision_id = str(metadata.get("memory_decision_id") or "")
+        if not decision_id:
+            return {"settled": False, "reason": "legacy_position_without_memory_id"}
+        net_return = float(event.get("trade_realized_return_total") or 0.0)
+        try:
+            episode = self.engines.call(
+                "memory_retention", "close_decision", decision_id, net_return=net_return
+            )
+        except KeyError:
+            raw_fingerprint = metadata.get("memory_fingerprint")
+            if not isinstance(raw_fingerprint, dict):
+                return {"settled": False, "reason": "missing_recovery_fingerprint"}
+            episode = self.engines.call(
+                "memory_retention",
+                "record_closed_observation",
+                observation_id=decision_id,
+                symbol=str(event.get("symbol") or ""),
+                strategy=str(metadata.get("memory_strategy") or "bounded_decision_router"),
+                fingerprint=MarketFingerprint(**raw_fingerprint),
+                confidence=float(metadata.get("confidence") or 0.0),
+                net_return=net_return,
+                observed_at=float(metadata.get("memory_observed_at") or time.time()),
+            )
+        return {
+            "settled": True,
+            "decision_id": decision_id,
+            "net_return": float(episode.get("net_return") or 0.0),
+            "retention_score": float(episode.get("retention_score") or 0.0),
+        }
+
+    def _recover_open_position_memory(self) -> None:
+        for symbol, position in self.ledger.positions.items():
+            metadata = dict(position.metadata or {})
+            decision_id = str(metadata.get("memory_decision_id") or "")
+            raw_fingerprint = metadata.get("memory_fingerprint")
+            if not decision_id or not isinstance(raw_fingerprint, dict):
+                continue
+            self.engines.call(
+                "memory_retention",
+                "remember_decision",
+                decision_id,
+                symbol=symbol,
+                strategy=str(metadata.get("memory_strategy") or "bounded_decision_router"),
+                fingerprint=MarketFingerprint(**raw_fingerprint),
+                confidence=float(metadata.get("confidence") or 0.0),
+                metadata={"recovered_after_restart": True},
+                observed_at=float(metadata.get("memory_observed_at") or time.time()),
+            )
+
     def _append_event(self, event: dict[str, Any]) -> None:
         event_id = str(event.get("event_id", ""))
         if event_id and event_id in self._logged_event_ids:
@@ -1037,6 +1305,10 @@ def preflight(settings: Settings) -> dict[str, Any]:
     settings.research_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.model_research_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.decision_router_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.cns_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.brain_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.memory_retention_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.capital_growth_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.provenance_path.parent.mkdir(parents=True, exist_ok=True)
     settings.metrics_path.parent.mkdir(parents=True, exist_ok=True)
     settings.heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1058,7 +1330,24 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v11-exchange-protection",
+        "runtime": "verified-multi-engine-v12-cns-brain-memory",
+        "cns_brain_memory": {
+            "cns_execution_authority": False,
+            "brain_can_only_reduce_or_veto": True,
+            "memory_closed_outcomes_only": True,
+            "memory_max_episodes": settings.memory_max_episodes,
+            "memory_half_life_hours": settings.memory_half_life_hours,
+            "brain_min_strategy_samples": settings.brain_min_strategy_samples,
+            "brain_negative_expectancy_floor": settings.brain_negative_expectancy_floor,
+            "brain_quarantine_min_samples": settings.brain_quarantine_min_samples,
+            "brain_quarantine_expectancy_floor": settings.brain_quarantine_expectancy_floor,
+        },
+        "capital_growth": {
+            "principal_floor_fraction": settings.capital_principal_floor_fraction,
+            "profit_reinvest_fraction": settings.capital_profit_reinvest_fraction,
+            "martingale": False,
+            "can_increase_upstream_risk": False,
+        },
         "testnet_execution": {
             "enabled": settings.testnet_enabled,
             "provider": "bybit" if settings.testnet_enabled else None,

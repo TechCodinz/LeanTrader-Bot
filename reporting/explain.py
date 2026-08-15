@@ -159,10 +159,10 @@ def write_explanation_markdown(
     """Write per-trade markdown explanation to date folder. Returns path or None."""
     try:
         expl = build_trade_explanation(order, context)
-        date = _dt.datetime.utcfromtimestamp(int(expl.get("ts") or 0) or int(_dt.datetime.utcnow().timestamp())).strftime(
-            "%Y-%m-%d"
-        )
-        oid = expl.get("id") or f"{expl.get('symbol','')}-{int(_dt.datetime.utcnow().timestamp())}"
+        now_ts = int(_dt.datetime.now(_dt.UTC).timestamp())
+        event_ts = int(expl.get("ts") or 0) or now_ts
+        date = _dt.datetime.fromtimestamp(event_ts, _dt.UTC).strftime("%Y-%m-%d")
+        oid = expl.get("id") or f"{expl.get('symbol','')}-{now_ts}"
         folder = Path(base_dir) / date
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / f"{oid}.md"

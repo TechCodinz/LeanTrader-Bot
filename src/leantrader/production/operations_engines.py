@@ -264,6 +264,10 @@ class PrometheusMetricsEngine:
         arbitrage = capabilities.get("arbitrage", {})
         telegram = (engines.get("operations_safety", {}).get("telegram", {}))
         exchange_protection = engines.get("exchange_protection", {})
+        cns = engines.get("central_nervous_system", {})
+        brain = engines.get("trading_brain", {})
+        memory = engines.get("memory_retention", {})
+        capital_growth = engines.get("capital_growth", {})
         lines = [
             "# HELP leantrader_healthy Whether the canonical paper runtime is healthy.",
             "# TYPE leantrader_healthy gauge",
@@ -302,6 +306,38 @@ class PrometheusMetricsEngine:
             f"leantrader_exchange_authorizations {int(exchange_protection.get('authorized', 0))}",
             "# TYPE leantrader_exchange_authority_blocks counter",
             f"leantrader_exchange_authority_blocks {int(exchange_protection.get('blocked', 0))}",
+            "# TYPE leantrader_cns_integrations counter",
+            f"leantrader_cns_integrations {int(cns.get('integrations', 0))}",
+            "# TYPE leantrader_cns_signal_coherence gauge",
+            f"leantrader_cns_signal_coherence {self._number(cns.get('average_signal_coherence', 0.0)):.12g}",
+            "# TYPE leantrader_cns_risk_pressure gauge",
+            f"leantrader_cns_risk_pressure {self._number(cns.get('average_risk_pressure', 0.0)):.12g}",
+            "# TYPE leantrader_brain_evaluations counter",
+            f"leantrader_brain_evaluations {int(brain.get('evaluations', 0))}",
+            "# TYPE leantrader_brain_vetoes counter",
+            f"leantrader_brain_vetoes {int(brain.get('vetoes', 0))}",
+            "# TYPE leantrader_brain_downsizes counter",
+            f"leantrader_brain_downsizes {int(brain.get('downsizes', 0))}",
+            "# TYPE leantrader_brain_quarantined_strategies gauge",
+            f"leantrader_brain_quarantined_strategies {int(brain.get('quarantined_strategies', 0))}",
+            "# TYPE leantrader_memory_retained_episodes gauge",
+            f"leantrader_memory_retained_episodes {int(memory.get('retained_episodes', 0))}",
+            "# TYPE leantrader_memory_pending_working gauge",
+            f"leantrader_memory_pending_working {int(memory.get('pending_working_memory', 0))}",
+            "# TYPE leantrader_memory_recalls counter",
+            f"leantrader_memory_recalls {int(memory.get('recalls', 0))}",
+            "# TYPE leantrader_capital_growth_risk_multiplier gauge",
+            f"leantrader_capital_growth_risk_multiplier {self._number(capital_growth.get('risk_multiplier', 1.0)):.12g}",
+            "# TYPE leantrader_capital_growth_protected_principal_usd gauge",
+            f"leantrader_capital_growth_protected_principal_usd {self._number(capital_growth.get('protected_principal', 0.0)):.12g}",
+            "# TYPE leantrader_capital_growth_deployable_equity_usd gauge",
+            f"leantrader_capital_growth_deployable_equity_usd {self._number(capital_growth.get('deployable_equity', 0.0)):.12g}",
+            "# TYPE leantrader_capital_growth_open_notional_usd gauge",
+            f"leantrader_capital_growth_open_notional_usd {self._number(capital_growth.get('open_notional', 0.0)):.12g}",
+            "# TYPE leantrader_capital_growth_remaining_deployable_notional_usd gauge",
+            f"leantrader_capital_growth_remaining_deployable_notional_usd {self._number(capital_growth.get('remaining_deployable_notional', 0.0)):.12g}",
+            "# TYPE leantrader_capital_growth_new_entries_allowed gauge",
+            f"leantrader_capital_growth_new_entries_allowed {1 if capital_growth.get('new_entries_allowed', True) else 0}",
             "# TYPE leantrader_engine_healthy gauge",
         ]
         for name, state in sorted(engines.items()):

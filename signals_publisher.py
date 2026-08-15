@@ -16,7 +16,7 @@ import hmac
 import json
 import os
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -102,7 +102,7 @@ _BUCKET = _Bucket(RATE_PM)
 
 def _queue_path() -> Path:
     if ROLL:
-        day = datetime.utcnow().strftime("%Y%m%d")
+        day = datetime.now(UTC).strftime("%Y%m%d")
         return Q_DIR / f"{Q_PREF}-{day}.ndjson"
     return Q_DIR / f"{Q_PREF}.ndjson"
 
@@ -251,9 +251,9 @@ def _render_for_telegram2(s: Dict[str, Any]) -> Tuple[str, List[str]]:
 
     try:
         ts = int(s.get("ts", time.time()))
-        from datetime import datetime as _dt
+        from datetime import UTC, datetime as _dt
 
-        lines.append(f"_Published: {_dt.utcfromtimestamp(ts).isoformat()}Z_")
+        lines.append(f"_Published: {_dt.fromtimestamp(ts, UTC).isoformat()}_")
     except Exception:
         pass
 

@@ -19,10 +19,10 @@ class GuardState:
         self.daily_pnl: float = 0.0
         self.peak_equity: float = 0.0
         self.current_equity: float = 0.0
-        self._day: int = dt.datetime.utcnow().timetuple().tm_yday
+        self._day: int = dt.datetime.now(dt.UTC).timetuple().tm_yday
 
     def _maybe_roll_day(self) -> None:
-        today = dt.datetime.utcnow().timetuple().tm_yday
+        today = dt.datetime.now(dt.UTC).timetuple().tm_yday
         if today != self._day:
             self._day = today
             self.per_symbol_pnl_today.clear()

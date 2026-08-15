@@ -7,6 +7,10 @@ del _install_public_spot_defaults
 
 __all__ = [
     "arbitrage_monitor",
+    "memory_retention",
+    "cns",
+    "capital_growth",
+    "brain",
     "ccxt_compat",
     "decision_router",
     "exchange_intelligence",

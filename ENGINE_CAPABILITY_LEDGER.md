@@ -2,7 +2,7 @@
 
 This ledger prevents a named engine from being mistaken for a working capability. A capability is complete only when it has deterministic logic, explicit inputs and outputs, tests, lifecycle health, and a declared authority level.
 
-Canonical runtime release: `verified-multi-engine-v11-exchange-protection`.
+Canonical runtime release: `verified-multi-engine-v12-cns-brain-memory`.
 
 ## Canonical runtime authority
 
@@ -15,11 +15,11 @@ Canonical runtime release: `verified-multi-engine-v11-exchange-protection`.
 
 | Previous engine or request | Canonical verified responsibility | Runtime status |
 |---|---|---|
-| Central nervous system / unified runner / ultra launcher | Dependency-aware registry, startup rollback, reverse shutdown, circuit breakers, health manifest | Active |
+| Central nervous system / unified runner / ultra launcher | Dedicated CNS state fusion over adaptive, Ultra/swarm, liquidity, bounded router, memory and exchange-protection evidence; dependency-aware registry, circuit breakers and health manifest | Active; CNS can only inform or restrict, never execute |
 | Divine intelligence | Deterministic decision synthesis, rationale, provenance fingerprint | Active; no random or spiritual signals |
-| Brain / Awareness / GloAware | Data quality, regime, multi-timeframe, sessions, news context, capital state | Active |
+| Brain / Awareness / GloAware | Bounded meta-controller over CNS, causal memory and cost-adjusted strategy evidence; may preserve, downsize or veto upstream entries and quarantine persistent negative expectancy | Active; cannot increase risk, enable live, rewrite or deploy |
 | Hivemind / swarm consciousness | Confidence-weighted consensus with disagreement penalty | Active router input |
-| Photographic memory / pattern memory | Outcome-labelled nearest-pattern retrieval with persistent evidence | Active learning/router input |
+| Photographic memory / pattern memory | Working + episodic + semantic memory; only closed outcomes are promoted, both wins and losses retained, similarity/recency/importance weighted, restart-persistent | Active Brain input; causal closed outcomes only |
 | Frequency / harmonics / ultrasonic | Detrended FFT cycle measurement and concentration | Active router input |
 | Fluid mechanics | Observed order-book pressure, spread, impact and safe quantity | Active router input when depth is available; failure visible |
 | Dynamic scanner / Ultra Scout | Cross-sectional price, volume, liquidity and volatility anomaly ranking | Shadow |
@@ -66,6 +66,7 @@ Canonical runtime release: `verified-multi-engine-v11-exchange-protection`.
 | Fees and slippage | Active and included in realized P&L |
 | Daily loss and account drawdown halt | Active |
 | Normal / defensive / recovery / halt states | Active with recovery hysteresis |
+| Principal-protecting capital growth governor | Locks configured principal plus non-reinvested realized profit; compounds only bounded realized gains; drawdown reduces sizing; no martingale |
 
 ## Research and promotion gates
 

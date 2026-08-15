@@ -12,7 +12,7 @@ if [[ ! -f "${APP_DIR}/docker-compose.yml" ]]; then
   echo "ERROR: ${APP_DIR} is not a deployed LeanTrader checkout." >&2
   exit 1
 fi
-if ! grep -q 'verified-multi-engine-v11-exchange-protection' "${APP_DIR}/src/leantrader/production/runner.py"; then
+if ! grep -q 'verified-multi-engine-v12-cns-brain-memory' "${APP_DIR}/src/leantrader/production/runner.py"; then
   echo "ERROR: upgrade the VPS to the verified testnet release before enabling testnet." >&2
   exit 1
 fi
@@ -81,6 +81,19 @@ set_env MARKET_EVIDENCE_WINDOW 50
 set_env ROUTER_MIN_ADVANCED_CONFIDENCE 0.20
 set_env ROUTER_MIN_COMBINED_SCORE 0.20
 set_env ROUTER_NEGATIVE_CONSENSUS_VETO -0.25
+set_env CNS_STATE_PATH runtime/vps_cns_state.json
+set_env BRAIN_STATE_PATH runtime/vps_brain_state.json
+set_env MEMORY_RETENTION_STATE_PATH runtime/vps_memory_retention.json
+set_env CAPITAL_GROWTH_STATE_PATH runtime/vps_capital_growth.json
+set_env MEMORY_MAX_EPISODES 5000
+set_env MEMORY_HALF_LIFE_HOURS 720
+set_env BRAIN_MIN_STRATEGY_SAMPLES 50
+set_env BRAIN_NEGATIVE_EXPECTANCY_FLOOR -0.001
+set_env BRAIN_QUARANTINE_MIN_SAMPLES 100
+set_env BRAIN_QUARANTINE_EXPECTANCY_FLOOR -0.004
+set_env BRAIN_RECOVERY_EXPECTANCY_FLOOR 0.0005
+set_env CAPITAL_PRINCIPAL_FLOOR_FRACTION 0.70
+set_env CAPITAL_PROFIT_REINVEST_FRACTION 0.50
 set_env BYBIT_TESTNET_MAX_ORDER_USD 10
 set_env BYBIT_TESTNET_MAX_POSITION_USD 20
 set_env BYBIT_TESTNET_MAX_DAILY_SUBMITTED_USD 50
@@ -178,6 +191,21 @@ if ! jq -e '
   .engines.decision_router.routes > 0 and
   .engines.strategy_observatory.calls > 0 and
   .engines.strategy_observatory.router_gates_applied == false and
+  .engines.memory_retention.required == true and
+  .engines.memory_retention.healthy == true and
+  .engines.memory_retention.causal_closed_outcomes_only == true and
+  .engines.memory_retention.execution_authority == false and
+  .engines.central_nervous_system.required == true and
+  .engines.central_nervous_system.healthy == true and
+  .engines.central_nervous_system.execution_authority == false and
+  .engines.trading_brain.required == true and
+  .engines.trading_brain.healthy == true and
+  .engines.trading_brain.can_increase_upstream_risk == false and
+  .engines.trading_brain.can_enable_live == false and
+  .engines.capital_growth.required == true and
+  .engines.capital_growth.healthy == true and
+  .engines.capital_growth.martingale == false and
+  .engines.capital_growth.can_increase_upstream_risk == false and
   .engines.model_research.automatic_live_promotion == false and
   .engines.model_research.execution_authority == false and
   .engines.decision_router.live_authority == false and
@@ -193,6 +221,8 @@ echo "Authenticated Bybit Testnet: yes"
 echo "Dynamic eligible-market universe: yes"
 echo "API environment and permissions attested: yes"
 echo "Adaptive + ultra decision router: yes"
+echo "CNS + Brain + causal persistent memory: yes"
+echo "Principal-protecting capital growth governor: yes"
 echo "Exchange capability and market-rule intelligence: yes"
 echo "UTC/DST, exchange-clock and closed-candle integrity: yes"
 echo "Fresh RSS news provenance: yes"
