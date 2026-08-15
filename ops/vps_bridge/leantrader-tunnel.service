@@ -1,0 +1,34 @@
+[Unit]
+Description=OpenAI Secure MCP Tunnel for LeanTrader VPS Operations
+Documentation=https://developers.openai.com/api/docs/guides/secure-mcp-tunnels
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=leantunnel
+Group=leantunnel
+Environment=HOME=/var/lib/leantunnel
+ExecStart=/usr/local/bin/tunnel-client run --profile-file /etc/leantrader-ops/leantrader.yaml
+Restart=always
+RestartSec=5s
+TimeoutStopSec=20s
+UMask=0077
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/leantunnel /var/log/leantrader-ops -/opt/leantrader -/run
+
+[Install]
+WantedBy=multi-user.target

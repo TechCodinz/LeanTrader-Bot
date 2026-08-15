@@ -19,7 +19,7 @@ jobs:
       - name: Install supported runtime and test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.runtime.txt pytest
+          python -m pip install -r requirements.runtime.txt -r ops/vps_bridge/requirements.txt pytest
 
       - name: Compile supported package
         run: python -m compileall -q src/leantrader/production
@@ -45,7 +45,16 @@ jobs:
           LIVE_CONFIRM: 'NO'
           TRADING_MODE: 'paper'
           PYTHONPATH: src
-        run: python -m pytest -q tests/test_production_*.py tests/test_testnet_execution.py
+        run: python -m pytest -q tests/test_production_*.py tests/test_testnet_execution.py tests/test_vps_ops_bridge.py
+
+      - name: Validate VPS operations scripts
+        run: |
+          bash -n scripts/install_vps_ops_bridge.sh
+          python -m compileall -q ops/vps_bridge
+          if grep -Eq '(NOPASSWD:[[:space:]]+ALL|/bin/(ba)?sh|\*)' ops/vps_bridge/leantrader-ops.sudoers; then
+            echo "unsafe sudoers surface detected"
+            exit 1
+          fi
 
       - name: Validate Compose
         run: docker compose config --quiet

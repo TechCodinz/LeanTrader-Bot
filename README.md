@@ -1,5 +1,7 @@
 # LeanTrader
 
+For outbound-only ChatGPT/Codex administration of the supported VPS, see the [Secure VPS Operations Bridge](VPS_MCP_BRIDGE.md).
+
 LeanTrader is an experimental trading research repository. The supported VPS path is a **paper-authority runner** that consumes public market data, simulates fees and slippage, persists its ledger, and stops opening positions when daily-loss or drawdown limits are reached. It can optionally mirror approved paper events to **Bybit Testnet only** to exercise authenticated order placement and reconciliation with test funds.
 
 It does not promise profits and the supported runner cannot submit real exchange orders. Production endpoints and live-mode flags are rejected.
