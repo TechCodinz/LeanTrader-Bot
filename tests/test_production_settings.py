@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from pathlib import Path
 
 from leantrader.production.settings import SafetyError, Settings
 
@@ -13,6 +14,11 @@ def test_safe_defaults_are_paper_only(monkeypatch, tmp_path):
     assert settings.starting_cash == 50.0
     assert settings.order_usd == 2.0
     assert settings.testnet_enabled is False
+    assert settings.memory_max_episodes == 5000
+    assert settings.brain_min_strategy_samples == 50
+    assert settings.brain_quarantine_min_samples == 100
+    assert settings.capital_principal_floor_fraction == 0.70
+    assert settings.capital_profit_reinvest_fraction == 0.50
 
 
 @pytest.mark.parametrize(
@@ -126,3 +132,40 @@ def test_decision_router_safety_bounds(monkeypatch, tmp_path, name, value, messa
         monkeypatch.setenv("MARKET_EVIDENCE_MIN_SAMPLES", "5")
     with pytest.raises(ValueError, match=message):
         Settings.from_env()
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("MEMORY_MAX_EPISODES", "99", "MEMORY_MAX_EPISODES"),
+        ("MEMORY_HALF_LIFE_HOURS", "0", "MEMORY_HALF_LIFE_HOURS"),
+        ("BRAIN_MIN_STRATEGY_SAMPLES", "2", "BRAIN_MIN_STRATEGY_SAMPLES"),
+        ("CAPITAL_PRINCIPAL_FLOOR_FRACTION", "1.1", "CAPITAL_PRINCIPAL_FLOOR_FRACTION"),
+        ("CAPITAL_PROFIT_REINVEST_FRACTION", "-0.1", "CAPITAL_PROFIT_REINVEST_FRACTION"),
+    ],
+)
+def test_cns_brain_memory_capital_safety_bounds(monkeypatch, tmp_path, name, value, message):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ValueError, match=message):
+        Settings.from_env()
+
+
+def test_compose_passes_cns_brain_memory_and_capital_controls_to_container():
+    compose = Path("docker-compose.yml").read_text(encoding="utf-8")
+    for name in (
+        "CNS_STATE_PATH",
+        "BRAIN_STATE_PATH",
+        "MEMORY_RETENTION_STATE_PATH",
+        "CAPITAL_GROWTH_STATE_PATH",
+        "MEMORY_MAX_EPISODES",
+        "MEMORY_HALF_LIFE_HOURS",
+        "BRAIN_MIN_STRATEGY_SAMPLES",
+        "BRAIN_NEGATIVE_EXPECTANCY_FLOOR",
+        "BRAIN_QUARANTINE_MIN_SAMPLES",
+        "BRAIN_QUARANTINE_EXPECTANCY_FLOOR",
+        "BRAIN_RECOVERY_EXPECTANCY_FLOOR",
+        "CAPITAL_PRINCIPAL_FLOOR_FRACTION",
+        "CAPITAL_PROFIT_REINVEST_FRACTION",
+    ):
+        assert f"{name}:" in compose

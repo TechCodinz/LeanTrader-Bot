@@ -91,6 +91,19 @@ class Settings:
     model_research_endpoint: str
     model_research_interval_cycles: int
     decision_router_state_path: Path
+    cns_state_path: Path
+    brain_state_path: Path
+    memory_retention_state_path: Path
+    capital_growth_state_path: Path
+    memory_max_episodes: int
+    memory_half_life_hours: float
+    brain_min_strategy_samples: int
+    brain_negative_expectancy_floor: float
+    brain_quarantine_min_samples: int
+    brain_quarantine_expectancy_floor: float
+    brain_recovery_expectancy_floor: float
+    capital_principal_floor_fraction: float
+    capital_profit_reinvest_fraction: float
     provenance_path: Path
     metrics_path: Path
     heartbeat_path: Path
@@ -219,6 +232,23 @@ class Settings:
             decision_router_state_path=Path(
                 os.getenv("DECISION_ROUTER_STATE_PATH", "runtime/vps_decision_router.json")
             ),
+            cns_state_path=Path(os.getenv("CNS_STATE_PATH", "runtime/vps_cns_state.json")),
+            brain_state_path=Path(os.getenv("BRAIN_STATE_PATH", "runtime/vps_brain_state.json")),
+            memory_retention_state_path=Path(
+                os.getenv("MEMORY_RETENTION_STATE_PATH", "runtime/vps_memory_retention.json")
+            ),
+            capital_growth_state_path=Path(
+                os.getenv("CAPITAL_GROWTH_STATE_PATH", "runtime/vps_capital_growth.json")
+            ),
+            memory_max_episodes=_int("MEMORY_MAX_EPISODES", 5_000),
+            memory_half_life_hours=_float("MEMORY_HALF_LIFE_HOURS", 720.0),
+            brain_min_strategy_samples=_int("BRAIN_MIN_STRATEGY_SAMPLES", 50),
+            brain_negative_expectancy_floor=_float("BRAIN_NEGATIVE_EXPECTANCY_FLOOR", -0.001),
+            brain_quarantine_min_samples=_int("BRAIN_QUARANTINE_MIN_SAMPLES", 100),
+            brain_quarantine_expectancy_floor=_float("BRAIN_QUARANTINE_EXPECTANCY_FLOOR", -0.004),
+            brain_recovery_expectancy_floor=_float("BRAIN_RECOVERY_EXPECTANCY_FLOOR", 0.0005),
+            capital_principal_floor_fraction=_float("CAPITAL_PRINCIPAL_FLOOR_FRACTION", 0.70),
+            capital_profit_reinvest_fraction=_float("CAPITAL_PROFIT_REINVEST_FRACTION", 0.50),
             provenance_path=Path(os.getenv("PROVENANCE_PATH", "runtime/vps_decision_provenance.jsonl")),
             metrics_path=Path(os.getenv("PROMETHEUS_METRICS_PATH", "runtime/vps_metrics.prom")),
             heartbeat_path=Path(os.getenv("HEARTBEAT_PATH", "runtime/vps_heartbeat.json")),
@@ -342,6 +372,22 @@ class Settings:
             raise ValueError("ROUTER_MIN_COMBINED_SCORE must be between -1 and 1")
         if not -1 <= self.router_negative_consensus_veto <= 0:
             raise ValueError("ROUTER_NEGATIVE_CONSENSUS_VETO must be between -1 and 0")
+        if self.memory_max_episodes < 100:
+            raise ValueError("MEMORY_MAX_EPISODES must be at least 100")
+        if self.memory_half_life_hours <= 0:
+            raise ValueError("MEMORY_HALF_LIFE_HOURS must be positive")
+        if self.brain_min_strategy_samples < 3:
+            raise ValueError("BRAIN_MIN_STRATEGY_SAMPLES must be at least 3")
+        if self.brain_quarantine_min_samples < self.brain_min_strategy_samples:
+            raise ValueError("BRAIN_QUARANTINE_MIN_SAMPLES cannot be below BRAIN_MIN_STRATEGY_SAMPLES")
+        if self.brain_quarantine_expectancy_floor > self.brain_negative_expectancy_floor:
+            raise ValueError("BRAIN_QUARANTINE_EXPECTANCY_FLOOR must be <= BRAIN_NEGATIVE_EXPECTANCY_FLOOR")
+        if self.brain_recovery_expectancy_floor < 0:
+            raise ValueError("BRAIN_RECOVERY_EXPECTANCY_FLOOR cannot be negative")
+        if not 0 <= self.capital_principal_floor_fraction <= 1:
+            raise ValueError("CAPITAL_PRINCIPAL_FLOOR_FRACTION must be in [0, 1]")
+        if not 0 <= self.capital_profit_reinvest_fraction <= 1:
+            raise ValueError("CAPITAL_PROFIT_REINVEST_FRACTION must be in [0, 1]")
         if self.engine_failure_threshold < 1 or self.engine_recovery_seconds < 0:
             raise ValueError("invalid engine circuit-breaker configuration")
         if self.testnet_enabled:

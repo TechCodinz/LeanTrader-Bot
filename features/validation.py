@@ -14,7 +14,7 @@ class FeatureValidationError(Exception):
 def _as_returns(df: pd.DataFrame) -> pd.DataFrame:
     try:
         if float(np.nanmax(np.abs(df.values))) > 2.0:
-            rets = df.pct_change().replace([np.inf, -np.inf], np.nan)
+            rets = df.pct_change(fill_method=None).replace([np.inf, -np.inf], np.nan)
         else:
             rets = df.copy().replace([np.inf, -np.inf], np.nan)
     except Exception:

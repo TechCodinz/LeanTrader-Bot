@@ -196,10 +196,46 @@ def test_prometheus_metrics_are_atomic_and_use_canonical_status(tmp_path):
             "open_positions": ["BTC/USDT"],
             "errors": {},
             "halt_reason": None,
-            "engines": {"paper_ledger": {"healthy": True}},
+            "engines": {
+                "paper_ledger": {"healthy": True},
+                "central_nervous_system": {
+                    "healthy": True,
+                    "integrations": 12,
+                    "average_signal_coherence": 0.75,
+                    "average_risk_pressure": 0.10,
+                },
+                "trading_brain": {
+                    "healthy": True,
+                    "evaluations": 12,
+                    "vetoes": 2,
+                    "downsizes": 3,
+                    "quarantined_strategies": 1,
+                },
+                "memory_retention": {
+                    "healthy": True,
+                    "retained_episodes": 5,
+                    "pending_working_memory": 2,
+                    "recalls": 20,
+                },
+                "capital_growth": {
+                    "healthy": True,
+                    "risk_multiplier": 0.75,
+                    "protected_principal": 35.0,
+                    "deployable_equity": 16.5,
+                    "open_notional": 4.0,
+                    "remaining_deployable_notional": 12.5,
+                    "new_entries_allowed": True,
+                },
+            },
         }
     )
     text = path.read_text()
     assert result["written"] is True
     assert "leantrader_equity_usd 51.5" in text
+    assert "leantrader_cns_integrations 12" in text
+    assert "leantrader_brain_vetoes 2" in text
+    assert "leantrader_memory_retained_episodes 5" in text
+    assert "leantrader_capital_growth_risk_multiplier 0.75" in text
+    assert "leantrader_capital_growth_open_notional_usd 4" in text
+    assert "leantrader_capital_growth_remaining_deployable_notional_usd 12.5" in text
     assert 'leantrader_engine_healthy{engine="paper_ledger"} 1' in text

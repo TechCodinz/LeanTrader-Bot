@@ -32,7 +32,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
-    assert result["runtime"] == "verified-multi-engine-v11-exchange-protection"
+    assert result["runtime"] == "verified-multi-engine-v12-cns-brain-memory"
     assert set(result["engines"]) == {
         "market_data",
         "exchange_intelligence",
@@ -48,12 +48,21 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
         "research_governor",
         "decision_router",
         "strategy_observatory",
+        "memory_retention",
+        "central_nervous_system",
+        "trading_brain",
+        "capital_growth",
         "operations_safety",
     }
     assert all(engine["healthy"] for engine in result["engines"].values())
     assert result["decisions"]["BTC/USDT"]["quality_score"] == 1.0
     assert result["advanced_shadow"]["execution_authority"] is False
     assert result["research_governor"]["capital_preservation"]["state"] == "normal"
+    assert result["capital_growth"]["martingale"] is False
+    assert result["capital_growth"]["can_increase_upstream_risk"] is False
+    assert result["engines"]["central_nervous_system"]["execution_authority"] is False
+    assert result["engines"]["trading_brain"]["can_increase_upstream_risk"] is False
+    assert result["engines"]["memory_retention"]["causal_closed_outcomes_only"] is True
     assert result["operation_metrics"]["written"] is True
     assert settings.metrics_path.exists()
     assert settings.heartbeat_path.exists()

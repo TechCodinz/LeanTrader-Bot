@@ -44,10 +44,12 @@ def test_public_context_collects_market_cap_global_trending_and_news(tmp_path):
             return {"coins": [{"item": {"symbol": "BTC"}}]}
         raise AssertionError(url)
 
+    fixed_now = 1786791600.0  # 2026-08-15T11:00:00Z; source item remains within 24h.
     engine = PublicMarketContextEngine(
         tmp_path / "context.json",
         json_fetcher=fetch_json,
         text_fetcher=lambda _url: RSS,
+        now_fn=lambda: fixed_now,
     )
     result = engine.refresh(("BTC/USDT", "ETH/USDT"))
     assert result["updated"] is True

@@ -26,7 +26,7 @@ def _envb(k: str, d: bool) -> bool:
 
 def _session_mult(now_utc: Optional[dt.datetime] = None) -> float:
     """Simple FX/crypto session throttle (UTC clock)."""
-    now = now_utc or dt.datetime.utcnow()
+    now = now_utc or dt.datetime.now(dt.UTC)
     h = now.hour
     asia = _envf("SESSION_ASIA", 0.7)  # 00:00–06:59
     london = _envf("SESSION_LONDON", 1.0)  # 07:00–12:59

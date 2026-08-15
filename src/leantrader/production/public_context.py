@@ -60,6 +60,7 @@ class PublicMarketContextEngine:
         refresh_seconds: int = 900,
         json_fetcher: Callable[[str], Any] | None = None,
         text_fetcher: Callable[[str], str] | None = None,
+        now_fn: Callable[[], float] | None = None,
     ) -> None:
         if refresh_seconds < 300:
             raise ValueError("public context refresh must be at least 300 seconds")
@@ -68,6 +69,7 @@ class PublicMarketContextEngine:
         self.refresh_seconds = refresh_seconds
         self.json_fetcher = json_fetcher or self._fetch_json
         self.text_fetcher = text_fetcher or self._fetch_text
+        self.now_fn = now_fn or time.time
         self.state = self._load()
         self.attempts = 0
         self.successes = 0
@@ -78,7 +80,7 @@ class PublicMarketContextEngine:
         if not self.enabled:
             return {"updated": False, "news_items": [], **self.health()}
         self.attempts += 1
-        now = time.time()
+        now = self.now_fn()
         last_success = float(self.state.get("last_success_epoch") or 0.0)
         if last_success and now - last_success < self.refresh_seconds:
             return {"updated": False, "news_items": [], **self.health()}
@@ -215,7 +217,7 @@ class PublicMarketContextEngine:
     def evaluate(self, symbol: str) -> dict[str, Any]:
         base = symbol.split("/", 1)[0].upper()
         row = dict((self.state.get("markets") or {}).get(base, {}))
-        age = time.time() - float(self.state.get("last_market_refresh_epoch") or 0.0)
+        age = self.now_fn() - float(self.state.get("last_market_refresh_epoch") or 0.0)
         fresh = bool(row) and age <= self.refresh_seconds * 2
         if not fresh:
             return {
@@ -247,13 +249,13 @@ class PublicMarketContextEngine:
 
     def health(self) -> dict[str, Any]:
         last_success = float(self.state.get("last_success_epoch") or 0.0)
-        age = time.time() - last_success if last_success else None
+        age = self.now_fn() - last_success if last_success else None
         last_market_refresh = float(self.state.get("last_market_refresh_epoch") or 0.0)
-        market_refresh_age = time.time() - last_market_refresh if last_market_refresh else None
+        market_refresh_age = self.now_fn() - last_market_refresh if last_market_refresh else None
         last_news_refresh = float(self.state.get("last_news_refresh_epoch") or 0.0)
-        news_refresh_age = time.time() - last_news_refresh if last_news_refresh else None
+        news_refresh_age = self.now_fn() - last_news_refresh if last_news_refresh else None
         latest_news_item = float(self.state.get("latest_news_item_epoch") or 0.0)
-        news_item_delta = time.time() - latest_news_item if latest_news_item else None
+        news_item_delta = self.now_fn() - latest_news_item if latest_news_item else None
         news_item_age = max(0.0, news_item_delta) if news_item_delta is not None else None
         news_item_future_skew = max(0.0, -news_item_delta) if news_item_delta is not None else None
         return {

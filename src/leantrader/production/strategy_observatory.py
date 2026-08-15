@@ -57,17 +57,33 @@ class StrategyObservatory:
                     "samples": 0,
                     "wins": 0,
                     "cumulative_net_return": 0.0,
+                    "ewma_net_return": 0.0,
+                    "negative_streak": 0,
                     "last_net_return": None,
                     "symbols": {},
                 },
             )
-            record["samples"] = int(record["samples"]) + 1
-            record["wins"] = int(record["wins"]) + int(net_return > 0)
-            record["cumulative_net_return"] = float(record["cumulative_net_return"]) + net_return
+            record["samples"] = int(record.get("samples", 0)) + 1
+            record["wins"] = int(record.get("wins", 0)) + int(net_return > 0)
+            record["cumulative_net_return"] = float(record.get("cumulative_net_return", 0.0)) + net_return
+            alpha = 0.10
+            previous_ewma = float(record.get("ewma_net_return", 0.0))
+            record["ewma_net_return"] = net_return if record["samples"] == 1 else (1.0 - alpha) * previous_ewma + alpha * net_return
+            record["negative_streak"] = 0 if net_return > 0 else int(record.get("negative_streak", 0)) + 1
             record["last_net_return"] = net_return
-            symbol_record = record["symbols"].setdefault(symbol, {"samples": 0, "net_return": 0.0})
-            symbol_record["samples"] = int(symbol_record["samples"]) + 1
-            symbol_record["net_return"] = float(symbol_record["net_return"]) + net_return
+            symbol_record = record["symbols"].setdefault(
+                symbol,
+                {"samples": 0, "wins": 0, "net_return": 0.0, "ewma_net_return": 0.0},
+            )
+            symbol_record["samples"] = int(symbol_record.get("samples", 0)) + 1
+            symbol_record["wins"] = int(symbol_record.get("wins", 0)) + int(net_return > 0)
+            symbol_record["net_return"] = float(symbol_record.get("net_return", 0.0)) + net_return
+            symbol_previous_ewma = float(symbol_record.get("ewma_net_return", 0.0))
+            symbol_record["ewma_net_return"] = (
+                net_return
+                if symbol_record["samples"] == 1
+                else (1.0 - alpha) * symbol_previous_ewma + alpha * net_return
+            )
             outcomes.append({"strategy": name, "net_return": net_return})
 
         now = time.time()
@@ -84,15 +100,69 @@ class StrategyObservatory:
             "outcomes": outcomes,
         }
 
+    def evidence(self, strategy: str, symbol: str | None = None) -> dict[str, Any]:
+        """Return bounded performance evidence without exposing mutable state.
+
+        Symbol evidence is preferred by the Brain so poor performance in one market
+        does not quarantine the strategy globally. Legacy v11 symbol records remain
+        readable even when they do not yet contain win/EWMA fields.
+        """
+        name = str(strategy).strip()
+        if not name:
+            return {"samples": 0, "wins": 0, "average_net_return": 0.0, "ewma_net_return": 0.0}
+        record = self.state.get("strategies", {}).get(name, {})
+        if not isinstance(record, dict):
+            return {"samples": 0, "wins": 0, "average_net_return": 0.0, "ewma_net_return": 0.0}
+        if symbol is not None:
+            row = (record.get("symbols") or {}).get(symbol, {})
+            if not isinstance(row, dict):
+                row = {}
+            samples = int(row.get("samples", 0))
+            cumulative = float(row.get("net_return", 0.0))
+            wins = int(row.get("wins", 0))
+            average = cumulative / samples if samples else 0.0
+            ewma = float(row.get("ewma_net_return", average))
+            return {
+                "scope": "symbol",
+                "strategy": name,
+                "symbol": symbol,
+                "samples": samples,
+                "wins": wins,
+                "win_rate": wins / samples if samples else 0.0,
+                "cumulative_net_return": cumulative,
+                "average_net_return": average,
+                "ewma_net_return": ewma,
+            }
+        samples = int(record.get("samples", 0))
+        cumulative = float(record.get("cumulative_net_return", 0.0))
+        wins = int(record.get("wins", 0))
+        average = cumulative / samples if samples else 0.0
+        return {
+            "scope": "global",
+            "strategy": name,
+            "samples": samples,
+            "wins": wins,
+            "win_rate": wins / samples if samples else 0.0,
+            "cumulative_net_return": cumulative,
+            "average_net_return": average,
+            "ewma_net_return": float(record.get("ewma_net_return", average)),
+            "negative_streak": int(record.get("negative_streak", 0)),
+            "last_net_return": record.get("last_net_return"),
+        }
+
     def health(self) -> dict[str, Any]:
         strategies: dict[str, dict[str, Any]] = {}
         for name, record in self.state.get("strategies", {}).items():
             samples = int(record.get("samples", 0))
+            cumulative = float(record.get("cumulative_net_return", 0.0))
             strategies[name] = {
                 "samples": samples,
                 "wins": int(record.get("wins", 0)),
                 "win_rate": int(record.get("wins", 0)) / samples if samples else 0.0,
-                "cumulative_net_return": float(record.get("cumulative_net_return", 0.0)),
+                "cumulative_net_return": cumulative,
+                "average_net_return": cumulative / samples if samples else 0.0,
+                "ewma_net_return": float(record["ewma_net_return"]) if "ewma_net_return" in record else (cumulative / samples if samples else 0.0),
+                "negative_streak": int(record.get("negative_streak", 0)),
                 "last_net_return": record.get("last_net_return"),
                 "symbols": len(record.get("symbols", {})),
             }

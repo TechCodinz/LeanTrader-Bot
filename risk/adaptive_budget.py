@@ -42,7 +42,8 @@ def compute_risk_parity_weights(Sigma: np.ndarray, mask: Optional[np.ndarray] = 
             break
         target = total / float(k)
         # avoid division by zero
-        adj = np.where(rc > 1e-12, target / rc, 1.0)
+        adj = np.ones_like(rc, dtype=float)
+        np.divide(target, rc, out=adj, where=rc > 1e-12)
         # mask: freeze zeros
         w = np.where(m > 0.5, w * adj, 0.0)
         w = _l1_normalize(w)
