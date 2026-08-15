@@ -146,6 +146,26 @@ if [[ ! -e .env ]]; then
 fi
 chmod 600 .env
 
+migrate_legacy_setting() {
+  local key="$1"
+  local legacy_value="$2"
+  local release_value="$3"
+  local current
+
+  current="$(sed -n "s/^${key}=//p" .env | tail -n 1)"
+  if [[ "${current}" == "${legacy_value}" ]]; then
+    sed -i "s|^${key}=.*$|${key}=${release_value}|" .env
+    echo "Migrated ${key} from the previous supported release."
+  fi
+}
+
+# Preserve operator configuration except for the exact defaults shipped by the
+# previous verified release. These two values are incompatible with the new
+# dynamic-universe and complete-timeframe safety contracts.
+migrate_legacy_setting "PAPER_SYMBOLS" "BTC/USDT,ETH/USDT,SOL/USDT" "AUTO"
+migrate_legacy_setting "CONFIRM_TIMEFRAMES" "1h,4h" "AUTO"
+unset -f migrate_legacy_setting
+
 for required_setting in \
   'TRADING_MODE=paper' \
   'ENABLE_LIVE=false' \

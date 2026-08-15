@@ -135,3 +135,20 @@ def test_installer_persists_tunnel_client_before_profile_initialization():
     install_binary = installer.index('"${WORK_DIR}/tunnel-client/tunnel-client" /usr/local/bin/tunnel-client')
     initialize_profile = installer.index("runuser -u leantunnel -- /usr/local/bin/tunnel-client init")
     assert install_binary < initialize_profile
+
+
+def test_bootstrap_migrates_only_known_legacy_market_defaults():
+    bootstrap = Path("scripts/bootstrap_verified_vps.sh").read_text(encoding="utf-8")
+    migration_function = bootstrap.index("migrate_legacy_setting()")
+    symbols_migration = bootstrap.index(
+        'migrate_legacy_setting "PAPER_SYMBOLS" "BTC/USDT,ETH/USDT,SOL/USDT" "AUTO"'
+    )
+    timeframes_migration = bootstrap.index(
+        'migrate_legacy_setting "CONFIRM_TIMEFRAMES" "1h,4h" "AUTO"'
+    )
+    safety_validation = bootstrap.index("for required_setting in")
+    compose_start = bootstrap.index("docker compose up -d --build")
+
+    assert 'if [[ "${current}" == "${legacy_value}" ]]' in bootstrap
+    assert migration_function < symbols_migration < safety_validation < compose_start
+    assert migration_function < timeframes_migration < safety_validation < compose_start
