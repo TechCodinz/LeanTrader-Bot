@@ -45,7 +45,7 @@ class MemoryRetentionEngine:
     the Brain cannot learn from survivorship-biased examples.
     """
 
-    VERSION = "2.0"
+    VERSION = "2.1"
 
     def __init__(
         self,
@@ -53,6 +53,7 @@ class MemoryRetentionEngine:
         *,
         max_episodes: int = 5_000,
         half_life_hours: float = 720.0,
+        legacy_memory_path: Path | None = None,
     ) -> None:
         if max_episodes < 100:
             raise ValueError("memory retention requires at least 100 episode slots")
@@ -61,16 +62,23 @@ class MemoryRetentionEngine:
         self.state_path = state_path
         self.max_episodes = max_episodes
         self.half_life_seconds = half_life_hours * 3_600.0
+        self.legacy_memory_path = legacy_memory_path
         self.pending: dict[str, dict[str, Any]] = {}
         self.episodes: list[dict[str, Any]] = []
         self.semantic: dict[str, dict[str, Any]] = {}
         self.closed_outcomes = 0
         self.recalls = 0
+        self.legacy_stats: dict[str, dict[str, Any]] = {}
+        self.legacy_records_scanned = 0
+        self.legacy_fill_outcomes = 0
+        self.last_recall: dict[str, dict[str, Any]] = {}
         self.last_error: str | None = None
         self._load()
+        self._index_legacy_memory()
 
     def start(self) -> None:
         self._load()
+        self._index_legacy_memory()
 
     def stop(self) -> None:
         self._save()
@@ -221,26 +229,62 @@ class MemoryRetentionEngine:
         limit: int = 8,
     ) -> dict[str, Any]:
         recalled = self.recall(symbol=symbol, fingerprint=fingerprint, limit=limit)
-        if not recalled:
-            return {
-                "samples": 0,
-                "weighted_net_return": 0.0,
-                "win_rate": 0.0,
-                "support": 0.0,
-                "similar_episodes": [],
-            }
-        weights = [max(1e-9, float(row["similarity_score"])) for row in recalled]
-        total = sum(weights)
-        weighted_net = sum(w * float(row["net_return"]) for w, row in zip(weights, recalled)) / total
-        win_rate = sum(w * float(bool(row["win"])) for w, row in zip(weights, recalled)) / total
-        support = min(1.0, math.log1p(len(recalled)) / math.log1p(max(2, limit)))
-        return {
-            "samples": len(recalled),
+        contextual_samples = len(recalled)
+        if recalled:
+            weights = [max(1e-9, float(row["similarity_score"])) for row in recalled]
+            total = sum(weights)
+            contextual_net = sum(w * float(row["net_return"]) for w, row in zip(weights, recalled)) / total
+            contextual_win = sum(w * float(bool(row["win"])) for w, row in zip(weights, recalled)) / total
+            contextual_support = min(1.0, math.log1p(contextual_samples) / math.log1p(max(2, limit)))
+        else:
+            contextual_net = 0.0
+            contextual_win = 0.0
+            contextual_support = 0.0
+
+        legacy = dict(self.legacy_stats.get(symbol.upper()) or {})
+        legacy_samples = int(legacy.get("samples") or 0)
+        # Legacy fill history is a closed-outcome prior, but it lacks the v12
+        # market fingerprint. Cap its support sharply so it cannot dominate
+        # contextual memory or independently authorize a trade.
+        legacy_support = (
+            min(0.20, 0.20 * math.log1p(legacy_samples) / math.log1p(100))
+            if legacy_samples
+            else 0.0
+        )
+        legacy_net = _clip(float(legacy.get("average_net_return") or 0.0), -0.02, 0.02)
+        legacy_win = float(legacy.get("win_rate") or 0.0)
+
+        if contextual_samples:
+            prior_weight = min(0.05, legacy_support)
+            weighted_net = (1.0 - prior_weight) * contextual_net + prior_weight * legacy_net
+            win_rate = (1.0 - prior_weight) * contextual_win + prior_weight * legacy_win
+            support = contextual_support
+            source = "contextual_closed_outcomes_with_legacy_prior" if legacy_samples else "contextual_closed_outcomes"
+        elif legacy_samples:
+            weighted_net = legacy_net
+            win_rate = legacy_win
+            support = legacy_support
+            source = "legacy_closed_fill_prior"
+        else:
+            weighted_net = 0.0
+            win_rate = 0.0
+            support = 0.0
+            source = "none"
+
+        summary = {
+            "samples": contextual_samples,
+            "contextual_samples": contextual_samples,
+            "legacy_samples": legacy_samples,
             "weighted_net_return": weighted_net,
             "win_rate": win_rate,
             "support": support,
+            "contextual_support": contextual_support,
+            "legacy_support": legacy_support,
+            "source": source,
             "similar_episodes": recalled,
         }
+        self.last_recall[symbol.upper()] = {key: value for key, value in summary.items() if key != "similar_episodes"}
+        return summary
 
     def semantic_evidence(self, *, symbol: str, regime: str, strategy: str) -> dict[str, Any]:
         key = self._semantic_key(symbol.upper(), regime, strategy)
@@ -254,6 +298,11 @@ class MemoryRetentionEngine:
             "semantic_buckets": len(self.semantic),
             "closed_outcomes": self.closed_outcomes,
             "recalls": self.recalls,
+            "last_recall": dict(self.last_recall),
+            "legacy_records_scanned": self.legacy_records_scanned,
+            "legacy_fill_outcomes": self.legacy_fill_outcomes,
+            "legacy_symbols": len(self.legacy_stats),
+            "legacy_prior_support_cap": 0.20,
             "max_episodes": self.max_episodes,
             "half_life_hours": self.half_life_seconds / 3_600.0,
             "causal_closed_outcomes_only": True,
@@ -334,6 +383,50 @@ class MemoryRetentionEngine:
     def _semantic_key(symbol: str, regime: str, strategy: str) -> str:
         return f"{symbol}|{regime}|{strategy}"
 
+    def _index_legacy_memory(self) -> None:
+        path = self.legacy_memory_path
+        if path is None or not path.exists():
+            return
+        try:
+            stats: dict[str, dict[str, Any]] = {}
+            scanned = 0
+            fills = 0
+            with path.open("r", encoding="utf-8", errors="replace") as handle:
+                for raw in handle:
+                    scanned += 1
+                    try:
+                        row = json.loads(raw)
+                    except (TypeError, ValueError, json.JSONDecodeError):
+                        continue
+                    if str(row.get("type") or "").lower() != "fill":
+                        continue
+                    symbol = str(row.get("symbol") or "").upper()
+                    if not symbol:
+                        continue
+                    try:
+                        outcome = float(row.get("pnl_pct"))
+                    except (TypeError, ValueError):
+                        continue
+                    if not math.isfinite(outcome):
+                        continue
+                    fills += 1
+                    bucket = stats.setdefault(symbol, {"samples": 0, "wins": 0, "cumulative_net_return": 0.0})
+                    bucket["samples"] += 1
+                    bucket["wins"] += int(outcome > 0)
+                    bucket["cumulative_net_return"] += outcome
+            for bucket in stats.values():
+                samples = max(1, int(bucket["samples"]))
+                bucket["average_net_return"] = float(bucket["cumulative_net_return"]) / samples
+                bucket["win_rate"] = float(bucket["wins"]) / samples
+                bucket["source"] = "legacy_memory_jsonl_closed_fill"
+                bucket["context_quality"] = "low_no_v12_fingerprint"
+            self.legacy_stats = stats
+            self.legacy_records_scanned = scanned
+            self.legacy_fill_outcomes = fills
+            self._save()
+        except OSError as exc:
+            self.last_error = f"legacy_index:{type(exc).__name__}: {exc}"
+
     def _load(self) -> None:
         if not self.state_path.exists():
             return
@@ -344,6 +437,10 @@ class MemoryRetentionEngine:
             self.semantic = dict(payload.get("semantic") or {})
             self.closed_outcomes = int(payload.get("closed_outcomes", len(self.episodes)))
             self.recalls = int(payload.get("recalls", 0))
+            self.last_recall = dict(payload.get("last_recall") or {})
+            self.legacy_stats = dict(payload.get("legacy_stats") or {})
+            self.legacy_records_scanned = int(payload.get("legacy_records_scanned", 0))
+            self.legacy_fill_outcomes = int(payload.get("legacy_fill_outcomes", 0))
             self.last_error = None
         except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
             self.last_error = f"{type(exc).__name__}: {exc}"
@@ -360,6 +457,10 @@ class MemoryRetentionEngine:
             "semantic": self.semantic,
             "closed_outcomes": self.closed_outcomes,
             "recalls": self.recalls,
+            "last_recall": self.last_recall,
+            "legacy_stats": self.legacy_stats,
+            "legacy_records_scanned": self.legacy_records_scanned,
+            "legacy_fill_outcomes": self.legacy_fill_outcomes,
             "updated_at": time.time(),
         }
         temporary = self.state_path.with_suffix(self.state_path.suffix + ".tmp")

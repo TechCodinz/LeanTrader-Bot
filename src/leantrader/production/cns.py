@@ -19,7 +19,7 @@ class CentralNervousSystem:
     liquidity/risk pressure and safety blocks to the Trading Brain.
     """
 
-    VERSION = "2.0"
+    VERSION = "2.1"
     SAVE_INTERVAL = 10
 
     def __init__(self, state_path: Path) -> None:
@@ -69,6 +69,7 @@ class CentralNervousSystem:
         memory_support = _clip(float(memory_summary.get("support") or 0.0), 0.0, 1.0)
         memory_return = float(memory_summary.get("weighted_net_return") or 0.0)
         memory_bias = _clip(math.tanh(memory_return * 50.0))
+        memory_effect = memory_bias * memory_support
 
         spread_pressure = _clip(math.tanh(max(0.0, spread_bps) / 30.0), 0.0, 1.0)
         protection_blocked = bool(exchange_protection) and exchange_protection.get("allowed") is False
@@ -86,7 +87,7 @@ class CentralNervousSystem:
         action_bias = _clip(
             0.45 * adaptive_score
             + 0.35 * ultra_score
-            + 0.10 * memory_bias
+            + 0.10 * memory_effect
             + 0.10 * route_score
         )
         blocks: list[str] = []
@@ -105,6 +106,7 @@ class CentralNervousSystem:
             "risk_pressure": risk_pressure,
             "memory_support": memory_support,
             "memory_bias": memory_bias,
+            "memory_effect": memory_effect,
             "action_bias": action_bias,
             "adaptive_score": adaptive_score,
             "adaptive_confidence": adaptive_conf,

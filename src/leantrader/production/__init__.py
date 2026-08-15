@@ -13,6 +13,7 @@ __all__ = [
     "brain",
     "ccxt_compat",
     "decision_router",
+    "error_attribution",
     "exchange_intelligence",
     "exchange_protection",
     "ledger",

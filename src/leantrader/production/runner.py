@@ -18,6 +18,7 @@ from .capital_growth import CapitalGrowthGovernor
 from .cns import CentralNervousSystem
 from .decision_router import BoundedDecisionRouter, MarketEvidenceGate
 from .engine_control import EngineRegistry
+from .error_attribution import ErrorAttributionTracker
 from .exchange_intelligence import ExchangeIntelligence, timeframe_seconds
 from .exchange_protection import ExchangeProtectionOrchestrator
 from .intelligence import AdaptiveIntelligence, IntelligenceDecision
@@ -265,7 +266,9 @@ class PaperRunner:
             settings.memory_retention_state_path,
             max_episodes=settings.memory_max_episodes,
             half_life_hours=settings.memory_half_life_hours,
+            legacy_memory_path=settings.legacy_memory_path,
         )
+        self.error_attribution = ErrorAttributionTracker(settings.error_attribution_state_path)
         self.cns = CentralNervousSystem(settings.cns_state_path)
         self.brain = TradingBrain(
             settings.brain_state_path,
@@ -408,6 +411,12 @@ class PaperRunner:
             version=self.memory.VERSION,
         )
         self.engines.register(
+            "error_attribution",
+            self.error_attribution,
+            required=False,
+            version=self.error_attribution.VERSION,
+        )
+        self.engines.register(
             "central_nervous_system",
             self.cns,
             dependencies=("adaptive_intelligence", "advanced_shadow_suite", "decision_router", "memory_retention"),
@@ -494,13 +503,21 @@ class PaperRunner:
         context_refresh = self.engines.call(
             "public_market_context", "refresh", tuple(self.universe.symbols)
         )
-        try:
-            arbitrage_collection = self.engines.call(
-                "cross_venue_arbitrage", "collect", tuple(cycle_symbols)
-            )
-        except Exception as exc:  # noqa: BLE001 - cross-venue research cannot interrupt canonical trading
-            errors["cross_venue_arbitrage"] = f"{type(exc).__name__}: {exc}"
-            arbitrage_collection = {"available": False, "quotes": [], "error": errors["cross_venue_arbitrage"]}
+        arbitrage_key = "cross_venue_arbitrage"
+        if self.error_attribution.should_attempt(arbitrage_key):
+            try:
+                arbitrage_collection = self.engines.call(
+                    "cross_venue_arbitrage", "collect", tuple(cycle_symbols)
+                )
+                self.error_attribution.success(arbitrage_key)
+            except Exception as exc:  # noqa: BLE001 - cross-venue research cannot interrupt canonical trading
+                errors[arbitrage_key] = f"{type(exc).__name__}: {exc}"
+                self.error_attribution.failure(
+                    arbitrage_key, errors[arbitrage_key], optional=True, component="cross_venue_arbitrage"
+                )
+                arbitrage_collection = {"available": False, "quotes": [], "error": errors[arbitrage_key]}
+        else:
+            arbitrage_collection = {"available": False, "quotes": [], "reason": "optional_error_cooldown"}
         resolved_timeframes = self.engines.call("exchange_intelligence", "resolve_timeframes")
         news_items = list(context_refresh.get("news_items") or [])
         if news_items:
@@ -539,7 +556,11 @@ class PaperRunner:
                         )
                     except Exception as exc:  # noqa: BLE001 - one interval must not hide all others
                         context_frames[timeframe] = pd.DataFrame()
-                        errors[f"{symbol}:timeframe:{timeframe}"] = f"{type(exc).__name__}: {exc}"
+                        error_key = f"{symbol}:timeframe:{timeframe}"
+                        errors[error_key] = f"{type(exc).__name__}: {exc}"
+                        self.error_attribution.failure(
+                            error_key, errors[error_key], optional=True, component="multi_timeframe", symbol=symbol
+                        )
                 decisions[symbol] = self.engines.call(
                     "adaptive_intelligence",
                     "evaluate",
@@ -555,7 +576,11 @@ class PaperRunner:
                         # without falsely degrading the required candle feed.
                         order_book = self.feed.order_book(symbol, 10)
                     except Exception as exc:  # noqa: BLE001 - candle decisions remain observable without depth
-                        errors[f"{symbol}:order_book"] = f"{type(exc).__name__}: {exc}"
+                        error_key = f"{symbol}:order_book"
+                        errors[error_key] = f"{type(exc).__name__}: {exc}"
+                        self.error_attribution.failure(
+                            error_key, errors[error_key], optional=True, component="order_book", symbol=symbol
+                        )
                 advanced_decisions[symbol] = self.engines.call(
                     "advanced_shadow_suite",
                     "evaluate_symbol",
@@ -1072,11 +1097,20 @@ class PaperRunner:
         except Exception as exc:  # noqa: BLE001 - advanced suite is shadow-only
             advanced_market = {"error": f"{type(exc).__name__}: {exc}"}
         engine_status = self.engines.snapshot()
+        error_attribution = self.error_attribution.cycle_summary(errors)
+        if errors:
+            LOGGER.warning(
+                "cycle error attribution count=%s optional=%s required=%s keys=%s",
+                error_attribution["count"],
+                error_attribution["optional_count"],
+                error_attribution["required_count"],
+                ",".join(error_attribution["keys"]),
+            )
         status = {
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v12-cns-brain-memory",
+            "runtime": "verified-multi-engine-v12.2-cns-brain-memory",
             "exchange": self.settings.exchange,
             "resolved_timeframes": list(resolved_timeframes),
             "cycle_symbols": cycle_symbols,
@@ -1087,6 +1121,7 @@ class PaperRunner:
             "halt_reason": self.ledger.halt_reason,
             "events": events,
             "errors": errors,
+            "error_attribution": error_attribution,
             "entry_blocks": entry_blocks,
             "decisions": {
                 symbol: {
@@ -1128,6 +1163,7 @@ class PaperRunner:
                 "health": self.memory.health(),
                 "execution_authority": False,
             },
+            "error_attribution_health": self.error_attribution.health(),
             "research_observations": research_observations,
             "model_research_observation": model_research_observation,
             "public_context_refresh": {
@@ -1201,31 +1237,72 @@ class PaperRunner:
             ultra_confidence=float(swarm.get("confidence") or 0.0),
         )
 
+    def _legacy_fingerprint_from_metadata(self, metadata: dict[str, Any]) -> MarketFingerprint | None:
+        scores = metadata.get("component_scores") or {}
+        advanced = metadata.get("advanced_shadow") or {}
+        route = metadata.get("decision_route") or {}
+        raw_liquidity = (advanced.get("liquidity") or {}) if isinstance(advanced, dict) else {}
+        swarm = (advanced.get("swarm") or {}) if isinstance(advanced, dict) else {}
+        if not scores and not route and not advanced:
+            return None
+        return MarketFingerprint(
+            regime=str(metadata.get("regime") or "legacy_unknown"),
+            volatility=float(metadata.get("atr_ratio") or 0.0),
+            trend=float(scores.get("trend") or 0.0),
+            momentum=float(scores.get("momentum") or 0.0),
+            spread_bps=float(raw_liquidity.get("spread_bps") or 0.0),
+            liquidity_imbalance=float(raw_liquidity.get("imbalance") or 0.0),
+            ultra_score=float(swarm.get("score") or route.get("ultra_score") or 0.0),
+            ultra_confidence=float(swarm.get("confidence") or route.get("ultra_confidence") or 0.0),
+        )
+
     def _settle_trade_memory(self, event: dict[str, Any]) -> dict[str, Any]:
         metadata = dict(event.get("position_metadata") or {})
         decision_id = str(metadata.get("memory_decision_id") or "")
-        if not decision_id:
-            return {"settled": False, "reason": "legacy_position_without_memory_id"}
         net_return = float(event.get("trade_realized_return_total") or 0.0)
-        try:
-            episode = self.engines.call(
-                "memory_retention", "close_decision", decision_id, net_return=net_return
-            )
-        except KeyError:
-            raw_fingerprint = metadata.get("memory_fingerprint")
-            if not isinstance(raw_fingerprint, dict):
-                return {"settled": False, "reason": "missing_recovery_fingerprint"}
+        if not decision_id:
+            legacy_fp = self._legacy_fingerprint_from_metadata(metadata)
+            if legacy_fp is None:
+                return {"settled": False, "reason": "legacy_position_without_recoverable_context"}
+            decision_id = f"legacy-close-{str(event.get('event_id') or time.time_ns())}"
             episode = self.engines.call(
                 "memory_retention",
                 "record_closed_observation",
                 observation_id=decision_id,
                 symbol=str(event.get("symbol") or ""),
-                strategy=str(metadata.get("memory_strategy") or "bounded_decision_router"),
-                fingerprint=MarketFingerprint(**raw_fingerprint),
+                strategy="bounded_decision_router",
+                fingerprint=legacy_fp,
                 confidence=float(metadata.get("confidence") or 0.0),
                 net_return=net_return,
+                metadata={"source": "recovered_v11_position_close"},
                 observed_at=float(metadata.get("memory_observed_at") or time.time()),
             )
+        else:
+            try:
+                episode = self.engines.call(
+                    "memory_retention", "close_decision", decision_id, net_return=net_return
+                )
+            except KeyError:
+                raw_fingerprint = metadata.get("memory_fingerprint")
+                fingerprint = (
+                    MarketFingerprint(**raw_fingerprint)
+                    if isinstance(raw_fingerprint, dict)
+                    else self._legacy_fingerprint_from_metadata(metadata)
+                )
+                if fingerprint is None:
+                    return {"settled": False, "reason": "missing_recovery_fingerprint"}
+                episode = self.engines.call(
+                    "memory_retention",
+                    "record_closed_observation",
+                    observation_id=decision_id,
+                    symbol=str(event.get("symbol") or ""),
+                    strategy=str(metadata.get("memory_strategy") or "bounded_decision_router"),
+                    fingerprint=fingerprint,
+                    confidence=float(metadata.get("confidence") or 0.0),
+                    net_return=net_return,
+                    metadata={"source": "recovered_pending_or_legacy_position"},
+                    observed_at=float(metadata.get("memory_observed_at") or time.time()),
+                )
         return {
             "settled": True,
             "decision_id": decision_id,
@@ -1234,23 +1311,39 @@ class PaperRunner:
         }
 
     def _recover_open_position_memory(self) -> None:
+        changed = False
         for symbol, position in self.ledger.positions.items():
             metadata = dict(position.metadata or {})
             decision_id = str(metadata.get("memory_decision_id") or "")
             raw_fingerprint = metadata.get("memory_fingerprint")
-            if not decision_id or not isinstance(raw_fingerprint, dict):
+            fingerprint = (
+                MarketFingerprint(**raw_fingerprint)
+                if isinstance(raw_fingerprint, dict)
+                else self._legacy_fingerprint_from_metadata(metadata)
+            )
+            if fingerprint is None:
                 continue
+            if not decision_id:
+                decision_id = f"recovered-{symbol.replace('/', '_')}-{int(position.entry_price * 1_000_000)}"
+                position.metadata["memory_decision_id"] = decision_id
+                position.metadata["memory_strategy"] = "bounded_decision_router"
+                position.metadata["memory_fingerprint"] = dict(fingerprint.__dict__)
+                position.metadata["memory_observed_at"] = time.time()
+                position.metadata["memory_recovered_from_legacy_position"] = True
+                changed = True
             self.engines.call(
                 "memory_retention",
                 "remember_decision",
                 decision_id,
                 symbol=symbol,
-                strategy=str(metadata.get("memory_strategy") or "bounded_decision_router"),
-                fingerprint=MarketFingerprint(**raw_fingerprint),
-                confidence=float(metadata.get("confidence") or 0.0),
+                strategy=str(position.metadata.get("memory_strategy") or "bounded_decision_router"),
+                fingerprint=fingerprint,
+                confidence=float(position.metadata.get("confidence") or 0.0),
                 metadata={"recovered_after_restart": True},
-                observed_at=float(metadata.get("memory_observed_at") or time.time()),
+                observed_at=float(position.metadata.get("memory_observed_at") or time.time()),
             )
+        if changed:
+            self.engines.call("paper_ledger", "save")
 
     def _append_event(self, event: dict[str, Any]) -> None:
         event_id = str(event.get("event_id", ""))
@@ -1308,6 +1401,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
     settings.cns_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.brain_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.memory_retention_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.error_attribution_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.capital_growth_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.provenance_path.parent.mkdir(parents=True, exist_ok=True)
     settings.metrics_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1330,7 +1424,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v12-cns-brain-memory",
+        "runtime": "verified-multi-engine-v12.2-cns-brain-memory",
         "cns_brain_memory": {
             "cns_execution_authority": False,
             "brain_can_only_reduce_or_veto": True,
