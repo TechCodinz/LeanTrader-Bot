@@ -32,7 +32,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
-    assert result["runtime"] == "verified-multi-engine-v12.3-cns-brain-memory"
+    assert result["runtime"] == "verified-multi-engine-v12.4-cns-brain-memory"
     assert set(result["engines"]) == {
         "market_data",
         "exchange_intelligence",
@@ -225,3 +225,38 @@ def test_dynamic_universe_scans_exchange_candidates_in_rotating_batches(monkeypa
     assert universe["eligible_symbols"] == 3
     assert universe["full_sweeps"] == 1
     assert universe["all_eligible_markets_rotate"] is True
+
+
+def test_immature_symbol_history_is_availability_and_skips_context_matrix(monkeypatch, tmp_path):
+    class MixedHistoryFeed(FakeFeed):
+        def __init__(self):
+            self.calls: list[tuple[str, str]] = []
+
+        def candles(self, symbol: str, timeframe: str, limit: int) -> pd.DataFrame:
+            self.calls.append((symbol, timeframe))
+            frame = super().candles(symbol, timeframe, limit)
+            if symbol == "KII/USDT" and timeframe == "15m":
+                return frame.tail(109).reset_index(drop=True)
+            return frame
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PAPER_SYMBOLS", "BTC/USDT,KII/USDT")
+    feed = MixedHistoryFeed()
+    runner = PaperRunner(Settings.from_env(), feed)
+
+    result = runner.cycle()
+
+    assert result["healthy"] is True
+    assert result["errors"] == {}
+    assert "BTC/USDT" in result["decisions"]
+    assert "KII/USDT" not in result["decisions"]
+    row = runner.error_attribution.records["KII/USDT"]
+    assert row["availability_state"] == "unavailable"
+    assert row["component"] == "symbol_history"
+    assert row["failures"] == 0
+    assert row["unavailable_count"] == 1
+    assert all(
+        timeframe == "15m"
+        for symbol, timeframe in feed.calls
+        if symbol == "KII/USDT"
+    )

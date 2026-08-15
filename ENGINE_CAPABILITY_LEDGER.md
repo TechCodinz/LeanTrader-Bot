@@ -2,7 +2,7 @@
 
 This ledger prevents a named engine from being mistaken for a working capability. A capability is complete only when it has deterministic logic, explicit inputs and outputs, tests, lifecycle health, and a declared authority level.
 
-Canonical runtime release: `verified-multi-engine-v12.3-cns-brain-memory`.
+Canonical runtime release: `verified-multi-engine-v12-cns-brain-memory`.
 
 ## Canonical runtime authority
 

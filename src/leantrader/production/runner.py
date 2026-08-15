@@ -21,7 +21,7 @@ from .engine_control import EngineRegistry
 from .error_attribution import ErrorAttributionTracker
 from .exchange_intelligence import ExchangeIntelligence, timeframe_seconds
 from .exchange_protection import ExchangeProtectionOrchestrator
-from .intelligence import AdaptiveIntelligence, IntelligenceDecision
+from .intelligence import AdaptiveIntelligence, IntelligenceDecision, MINIMUM_INTELLIGENCE_CANDLES
 from .ledger import PaperLedger
 from .market_universe import MarketUniverse
 from .memory_retention import MarketFingerprint, MemoryRetentionEngine
@@ -35,6 +35,20 @@ from .temporal_guard import MarketTemporalGuard
 from .testnet_execution import BybitTestnetExecutionEngine
 
 LOGGER = logging.getLogger("leantrader.production")
+
+
+def _is_symbol_history_unavailable(exc: Exception) -> bool:
+    """Return True only for a genuine not-yet-mature market-history gap.
+
+    A newly listed symbol can be active and liquid while still having fewer than
+    the minimum 220 closed candles required by the adaptive intelligence layer.
+    That is an availability state, not a required-engine failure. Other quality
+    problems (invalid prices, gaps, malformed timestamps, etc.) remain failures.
+    """
+    return (
+        isinstance(exc, ValueError)
+        and str(exc).strip() == "market data rejected: fewer than 220 candles"
+    )
 
 
 def atr_sized_notional(
@@ -534,6 +548,25 @@ class PaperRunner:
                     self.settings.timeframe,
                     source_requires_timestamp=hasattr(self.feed, "exchange"),
                 )
+                if len(frame) < MINIMUM_INTELLIGENCE_CANDLES:
+                    # Market discovery can legitimately find a newly listed, liquid
+                    # spot market before enough base-timeframe history exists for
+                    # the adaptive intelligence contract.  Do not fetch the full
+                    # multi-timeframe matrix or classify this as a required engine
+                    # failure.  Preserve observability and automatically retry when
+                    # the symbol rotates through the universe again.
+                    reason = (
+                        f"{self.settings.timeframe} history immature: "
+                        f"{len(frame)} closed candles; requires "
+                        f"{MINIMUM_INTELLIGENCE_CANDLES}"
+                    )
+                    self.error_attribution.unavailable(
+                        symbol, reason, component="symbol_history", symbol=symbol
+                    )
+                    LOGGER.info(
+                        "symbol history unavailable symbol=%s reason=%s", symbol, reason
+                    )
+                    continue
                 frames[symbol] = frame
                 research_observations[symbol] = self.engines.call(
                     "research_governor", "observe_symbol", symbol, frame
@@ -760,14 +793,32 @@ class PaperRunner:
                         "research_observation": research_observations[symbol],
                     },
                 )
+                # Clear any previous symbol-level failure/unavailable state only
+                # after the full canonical symbol pipeline completes successfully.
+                # This lets transient provider failures and young-market maturity
+                # gaps recover automatically without hiding malformed-data faults.
+                self.error_attribution.success(symbol)
             except Exception as exc:  # noqa: BLE001 - isolate individual symbol/feed failures
-                errors[symbol] = f"{type(exc).__name__}: {exc}"
-                self.error_attribution.failure(
-                    symbol, errors[symbol], optional=False, component="symbol_pipeline", symbol=symbol
-                )
-                LOGGER.warning(
-                    "symbol pipeline failure symbol=%s error=%s", symbol, errors[symbol]
-                )
+                error_text = f"{type(exc).__name__}: {exc}"
+                if _is_symbol_history_unavailable(exc):
+                    # Young/newly listed markets can be tradable before enough
+                    # closed base-timeframe history exists for the intelligence
+                    # quality contract. Keep them visible and retry later, but do
+                    # not turn an expected maturity gap into a required failure.
+                    self.error_attribution.unavailable(
+                        symbol, error_text, component="symbol_history", symbol=symbol
+                    )
+                    LOGGER.info(
+                        "symbol history unavailable symbol=%s reason=%s", symbol, error_text
+                    )
+                else:
+                    errors[symbol] = error_text
+                    self.error_attribution.failure(
+                        symbol, error_text, optional=False, component="symbol_pipeline", symbol=symbol
+                    )
+                    LOGGER.warning(
+                        "symbol pipeline failure symbol=%s error=%s", symbol, error_text
+                    )
 
         prices = {symbol: decision.close for symbol, decision in decisions.items()}
         events: list[dict[str, Any]] = []
@@ -1129,7 +1180,7 @@ class PaperRunner:
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v12.3-cns-brain-memory",
+            "runtime": "verified-multi-engine-v12.4-cns-brain-memory",
             "exchange": self.settings.exchange,
             "resolved_timeframes": list(resolved_timeframes),
             "cycle_symbols": cycle_symbols,
@@ -1443,7 +1494,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v12.3-cns-brain-memory",
+        "runtime": "verified-multi-engine-v12.4-cns-brain-memory",
         "cns_brain_memory": {
             "cns_execution_authority": False,
             "brain_can_only_reduce_or_veto": True,

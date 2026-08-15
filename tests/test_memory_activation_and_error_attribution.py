@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 
 from leantrader.production.cns import CentralNervousSystem
+from leantrader.production.intelligence import MINIMUM_INTELLIGENCE_CANDLES
 from leantrader.production.error_attribution import ErrorAttributionTracker
+from leantrader.production.runner import _is_symbol_history_unavailable
 from leantrader.production.memory_retention import MarketFingerprint, MemoryRetentionEngine
 
 
@@ -97,3 +99,37 @@ def test_error_attribution_success_clears_unavailable_state(tmp_path):
     row = tracker.success(key, now=200.0)
     assert row["availability_state"] == "available"
     assert row["consecutive_failures"] == 0
+
+
+def test_new_listing_short_history_is_availability_not_failure():
+    assert _is_symbol_history_unavailable(
+        ValueError("market data rejected: fewer than 220 candles")
+    )
+
+
+def test_other_market_quality_failures_remain_required_failures():
+    assert not _is_symbol_history_unavailable(
+        ValueError("market data rejected: material candle gaps")
+    )
+    assert not _is_symbol_history_unavailable(RuntimeError("no candles returned for KII/USDT"))
+
+
+def test_required_symbol_failure_recovers_on_success(tmp_path):
+    tracker = ErrorAttributionTracker(tmp_path / "errors.json")
+    tracker.failure(
+        "SPCXX/USDT",
+        "RequestTimeout: provider timeout",
+        optional=False,
+        component="symbol_pipeline",
+        symbol="SPCXX/USDT",
+        now=100.0,
+    )
+    assert tracker.records["SPCXX/USDT"]["consecutive_failures"] == 1
+    row = tracker.success("SPCXX/USDT", now=101.0)
+    assert row["consecutive_failures"] == 0
+    assert row["availability_state"] == "available"
+    assert row["last_success_at"] == 101.0
+
+
+def test_intelligence_minimum_history_contract_is_explicit():
+    assert MINIMUM_INTELLIGENCE_CANDLES == 220

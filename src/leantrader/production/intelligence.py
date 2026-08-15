@@ -15,6 +15,7 @@ from .exchange_intelligence import timeframe_seconds
 from .temporal_guard import MarketTemporalGuard
 
 COMPONENTS = ("trend", "momentum", "mean_reversion", "bollinger_breakout")
+MINIMUM_INTELLIGENCE_CANDLES = 220
 TIMEFRAME_GROUPS = {
     "fast": ("1m", "3m", "5m"),
     "tactical": ("15m", "30m", "1h"),
@@ -314,8 +315,12 @@ class AdaptiveIntelligence:
         if not required.issubset(frame.columns):
             missing = sorted(required - set(frame.columns))
             return QualityReport(False, 0.0, (f"missing columns: {','.join(missing)}",))
-        if len(frame) < 220:
-            return QualityReport(False, 0.0, ("fewer than 220 candles",))
+        if len(frame) < MINIMUM_INTELLIGENCE_CANDLES:
+            return QualityReport(
+                False,
+                0.0,
+                (f"fewer than {MINIMUM_INTELLIGENCE_CANDLES} candles",),
+            )
 
         numeric = frame[list(required)].apply(pd.to_numeric, errors="coerce")
         if not np.isfinite(numeric.to_numpy(dtype=float)).all():
