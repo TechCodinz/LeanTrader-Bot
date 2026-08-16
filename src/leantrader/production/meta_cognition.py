@@ -133,6 +133,12 @@ class MetaCognitiveSelfModel:
         critic = metadata.get("adversarial_critic") or {}
         if critic:
             specialists["critic_adjusted_council"] = _finite(critic.get("adjusted_score"))
+        world = metadata.get("market_world_model") or {}
+        flow_sensor = (world.get("external_sensors") or {}).get("flow_intelligence") or {}
+        if flow_sensor.get("status") == "available":
+            specialists["onchain_flow_intelligence"] = _finite(
+                (world.get("specialist_scores") or {}).get("onchain_flow_intelligence")
+            )
 
         for name, score in specialists.items():
             self._update_trust(name, score, float(realized_return))

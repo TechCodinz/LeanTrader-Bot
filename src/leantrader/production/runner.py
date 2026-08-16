@@ -29,6 +29,7 @@ from .intelligence import AdaptiveIntelligence, IntelligenceDecision, MINIMUM_IN
 from .ledger import PaperLedger
 from .market_universe import MarketUniverse
 from .market_world_model import MarketWorldModel
+from .market_sensor_fabric import MarketSensorFabric
 from .memory_retention import MarketFingerprint, MemoryRetentionEngine
 from .meta_cognition import MetaCognitiveSelfModel
 from .model_research import ModelResearchEngine, StructuredResearchProvider
@@ -300,6 +301,19 @@ class PaperRunner:
             recovery_expectancy_floor=settings.brain_recovery_expectancy_floor,
         )
         self.market_world_model = MarketWorldModel(settings.market_world_model_state_path)
+        self.market_sensor_fabric = MarketSensorFabric(
+            settings.market_sensor_fabric_state_path,
+            fred_api_key_file=settings.fred_api_key_path,
+            glassnode_api_key_file=settings.glassnode_api_key_path,
+            defillama_api_key_file=settings.defillama_api_key_path,
+            ethereum_rpc_url_file=settings.ethereum_rpc_url_path,
+            solana_rpc_url_file=settings.solana_rpc_url_path,
+            derivatives_refresh_seconds=settings.sensor_derivatives_refresh_seconds,
+            options_refresh_seconds=settings.sensor_options_refresh_seconds,
+            macro_refresh_seconds=settings.sensor_macro_refresh_seconds,
+            onchain_refresh_seconds=settings.sensor_onchain_refresh_seconds,
+            enabled=hasattr(feed, "exchange"),
+        )
         self.meta_cognition = MetaCognitiveSelfModel(settings.meta_cognition_state_path)
         self.intelligence_council = IntelligenceCouncil(settings.intelligence_council_state_path)
         self.adversarial_critic = AdversarialCritic(settings.adversarial_critic_state_path)
@@ -457,10 +471,17 @@ class PaperRunner:
             version=self.brain.VERSION,
         )
         self.engines.register(
+            "market_sensor_fabric",
+            self.market_sensor_fabric,
+            required=False,
+            dependencies=("market_data",),
+            version=self.market_sensor_fabric.VERSION,
+        )
+        self.engines.register(
             "market_world_model",
             self.market_world_model,
             required=False,
-            dependencies=("adaptive_intelligence", "advanced_shadow_suite", "public_market_context"),
+            dependencies=("adaptive_intelligence", "advanced_shadow_suite", "public_market_context", "market_sensor_fabric"),
             version=self.market_world_model.VERSION,
         )
         self.engines.register(
@@ -626,6 +647,14 @@ class PaperRunner:
             "next_batch",
             mandatory_symbols=set(self.ledger.positions),
         )
+        sensor_snapshot: dict[str, Any] = self._shadow_call(
+            errors,
+            "market_sensor_fabric:collect",
+            "market_sensor_fabric",
+            "collect",
+            cycle_symbols,
+        )
+        sensor_symbols = sensor_snapshot.get("symbols") or {} if isinstance(sensor_snapshot, dict) else {}
         context_refresh = self.engines.call(
             "public_market_context", "refresh", tuple(self.universe.symbols)
         )
@@ -773,6 +802,7 @@ class PaperRunner:
                     public_context=public_symbol_context[symbol],
                     timeframe_signals=decisions[symbol].timeframe_signals,
                     timeframe_coverage=decisions[symbol].multi_timeframe_coverage,
+                    external_sensors=sensor_symbols.get(symbol, {}),
                 )
                 routed_decisions[symbol] = self.engines.call(
                     "decision_router",
@@ -1055,6 +1085,7 @@ class PaperRunner:
                 },
                 arbitrage=arbitrage_collection,
                 market_world=world_market_snapshot,
+                sensor_snapshot=sensor_snapshot,
             )
 
         prices = {symbol: decision.close for symbol, decision in decisions.items()}
@@ -1117,7 +1148,13 @@ class PaperRunner:
                     "public_context": {
                         key: value for key, value in context_refresh.items() if key != "news_items"
                     },
-                    "market_world_model": {
+                    "market_sensor_fabric": {
+                "snapshot": sensor_snapshot,
+                "health": self.market_sensor_fabric.health(),
+                "read_only": True,
+                "execution_authority": False,
+            },
+            "market_world_model": {
                         "market": world_market_snapshot,
                         "research_candidates": self.market_world_model.research_candidates(20),
                     },
@@ -1501,7 +1538,7 @@ class PaperRunner:
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v12.6-world-model-self-awareness",
+            "runtime": "verified-multi-engine-v12.8-deep-flow-intelligence",
             "exchange": self.settings.exchange,
             "resolved_timeframes": list(resolved_timeframes),
             "cycle_symbols": cycle_symbols,
@@ -1612,7 +1649,30 @@ class PaperRunner:
                 key: value for key, value in arbitrage_collection.items() if key != "quotes"
             },
             "operation_alerts": operation_alerts,
-            "testnet_execution": {
+            "market_sensor_fabric": {
+                "enabled_on_public_exchange_feed": True,
+                "version": self.market_sensor_fabric.VERSION,
+                "snapshot": sensor_snapshot,
+                "health": self.market_sensor_fabric.health(),
+                "bybit_derivatives_positioning": True,
+                "bybit_liquidation_websocket": True,
+                "deribit_options_surface": True,
+                "defillama_stablecoin_liquidity": True,
+                "defillama_chain_liquidity_flows": True,
+                "glassnode_exchange_whale_flows_optional": True,
+                "glassnode_whale_concentration_optional": True,
+                "defillama_pro_institutional_bridge_flows_optional": True,
+                "ethereum_rpc_congestion_optional": True,
+                "solana_rpc_congestion_optional": True,
+                "ethereum_stablecoin_mint_burn_optional": True,
+                "fred_macro_rates_calendar_optional": True,
+                "flow_intelligence_synthesizer": True,
+                "read_only": True,
+                "credentials_loaded_by_default": False,
+                "execution_authority": False,
+                "can_increase_upstream_risk": False,
+            },
+        "testnet_execution": {
                 "enabled": self.testnet is not None,
                 "events": testnet_events,
                 "live_authority": False,
@@ -1849,6 +1909,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
     settings.hypothesis_lab_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.active_research_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.tail_risk_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.market_sensor_fabric_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.provenance_path.parent.mkdir(parents=True, exist_ok=True)
     settings.metrics_path.parent.mkdir(parents=True, exist_ok=True)
     settings.heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1870,7 +1931,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v12.6-world-model-self-awareness",
+        "runtime": "verified-multi-engine-v12.8-deep-flow-intelligence",
         "cns_brain_memory": {
             "cns_execution_authority": False,
             "brain_can_only_reduce_or_veto": True,
@@ -1905,6 +1966,27 @@ def preflight(settings: Settings) -> dict[str, Any]:
             "can_enable_live": False,
             "can_modify_code": False,
             "can_deploy": False,
+        },
+        "market_sensor_fabric": {
+            "version": "2.1",
+            "bybit_derivatives_positioning": True,
+            "bybit_liquidation_websocket": True,
+            "deribit_options_surface": True,
+            "defillama_stablecoin_liquidity": True,
+            "defillama_chain_liquidity_flows": True,
+            "glassnode_exchange_whale_flows_optional": True,
+            "glassnode_whale_concentration_optional": True,
+            "defillama_pro_institutional_bridge_flows_optional": True,
+            "ethereum_rpc_congestion_optional": True,
+            "solana_rpc_congestion_optional": True,
+            "ethereum_stablecoin_mint_burn_optional": True,
+            "fred_macro_rates_calendar_optional": True,
+            "flow_intelligence_synthesizer": True,
+            "read_only": True,
+            "execution_authority": False,
+            "can_increase_upstream_risk": False,
+            "can_add_credentials": False,
+            "can_enable_live": False,
         },
         "testnet_execution": {
             "enabled": settings.testnet_enabled,

@@ -12,7 +12,7 @@ if [[ ! -f "${APP_DIR}/docker-compose.yml" ]]; then
   echo "ERROR: ${APP_DIR} is not a deployed LeanTrader checkout." >&2
   exit 1
 fi
-if ! grep -q 'verified-multi-engine-v12.6-world-model-self-awareness' "${APP_DIR}/src/leantrader/production/runner.py"; then
+if ! grep -q 'verified-multi-engine-v12.8-deep-flow-intelligence' "${APP_DIR}/src/leantrader/production/runner.py"; then
   echo "ERROR: upgrade the VPS to the verified testnet release before enabling testnet." >&2
   exit 1
 fi

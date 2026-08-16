@@ -86,6 +86,16 @@ services:
       HYPOTHESIS_LAB_STATE_PATH: ${HYPOTHESIS_LAB_STATE_PATH:-runtime/vps_hypothesis_lab.json}
       ACTIVE_RESEARCH_STATE_PATH: ${ACTIVE_RESEARCH_STATE_PATH:-runtime/vps_active_research.json}
       TAIL_RISK_STATE_PATH: ${TAIL_RISK_STATE_PATH:-runtime/vps_tail_risk.json}
+      MARKET_SENSOR_FABRIC_STATE_PATH: ${MARKET_SENSOR_FABRIC_STATE_PATH:-runtime/vps_market_sensor_fabric.json}
+      SENSOR_DERIVATIVES_REFRESH_SECONDS: ${SENSOR_DERIVATIVES_REFRESH_SECONDS:-300}
+      SENSOR_OPTIONS_REFRESH_SECONDS: ${SENSOR_OPTIONS_REFRESH_SECONDS:-600}
+      SENSOR_MACRO_REFRESH_SECONDS: ${SENSOR_MACRO_REFRESH_SECONDS:-1800}
+      SENSOR_ONCHAIN_REFRESH_SECONDS: ${SENSOR_ONCHAIN_REFRESH_SECONDS:-900}
+      FRED_API_KEY_FILE: ${FRED_API_KEY_FILE:-/run/secrets/fred_api_key}
+      GLASSNODE_API_KEY_FILE: ${GLASSNODE_API_KEY_FILE:-/run/secrets/glassnode_api_key}
+      DEFILLAMA_API_KEY_FILE: ${DEFILLAMA_API_KEY_FILE:-/run/secrets/defillama_api_key}
+      ETHEREUM_RPC_URL_FILE: ${ETHEREUM_RPC_URL_FILE:-/run/secrets/ethereum_rpc_url}
+      SOLANA_RPC_URL_FILE: ${SOLANA_RPC_URL_FILE:-/run/secrets/solana_rpc_url}
       MEMORY_RETENTION_STATE_PATH: ${MEMORY_RETENTION_STATE_PATH:-runtime/vps_memory_retention.json}
       CAPITAL_GROWTH_STATE_PATH: ${CAPITAL_GROWTH_STATE_PATH:-runtime/vps_capital_growth.json}
       MEMORY_MAX_EPISODES: ${MEMORY_MAX_EPISODES:-5000}
@@ -101,7 +111,7 @@ services:
       PROMETHEUS_METRICS_PATH: ${PROMETHEUS_METRICS_PATH:-runtime/vps_metrics.prom}
       HEARTBEAT_PATH: ${HEARTBEAT_PATH:-runtime/vps_heartbeat.json}
       HEARTBEAT_MAX_AGE: ${HEARTBEAT_MAX_AGE:-180}
-      EXPECTED_RUNTIME_ID: ${EXPECTED_RUNTIME_ID:-verified-multi-engine-v12.6-world-model-self-awareness}
+      EXPECTED_RUNTIME_ID: ${EXPECTED_RUNTIME_ID:-verified-multi-engine-v12.8-deep-flow-intelligence}
       TRADES_LOG_PATH: ${TRADES_LOG_PATH:-logs/vps_trades.jsonl}
       ADAPTIVE_LEARNING_RATE: ${ADAPTIVE_LEARNING_RATE:-0.08}
       ADAPTIVE_MIN_SAMPLES: ${ADAPTIVE_MIN_SAMPLES:-5}

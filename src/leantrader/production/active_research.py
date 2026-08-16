@@ -35,6 +35,13 @@ class ActiveResearchPlanner:
         "liquidations": {"tier": "adapter_needed", "description": "forced-position unwind pressure"},
         "options_surface": {"tier": "adapter_needed", "description": "implied volatility, skew, term structure"},
         "onchain_flows": {"tier": "adapter_needed", "description": "exchange/stablecoin/whale flow context"},
+        "exchange_onchain_flows": {"tier": "adapter_needed", "description": "labelled exchange inflow/outflow and whale-flow context"},
+        "chain_liquidity_flows": {"tier": "adapter_needed", "description": "cross-chain stablecoin and TVL migration"},
+        "bridge_flows": {"tier": "adapter_needed", "description": "cross-chain bridge deposit/withdrawal context"},
+        "institutional_flows": {"tier": "adapter_needed", "description": "ETF/institutional asset flow context"},
+        "whale_concentration": {"tier": "adapter_needed", "description": "large-holder supply concentration and distribution context"},
+        "chain_congestion": {"tier": "adapter_needed", "description": "network fee, utilization and prioritization pressure"},
+        "stablecoin_mint_burn": {"tier": "adapter_needed", "description": "direct stablecoin issuance/redemption event context"},
         "macro_calendar": {"tier": "adapter_needed", "description": "scheduled macro event risk"},
         "rates_fx_cross_asset": {"tier": "adapter_needed", "description": "rates, dollar, equities and risk-asset coupling"},
         "stablecoin_liquidity": {"tier": "adapter_needed", "description": "stablecoin supply/flow/liquidity state"},
@@ -68,6 +75,7 @@ class ActiveResearchPlanner:
         engine_health: dict[str, Any],
         public_context: dict[str, Any],
         arbitrage: dict[str, Any] | None,
+        sensor_snapshot: dict[str, Any] | None = None,
     ) -> dict[str, str]:
         status = {name: "adapter_needed" for name, row in self.SOURCE_CATALOG.items() if row["tier"] == "adapter_needed"}
         status.update(
@@ -82,6 +90,9 @@ class ActiveResearchPlanner:
                 "costed_shadow_episodes": "available" if (engine_health.get("strategy_observatory") or {}).get("healthy") else "degraded",
             }
         )
+        for name, value in ((sensor_snapshot or {}).get("source_status") or {}).items():
+            if name in status and value:
+                status[name] = str(value)
         return status
 
     def plan_symbol(
@@ -97,6 +108,7 @@ class ActiveResearchPlanner:
         public_context_health: dict[str, Any],
         arbitrage: dict[str, Any] | None = None,
         market_world: dict[str, Any] | None = None,
+        sensor_snapshot: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         symbol = symbol.upper()
         patterns = set(str(value) for value in (world.get("latent_patterns") or []))
@@ -129,6 +141,66 @@ class ActiveResearchPlanner:
             questions.append("Is public narrative leading price, lagging price, or unrelated after controlling for liquidity and broader market direction?")
             required_sources += ["public_news", "public_fundamentals", "rates_fx_cross_asset", "macro_calendar"]
             priority += 0.18
+        if "crowded_derivatives_positioning" in patterns:
+            questions.append("Is crowded funding/positioning being absorbed by spot demand or creating asymmetric squeeze risk?")
+            required_sources += ["derivatives_funding", "open_interest", "liquidations", "order_book"]
+            priority += 0.24
+        if "leverage_build_without_price_confirmation" in patterns:
+            questions.append("Is open-interest growth without price confirmation accumulation, hedging, or unstable leverage that is likely to unwind?")
+            required_sources += ["open_interest", "derivatives_funding", "liquidations", "cross_venue_quotes"]
+            priority += 0.25
+        if "one_sided_liquidation_cascade" in patterns:
+            questions.append("Are forced liquidations propagating across venues, and is spot liquidity absorbing or amplifying the cascade?")
+            required_sources += ["liquidations", "order_book", "cross_venue_quotes", "open_interest"]
+            priority += 0.32
+        if "options_skew_stress" in patterns:
+            questions.append("Does options skew/volatility stress confirm directional tail demand or merely temporary hedging demand?")
+            required_sources += ["options_surface", "open_interest", "public_news"]
+            priority += 0.22
+        if "exchange_inflow_supply_pressure" in patterns:
+            questions.append("Are labelled exchange inflows persistent, broadly distributed, and accompanied by spot selling pressure rather than internal exchange wallet movement?")
+            required_sources += ["exchange_onchain_flows", "order_book", "cross_venue_quotes", "closed_trade_memory"]
+            priority += 0.24
+        if "exchange_withdrawal_accumulation_pressure" in patterns:
+            questions.append("Do persistent exchange withdrawals coincide with reduced sell-side liquidity and historically precede durable accumulation rather than custody reshuffling?")
+            required_sources += ["exchange_onchain_flows", "order_book", "closed_trade_memory"]
+            priority += 0.22
+        if "stablecoin_liquidity_expansion" in patterns or "stablecoin_liquidity_contraction" in patterns:
+            questions.append("Is stablecoin liquidity expansion/contraction broad-based across chains, and does it lead risk-asset demand after controlling for bridge migration and depegs?")
+            required_sources += ["stablecoin_liquidity", "chain_liquidity_flows", "bridge_flows", "closed_trade_memory"]
+            priority += 0.20
+        if "stablecoin_net_mint_impulse" in patterns or "stablecoin_net_burn_impulse" in patterns:
+            questions.append("Does the observed stablecoin mint/burn impulse represent deployable liquidity or treasury/redemption mechanics, and does it persist across supply and bridge evidence?")
+            required_sources += ["stablecoin_mint_burn", "stablecoin_liquidity", "bridge_flows", "closed_trade_memory"]
+            priority += 0.20
+        if "cross_chain_liquidity_rotation" in patterns:
+            questions.append("Which chains are gaining liquidity, is the rotation persistent after bridge flows are reconciled, and which assets historically respond with a measurable lag?")
+            required_sources += ["chain_liquidity_flows", "bridge_flows", "spot_ohlcv", "closed_trade_memory"]
+            priority += 0.24
+        if "institutional_price_divergence" in patterns:
+            questions.append("Are institutional ETF flows diverging from spot price because of temporary hedging/basis activity or because price has not yet reflected persistent allocation pressure?")
+            required_sources += ["institutional_flows", "derivatives_funding", "open_interest", "spot_ohlcv"]
+            priority += 0.25
+        if "bridge_liquidity_migration" in patterns:
+            questions.append("Is bridge flow a genuine destination-chain liquidity migration or short-lived routing activity, and does it survive a seven-day persistence test?")
+            required_sources += ["bridge_flows", "chain_liquidity_flows", "stablecoin_liquidity"]
+            priority += 0.18
+        if "onchain_derivatives_positioning_divergence" in patterns:
+            questions.append("Why do on-chain liquidity flows and derivatives positioning disagree, and which side has historically led resolution in comparable regimes?")
+            required_sources += ["onchain_flows", "open_interest", "derivatives_funding", "liquidations", "closed_trade_memory"]
+            priority += 0.30
+        if "cross_sensor_flow_contradiction" in patterns:
+            questions.append("Which flow sensor is stale, structurally biased, or observing a different participant cohort, and what independent evidence can falsify the apparent contradiction?")
+            required_sources += ["onchain_flows", "chain_liquidity_flows", "institutional_flows", "bridge_flows", "public_news"]
+            priority += 0.28
+        if "whale_supply_concentration_rising" in patterns or "whale_supply_concentration_falling" in patterns:
+            questions.append("Is the observed large-holder concentration change persistent, entity-clean, and associated with exchange or custody flows rather than address reshuffling?")
+            required_sources += ["whale_concentration", "exchange_onchain_flows", "closed_trade_memory"]
+            priority += 0.18
+        if "chain_congestion_stress" in patterns:
+            questions.append("Is network congestion a genuine demand/stress regime, and does fee/utilization pressure transmit into liquidity, bridge routing, or spot execution quality?")
+            required_sources += ["chain_congestion", "chain_liquidity_flows", "bridge_flows", "order_book"]
+            priority += 0.20
         if "out_of_distribution_market_state" in patterns or world.get("knowledge_state") == "out_of_distribution":
             questions.append("Which measurable features make this state out-of-distribution, and do similar states exist in a broader cross-asset or on-chain history?")
             required_sources += ["closed_trade_memory", "rates_fx_cross_asset", "onchain_flows", "stablecoin_liquidity"]
@@ -168,6 +240,7 @@ class ActiveResearchPlanner:
             engine_health=engine_health,
             public_context=public_context_health,
             arbitrage=arbitrage,
+            sensor_snapshot=sensor_snapshot,
         )
         missing_adapters = [source for source in required_sources if source_status.get(source) == "adapter_needed"]
         degraded_sources = [

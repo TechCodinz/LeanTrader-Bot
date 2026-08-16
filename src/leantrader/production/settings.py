@@ -100,6 +100,16 @@ class Settings:
     hypothesis_lab_state_path: Path
     active_research_state_path: Path
     tail_risk_state_path: Path
+    market_sensor_fabric_state_path: Path
+    fred_api_key_path: Path
+    glassnode_api_key_path: Path
+    defillama_api_key_path: Path
+    ethereum_rpc_url_path: Path
+    solana_rpc_url_path: Path
+    sensor_derivatives_refresh_seconds: int
+    sensor_options_refresh_seconds: int
+    sensor_macro_refresh_seconds: int
+    sensor_onchain_refresh_seconds: int
     memory_retention_state_path: Path
     legacy_memory_path: Path
     error_attribution_state_path: Path
@@ -264,6 +274,18 @@ class Settings:
             tail_risk_state_path=Path(
                 os.getenv("TAIL_RISK_STATE_PATH", "runtime/vps_tail_risk.json")
             ),
+            market_sensor_fabric_state_path=Path(
+                os.getenv("MARKET_SENSOR_FABRIC_STATE_PATH", "runtime/vps_market_sensor_fabric.json")
+            ),
+            fred_api_key_path=Path(os.getenv("FRED_API_KEY_FILE", "/run/secrets/fred_api_key")),
+            glassnode_api_key_path=Path(os.getenv("GLASSNODE_API_KEY_FILE", "/run/secrets/glassnode_api_key")),
+            defillama_api_key_path=Path(os.getenv("DEFILLAMA_API_KEY_FILE", "/run/secrets/defillama_api_key")),
+            ethereum_rpc_url_path=Path(os.getenv("ETHEREUM_RPC_URL_FILE", "/run/secrets/ethereum_rpc_url")),
+            solana_rpc_url_path=Path(os.getenv("SOLANA_RPC_URL_FILE", "/run/secrets/solana_rpc_url")),
+            sensor_derivatives_refresh_seconds=_int("SENSOR_DERIVATIVES_REFRESH_SECONDS", 300),
+            sensor_options_refresh_seconds=_int("SENSOR_OPTIONS_REFRESH_SECONDS", 600),
+            sensor_macro_refresh_seconds=_int("SENSOR_MACRO_REFRESH_SECONDS", 1800),
+            sensor_onchain_refresh_seconds=_int("SENSOR_ONCHAIN_REFRESH_SECONDS", 900),
             memory_retention_state_path=Path(
                 os.getenv("MEMORY_RETENTION_STATE_PATH", "runtime/vps_memory_retention.json")
             ),

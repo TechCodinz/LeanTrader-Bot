@@ -167,6 +167,7 @@ class MarketWorldModel:
         public_context: dict[str, Any] | None = None,
         timeframe_signals: dict[str, float] | None = None,
         timeframe_coverage: float = 0.0,
+        external_sensors: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         symbol = symbol.upper()
         close = self._series(frame, "close")
@@ -202,6 +203,31 @@ class MarketWorldModel:
         context_score = _finite(context.get("score")) if context_available else 0.0
         context_confidence = _clip(_finite(context.get("confidence"))) if context_available else 0.0
 
+        sensor_context = external_sensors or {}
+        derivatives = (sensor_context.get("derivatives") or {}).get("values") or {}
+        liquidation_tape = (sensor_context.get("liquidations") or {}).get("values") or {}
+        options_surface = (sensor_context.get("options") or {}).get("values") or {}
+        flow_intelligence = (sensor_context.get("flow_intelligence") or {}).get("values") or {}
+        funding_rate = _finite(derivatives.get("funding_rate"))
+        open_interest_change = _finite(derivatives.get("open_interest_change_15m_window"))
+        positioning_skew = _finite(derivatives.get("positioning_skew"))
+        perpetual_basis = _finite(derivatives.get("perpetual_basis"))
+        liquidation_notional = max(0.0, _finite(liquidation_tape.get("liquidation_notional")))
+        liquidation_imbalance = _finite(liquidation_tape.get("liquidation_imbalance"))
+        options_iv = max(0.0, _finite(options_surface.get("open_interest_weighted_mark_iv")))
+        options_skew = _finite(options_surface.get("put_minus_call_iv_proxy"))
+        dvol = max(0.0, _finite(options_surface.get("dvol_close")))
+        flow_score = _finite(flow_intelligence.get("flow_score"))
+        exchange_flow_pressure = _finite(flow_intelligence.get("exchange_flow_pressure"))
+        stablecoin_liquidity_impulse = _finite(flow_intelligence.get("stablecoin_liquidity_impulse"))
+        stablecoin_issuance_pressure = _finite(flow_intelligence.get("stablecoin_issuance_pressure"))
+        chain_liquidity_rotation = _finite(flow_intelligence.get("chain_liquidity_rotation"))
+        institutional_flow_pressure = _finite(flow_intelligence.get("institutional_flow_pressure"))
+        bridge_flow_pressure = _finite(flow_intelligence.get("bridge_flow_pressure"))
+        whale_concentration_change = _finite(flow_intelligence.get("whale_concentration_change"))
+        network_congestion_score = _clip(_finite(flow_intelligence.get("network_congestion_score")), 0.0, 1.0)
+        flow_contradictions = list(flow_intelligence.get("contradictions") or [])
+
         tf_values = [
             _finite(value)
             for value in (timeframe_signals or {}).values()
@@ -232,6 +258,23 @@ class MarketWorldModel:
             "swarm_score": swarm_score,
             "context_score": context_score,
             "timeframe_dispersion": timeframe_dispersion,
+            "funding_rate": funding_rate,
+            "open_interest_change": open_interest_change,
+            "positioning_skew": positioning_skew,
+            "perpetual_basis": perpetual_basis,
+            "liquidation_imbalance": liquidation_imbalance,
+            "options_iv": options_iv,
+            "options_skew": options_skew,
+            "dvol": dvol,
+            "flow_score": flow_score,
+            "exchange_flow_pressure": exchange_flow_pressure,
+            "stablecoin_liquidity_impulse": stablecoin_liquidity_impulse,
+            "stablecoin_issuance_pressure": stablecoin_issuance_pressure,
+            "chain_liquidity_rotation": chain_liquidity_rotation,
+            "institutional_flow_pressure": institutional_flow_pressure,
+            "bridge_flow_pressure": bridge_flow_pressure,
+            "whale_concentration_change": whale_concentration_change,
+            "network_congestion_score": network_congestion_score,
         }
         novelty = self._novelty_score(symbol, features)
         model_disagreement = _clip(abs(adaptive_score - swarm_score) / 2.0)
@@ -262,6 +305,42 @@ class MarketWorldModel:
             latent_patterns.append("out_of_distribution_market_state")
         if abs(context_score) >= 0.45 and _sign(context_score) != _sign(momentum_16):
             latent_patterns.append("narrative_price_divergence")
+        if abs(funding_rate) >= 0.0005 and abs(positioning_skew) >= 0.10:
+            latent_patterns.append("crowded_derivatives_positioning")
+        if abs(open_interest_change) >= 0.04 and abs(momentum_4) <= max(vol_long, 1e-6) * 2.0:
+            latent_patterns.append("leverage_build_without_price_confirmation")
+        if liquidation_notional > 0 and abs(liquidation_imbalance) >= 0.65:
+            latent_patterns.append("one_sided_liquidation_cascade")
+        if options_iv > 0 and dvol > 0 and abs(options_skew) >= 2.0:
+            latent_patterns.append("options_skew_stress")
+        if exchange_flow_pressure >= 0.45:
+            latent_patterns.append("exchange_inflow_supply_pressure")
+        elif exchange_flow_pressure <= -0.45:
+            latent_patterns.append("exchange_withdrawal_accumulation_pressure")
+        if stablecoin_liquidity_impulse >= 0.45:
+            latent_patterns.append("stablecoin_liquidity_expansion")
+        elif stablecoin_liquidity_impulse <= -0.45:
+            latent_patterns.append("stablecoin_liquidity_contraction")
+        if stablecoin_issuance_pressure >= 0.55:
+            latent_patterns.append("stablecoin_net_mint_impulse")
+        elif stablecoin_issuance_pressure <= -0.55:
+            latent_patterns.append("stablecoin_net_burn_impulse")
+        if abs(chain_liquidity_rotation) >= 0.55:
+            latent_patterns.append("cross_chain_liquidity_rotation")
+        if abs(institutional_flow_pressure) >= 0.45 and _sign(institutional_flow_pressure) != _sign(momentum_16):
+            latent_patterns.append("institutional_price_divergence")
+        if abs(bridge_flow_pressure) >= 0.50:
+            latent_patterns.append("bridge_liquidity_migration")
+        if abs(flow_score) >= 0.55 and abs(open_interest_change) >= 0.03 and _sign(flow_score) != _sign(positioning_skew):
+            latent_patterns.append("onchain_derivatives_positioning_divergence")
+        if flow_contradictions:
+            latent_patterns.append("cross_sensor_flow_contradiction")
+        if whale_concentration_change >= 0.45:
+            latent_patterns.append("whale_supply_concentration_rising")
+        elif whale_concentration_change <= -0.45:
+            latent_patterns.append("whale_supply_concentration_falling")
+        if network_congestion_score >= 0.65:
+            latent_patterns.append("chain_congestion_stress")
 
         rare_scope_score = _clip(
             0.26 * novelty
@@ -271,6 +350,14 @@ class MarketWorldModel:
             + 0.12 * liquidity_stress
             + 0.10 * timeframe_fracture
             + 0.10 * price_shock
+            + 0.05 * _clip(abs(open_interest_change) / 0.08, 0.0, 1.0)
+            + 0.03 * _clip(abs(liquidation_imbalance), 0.0, 1.0)
+            + 0.07 * _clip(abs(flow_score), 0.0, 1.0)
+            + 0.04 * _clip(abs(chain_liquidity_rotation), 0.0, 1.0)
+            + 0.03 * _clip(abs(institutional_flow_pressure), 0.0, 1.0)
+            + 0.03 * network_congestion_score
+            + 0.02 * _clip(abs(whale_concentration_change), 0.0, 1.0)
+            + 0.02 * _clip(abs(stablecoin_issuance_pressure), 0.0, 1.0)
         )
         data_quality = _clip(
             0.45
@@ -278,6 +365,9 @@ class MarketWorldModel:
             + 0.15 * float(bool(liquidity))
             + 0.10 * float(context_available)
             + 0.10 * min(1.0, len(close) / 320.0)
+            + 0.05 * float(bool(derivatives))
+            + 0.05 * float(bool(options_surface) or bool(liquidation_tape))
+            + 0.05 * float(bool(flow_intelligence))
         )
         state_confidence = _clip(
             data_quality
@@ -302,6 +392,24 @@ class MarketWorldModel:
             unknowns.append("model_consensus")
         if state_confidence < 0.25:
             unknowns.append("state_confidence")
+        if not derivatives:
+            unknowns.append("derivatives_positioning")
+        if (sensor_context.get("liquidations") or {}).get("status") not in {"available"}:
+            unknowns.append("liquidation_tape")
+        if _base := symbol.split("/", 1)[0]:
+            if _base in {"BTC", "ETH"} and not options_surface:
+                unknowns.append("options_surface")
+        if not flow_intelligence:
+            unknowns.append("onchain_and_cross_chain_flow_context")
+        base_asset = symbol.split("/", 1)[0]
+        if base_asset in {"ETH", "SOL"} and network_congestion_score == 0.0:
+            network_sensor = (
+                sensor_context.get("evm_network_congestion")
+                if base_asset == "ETH"
+                else sensor_context.get("solana_network_congestion")
+            ) or {}
+            if network_sensor.get("status") != "available":
+                unknowns.append("chain_congestion_context")
 
         previous = dict((self.state.get("current") or {}).get(symbol, {}))
         previous_regime = str(previous.get("regime") or "unknown")
@@ -328,6 +436,7 @@ class MarketWorldModel:
                 "spectral_harmonics": _finite(spectral.get("score")),
                 "pattern_memory": _finite(pattern_memory.get("score")),
                 "public_context": context_score,
+                "onchain_flow_intelligence": flow_score,
             },
             "senses": {
                 "novelty": novelty,
@@ -338,6 +447,15 @@ class MarketWorldModel:
                 "model_disagreement": model_disagreement,
                 "timeframe_fracture": timeframe_fracture,
                 "information_disorder": information_disorder,
+                "flow_stress": _clip(
+                    max(0.0, exchange_flow_pressure) * 0.35
+                    + max(0.0, -stablecoin_liquidity_impulse) * 0.25
+                    + abs(flow_score) * 0.20
+                    + network_congestion_score * 0.12
+                    + max(0.0, whale_concentration_change) * 0.06
+                    + max(0.0, -stablecoin_issuance_pressure) * 0.02
+                ),
+                "flow_disagreement": _clip(len(flow_contradictions) / 3.0),
                 "rare_scope_score": rare_scope_score,
             },
             "timeframe_direction_balance": timeframe_direction_balance,
@@ -352,6 +470,7 @@ class MarketWorldModel:
                 else "measured"
             ),
             "latent_patterns": latent_patterns,
+            "external_sensors": sensor_context,
             "unknowns": sorted(set(unknowns)),
             "execution_authority": False,
         }

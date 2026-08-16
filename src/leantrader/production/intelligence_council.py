@@ -122,6 +122,16 @@ class IntelligenceCouncil:
                 "public_market_context",
                 0.65,
             )
+        flow_score = _finite((world.get("specialist_scores") or {}).get("onchain_flow_intelligence"))
+        flow_sensor = (world.get("external_sensors") or {}).get("flow_intelligence") or {}
+        if flow_sensor.get("status") == "available":
+            add(
+                "onchain_flow_intelligence",
+                flow_score,
+                flow_sensor.get("confidence", 0.0),
+                "onchain_flow_intelligence",
+                0.60,
+            )
         memory_support = max(0.0, min(1.0, _finite(memory.get("support"))))
         memory_return = _finite(memory.get("weighted_net_return"))
         if memory_support > 0:

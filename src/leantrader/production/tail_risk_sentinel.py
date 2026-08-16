@@ -66,6 +66,8 @@ class TailRiskSentinel:
         liquidity_stress = _clip(_finite(senses.get("liquidity_stress")))
         novelty = _clip(_finite(senses.get("novelty")))
         disagreement = _clip(_finite(senses.get("model_disagreement")))
+        flow_stress = _clip(_finite(senses.get("flow_stress")))
+        flow_disagreement = _clip(_finite(senses.get("flow_disagreement")))
         correlation_fracture = _clip(_finite(market_world.get("correlation_fracture")) / 0.40)
         dispersion = _clip(_finite(market_world.get("cross_sectional_dispersion")) / 0.05)
         error_pressure = _clip(len(runtime_errors) / 3.0)
@@ -77,21 +79,25 @@ class TailRiskSentinel:
             "liquidity_dislocation": liquidity_stress,
             "novelty": novelty,
             "model_disagreement": disagreement,
+            "flow_stress": flow_stress,
+            "flow_disagreement": flow_disagreement,
             "correlation_fracture": correlation_fracture,
             "cross_sectional_dispersion": dispersion,
             "runtime_error_pressure": error_pressure,
             "news_blackout": 1.0 if news_blackout else 0.0,
         }
         severity = _clip(
-            0.17 * price_shock
-            + 0.17 * volatility_shock
-            + 0.17 * liquidity_stress
-            + 0.12 * novelty
-            + 0.10 * disagreement
-            + 0.10 * correlation_fracture
-            + 0.07 * dispersion
-            + 0.06 * error_pressure
-            + 0.04 * (1.0 if news_blackout else 0.0)
+            0.16 * price_shock
+            + 0.16 * volatility_shock
+            + 0.16 * liquidity_stress
+            + 0.11 * novelty
+            + 0.08 * disagreement
+            + 0.08 * flow_stress
+            + 0.04 * flow_disagreement
+            + 0.08 * correlation_fracture
+            + 0.05 * dispersion
+            + 0.05 * error_pressure
+            + 0.03 * (1.0 if news_blackout else 0.0)
         )
         compound_extreme_count = sum(1 for value in components.values() if value >= 0.70)
         if compound_extreme_count >= 3:

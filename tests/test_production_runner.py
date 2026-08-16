@@ -32,7 +32,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
-    assert result["runtime"] == "verified-multi-engine-v12.6-world-model-self-awareness"
+    assert result["runtime"] == "verified-multi-engine-v12.8-deep-flow-intelligence"
     assert set(result["engines"]) == {
         "market_data",
         "exchange_intelligence",
@@ -52,6 +52,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
         "memory_retention",
         "central_nervous_system",
         "trading_brain",
+        "market_sensor_fabric",
         "market_world_model",
         "meta_cognitive_self_model",
         "intelligence_council",
