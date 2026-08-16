@@ -38,10 +38,13 @@ class MetaCognitiveSelfModel:
     risk-increase authority.
     """
 
-    VERSION = "1.0"
+    VERSION = "1.1"
     SCHEMA_VERSION = 1
     SAVE_INTERVAL = 10
     TRUST_PRIOR = 2.0
+    CONTRADICTION_EVENT_COOLDOWN_SECONDS = 900.0
+    SIGNAL_CONFLICT_MIN_SCORE = 0.20
+    SIGNAL_CONFLICT_MIN_CONFIDENCE = 0.35
 
     def __init__(self, state_path: Path) -> None:
         self.state_path = state_path
@@ -203,9 +206,22 @@ class MetaCognitiveSelfModel:
             unknowns.add("engine_health_snapshot")
 
         contradictions: list[str] = []
-        adaptive_score = _finite((world.get("adaptive") or {}).get("score"))
-        swarm_score = _finite((world.get("swarm") or {}).get("score"))
-        if _sign(adaptive_score) and _sign(swarm_score) and _sign(adaptive_score) != _sign(swarm_score):
+        adaptive_row = world.get("adaptive") or {}
+        swarm_row = world.get("swarm") or {}
+        adaptive_score = _finite(adaptive_row.get("score"))
+        swarm_score = _finite(swarm_row.get("score"))
+        adaptive_confidence = _clip(_finite(adaptive_row.get("confidence")))
+        swarm_confidence = _clip(_finite(swarm_row.get("confidence")))
+        # Direction disagreement is only a meaningful contradiction when both
+        # specialists have material directional conviction and usable confidence.
+        # Tiny sign changes are normal ensemble noise and must not flood the self-model.
+        if (
+            _sign(adaptive_score)
+            and _sign(swarm_score)
+            and _sign(adaptive_score) != _sign(swarm_score)
+            and min(abs(adaptive_score), abs(swarm_score)) >= self.SIGNAL_CONFLICT_MIN_SCORE
+            and min(adaptive_confidence, swarm_confidence) >= self.SIGNAL_CONFLICT_MIN_CONFIDENCE
+        ):
             contradictions.append("adaptive_swarm_direction_conflict")
         if bool(route.get("router_allowed_pre_brain")) and brain.get("allow_entry") is False:
             contradictions.append("router_brain_authority_conflict")
@@ -216,7 +232,13 @@ class MetaCognitiveSelfModel:
             _clip(_finite((world.get("swarm") or {}).get("confidence"))),
         ) >= 0.60:
             contradictions.append("high_component_confidence_low_coherence")
-        if strategy_samples >= 20 and strategy_expectancy < 0 and route.get("allowed") is True:
+        strategy_authority = str(evidence.get("authority") or "untrusted_or_legacy")
+        if (
+            strategy_authority in {"costed_shadow_episode_v2", "closed_trade"}
+            and strategy_samples >= 20
+            and strategy_expectancy < 0
+            and route.get("allowed") is True
+        ):
             contradictions.append("negative_strategy_evidence_but_route_allowed")
 
         trust_rows = [self.specialist_trust(name) for name in (self.state.get("specialist_trust") or {})]
@@ -278,19 +300,97 @@ class MetaCognitiveSelfModel:
         self.state.setdefault("latest", {})[symbol] = result
         self.assessments += 1
         self.state["assessments"] = self.assessments
-        if contradictions:
-            records = self.state.setdefault("contradiction_history", [])
-            records.append(
-                {
-                    "timestamp": result["assessed_at"],
-                    "symbol": symbol,
-                    "contradictions": result["contradictions"],
-                }
-            )
-            self.state["contradiction_history"] = records[-500:]
+        self._record_contradictions(
+            symbol=symbol,
+            contradictions=result["contradictions"],
+            observed_at=float(result["assessed_at"]),
+        )
         if self.assessments % self.SAVE_INTERVAL == 0:
             self._save()
         return dict(result)
+
+
+    def _record_contradictions(
+        self, *, symbol: str, contradictions: list[str], observed_at: float
+    ) -> None:
+        """Track contradiction episodes without per-poll history spam.
+
+        `latest` already exposes the current contradiction set for every symbol.
+        The history should therefore contain state transitions / periodic persistence
+        evidence, not thousands of identical observations. Occurrence counters remain
+        lossless enough for diagnostics while event history stays interpretable.
+        """
+        active = sorted(set(str(value) for value in contradictions if value))
+        signature = "|".join(active)
+        tracker = self.state.setdefault("contradiction_tracker", {})
+        previous = dict(tracker.get(symbol) or {})
+        previous_signature = str(previous.get("signature") or "")
+        previous_active = list(previous.get("active") or [])
+        first_seen_at = float(previous.get("first_seen_at") or observed_at)
+        last_event_at = float(previous.get("last_event_at") or 0.0)
+        occurrences_since_event = int(previous.get("occurrences_since_event") or 0)
+
+        summary = self.state.setdefault("contradiction_summary", {})
+        for name in active:
+            row = summary.setdefault(name, {"occurrences": 0, "symbols": {}})
+            row["occurrences"] = int(row.get("occurrences") or 0) + 1
+            symbols = row.setdefault("symbols", {})
+            symbols[symbol] = int(symbols.get(symbol) or 0) + 1
+            row["last_seen_at"] = observed_at
+
+        records = self.state.setdefault("contradiction_history", [])
+        if not active:
+            if previous_signature:
+                records.append(
+                    {
+                        "event": "resolved",
+                        "timestamp": observed_at,
+                        "symbol": symbol,
+                        "previous_contradictions": previous_active,
+                        "continuous_seconds": max(0.0, observed_at - first_seen_at),
+                        "observations": occurrences_since_event,
+                    }
+                )
+                self.state["contradiction_history"] = records[-500:]
+            tracker[symbol] = {
+                "signature": "",
+                "active": [],
+                "first_seen_at": None,
+                "last_seen_at": observed_at,
+                "last_event_at": observed_at if previous_signature else last_event_at,
+                "occurrences_since_event": 0,
+            }
+            return
+
+        changed = signature != previous_signature
+        if changed:
+            first_seen_at = observed_at
+            occurrences_since_event = 0
+        occurrences_since_event += 1
+        due = observed_at - last_event_at >= self.CONTRADICTION_EVENT_COOLDOWN_SECONDS
+        if changed or due or last_event_at <= 0.0:
+            records.append(
+                {
+                    "event": "observed",
+                    "timestamp": observed_at,
+                    "symbol": symbol,
+                    "contradictions": active,
+                    "continuous_since": first_seen_at,
+                    "observations": occurrences_since_event,
+                }
+            )
+            self.state["contradiction_history"] = records[-500:]
+            last_event_at = observed_at
+            occurrences_since_event = 0
+
+        tracker[symbol] = {
+            "signature": signature,
+            "active": active,
+            "first_seen_at": first_seen_at,
+            "last_seen_at": observed_at,
+            "last_event_at": last_event_at,
+            "occurrences_since_event": occurrences_since_event,
+        }
 
     def observe_system(
         self,
@@ -358,6 +458,12 @@ class MetaCognitiveSelfModel:
             "tracked_symbols": len(latest),
             "current_unknowns": unknowns,
             "current_contradictions": contradictions,
+            "contradiction_event_model": "episode_dedup_v2",
+            "contradiction_history_events": len(self.state.get("contradiction_history") or []),
+            "contradiction_occurrences": {
+                name: int((row or {}).get("occurrences") or 0)
+                for name, row in sorted((self.state.get("contradiction_summary") or {}).items())
+            },
             "specialist_trust": trust,
             "system": dict(self.state.get("system") or {}),
             "machine_self_model": True,
@@ -382,12 +488,23 @@ class MetaCognitiveSelfModel:
             "specialist_trust": {},
             "outcome_history": [],
             "contradiction_history": [],
+            "contradiction_tracker": {},
+            "contradiction_summary": {},
+            "contradiction_event_model": "episode_dedup_v2",
         }
         if not self.state_path.exists():
             return empty
         try:
             payload = json.loads(self.state_path.read_text(encoding="utf-8"))
             if int(payload.get("schema_version") or 0) == self.SCHEMA_VERSION:
+                if payload.get("contradiction_event_model") != "episode_dedup_v2":
+                    legacy = list(payload.get("contradiction_history") or [])[-500:]
+                    if legacy:
+                        payload["legacy_contradiction_history_v1"] = legacy
+                    payload["contradiction_history"] = []
+                    payload["contradiction_tracker"] = {}
+                    payload["contradiction_summary"] = {}
+                    payload["contradiction_event_model"] = "episode_dedup_v2"
                 return payload
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
             self.last_error = f"{type(exc).__name__}: {exc}"

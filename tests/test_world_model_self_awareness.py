@@ -304,3 +304,65 @@ def test_active_research_requests_falsification_for_lead_lag_candidate(tmp_path)
     assert any("lead/lag" in task["question"] for task in result["tasks"])
     assert "rates_fx_cross_asset" in result["missing_adapters"]
     assert result["execution_authority"] is False
+
+
+def test_self_model_deduplicates_low_value_direction_conflict_history(tmp_path):
+    self_model = MetaCognitiveSelfModel(tmp_path / "self.json")
+    common = dict(
+        symbol="BTC/USDT",
+        cns={"signal_coherence": 0.5, "risk_pressure": 0.1},
+        memory={"support": 0.2, "contextual_samples": 2},
+        route={"router_allowed_pre_brain": False, "allowed": False},
+        brain={"allow_entry": False, "reasons": []},
+        strategy_evidence={"authority": "costed_shadow_episode_v2", "samples": 0},
+        engine_health={"market_data": {"healthy": True}},
+    )
+    # Tiny opposite signs are ensemble noise and must not become contradictions.
+    low = self_model.assess_symbol(
+        world={
+            "state_confidence": 0.6,
+            "knowledge_state": "measured",
+            "unknowns": [],
+            "senses": {"novelty": 0.1, "model_disagreement": 0.2},
+            "adaptive": {"score": 0.05, "confidence": 0.8},
+            "swarm": {"score": -0.06, "confidence": 0.8},
+        },
+        **common,
+    )
+    assert "adaptive_swarm_direction_conflict" not in low["contradictions"]
+
+    world = {
+        "state_confidence": 0.6,
+        "knowledge_state": "measured",
+        "unknowns": [],
+        "senses": {"novelty": 0.1, "model_disagreement": 0.7},
+        "adaptive": {"score": 0.65, "confidence": 0.8},
+        "swarm": {"score": -0.55, "confidence": 0.75},
+    }
+    for _ in range(5):
+        result = self_model.assess_symbol(world=world, **common)
+        assert "adaptive_swarm_direction_conflict" in result["contradictions"]
+    # Same ongoing conflict is summarized, not appended once per poll.
+    assert len(self_model.state["contradiction_history"]) == 1
+    assert self_model.state["contradiction_summary"]["adaptive_swarm_direction_conflict"]["occurrences"] == 5
+
+
+def test_self_model_archives_legacy_contradiction_history_on_load(tmp_path):
+    path = tmp_path / "self.json"
+    path.write_text(
+        __import__("json").dumps({
+            "schema_version": 1,
+            "assessments": 10,
+            "closed_outcomes": 1,
+            "system_observations": 1,
+            "latest": {},
+            "system": {},
+            "specialist_trust": {},
+            "outcome_history": [],
+            "contradiction_history": [{"symbol": "BTC/USDT", "contradictions": ["x"]}],
+        })
+    )
+    model = MetaCognitiveSelfModel(path)
+    assert model.state["contradiction_history"] == []
+    assert len(model.state["legacy_contradiction_history_v1"]) == 1
+    assert model.state["contradiction_event_model"] == "episode_dedup_v2"

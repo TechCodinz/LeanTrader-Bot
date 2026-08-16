@@ -1538,7 +1538,7 @@ class PaperRunner:
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v12.8-deep-flow-intelligence",
+            "runtime": "verified-multi-engine-v12.8.2-deep-flow-self-model-hygiene",
             "exchange": self.settings.exchange,
             "resolved_timeframes": list(resolved_timeframes),
             "cycle_symbols": cycle_symbols,
@@ -1931,7 +1931,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v12.8-deep-flow-intelligence",
+        "runtime": "verified-multi-engine-v12.8.2-deep-flow-self-model-hygiene",
         "cns_brain_memory": {
             "cns_execution_authority": False,
             "brain_can_only_reduce_or_veto": True,

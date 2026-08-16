@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 
-DEFAULT_RUNTIME_ID = "verified-multi-engine-v12.8-deep-flow-intelligence"
+DEFAULT_RUNTIME_ID = "verified-multi-engine-v12.8.2-deep-flow-self-model-hygiene"
 
 
 def main() -> None:
