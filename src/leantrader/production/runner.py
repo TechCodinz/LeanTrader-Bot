@@ -11,9 +11,13 @@ from typing import Any
 
 import pandas as pd
 
+from .active_research import ActiveResearchPlanner
+from .adversarial_critic import AdversarialCritic
 from .advanced_engines import UltraEngineSuite
 from .arbitrage_monitor import CrossVenueQuoteCollector
 from .brain import TradingBrain
+from .hypothesis_lab import HypothesisLab
+from .intelligence_council import IntelligenceCouncil
 from .capital_growth import CapitalGrowthGovernor
 from .cns import CentralNervousSystem
 from .decision_router import BoundedDecisionRouter, MarketEvidenceGate
@@ -24,13 +28,16 @@ from .exchange_protection import ExchangeProtectionOrchestrator
 from .intelligence import AdaptiveIntelligence, IntelligenceDecision, MINIMUM_INTELLIGENCE_CANDLES
 from .ledger import PaperLedger
 from .market_universe import MarketUniverse
+from .market_world_model import MarketWorldModel
 from .memory_retention import MarketFingerprint, MemoryRetentionEngine
+from .meta_cognition import MetaCognitiveSelfModel
 from .model_research import ModelResearchEngine, StructuredResearchProvider
 from .operations_engines import OperationsEngineSuite
 from .public_context import PublicMarketContextEngine
 from .research_engines import ResearchEngineSuite
 from .settings import Settings
 from .strategy_observatory import StrategyObservatory
+from .tail_risk_sentinel import TailRiskSentinel
 from .temporal_guard import MarketTemporalGuard
 from .testnet_execution import BybitTestnetExecutionEngine
 
@@ -292,6 +299,13 @@ class PaperRunner:
             quarantine_expectancy_floor=settings.brain_quarantine_expectancy_floor,
             recovery_expectancy_floor=settings.brain_recovery_expectancy_floor,
         )
+        self.market_world_model = MarketWorldModel(settings.market_world_model_state_path)
+        self.meta_cognition = MetaCognitiveSelfModel(settings.meta_cognition_state_path)
+        self.intelligence_council = IntelligenceCouncil(settings.intelligence_council_state_path)
+        self.adversarial_critic = AdversarialCritic(settings.adversarial_critic_state_path)
+        self.hypothesis_lab = HypothesisLab(settings.hypothesis_lab_state_path)
+        self.active_research = ActiveResearchPlanner(settings.active_research_state_path)
+        self.tail_risk = TailRiskSentinel(settings.tail_risk_state_path)
         self.capital_growth = CapitalGrowthGovernor(
             settings.capital_growth_state_path,
             starting_equity=settings.starting_cash,
@@ -443,6 +457,55 @@ class PaperRunner:
             version=self.brain.VERSION,
         )
         self.engines.register(
+            "market_world_model",
+            self.market_world_model,
+            required=False,
+            dependencies=("adaptive_intelligence", "advanced_shadow_suite", "public_market_context"),
+            version=self.market_world_model.VERSION,
+        )
+        self.engines.register(
+            "meta_cognitive_self_model",
+            self.meta_cognition,
+            required=False,
+            dependencies=("market_world_model", "central_nervous_system", "trading_brain", "memory_retention", "strategy_observatory"),
+            version=self.meta_cognition.VERSION,
+        )
+        self.engines.register(
+            "intelligence_council",
+            self.intelligence_council,
+            required=False,
+            dependencies=("market_world_model", "meta_cognitive_self_model", "adaptive_intelligence", "advanced_shadow_suite"),
+            version=self.intelligence_council.VERSION,
+        )
+        self.engines.register(
+            "adversarial_critic",
+            self.adversarial_critic,
+            required=False,
+            dependencies=("intelligence_council", "meta_cognitive_self_model", "trading_brain"),
+            version=self.adversarial_critic.VERSION,
+        )
+        self.engines.register(
+            "hypothesis_lab",
+            self.hypothesis_lab,
+            required=False,
+            dependencies=("market_world_model", "intelligence_council", "adversarial_critic"),
+            version=self.hypothesis_lab.VERSION,
+        )
+        self.engines.register(
+            "active_research_planner",
+            self.active_research,
+            required=False,
+            dependencies=("hypothesis_lab", "market_world_model", "meta_cognitive_self_model"),
+            version=self.active_research.VERSION,
+        )
+        self.engines.register(
+            "tail_risk_sentinel",
+            self.tail_risk,
+            required=False,
+            dependencies=("market_world_model", "advanced_shadow_suite"),
+            version=self.tail_risk.VERSION,
+        )
+        self.engines.register(
             "capital_growth",
             self.capital_growth,
             dependencies=("paper_ledger", "research_governor"),
@@ -471,6 +534,47 @@ class PaperRunner:
         self._recover_open_position_memory()
         self.stop_requested = False
 
+    def _shadow_call(
+        self,
+        cycle_errors: dict[str, str],
+        key: str,
+        engine_name: str,
+        method: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Call an optional intelligence engine without changing trading authority.
+
+        v12.6 meta/world/research engines are deliberately shadow-only. Their
+        failures must remain visible but can never turn an otherwise valid market
+        decision into a required symbol-pipeline failure.
+        """
+        if not self.error_attribution.should_attempt(key):
+            return {
+                "available": False,
+                "reason": "optional_error_cooldown",
+                "engine": engine_name,
+                "execution_authority": False,
+            }
+        try:
+            result = self.engines.call(engine_name, method, *args, **kwargs)
+            self.error_attribution.success(key)
+            return result if isinstance(result, dict) else {"result": result}
+        except Exception as exc:  # noqa: BLE001 - optional intelligence cannot interrupt canonical trading
+            error_text = f"{type(exc).__name__}: {exc}"
+            cycle_errors[key] = error_text
+            self.error_attribution.failure(
+                key, error_text, optional=True, component=engine_name,
+                symbol=str(kwargs.get("symbol") or "") or None,
+            )
+            LOGGER.warning("optional intelligence failure engine=%s key=%s error=%s", engine_name, key, error_text)
+            return {
+                "available": False,
+                "error": error_text,
+                "engine": engine_name,
+                "execution_authority": False,
+            }
+
     def cycle(self) -> dict[str, Any]:
         decisions: dict[str, IntelligenceDecision] = {}
         frames: dict[str, pd.DataFrame] = {}
@@ -481,6 +585,14 @@ class PaperRunner:
         memory_summaries: dict[str, dict[str, Any]] = {}
         cns_packets: dict[str, dict[str, Any]] = {}
         brain_decisions: dict[str, dict[str, Any]] = {}
+        world_states: dict[str, dict[str, Any]] = {}
+        self_awareness: dict[str, dict[str, Any]] = {}
+        council_decisions: dict[str, dict[str, Any]] = {}
+        critic_reviews: dict[str, dict[str, Any]] = {}
+        hypothesis_updates: dict[str, dict[str, Any]] = {}
+        research_plans: dict[str, dict[str, Any]] = {}
+        tail_risk_states: dict[str, dict[str, Any]] = {}
+        public_symbol_context: dict[str, dict[str, Any]] = {}
         errors: dict[str, str] = {}
         self.engines.call("market_temporal_guard", "sync_clock")
         allowed_testnet_symbols = (
@@ -533,6 +645,7 @@ class PaperRunner:
         else:
             arbitrage_collection = {"available": False, "quotes": [], "reason": "optional_error_cooldown"}
         resolved_timeframes = self.engines.call("exchange_intelligence", "resolve_timeframes")
+        cycle_engine_health = self.engines.snapshot()
         news_items = list(context_refresh.get("news_items") or [])
         if news_items:
             self.advanced.news.ingest(news_items)
@@ -627,6 +740,9 @@ class PaperRunner:
                         self.error_attribution.failure(
                             error_key, errors[error_key], optional=True, component="order_book", symbol=symbol
                         )
+                public_symbol_context[symbol] = self.engines.call(
+                    "public_market_context", "evaluate", symbol
+                )
                 advanced_decisions[symbol] = self.engines.call(
                     "advanced_shadow_suite",
                     "evaluate_symbol",
@@ -635,11 +751,28 @@ class PaperRunner:
                     order_book,
                     self.settings.order_usd / max(decisions[symbol].close, 1e-12),
                     context_frames,
-                    self.engines.call("public_market_context", "evaluate", symbol),
+                    public_symbol_context[symbol],
                 )
                 base_score = sum(
                     decisions[symbol].component_scores[name] * decisions[symbol].weights[name]
                     for name in decisions[symbol].component_scores
+                )
+                world_states[symbol] = self._shadow_call(
+                    errors,
+                    f"{symbol}:market_world_model",
+                    "market_world_model",
+                    "observe_symbol",
+                    symbol,
+                    frame,
+                    adaptive={
+                        "score": base_score,
+                        "confidence": decisions[symbol].confidence,
+                        "regime": decisions[symbol].regime,
+                    },
+                    advanced=advanced_decisions[symbol],
+                    public_context=public_symbol_context[symbol],
+                    timeframe_signals=decisions[symbol].timeframe_signals,
+                    timeframe_coverage=decisions[symbol].multi_timeframe_coverage,
                 )
                 routed_decisions[symbol] = self.engines.call(
                     "decision_router",
@@ -710,18 +843,19 @@ class PaperRunner:
                 routed_decisions[symbol]["router_reason_pre_brain"] = str(
                     routed_decisions[symbol].get("reason") or "unknown"
                 )
+                strategy_evidence = self.engines.call(
+                    "strategy_observatory",
+                    "evidence",
+                    "engine:bounded_decision_router",
+                    symbol,
+                )
                 brain_decisions[symbol] = self.engines.call(
                     "trading_brain",
                     "evaluate",
                     symbol=symbol,
                     cns=cns_packets[symbol],
                     memory=memory_summaries[symbol],
-                    strategy_evidence=self.engines.call(
-                        "strategy_observatory",
-                        "evidence",
-                        "engine:bounded_decision_router",
-                        symbol,
-                    ),
+                    strategy_evidence=strategy_evidence,
                     upstream_allowed=upstream_allowed,
                     strategy_name=f"bounded_decision_router:{symbol}",
                 )
@@ -742,6 +876,61 @@ class PaperRunner:
                     )
                     routed_decisions[symbol]["reason"] = f"brain:{reason}"
                     routed_decisions[symbol]["size_multiplier"] = 0.0
+
+                self_awareness[symbol] = self._shadow_call(
+                    errors,
+                    f"{symbol}:meta_cognition",
+                    "meta_cognitive_self_model",
+                    "assess_symbol",
+                    symbol=symbol,
+                    world=world_states.get(symbol, {}),
+                    cns=cns_packets[symbol],
+                    memory=memory_summaries[symbol],
+                    route=routed_decisions[symbol],
+                    brain=brain_decisions[symbol],
+                    strategy_evidence=strategy_evidence,
+                    engine_health=cycle_engine_health,
+                )
+                council_decisions[symbol] = self._shadow_call(
+                    errors,
+                    f"{symbol}:intelligence_council",
+                    "intelligence_council",
+                    "deliberate",
+                    symbol=symbol,
+                    adaptive={
+                        "score": base_score,
+                        "confidence": decisions[symbol].confidence,
+                    },
+                    advanced=advanced_decisions[symbol],
+                    world=world_states.get(symbol, {}),
+                    self_model=self_awareness.get(symbol, {}),
+                    memory=memory_summaries[symbol],
+                    public_context=public_symbol_context.get(symbol, {}),
+                )
+                critic_reviews[symbol] = self._shadow_call(
+                    errors,
+                    f"{symbol}:adversarial_critic",
+                    "adversarial_critic",
+                    "review",
+                    symbol=symbol,
+                    council=council_decisions.get(symbol, {}),
+                    world=world_states.get(symbol, {}),
+                    self_model=self_awareness.get(symbol, {}),
+                    memory=memory_summaries[symbol],
+                    route=routed_decisions[symbol],
+                    brain=brain_decisions[symbol],
+                    public_context=public_symbol_context.get(symbol, {}),
+                )
+                hypothesis_updates[symbol] = self._shadow_call(
+                    errors,
+                    f"{symbol}:hypothesis_lab",
+                    "hypothesis_lab",
+                    "observe",
+                    symbol=symbol,
+                    world=world_states.get(symbol, {}),
+                    council=council_decisions.get(symbol, {}),
+                    critic=critic_reviews.get(symbol, {}),
+                )
 
                 observatory_signals = list(advanced_decisions[symbol].get("signals", []))
                 observatory_signals.extend(
@@ -794,6 +983,11 @@ class PaperRunner:
                         "cns": cns_packets[symbol],
                         "brain": brain_decisions[symbol],
                         "memory_summary": memory_summaries[symbol],
+                        "market_world_model": world_states.get(symbol, {}),
+                        "meta_cognitive_self_model": self_awareness.get(symbol, {}),
+                        "intelligence_council": council_decisions.get(symbol, {}),
+                        "adversarial_critic": critic_reviews.get(symbol, {}),
+                        "hypothesis_lab": hypothesis_updates.get(symbol, {}),
                         "research_observation": research_observations[symbol],
                     },
                 )
@@ -824,6 +1018,45 @@ class PaperRunner:
                         "symbol pipeline failure symbol=%s error=%s", symbol, error_text
                     )
 
+        world_market_snapshot = self._shadow_call(
+            errors,
+            "market_world_model:market_snapshot",
+            "market_world_model",
+            "observe_market",
+            frames,
+        )
+        post_symbol_engine_health = self.engines.snapshot()
+        for symbol in world_states:
+            tail_risk_states[symbol] = self._shadow_call(
+                errors,
+                f"{symbol}:tail_risk_sentinel",
+                "tail_risk_sentinel",
+                "assess",
+                symbol=symbol,
+                world=world_states.get(symbol, {}),
+                market_world=world_market_snapshot,
+                advanced=advanced_decisions.get(symbol, {}),
+                runtime_errors=errors,
+            )
+            research_plans[symbol] = self._shadow_call(
+                errors,
+                f"{symbol}:active_research_planner",
+                "active_research_planner",
+                "plan_symbol",
+                symbol=symbol,
+                world=world_states.get(symbol, {}),
+                self_model=self_awareness.get(symbol, {}),
+                council=council_decisions.get(symbol, {}),
+                critic=critic_reviews.get(symbol, {}),
+                hypotheses=hypothesis_updates.get(symbol, {}),
+                engine_health=post_symbol_engine_health,
+                public_context_health={
+                    key: value for key, value in context_refresh.items() if key != "news_items"
+                },
+                arbitrage=arbitrage_collection,
+                market_world=world_market_snapshot,
+            )
+
         prices = {symbol: decision.close for symbol, decision in decisions.items()}
         events: list[dict[str, Any]] = []
         entry_blocks: dict[str, str] = {}
@@ -851,6 +1084,13 @@ class PaperRunner:
             required_engines_healthy=self.engines.required_healthy(),
         )
         capital_state = research_state["capital_preservation"]
+        bounded_research_context = self._shadow_call(
+            errors,
+            "active_research_planner:model_context",
+            "active_research_planner",
+            "model_research_context",
+            20,
+        )
         try:
             model_research_observation = self.engines.call(
                 "model_research",
@@ -877,6 +1117,14 @@ class PaperRunner:
                     "public_context": {
                         key: value for key, value in context_refresh.items() if key != "news_items"
                     },
+                    "market_world_model": {
+                        "market": world_market_snapshot,
+                        "research_candidates": self.market_world_model.research_candidates(20),
+                    },
+                    "meta_cognitive_self_model": self.meta_cognition.health(),
+                    "hypothesis_agenda": self.hypothesis_lab.agenda(20),
+                    "active_research": bounded_research_context,
+                    "tail_risk": self.tail_risk.health(),
                 },
             )
         except Exception as exc:  # noqa: BLE001 - external research never interrupts trading/accounting
@@ -961,6 +1209,19 @@ class PaperRunner:
                         event["memory_retention"] = self._settle_trade_memory(event)
                     except Exception as exc:  # noqa: BLE001 - closed accounting is final; expose memory failure
                         errors[f"{symbol}:memory_retention"] = f"{type(exc).__name__}: {exc}"
+                    try:
+                        event["meta_cognition_outcome"] = self.engines.call(
+                            "meta_cognitive_self_model",
+                            "record_outcome",
+                            dict(event.get("position_metadata") or {}),
+                            float(event.get("trade_realized_return_total") or 0.0),
+                        )
+                    except Exception as exc:  # noqa: BLE001 - accounting is final; self-model learning is optional
+                        error_key = f"{symbol}:meta_cognition_outcome"
+                        errors[error_key] = f"{type(exc).__name__}: {exc}"
+                        self.error_attribution.failure(
+                            error_key, errors[error_key], optional=True, component="meta_cognitive_self_model", symbol=symbol
+                        )
 
         # Re-evaluate protected capital after exits so a realized loss can
         # block same-cycle re-entry instead of waiting for the next poll.
@@ -1034,11 +1295,20 @@ class PaperRunner:
                     "multi_timeframe_coverage": decision.multi_timeframe_coverage,
                     "timeframe_signals": decision.timeframe_signals,
                     "session_allowed": decision.session_allowed,
+                    "symbol": symbol,
                     "advanced_feature_vector": advanced_decisions.get(symbol, {}).get("feature_vector", {}),
+                    "advanced_shadow": advanced_decisions.get(symbol, {}),
                     "decision_route": route,
                     "cns": cns_packets.get(symbol, {}),
                     "brain": brain_decisions.get(symbol, {}),
                     "memory_summary": memory_summaries.get(symbol, {}),
+                    "market_world_model": world_states.get(symbol, {}),
+                    "meta_cognitive_self_model": self_awareness.get(symbol, {}),
+                    "intelligence_council": council_decisions.get(symbol, {}),
+                    "adversarial_critic": critic_reviews.get(symbol, {}),
+                    "hypothesis_lab": hypothesis_updates.get(symbol, {}),
+                    "tail_risk_sentinel": tail_risk_states.get(symbol, {}),
+                    "active_research_plan": research_plans.get(symbol, {}),
                     "capital_growth": growth_state,
                 }
                 if position is None:
@@ -1174,16 +1444,6 @@ class PaperRunner:
             )
         except Exception as exc:  # noqa: BLE001 - advanced suite is shadow-only
             advanced_market = {"error": f"{type(exc).__name__}: {exc}"}
-        engine_status = self.engines.snapshot()
-        error_attribution = self.error_attribution.cycle_summary(errors)
-        if errors:
-            LOGGER.warning(
-                "cycle error attribution count=%s optional=%s required=%s keys=%s",
-                error_attribution["count"],
-                error_attribution["optional_count"],
-                error_attribution["required_count"],
-                ",".join(error_attribution["keys"]),
-            )
         block_reason_counts: dict[str, int] = {}
         for reason in entry_blocks.values():
             block_reason_counts[str(reason)] = block_reason_counts.get(str(reason), 0) + 1
@@ -1212,6 +1472,27 @@ class PaperRunner:
             "paper_trade_events_total": self.ledger.trade_count,
             "halted": bool(halt),
         }
+        self_system_awareness = self._shadow_call(
+            errors,
+            "meta_cognitive_self_model:system",
+            "meta_cognitive_self_model",
+            "observe_system",
+            engines=self.engines.snapshot(),
+            execution_funnel=execution_funnel,
+            errors=errors,
+            capital=growth_state,
+            world_health=self.market_world_model.health(),
+        )
+        engine_status = self.engines.snapshot()
+        error_attribution = self.error_attribution.cycle_summary(errors)
+        if errors:
+            LOGGER.warning(
+                "cycle error attribution count=%s optional=%s required=%s keys=%s",
+                error_attribution["count"],
+                error_attribution["optional_count"],
+                error_attribution["required_count"],
+                ",".join(error_attribution["keys"]),
+            )
         observatory_health = self.strategy_observatory.health()
         memory_health = self.memory.health()
         availability_total = self.error_attribution.health().get("total_unavailable")
@@ -1220,7 +1501,7 @@ class PaperRunner:
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v12.5-cns-brain-memory",
+            "runtime": "verified-multi-engine-v12.6-world-model-self-awareness",
             "exchange": self.settings.exchange,
             "resolved_timeframes": list(resolved_timeframes),
             "cycle_symbols": cycle_symbols,
@@ -1275,6 +1556,50 @@ class PaperRunner:
             "memory_retention": {
                 "summaries": memory_summaries,
                 "health": memory_health,
+                "execution_authority": False,
+            },
+            "market_world_model": {
+                "symbols": world_states,
+                "market": world_market_snapshot,
+                "health": self.market_world_model.health(),
+                "execution_authority": False,
+            },
+            "meta_cognitive_self_model": {
+                "symbols": self_awareness,
+                "system": self_system_awareness,
+                "health": self.meta_cognition.health(),
+                "execution_authority": False,
+                "consciousness_claim": False,
+            },
+            "intelligence_council": {
+                "symbols": council_decisions,
+                "health": self.intelligence_council.health(),
+                "execution_authority": False,
+            },
+            "adversarial_critic": {
+                "symbols": critic_reviews,
+                "health": self.adversarial_critic.health(),
+                "shadow_only": True,
+                "execution_authority": False,
+            },
+            "hypothesis_lab": {
+                "symbols": hypothesis_updates,
+                "agenda": self.hypothesis_lab.agenda(25),
+                "health": self.hypothesis_lab.health(),
+                "research_only": True,
+                "execution_authority": False,
+            },
+            "active_research": {
+                "symbols": research_plans,
+                "agenda": self.active_research.agenda(50),
+                "adapter_backlog": self.active_research.adapter_backlog(),
+                "health": self.active_research.health(),
+                "execution_authority": False,
+            },
+            "tail_risk_sentinel": {
+                "symbols": tail_risk_states,
+                "health": self.tail_risk.health(),
+                "shadow_only": True,
                 "execution_authority": False,
             },
             "error_attribution_health": self.error_attribution.health(),
@@ -1517,6 +1842,13 @@ def preflight(settings: Settings) -> dict[str, Any]:
     settings.memory_retention_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.error_attribution_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.capital_growth_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.market_world_model_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.meta_cognition_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.intelligence_council_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.adversarial_critic_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.hypothesis_lab_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.active_research_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.tail_risk_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.provenance_path.parent.mkdir(parents=True, exist_ok=True)
     settings.metrics_path.parent.mkdir(parents=True, exist_ok=True)
     settings.heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1538,7 +1870,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v12.5-cns-brain-memory",
+        "runtime": "verified-multi-engine-v12.6-world-model-self-awareness",
         "cns_brain_memory": {
             "cns_execution_authority": False,
             "brain_can_only_reduce_or_veto": True,
@@ -1555,6 +1887,24 @@ def preflight(settings: Settings) -> dict[str, Any]:
             "profit_reinvest_fraction": settings.capital_profit_reinvest_fraction,
             "martingale": False,
             "can_increase_upstream_risk": False,
+        },
+        "world_model_self_awareness": {
+            "market_world_model": True,
+            "meta_cognitive_self_model": True,
+            "intelligence_council": True,
+            "adversarial_critic": True,
+            "hypothesis_lab": True,
+            "active_research_planner": True,
+            "tail_risk_sentinel": True,
+            "cross_market_lead_lag_discovery": True,
+            "consciousness_claim": False,
+            "novelty_is_not_trade_authority": True,
+            "relationship_discovery_is_not_trade_authority": True,
+            "execution_authority": False,
+            "can_increase_upstream_risk": False,
+            "can_enable_live": False,
+            "can_modify_code": False,
+            "can_deploy": False,
         },
         "testnet_execution": {
             "enabled": settings.testnet_enabled,

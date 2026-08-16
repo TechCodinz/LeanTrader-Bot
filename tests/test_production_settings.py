@@ -156,6 +156,13 @@ def test_compose_passes_cns_brain_memory_and_capital_controls_to_container():
     for name in (
         "CNS_STATE_PATH",
         "BRAIN_STATE_PATH",
+        "MARKET_WORLD_MODEL_STATE_PATH",
+        "META_COGNITION_STATE_PATH",
+        "INTELLIGENCE_COUNCIL_STATE_PATH",
+        "ADVERSARIAL_CRITIC_STATE_PATH",
+        "HYPOTHESIS_LAB_STATE_PATH",
+        "ACTIVE_RESEARCH_STATE_PATH",
+        "TAIL_RISK_STATE_PATH",
         "MEMORY_RETENTION_STATE_PATH",
         "CAPITAL_GROWTH_STATE_PATH",
         "MEMORY_MAX_EPISODES",

@@ -93,6 +93,13 @@ class Settings:
     decision_router_state_path: Path
     cns_state_path: Path
     brain_state_path: Path
+    market_world_model_state_path: Path
+    meta_cognition_state_path: Path
+    intelligence_council_state_path: Path
+    adversarial_critic_state_path: Path
+    hypothesis_lab_state_path: Path
+    active_research_state_path: Path
+    tail_risk_state_path: Path
     memory_retention_state_path: Path
     legacy_memory_path: Path
     error_attribution_state_path: Path
@@ -236,6 +243,27 @@ class Settings:
             ),
             cns_state_path=Path(os.getenv("CNS_STATE_PATH", "runtime/vps_cns_state.json")),
             brain_state_path=Path(os.getenv("BRAIN_STATE_PATH", "runtime/vps_brain_state.json")),
+            market_world_model_state_path=Path(
+                os.getenv("MARKET_WORLD_MODEL_STATE_PATH", "runtime/vps_market_world_model.json")
+            ),
+            meta_cognition_state_path=Path(
+                os.getenv("META_COGNITION_STATE_PATH", "runtime/vps_meta_cognition.json")
+            ),
+            intelligence_council_state_path=Path(
+                os.getenv("INTELLIGENCE_COUNCIL_STATE_PATH", "runtime/vps_intelligence_council.json")
+            ),
+            adversarial_critic_state_path=Path(
+                os.getenv("ADVERSARIAL_CRITIC_STATE_PATH", "runtime/vps_adversarial_critic.json")
+            ),
+            hypothesis_lab_state_path=Path(
+                os.getenv("HYPOTHESIS_LAB_STATE_PATH", "runtime/vps_hypothesis_lab.json")
+            ),
+            active_research_state_path=Path(
+                os.getenv("ACTIVE_RESEARCH_STATE_PATH", "runtime/vps_active_research.json")
+            ),
+            tail_risk_state_path=Path(
+                os.getenv("TAIL_RISK_STATE_PATH", "runtime/vps_tail_risk.json")
+            ),
             memory_retention_state_path=Path(
                 os.getenv("MEMORY_RETENTION_STATE_PATH", "runtime/vps_memory_retention.json")
             ),

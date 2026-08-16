@@ -32,7 +32,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
-    assert result["runtime"] == "verified-multi-engine-v12.5-cns-brain-memory"
+    assert result["runtime"] == "verified-multi-engine-v12.6-world-model-self-awareness"
     assert set(result["engines"]) == {
         "market_data",
         "exchange_intelligence",
@@ -52,12 +52,26 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
         "memory_retention",
         "central_nervous_system",
         "trading_brain",
+        "market_world_model",
+        "meta_cognitive_self_model",
+        "intelligence_council",
+        "adversarial_critic",
+        "hypothesis_lab",
+        "active_research_planner",
+        "tail_risk_sentinel",
         "capital_growth",
         "operations_safety",
     }
     assert all(engine["healthy"] for engine in result["engines"].values())
     assert result["decisions"]["BTC/USDT"]["quality_score"] == 1.0
     assert result["advanced_shadow"]["execution_authority"] is False
+    assert result["market_world_model"]["execution_authority"] is False
+    assert result["meta_cognitive_self_model"]["consciousness_claim"] is False
+    assert result["intelligence_council"]["execution_authority"] is False
+    assert result["adversarial_critic"]["shadow_only"] is True
+    assert result["hypothesis_lab"]["research_only"] is True
+    assert result["active_research"]["execution_authority"] is False
+    assert result["tail_risk_sentinel"]["shadow_only"] is True
     assert result["research_governor"]["capital_preservation"]["state"] == "normal"
     assert result["capital_growth"]["martingale"] is False
     assert result["capital_growth"]["can_increase_upstream_risk"] is False
