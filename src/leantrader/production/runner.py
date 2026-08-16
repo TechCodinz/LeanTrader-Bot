@@ -706,6 +706,10 @@ class PaperRunner:
                     runtime_errors=errors,
                 )
                 upstream_allowed = bool(routed_decisions[symbol].get("allowed"))
+                routed_decisions[symbol]["router_allowed_pre_brain"] = upstream_allowed
+                routed_decisions[symbol]["router_reason_pre_brain"] = str(
+                    routed_decisions[symbol].get("reason") or "unknown"
+                )
                 brain_decisions[symbol] = self.engines.call(
                     "trading_brain",
                     "evaluate",
@@ -974,6 +978,8 @@ class PaperRunner:
         )
         available_deployable_notional = float(growth_state["remaining_deployable_notional"])
 
+        entry_attempts = 0
+        entry_failures = 0
         if not halt:
             for symbol, decision in decisions.items():
                 route = routed_decisions.get(symbol)
@@ -1047,6 +1053,7 @@ class PaperRunner:
                         }
                     )
                 try:
+                    entry_attempts += 1
                     event = self.engines.call(
                         "paper_ledger",
                         "buy",
@@ -1080,6 +1087,7 @@ class PaperRunner:
                         except Exception as exc:  # noqa: BLE001 - paper fill is final; expose memory capture failure
                             errors[f"{symbol}:memory_capture"] = f"{type(exc).__name__}: {exc}"
                 except ValueError as exc:
+                    entry_failures += 1
                     errors[symbol] = str(exc)
 
         equity = self.engines.call("paper_ledger", "equity", prices)
@@ -1176,11 +1184,43 @@ class PaperRunner:
                 error_attribution["required_count"],
                 ",".join(error_attribution["keys"]),
             )
+        block_reason_counts: dict[str, int] = {}
+        for reason in entry_blocks.values():
+            block_reason_counts[str(reason)] = block_reason_counts.get(str(reason), 0) + 1
+        execution_funnel = {
+            "symbols_evaluated": len(decisions),
+            "base_enter_candidates": sum(1 for decision in decisions.values() if decision.enter_long),
+            "router_approved_pre_brain": sum(
+                1 for route in routed_decisions.values() if route.get("router_allowed_pre_brain") is True
+            ),
+            "brain_approved": sum(
+                1
+                for symbol, brain in brain_decisions.items()
+                if brain.get("allow_entry") is True
+                and (routed_decisions.get(symbol) or {}).get("router_allowed_pre_brain") is True
+            ),
+            "final_route_allowed": sum(
+                1 for route in routed_decisions.values() if route.get("allowed") is True
+            ),
+            "entry_attempts": entry_attempts,
+            "entry_failures": entry_failures,
+            "buy_events": sum(1 for event in events if event.get("side") == "buy"),
+            "sell_events": sum(1 for event in events if event.get("side") == "sell"),
+            "entry_blocks": len(entry_blocks),
+            "entry_block_reasons": block_reason_counts,
+            "open_positions": len(self.ledger.positions),
+            "paper_trade_events_total": self.ledger.trade_count,
+            "halted": bool(halt),
+        }
+        observatory_health = self.strategy_observatory.health()
+        memory_health = self.memory.health()
+        availability_total = self.error_attribution.health().get("total_unavailable")
+
         status = {
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v12.4-cns-brain-memory",
+            "runtime": "verified-multi-engine-v12.5-cns-brain-memory",
             "exchange": self.settings.exchange,
             "resolved_timeframes": list(resolved_timeframes),
             "cycle_symbols": cycle_symbols,
@@ -1192,7 +1232,11 @@ class PaperRunner:
             "events": events,
             "errors": errors,
             "error_attribution": error_attribution,
+            "availability_total": availability_total,
             "entry_blocks": entry_blocks,
+            "execution_funnel": execution_funnel,
+            "strategy_observatory_health": observatory_health,
+            "memory_health": memory_health,
             "decisions": {
                 symbol: {
                     "regime": decision.regime,
@@ -1230,7 +1274,7 @@ class PaperRunner:
             },
             "memory_retention": {
                 "summaries": memory_summaries,
-                "health": self.memory.health(),
+                "health": memory_health,
                 "execution_authority": False,
             },
             "error_attribution_health": self.error_attribution.health(),
@@ -1494,7 +1538,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v12.4-cns-brain-memory",
+        "runtime": "verified-multi-engine-v12.5-cns-brain-memory",
         "cns_brain_memory": {
             "cns_execution_authority": False,
             "brain_can_only_reduce_or_veto": True,

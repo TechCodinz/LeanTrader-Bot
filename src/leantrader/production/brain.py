@@ -20,7 +20,7 @@ class TradingBrain:
     code, or deploy itself.
     """
 
-    VERSION = "2.1"
+    VERSION = "2.2"
     SAVE_INTERVAL = 10
 
     def __init__(
@@ -52,6 +52,7 @@ class TradingBrain:
         self.downsizes = 0
         self.last: dict[str, dict[str, Any]] = {}
         self.quarantined_strategies: dict[str, dict[str, Any]] = {}
+        self.legacy_quarantined_strategies: dict[str, dict[str, Any]] = {}
         self.last_error: str | None = None
         self._load()
 
@@ -62,17 +63,20 @@ class TradingBrain:
         self._save()
 
     @staticmethod
-    def strategy_expectancy(strategy_evidence: dict[str, Any] | None) -> tuple[int, float]:
+    def strategy_expectancy(strategy_evidence: dict[str, Any] | None) -> tuple[int, float, str]:
         evidence = strategy_evidence or {}
+        authority = str(evidence.get("authority") or "untrusted_or_legacy")
+        if authority not in {"costed_shadow_episode_v2", "closed_trade"}:
+            return 0, 0.0, authority
         samples = int(evidence.get("samples") or 0)
         if samples <= 0:
-            return 0, 0.0
+            return 0, 0.0, authority
         if evidence.get("ewma_net_return") is not None:
-            return samples, float(evidence["ewma_net_return"])
+            return samples, float(evidence["ewma_net_return"]), authority
         if evidence.get("average_net_return") is not None:
-            return samples, float(evidence["average_net_return"])
+            return samples, float(evidence["average_net_return"]), authority
         cumulative = float(evidence.get("cumulative_net_return") or 0.0)
-        return samples, cumulative / samples
+        return samples, cumulative / samples, authority
 
     def evaluate(
         self,
@@ -95,7 +99,7 @@ class TradingBrain:
             # support/return before v12.2. Runtime v12.2 always sends samples.
             memory_samples = 4 if memory_support >= 0.50 else 0
         memory_source = str(memory.get("source") or "none")
-        samples, expectancy = self.strategy_expectancy(strategy_evidence)
+        samples, expectancy, evidence_authority = self.strategy_expectancy(strategy_evidence)
 
         reasons: list[str] = []
         allow_entry = bool(upstream_allowed)
@@ -131,6 +135,7 @@ class TradingBrain:
                 "samples": samples,
                 "expectancy": expectancy,
                 "reason": "persistent_negative_expectancy",
+                "evidence_authority": evidence_authority,
                 "quarantined_at": time.time(),
             }
             self.quarantined_strategies[strategy_name] = quarantine
@@ -196,6 +201,7 @@ class TradingBrain:
             "memory_weighted_net_return": memory_return,
             "strategy_samples": samples,
             "strategy_expectancy": expectancy,
+            "strategy_evidence_authority": evidence_authority,
             "strategy_quarantined": quarantine is not None,
             "execution_authority": False,
             "can_increase_upstream_risk": False,
@@ -218,6 +224,8 @@ class TradingBrain:
             "tracked_symbols": len(self.last),
             "quarantined_strategies": len(self.quarantined_strategies),
             "quarantine": dict(self.quarantined_strategies),
+            "legacy_quarantines_released": len(self.legacy_quarantined_strategies),
+            "accepted_strategy_evidence_authorities": ["costed_shadow_episode_v2", "closed_trade"],
             "minimum_strategy_samples": self.min_strategy_samples,
             "negative_expectancy_floor": self.negative_expectancy_floor,
             "quarantine_min_samples": self.quarantine_min_samples,
@@ -240,7 +248,16 @@ class TradingBrain:
             self.vetoes = int(payload.get("vetoes", 0))
             self.downsizes = int(payload.get("downsizes", 0))
             self.last = dict(payload.get("last") or {})
-            self.quarantined_strategies = dict(payload.get("quarantined_strategies") or {})
+            loaded_quarantine = dict(payload.get("quarantined_strategies") or {})
+            self.legacy_quarantined_strategies = dict(payload.get("legacy_quarantined_strategies") or {})
+            if str(payload.get("version") or "") == self.VERSION:
+                self.quarantined_strategies = loaded_quarantine
+            else:
+                # v12.4/v2.1 quarantines were allowed to depend on per-poll
+                # observatory pseudo-P&L. Preserve them for audit but do not let
+                # contaminated legacy evidence veto new paper/Testnet entries.
+                self.legacy_quarantined_strategies.update(loaded_quarantine)
+                self.quarantined_strategies = {}
             self.last_error = None
         except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
             self.last_error = f"{type(exc).__name__}: {exc}"
@@ -257,6 +274,7 @@ class TradingBrain:
             "downsizes": self.downsizes,
             "last": self.last,
             "quarantined_strategies": self.quarantined_strategies,
+            "legacy_quarantined_strategies": self.legacy_quarantined_strategies,
             "updated_at": time.time(),
         }
         temporary.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")

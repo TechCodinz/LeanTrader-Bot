@@ -53,7 +53,7 @@ def test_brain_can_only_reduce_upstream_risk(tmp_path: Path):
         symbol="BTC/USDT",
         cns={"signal_coherence": 0.8, "risk_pressure": 0.1, "action_bias": 0.6, "safety_blocks": []},
         memory={"support": 0.8, "weighted_net_return": 0.01},
-        strategy_evidence={"samples": 100, "cumulative_net_return": 0.05},
+        strategy_evidence={"authority": "costed_shadow_episode_v2", "samples": 100, "cumulative_net_return": 0.05},
         upstream_allowed=True,
     )
     assert result["allow_entry"] is True
@@ -69,7 +69,7 @@ def test_brain_downsizes_sufficient_negative_evidence(tmp_path: Path):
         symbol="BTC/USDT",
         cns={"signal_coherence": 0.7, "risk_pressure": 0.05, "action_bias": 0.3, "safety_blocks": []},
         memory={"support": 0.7, "weighted_net_return": -0.01},
-        strategy_evidence={"samples": 128, "cumulative_net_return": -0.20},
+        strategy_evidence={"authority": "costed_shadow_episode_v2", "samples": 128, "cumulative_net_return": -0.20},
         upstream_allowed=True,
     )
     assert result["risk_multiplier"] <= 0.20
@@ -110,7 +110,7 @@ def test_brain_uses_per_sample_expectancy_not_cumulative_sum(tmp_path: Path):
         symbol="BTC/USDT",
         cns={"signal_coherence": 0.9, "risk_pressure": 0.0, "action_bias": 0.5, "safety_blocks": []},
         memory={"support": 0.0, "weighted_net_return": 0.0},
-        strategy_evidence={"samples": 100, "cumulative_net_return": -0.05},
+        strategy_evidence={"authority": "costed_shadow_episode_v2", "samples": 100, "cumulative_net_return": -0.05},
         upstream_allowed=True,
     )
     assert result["strategy_expectancy"] == -0.0005
@@ -129,7 +129,7 @@ def test_brain_quarantines_persistent_negative_expectancy(tmp_path: Path):
         symbol="BTC/USDT",
         cns={"signal_coherence": 0.9, "risk_pressure": 0.0, "action_bias": 0.5, "safety_blocks": []},
         memory={"support": 0.0, "weighted_net_return": 0.0},
-        strategy_evidence={"samples": 120, "average_net_return": -0.005},
+        strategy_evidence={"authority": "costed_shadow_episode_v2", "samples": 120, "average_net_return": -0.005},
         upstream_allowed=True,
     )
     assert result["allow_entry"] is False
@@ -169,3 +169,43 @@ def test_capital_growth_caps_total_open_notional_to_deployable_budget(tmp_path: 
     assert exhausted["remaining_deployable_notional"] == 0.0
     assert exhausted["new_entries_allowed"] is False
     assert exhausted["risk_multiplier"] == 0.0
+
+
+def test_brain_ignores_untrusted_legacy_shadow_evidence(tmp_path: Path):
+    brain = TradingBrain(tmp_path / "brain.json", min_strategy_samples=10, quarantine_min_samples=20)
+    result = brain.evaluate(
+        symbol="BTC/USDT",
+        cns={"signal_coherence": 0.9, "risk_pressure": 0.0, "action_bias": 0.5, "safety_blocks": []},
+        memory={"support": 0.0, "weighted_net_return": 0.0},
+        strategy_evidence={"samples": 500, "average_net_return": -0.50},
+        upstream_allowed=True,
+    )
+    assert result["strategy_samples"] == 0
+    assert result["strategy_quarantined"] is False
+    assert "negative_strategy_evidence" not in result["reasons"]
+    assert result["strategy_evidence_authority"] == "untrusted_or_legacy"
+
+
+def test_brain_releases_v21_quarantines_on_migration(tmp_path: Path):
+    path = tmp_path / "brain.json"
+    path.write_text(
+        __import__("json").dumps(
+            {
+                "version": "2.1",
+                "evaluations": 10,
+                "vetoes": 4,
+                "downsizes": 2,
+                "last": {},
+                "quarantined_strategies": {
+                    "bounded_decision_router:BTC/USDT": {
+                        "strategy": "bounded_decision_router:BTC/USDT",
+                        "samples": 100,
+                        "expectancy": -0.005,
+                    }
+                },
+            }
+        )
+    )
+    brain = TradingBrain(path)
+    assert brain.quarantined_strategies == {}
+    assert "bounded_decision_router:BTC/USDT" in brain.legacy_quarantined_strategies
