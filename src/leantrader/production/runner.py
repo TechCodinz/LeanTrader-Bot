@@ -1538,7 +1538,7 @@ class PaperRunner:
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v12.8.2-deep-flow-self-model-hygiene",
+            "runtime": "verified-multi-engine-v12.9-sensory-reliability-context-integrity",
             "exchange": self.settings.exchange,
             "resolved_timeframes": list(resolved_timeframes),
             "cycle_symbols": cycle_symbols,
@@ -1931,7 +1931,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v12.8.2-deep-flow-self-model-hygiene",
+        "runtime": "verified-multi-engine-v12.9-sensory-reliability-context-integrity",
         "cns_brain_memory": {
             "cns_execution_authority": False,
             "brain_can_only_reduce_or_veto": True,
@@ -1968,7 +1968,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
             "can_deploy": False,
         },
         "market_sensor_fabric": {
-            "version": "2.1",
+            "version": "2.2",
             "bybit_derivatives_positioning": True,
             "bybit_liquidation_websocket": True,
             "deribit_options_surface": True,

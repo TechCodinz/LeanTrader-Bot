@@ -32,7 +32,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
-    assert result["runtime"] == "verified-multi-engine-v12.8.2-deep-flow-self-model-hygiene"
+    assert result["runtime"] == "verified-multi-engine-v12.9-sensory-reliability-context-integrity"
     assert set(result["engines"]) == {
         "market_data",
         "exchange_intelligence",

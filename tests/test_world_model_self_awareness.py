@@ -366,3 +366,14 @@ def test_self_model_archives_legacy_contradiction_history_on_load(tmp_path):
     assert model.state["contradiction_history"] == []
     assert len(model.state["legacy_contradiction_history_v1"]) == 1
     assert model.state["contradiction_event_model"] == "episode_dedup_v2"
+
+
+def test_meta_cognition_persists_version_marker(tmp_path):
+    from leantrader.production.meta_cognition import MetaCognitiveSelfModel
+    import json
+    p = tmp_path / "self.json"
+    model = MetaCognitiveSelfModel(p)
+    model.stop()
+    state = json.loads(p.read_text())
+    assert state["version"] == "1.1"
+    assert state["contradiction_event_model"] == "episode_dedup_v2"

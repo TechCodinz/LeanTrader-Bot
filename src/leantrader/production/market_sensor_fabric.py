@@ -67,10 +67,13 @@ class _JsonHttp:
         self.session = requests.Session()
         self.timeout = timeout
 
-    def get(self, url: str, *, params: dict[str, Any]) -> dict[str, Any]:
+    def get_any(self, url: str, *, params: dict[str, Any]) -> Any:
         response = self.session.get(url, params=params, timeout=self.timeout)
         response.raise_for_status()
-        payload = response.json()
+        return response.json()
+
+    def get(self, url: str, *, params: dict[str, Any]) -> dict[str, Any]:
+        payload = self.get_any(url, params=params)
         if not isinstance(payload, dict):
             raise ValueError("JSON response is not an object")
         return payload
@@ -582,8 +585,14 @@ class DefiLlamaStablecoinSensor:
         self.calls += 1
         now = time.time()
         try:
-            directory = self.http.get(f"{self.BASE_URL}/stablecoins", params={"includePrices": "true"})
-            assets = directory.get("peggedAssets") or directory.get("stablecoins") or []
+            fetch_any = getattr(self.http, "get_any", self.http.get)
+            directory = fetch_any(f"{self.BASE_URL}/stablecoins", params={"includePrices": "true"})
+            if isinstance(directory, list):
+                assets = directory
+            elif isinstance(directory, dict):
+                assets = directory.get("peggedAssets") or directory.get("stablecoins") or []
+            else:
+                raise TypeError("stablecoin directory response must be a list or object")
             total = 0.0
             depeg = 0
             top: list[dict[str, Any]] = []
@@ -597,8 +606,13 @@ class DefiLlamaStablecoinSensor:
                     depeg += 1
                 top.append({"symbol": row.get("symbol"), "circulating_usd": circulating, "price": price})
             top.sort(key=lambda row: float(row.get("circulating_usd") or 0.0), reverse=True)
-            chart = self.http.get(f"{self.BASE_URL}/stablecoincharts/all", params={})
-            chart_rows = chart if isinstance(chart, list) else chart.get("data") or chart.get("chart") or []
+            chart = fetch_any(f"{self.BASE_URL}/stablecoincharts/all", params={})
+            if isinstance(chart, list):
+                chart_rows = chart
+            elif isinstance(chart, dict):
+                chart_rows = chart.get("data") or chart.get("chart") or []
+            else:
+                raise TypeError("stablecoin chart response must be a list or object")
             hist: list[float] = []
             for row in chart_rows[-8:]:
                 if isinstance(row, dict):
@@ -629,7 +643,7 @@ class MarketSensorFabric:
     alter routes, sizing, risk ceilings or execution authority.
     """
 
-    VERSION = "2.1"
+    VERSION = "2.2"
     SCHEMA_VERSION = 3
 
     def __init__(

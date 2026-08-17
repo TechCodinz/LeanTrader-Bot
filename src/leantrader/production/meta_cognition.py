@@ -479,6 +479,7 @@ class MetaCognitiveSelfModel:
 
     def _load(self) -> dict[str, Any]:
         empty = {
+            "version": self.VERSION,
             "schema_version": self.SCHEMA_VERSION,
             "assessments": 0,
             "closed_outcomes": 0,
@@ -497,6 +498,7 @@ class MetaCognitiveSelfModel:
         try:
             payload = json.loads(self.state_path.read_text(encoding="utf-8"))
             if int(payload.get("schema_version") or 0) == self.SCHEMA_VERSION:
+                payload["version"] = self.VERSION
                 if payload.get("contradiction_event_model") != "episode_dedup_v2":
                     legacy = list(payload.get("contradiction_history") or [])[-500:]
                     if legacy:
@@ -513,6 +515,7 @@ class MetaCognitiveSelfModel:
     def _save(self) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.state_path.with_suffix(self.state_path.suffix + ".tmp")
+        self.state["version"] = self.VERSION
         self.state["schema_version"] = self.SCHEMA_VERSION
         self.state["assessments"] = self.assessments
         self.state["closed_outcomes"] = self.closed_outcomes

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from leantrader.production.market_sensor_fabric import BybitDerivativesSensor, MarketSensorFabric
+from leantrader.production.market_sensor_fabric import BybitDerivativesSensor, DefiLlamaStablecoinSensor, MarketSensorFabric
 
 
 class FakeHttp:
@@ -45,3 +45,33 @@ def test_fabric_source_status_marks_missing_adapters_explicitly(tmp_path: Path):
     assert status['options_surface'] == 'available'
     assert status['onchain_flows'] == 'unconfigured_or_unavailable'
     assert status['stablecoin_liquidity'] == 'available'
+
+
+class StablecoinListHttp:
+    def get_any(self, url, *, params):
+        if url.endswith('/stablecoins'):
+            return [
+                {'symbol':'USDT','circulating':{'peggedUSD':1000},'price':1.0},
+                {'symbol':'USDC','circulating':{'peggedUSD':500},'price':0.999},
+            ]
+        if url.endswith('/stablecoincharts/all'):
+            return [
+                {'totalCirculatingUSD':{'peggedUSD':1400}},
+                {'totalCirculatingUSD':{'peggedUSD':1500}},
+            ]
+        raise AssertionError(url)
+
+    def get(self, url, *, params):
+        value = self.get_any(url, params=params)
+        if not isinstance(value, dict):
+            raise ValueError('JSON response is not an object')
+        return value
+
+
+def test_defillama_stablecoin_sensor_accepts_list_responses():
+    sensor = DefiLlamaStablecoinSensor(http=StablecoinListHttp())
+    row = sensor.collect()
+    assert row['status'] == 'available'
+    assert row['values']['total_circulating_usd'] == 1500
+    assert row['values']['recent_supply_change'] > 0
+    assert sensor.health()['failures'] == 0

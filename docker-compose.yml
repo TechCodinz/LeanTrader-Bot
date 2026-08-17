@@ -111,7 +111,7 @@ services:
       PROMETHEUS_METRICS_PATH: ${PROMETHEUS_METRICS_PATH:-runtime/vps_metrics.prom}
       HEARTBEAT_PATH: ${HEARTBEAT_PATH:-runtime/vps_heartbeat.json}
       HEARTBEAT_MAX_AGE: ${HEARTBEAT_MAX_AGE:-180}
-      EXPECTED_RUNTIME_ID: ${EXPECTED_RUNTIME_ID:-verified-multi-engine-v12.8.2-deep-flow-self-model-hygiene}
+      EXPECTED_RUNTIME_ID: ${EXPECTED_RUNTIME_ID:-verified-multi-engine-v12.9-sensory-reliability-context-integrity}
       TRADES_LOG_PATH: ${TRADES_LOG_PATH:-logs/vps_trades.jsonl}
       ADAPTIVE_LEARNING_RATE: ${ADAPTIVE_LEARNING_RATE:-0.08}
       ADAPTIVE_MIN_SAMPLES: ${ADAPTIVE_MIN_SAMPLES:-5}
