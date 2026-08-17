@@ -24,12 +24,12 @@ class TailRiskSentinel:
     """Modernized Black-Swan/Tail-Risk sentinel.
 
     It watches for compound discontinuities rather than attempting to predict a
-    mythical black swan from one indicator.  The sentinel is shadow-only in
-    v12.6.  It can recommend less risk, never more risk, and cannot halt or trade
-    without a separately validated governance integration.
+    mythical black swan from one indicator.  The sentinel has no direct execution
+    authority; its bounded advisory may now be consumed by the v12.10 cognitive
+    governance bridge to preserve, reduce or veto new risk, never increase it.
     """
 
-    VERSION = "1.0"
+    VERSION = "1.1"
     SCHEMA_VERSION = 1
     SAVE_INTERVAL = 5
     EVENT_LIMIT = 1_000
@@ -130,7 +130,9 @@ class TailRiskSentinel:
             "compound_extreme_count": compound_extreme_count,
             "recommendation": recommendation,
             "risk_guidance_multiplier": risk_guidance,
-            "shadow_only": True,
+            "shadow_only": False,
+            "governance_advisory": True,
+            "can_recommend_entry_veto": True,
             "execution_authority": False,
             "can_increase_risk": False,
             "can_halt_execution": False,
@@ -163,7 +165,9 @@ class TailRiskSentinel:
             "events": len(self.state.get("events") or []),
             "legacy_black_swan_code_loaded": False,
             "compound_tail_risk_detection": True,
-            "shadow_only": True,
+            "shadow_only": False,
+            "governance_advisory": True,
+            "can_recommend_entry_veto": True,
             "execution_authority": False,
             "can_increase_risk": False,
             "can_halt_execution": False,

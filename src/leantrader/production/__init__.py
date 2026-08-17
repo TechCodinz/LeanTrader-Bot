@@ -9,6 +9,7 @@ __all__ = [
     "arbitrage_monitor",
     "memory_retention",
     "cns",
+    "cognitive_governance",
     "capital_growth",
     "brain",
     "ccxt_compat",

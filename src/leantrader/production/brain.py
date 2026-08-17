@@ -20,7 +20,7 @@ class TradingBrain:
     code, or deploy itself.
     """
 
-    VERSION = "2.2"
+    VERSION = "2.3"
     SAVE_INTERVAL = 10
 
     def __init__(
@@ -50,6 +50,9 @@ class TradingBrain:
         self.evaluations = 0
         self.vetoes = 0
         self.downsizes = 0
+        self.cognitive_reviews = 0
+        self.cognitive_vetoes = 0
+        self.cognitive_downsizes = 0
         self.last: dict[str, dict[str, Any]] = {}
         self.quarantined_strategies: dict[str, dict[str, Any]] = {}
         self.legacy_quarantined_strategies: dict[str, dict[str, Any]] = {}
@@ -215,12 +218,78 @@ class TradingBrain:
             self._save()
         return dict(result)
 
+    def apply_cognitive_governance(
+        self,
+        *,
+        symbol: str,
+        base_decision: dict[str, Any],
+        governance: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Apply the higher-intelligence safety envelope without creating risk.
+
+        This is deliberately a second-stage Brain review: the existing CNS/memory/
+        strategy decision remains the upstream authority, while cognitive evidence
+        can only preserve it, reduce it, or veto it.
+        """
+        symbol = symbol.upper()
+        allow_entry = bool(base_decision.get("allow_entry"))
+        risk_multiplier = _clip(float(base_decision.get("risk_multiplier", 1.0)))
+        confidence_multiplier = _clip(float(base_decision.get("confidence_multiplier", 1.0)))
+        reasons = [str(value) for value in (base_decision.get("reasons") or [])]
+
+        governance_allow = bool(governance.get("allow_entry", True))
+        governance_risk = _clip(float(governance.get("risk_multiplier", 1.0)))
+        governance_confidence = _clip(float(governance.get("confidence_multiplier", 1.0)))
+        governance_reasons = [str(value) for value in (governance.get("reasons") or [])]
+
+        if allow_entry and not governance_allow:
+            allow_entry = False
+            risk_multiplier = 0.0
+            self.cognitive_vetoes += 1
+        else:
+            before = risk_multiplier
+            risk_multiplier = min(risk_multiplier, governance_risk)
+            if allow_entry and risk_multiplier < before - 1e-12:
+                self.cognitive_downsizes += 1
+
+        confidence_multiplier = min(confidence_multiplier, governance_confidence)
+        reasons.extend(f"cognitive:{reason}" for reason in governance_reasons)
+        if allow_entry and risk_multiplier <= 0.0:
+            allow_entry = False
+
+        result = dict(base_decision)
+        result.update(
+            {
+                "symbol": symbol,
+                "allow_entry": allow_entry,
+                "risk_multiplier": risk_multiplier,
+                "confidence_multiplier": confidence_multiplier,
+                "reasons": list(dict.fromkeys(reasons)),
+                "cognitive_governance": dict(governance),
+                "cognitive_governance_applied": True,
+                "execution_authority": False,
+                "can_increase_upstream_risk": False,
+                "can_enable_live": False,
+                "can_rewrite_or_deploy": False,
+                "cognitive_reviewed_at": time.time(),
+            }
+        )
+        self.last[symbol] = result
+        self.cognitive_reviews += 1
+        if self.cognitive_reviews % self.SAVE_INTERVAL == 0:
+            self._save()
+        return dict(result)
+
     def health(self) -> dict[str, Any]:
         return {
             "healthy": self.last_error is None,
             "evaluations": self.evaluations,
             "vetoes": self.vetoes,
             "downsizes": self.downsizes,
+            "cognitive_reviews": self.cognitive_reviews,
+            "cognitive_vetoes": self.cognitive_vetoes,
+            "cognitive_downsizes": self.cognitive_downsizes,
+            "cognitive_governance_supported": True,
             "tracked_symbols": len(self.last),
             "quarantined_strategies": len(self.quarantined_strategies),
             "quarantine": dict(self.quarantined_strategies),
@@ -247,10 +316,13 @@ class TradingBrain:
             self.evaluations = int(payload.get("evaluations", 0))
             self.vetoes = int(payload.get("vetoes", 0))
             self.downsizes = int(payload.get("downsizes", 0))
+            self.cognitive_reviews = int(payload.get("cognitive_reviews", 0))
+            self.cognitive_vetoes = int(payload.get("cognitive_vetoes", 0))
+            self.cognitive_downsizes = int(payload.get("cognitive_downsizes", 0))
             self.last = dict(payload.get("last") or {})
             loaded_quarantine = dict(payload.get("quarantined_strategies") or {})
             self.legacy_quarantined_strategies = dict(payload.get("legacy_quarantined_strategies") or {})
-            if str(payload.get("version") or "") == self.VERSION:
+            if str(payload.get("version") or "") in {"2.2", self.VERSION}:
                 self.quarantined_strategies = loaded_quarantine
             else:
                 # v12.4/v2.1 quarantines were allowed to depend on per-poll
@@ -272,6 +344,9 @@ class TradingBrain:
             "evaluations": self.evaluations,
             "vetoes": self.vetoes,
             "downsizes": self.downsizes,
+            "cognitive_reviews": self.cognitive_reviews,
+            "cognitive_vetoes": self.cognitive_vetoes,
+            "cognitive_downsizes": self.cognitive_downsizes,
             "last": self.last,
             "quarantined_strategies": self.quarantined_strategies,
             "legacy_quarantined_strategies": self.legacy_quarantined_strategies,

@@ -20,6 +20,7 @@ from .hypothesis_lab import HypothesisLab
 from .intelligence_council import IntelligenceCouncil
 from .capital_growth import CapitalGrowthGovernor
 from .cns import CentralNervousSystem
+from .cognitive_governance import CognitiveGovernanceBridge
 from .decision_router import BoundedDecisionRouter, MarketEvidenceGate
 from .engine_control import EngineRegistry
 from .error_attribution import ErrorAttributionTracker
@@ -320,6 +321,7 @@ class PaperRunner:
         self.hypothesis_lab = HypothesisLab(settings.hypothesis_lab_state_path)
         self.active_research = ActiveResearchPlanner(settings.active_research_state_path)
         self.tail_risk = TailRiskSentinel(settings.tail_risk_state_path)
+        self.cognitive_governance = CognitiveGovernanceBridge(settings.cognitive_governance_state_path)
         self.capital_growth = CapitalGrowthGovernor(
             settings.capital_growth_state_path,
             starting_equity=settings.starting_cash,
@@ -467,7 +469,7 @@ class PaperRunner:
         self.engines.register(
             "trading_brain",
             self.brain,
-            dependencies=("central_nervous_system", "memory_retention", "strategy_observatory", "decision_router"),
+            dependencies=("central_nervous_system", "memory_retention", "strategy_observatory", "decision_router", "cognitive_governance"),
             version=self.brain.VERSION,
         )
         self.engines.register(
@@ -488,7 +490,7 @@ class PaperRunner:
             "meta_cognitive_self_model",
             self.meta_cognition,
             required=False,
-            dependencies=("market_world_model", "central_nervous_system", "trading_brain", "memory_retention", "strategy_observatory"),
+            dependencies=("market_world_model", "central_nervous_system", "memory_retention", "strategy_observatory"),
             version=self.meta_cognition.VERSION,
         )
         self.engines.register(
@@ -502,7 +504,7 @@ class PaperRunner:
             "adversarial_critic",
             self.adversarial_critic,
             required=False,
-            dependencies=("intelligence_council", "meta_cognitive_self_model", "trading_brain"),
+            dependencies=("intelligence_council", "meta_cognitive_self_model"),
             version=self.adversarial_critic.VERSION,
         )
         self.engines.register(
@@ -525,6 +527,21 @@ class PaperRunner:
             required=False,
             dependencies=("market_world_model", "advanced_shadow_suite"),
             version=self.tail_risk.VERSION,
+        )
+        self.engines.register(
+            "cognitive_governance",
+            self.cognitive_governance,
+            dependencies=(
+                "market_world_model",
+                "meta_cognitive_self_model",
+                "intelligence_council",
+                "adversarial_critic",
+                "hypothesis_lab",
+                "active_research_planner",
+                "tail_risk_sentinel",
+                "memory_retention",
+            ),
+            version=self.cognitive_governance.VERSION,
         )
         self.engines.register(
             "capital_growth",
@@ -613,6 +630,7 @@ class PaperRunner:
         hypothesis_updates: dict[str, dict[str, Any]] = {}
         research_plans: dict[str, dict[str, Any]] = {}
         tail_risk_states: dict[str, dict[str, Any]] = {}
+        cognitive_governance_states: dict[str, dict[str, Any]] = {}
         public_symbol_context: dict[str, dict[str, Any]] = {}
         errors: dict[str, str] = {}
         self.engines.call("market_temporal_guard", "sync_clock")
@@ -873,6 +891,9 @@ class PaperRunner:
                 routed_decisions[symbol]["router_reason_pre_brain"] = str(
                     routed_decisions[symbol].get("reason") or "unknown"
                 )
+                routed_decisions[symbol]["router_size_multiplier_pre_brain"] = float(
+                    routed_decisions[symbol].get("size_multiplier", 1.0)
+                )
                 strategy_evidence = self.engines.call(
                     "strategy_observatory",
                     "evidence",
@@ -997,30 +1018,6 @@ class PaperRunner:
                     observatory_signals,
                     decisions[symbol].timeframe_signals,
                 )
-                self.engines.call(
-                    "operations_safety",
-                    "record_decision",
-                    symbol,
-                    {
-                        "close": decisions[symbol].close,
-                        "regime": decisions[symbol].regime,
-                        "confidence": decisions[symbol].confidence,
-                        "quality_score": decisions[symbol].quality_score,
-                        "component_scores": decisions[symbol].component_scores,
-                        "weights": decisions[symbol].weights,
-                        "advanced_shadow": advanced_decisions[symbol],
-                        "decision_route": routed_decisions[symbol],
-                        "cns": cns_packets[symbol],
-                        "brain": brain_decisions[symbol],
-                        "memory_summary": memory_summaries[symbol],
-                        "market_world_model": world_states.get(symbol, {}),
-                        "meta_cognitive_self_model": self_awareness.get(symbol, {}),
-                        "intelligence_council": council_decisions.get(symbol, {}),
-                        "adversarial_critic": critic_reviews.get(symbol, {}),
-                        "hypothesis_lab": hypothesis_updates.get(symbol, {}),
-                        "research_observation": research_observations[symbol],
-                    },
-                )
                 # Clear any previous symbol-level failure/unavailable state only
                 # after the full canonical symbol pipeline completes successfully.
                 # This lets transient provider failures and young-market maturity
@@ -1087,6 +1084,105 @@ class PaperRunner:
                 market_world=world_market_snapshot,
                 sensor_snapshot=sensor_snapshot,
             )
+
+        # Higher-order intelligence is now a bounded final Brain safety review.
+        # The council/critic/world/self/tail/research stack still has no direct
+        # execution authority: it can only preserve, reduce or veto an upstream
+        # Router + CNS + Memory + Brain approval through this fail-closed bridge.
+        for symbol in list(routed_decisions):
+            if symbol not in brain_decisions:
+                continue
+            route = routed_decisions[symbol]
+            upstream_allowed = bool(route.get("router_allowed_pre_brain"))
+            governance_key = f"{symbol}:cognitive_governance"
+            try:
+                governance = self.engines.call(
+                    "cognitive_governance",
+                    "evaluate",
+                    symbol=symbol,
+                    upstream_allowed=upstream_allowed,
+                    world=world_states.get(symbol, {}),
+                    self_model=self_awareness.get(symbol, {}),
+                    council=council_decisions.get(symbol, {}),
+                    critic=critic_reviews.get(symbol, {}),
+                    hypothesis=hypothesis_updates.get(symbol, {}),
+                    tail_risk=tail_risk_states.get(symbol, {}),
+                    research_plan=research_plans.get(symbol, {}),
+                    memory=memory_summaries.get(symbol, {}),
+                    public_context=public_symbol_context.get(symbol, {}),
+                    sensor_context=sensor_symbols.get(symbol, {}),
+                )
+                cognitive_governance_states[symbol] = governance
+                final_brain = self.engines.call(
+                    "trading_brain",
+                    "apply_cognitive_governance",
+                    symbol=symbol,
+                    base_decision=brain_decisions[symbol],
+                    governance=governance,
+                )
+                brain_decisions[symbol] = final_brain
+                route["brain"] = final_brain
+                route["cognitive_governance"] = governance
+                base_size = max(0.0, min(1.0, float(route.get("router_size_multiplier_pre_brain", 1.0))))
+                route["size_multiplier"] = max(
+                    0.0, min(1.0, base_size * float(final_brain.get("risk_multiplier", 0.0)))
+                )
+                if upstream_allowed and not final_brain.get("allow_entry"):
+                    route["allowed"] = False
+                    cognitive_reasons = [
+                        value for value in final_brain.get("reasons", [])
+                        if str(value).startswith("cognitive:")
+                    ]
+                    reason = cognitive_reasons[0] if cognitive_reasons else "cognitive_governance_veto"
+                    route["reason"] = f"brain:{reason}"
+                    route["size_multiplier"] = 0.0
+                self.error_attribution.success(governance_key)
+                self._shadow_call(
+                    errors,
+                    f"{symbol}:operations_provenance",
+                    "operations_safety",
+                    "record_decision",
+                    symbol,
+                    {
+                        "decision_stage": "post_cognitive_governance",
+                        "close": decisions[symbol].close,
+                        "regime": decisions[symbol].regime,
+                        "confidence": decisions[symbol].confidence,
+                        "quality_score": decisions[symbol].quality_score,
+                        "component_scores": decisions[symbol].component_scores,
+                        "weights": decisions[symbol].weights,
+                        "advanced_shadow": advanced_decisions[symbol],
+                        "decision_route": route,
+                        "cns": cns_packets.get(symbol, {}),
+                        "brain": final_brain,
+                        "memory_summary": memory_summaries.get(symbol, {}),
+                        "market_world_model": world_states.get(symbol, {}),
+                        "meta_cognitive_self_model": self_awareness.get(symbol, {}),
+                        "intelligence_council": council_decisions.get(symbol, {}),
+                        "adversarial_critic": critic_reviews.get(symbol, {}),
+                        "hypothesis_lab": hypothesis_updates.get(symbol, {}),
+                        "tail_risk_sentinel": tail_risk_states.get(symbol, {}),
+                        "active_research_plan": research_plans.get(symbol, {}),
+                        "cognitive_governance": governance,
+                        "research_observation": research_observations.get(symbol, {}),
+                    },
+                )
+            except Exception as exc:  # noqa: BLE001 - final safety bridge fails closed
+                error_text = f"{type(exc).__name__}: {exc}"
+                errors[governance_key] = error_text
+                self.error_attribution.failure(
+                    governance_key,
+                    error_text,
+                    optional=False,
+                    component="cognitive_governance",
+                    symbol=symbol,
+                )
+                route["allowed"] = False
+                route["reason"] = "cognitive_governance:unavailable"
+                route["size_multiplier"] = 0.0
+                LOGGER.error(
+                    "cognitive governance fail-closed symbol=%s error=%s", symbol, error_text
+                )
 
         prices = {symbol: decision.close for symbol, decision in decisions.items()}
         events: list[dict[str, Any]] = []
@@ -1346,6 +1442,7 @@ class PaperRunner:
                     "hypothesis_lab": hypothesis_updates.get(symbol, {}),
                     "tail_risk_sentinel": tail_risk_states.get(symbol, {}),
                     "active_research_plan": research_plans.get(symbol, {}),
+                    "cognitive_governance": cognitive_governance_states.get(symbol, {}),
                     "capital_growth": growth_state,
                 }
                 if position is None:
@@ -1496,6 +1593,13 @@ class PaperRunner:
                 if brain.get("allow_entry") is True
                 and (routed_decisions.get(symbol) or {}).get("router_allowed_pre_brain") is True
             ),
+            "cognitive_governance_reviewed": len(cognitive_governance_states),
+            "cognitive_governance_vetoes": sum(
+                1 for row in cognitive_governance_states.values() if row.get("action") == "veto"
+            ),
+            "cognitive_governance_reductions": sum(
+                1 for row in cognitive_governance_states.values() if row.get("action") == "reduce"
+            ),
             "final_route_allowed": sum(
                 1 for route in routed_decisions.values() if route.get("allowed") is True
             ),
@@ -1538,7 +1642,7 @@ class PaperRunner:
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v12.9-sensory-reliability-context-integrity",
+            "runtime": "verified-multi-engine-v12.10-cognitive-governance-bridge",
             "exchange": self.settings.exchange,
             "resolved_timeframes": list(resolved_timeframes),
             "cycle_symbols": cycle_symbols,
@@ -1616,7 +1720,7 @@ class PaperRunner:
             "adversarial_critic": {
                 "symbols": critic_reviews,
                 "health": self.adversarial_critic.health(),
-                "shadow_only": True,
+                "governance_advisory": True,
                 "execution_authority": False,
             },
             "hypothesis_lab": {
@@ -1636,8 +1740,16 @@ class PaperRunner:
             "tail_risk_sentinel": {
                 "symbols": tail_risk_states,
                 "health": self.tail_risk.health(),
-                "shadow_only": True,
+                "governance_advisory": True,
                 "execution_authority": False,
+            },
+            "cognitive_governance": {
+                "symbols": cognitive_governance_states,
+                "health": self.cognitive_governance.health(),
+                "evidence_authority": "bounded_cognitive_safety_v1",
+                "fail_closed": True,
+                "execution_authority": False,
+                "can_increase_upstream_risk": False,
             },
             "error_attribution_health": self.error_attribution.health(),
             "research_observations": research_observations,
@@ -1909,6 +2021,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
     settings.hypothesis_lab_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.active_research_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.tail_risk_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.cognitive_governance_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.market_sensor_fabric_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.provenance_path.parent.mkdir(parents=True, exist_ok=True)
     settings.metrics_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1931,7 +2044,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v12.9-sensory-reliability-context-integrity",
+        "runtime": "verified-multi-engine-v12.10-cognitive-governance-bridge",
         "cns_brain_memory": {
             "cns_execution_authority": False,
             "brain_can_only_reduce_or_veto": True,
@@ -1957,6 +2070,9 @@ def preflight(settings: Settings) -> dict[str, Any]:
             "hypothesis_lab": True,
             "active_research_planner": True,
             "tail_risk_sentinel": True,
+            "cognitive_governance_bridge": True,
+            "cognitive_governance_fail_closed": True,
+            "cognitive_governance_can_only_preserve_reduce_or_veto": True,
             "cross_market_lead_lag_discovery": True,
             "consciousness_claim": False,
             "novelty_is_not_trade_authority": True,

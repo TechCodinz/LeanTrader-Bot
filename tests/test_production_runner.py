@@ -32,7 +32,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
-    assert result["runtime"] == "verified-multi-engine-v12.9-sensory-reliability-context-integrity"
+    assert result["runtime"] == "verified-multi-engine-v12.10-cognitive-governance-bridge"
     assert set(result["engines"]) == {
         "market_data",
         "exchange_intelligence",
@@ -60,6 +60,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
         "hypothesis_lab",
         "active_research_planner",
         "tail_risk_sentinel",
+        "cognitive_governance",
         "capital_growth",
         "operations_safety",
     }
@@ -69,10 +70,12 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["market_world_model"]["execution_authority"] is False
     assert result["meta_cognitive_self_model"]["consciousness_claim"] is False
     assert result["intelligence_council"]["execution_authority"] is False
-    assert result["adversarial_critic"]["shadow_only"] is True
+    assert result["adversarial_critic"]["execution_authority"] is False
     assert result["hypothesis_lab"]["research_only"] is True
     assert result["active_research"]["execution_authority"] is False
-    assert result["tail_risk_sentinel"]["shadow_only"] is True
+    assert result["tail_risk_sentinel"]["governance_advisory"] is True
+    assert result["cognitive_governance"]["execution_authority"] is False
+    assert result["cognitive_governance"]["fail_closed"] is True
     assert result["research_governor"]["capital_preservation"]["state"] == "normal"
     assert result["capital_growth"]["martingale"] is False
     assert result["capital_growth"]["can_increase_upstream_risk"] is False
@@ -233,9 +236,13 @@ def test_dynamic_universe_scans_exchange_candidates_in_rotating_batches(monkeypa
     second = runner.cycle()
 
     assert first["cycle_symbols"] == ["BTC/USDT", "ETH/USDT"]
-    # Positions opened in the first batch stay at the front for exit safety;
-    # SOL still enters the next rotating batch, proving forward coverage.
-    assert second["cycle_symbols"] == ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+    # Cognitive governance may now veto all first-batch entries, so the second
+    # batch need not contain mandatory open positions. Forward rotation must
+    # still expose the unseen SOL market without losing universe coverage.
+    assert "SOL/USDT" in second["cycle_symbols"]
+    assert set(first["cycle_symbols"]) | set(second["cycle_symbols"]) == {
+        "BTC/USDT", "ETH/USDT", "SOL/USDT"
+    }
     universe = second["engines"]["market_universe"]
     assert universe["eligible_symbols"] == 3
     assert universe["full_sweeps"] == 1

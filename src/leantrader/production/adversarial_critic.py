@@ -25,11 +25,12 @@ class AdversarialCritic:
 
     The critic never creates risk.  It attempts to falsify strong conclusions,
     identifies missing evidence and outputs a confidence/risk haircut that is
-    visible to research and meta-cognition.  v12.6 keeps it shadow-only so it
-    cannot disturb the established v12.5 execution experiment.
+    visible to research and meta-cognition. In v12.10 that defensive haircut may
+    be consumed by cognitive governance, but the critic still cannot create risk
+    or place orders itself.
     """
 
-    VERSION = "1.0"
+    VERSION = "1.1"
     SCHEMA_VERSION = 1
     SAVE_INTERVAL = 10
 
@@ -143,7 +144,8 @@ class AdversarialCritic:
             "risk_guidance_multiplier": risk_guidance_multiplier,
             "objections": objections,
             "falsification_questions": falsification_questions,
-            "shadow_only": True,
+            "shadow_only": False,
+            "governance_advisory": True,
             "execution_authority": False,
             "can_increase_risk": False,
             "can_enable_live": False,
@@ -166,7 +168,8 @@ class AdversarialCritic:
             "reviews": self.reviews,
             "tracked_symbols": len(latest),
             "current_objections": objections,
-            "shadow_only": True,
+            "shadow_only": False,
+            "governance_advisory": True,
             "execution_authority": False,
             "can_increase_risk": False,
             "can_enable_live": False,

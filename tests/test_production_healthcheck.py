@@ -11,7 +11,7 @@ from leantrader.production import healthcheck
 def _write_heartbeat(path, **overrides):
     payload = {
         "timestamp": time.time(),
-        "runtime": "verified-multi-engine-v12.9-sensory-reliability-context-integrity",
+        "runtime": "verified-multi-engine-v12.10-cognitive-governance-bridge",
         "healthy": True,
         "errors": {},
         "testnet_execution": {"enabled": False},
@@ -24,7 +24,7 @@ def test_healthcheck_accepts_current_v12_runtime(tmp_path, monkeypatch, capsys):
     heartbeat = tmp_path / "heartbeat.json"
     _write_heartbeat(heartbeat)
     monkeypatch.setenv("HEARTBEAT_PATH", str(heartbeat))
-    monkeypatch.setenv("EXPECTED_RUNTIME_ID", "verified-multi-engine-v12.9-sensory-reliability-context-integrity")
+    monkeypatch.setenv("EXPECTED_RUNTIME_ID", "verified-multi-engine-v12.10-cognitive-governance-bridge")
 
     healthcheck.main()
 
@@ -35,7 +35,7 @@ def test_healthcheck_rejects_fresh_stale_release_heartbeat(tmp_path, monkeypatch
     heartbeat = tmp_path / "heartbeat.json"
     _write_heartbeat(heartbeat, runtime="verified-multi-engine-v11-exchange-protection")
     monkeypatch.setenv("HEARTBEAT_PATH", str(heartbeat))
-    monkeypatch.setenv("EXPECTED_RUNTIME_ID", "verified-multi-engine-v12.9-sensory-reliability-context-integrity")
+    monkeypatch.setenv("EXPECTED_RUNTIME_ID", "verified-multi-engine-v12.10-cognitive-governance-bridge")
 
     with pytest.raises(SystemExit) as exc:
         healthcheck.main()

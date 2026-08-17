@@ -25,13 +25,13 @@ def _finite(value: Any, default: float = 0.0) -> float:
 class IntelligenceCouncil:
     """Trust-aware council of independent market specialists.
 
-    Council output is research/meta-cognitive evidence only in v12.6.  It cannot
-    place orders or increase any existing risk budget.  Persisted activity makes
-    it possible to measure whether a seemingly sophisticated specialist is
-    actually contributing over time.
+    Council output remains non-executing evidence.  In v12.10 it may inform the
+    bounded cognitive-governance safety envelope, which can only preserve, reduce
+    or veto upstream risk. Persisted activity makes it possible to measure whether
+    a seemingly sophisticated specialist is actually contributing over time.
     """
 
-    VERSION = "1.0"
+    VERSION = "1.1"
     SCHEMA_VERSION = 1
     SAVE_INTERVAL = 10
 
@@ -195,7 +195,9 @@ class IntelligenceCouncil:
             "paper_authority": False,
             "testnet_authority": False,
             "live_authority": False,
-            "can_only_inform_research": True,
+            "can_only_inform_research": False,
+            "can_inform_bounded_governance": True,
+            "can_increase_risk": False,
             "deliberated_at": time.time(),
         }
         self.state.setdefault("latest", {})[symbol.upper()] = result
@@ -219,6 +221,8 @@ class IntelligenceCouncil:
             "live_authority": False,
             "trust_aware": True,
             "disagreement_visible": True,
+            "can_inform_bounded_governance": True,
+            "can_increase_risk": False,
             "state_path": str(self.state_path),
             "error": self.last_error,
         }

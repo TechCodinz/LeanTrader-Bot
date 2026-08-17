@@ -100,6 +100,7 @@ class Settings:
     hypothesis_lab_state_path: Path
     active_research_state_path: Path
     tail_risk_state_path: Path
+    cognitive_governance_state_path: Path
     market_sensor_fabric_state_path: Path
     fred_api_key_path: Path
     glassnode_api_key_path: Path
@@ -273,6 +274,9 @@ class Settings:
             ),
             tail_risk_state_path=Path(
                 os.getenv("TAIL_RISK_STATE_PATH", "runtime/vps_tail_risk.json")
+            ),
+            cognitive_governance_state_path=Path(
+                os.getenv("COGNITIVE_GOVERNANCE_STATE_PATH", "runtime/vps_cognitive_governance.json")
             ),
             market_sensor_fabric_state_path=Path(
                 os.getenv("MARKET_SENSOR_FABRIC_STATE_PATH", "runtime/vps_market_sensor_fabric.json")

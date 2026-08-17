@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 
-DEFAULT_RUNTIME_ID = "verified-multi-engine-v12.9-sensory-reliability-context-integrity"
+DEFAULT_RUNTIME_ID = "verified-multi-engine-v12.10-cognitive-governance-bridge"
 
 
 def main() -> None:
