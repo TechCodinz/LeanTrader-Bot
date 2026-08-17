@@ -41,7 +41,7 @@ class MarketWorldModel:
     engines can investigate them without turning novelty itself into a trade.
     """
 
-    VERSION = "1.0"
+    VERSION = "1.1"
     SCHEMA_VERSION = 1
     HISTORY_LIMIT = 256
     ANOMALY_LIMIT = 1_000
@@ -168,6 +168,7 @@ class MarketWorldModel:
         timeframe_signals: dict[str, float] | None = None,
         timeframe_coverage: float = 0.0,
         external_sensors: dict[str, Any] | None = None,
+        evolution_evidence: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         symbol = symbol.upper()
         close = self._series(frame, "close")
@@ -227,6 +228,38 @@ class MarketWorldModel:
         whale_concentration_change = _finite(flow_intelligence.get("whale_concentration_change"))
         network_congestion_score = _clip(_finite(flow_intelligence.get("network_congestion_score")), 0.0, 1.0)
         flow_contradictions = list(flow_intelligence.get("contradictions") or [])
+
+        # Hot evolution-pack evidence is deliberately research-only. It becomes
+        # visible to the World Model without changing state confidence, rare-scope
+        # score, Router/Brain decisions, or execution authority. Candidate signals
+        # are measured separately by the Evolution Fabric before any future core
+        # release can consider promoting them.
+        evolution_rows = [
+            row for row in (evolution_evidence or [])
+            if isinstance(row, dict) and row.get("execution_authority") is False
+        ][:50]
+        evolution_signal_rows = [row for row in evolution_rows if row.get("kind") == "signal"]
+        evolution_risk_rows = [row for row in evolution_rows if row.get("kind") == "risk"]
+        evolution_anomaly_rows = [row for row in evolution_rows if row.get("kind") == "anomaly"]
+        def _weighted_external(rows: list[dict[str, Any]]) -> float:
+            weights = [_clip(_finite(row.get("confidence"))) for row in rows]
+            total = sum(weights)
+            if total <= 0:
+                return 0.0
+            return sum(_finite(row.get("score")) * weight for row, weight in zip(rows, weights)) / total
+        evolution_signal_score = _weighted_external(evolution_signal_rows)
+        evolution_risk_score = max(
+            [max(0.0, _finite(row.get("score"))) * _clip(_finite(row.get("confidence"))) for row in evolution_risk_rows]
+            or [0.0]
+        )
+        evolution_anomaly_score = max(
+            [abs(_finite(row.get("score"))) * _clip(_finite(row.get("confidence"))) for row in evolution_anomaly_rows]
+            or [0.0]
+        )
+        evolution_confidence = (
+            sum(_clip(_finite(row.get("confidence"))) for row in evolution_rows) / len(evolution_rows)
+            if evolution_rows else 0.0
+        )
 
         tf_values = [
             _finite(value)
@@ -471,6 +504,17 @@ class MarketWorldModel:
             ),
             "latent_patterns": latent_patterns,
             "external_sensors": sensor_context,
+            "evolution_evidence": {
+                "observations": evolution_rows,
+                "observation_count": len(evolution_rows),
+                "signal_score": evolution_signal_score,
+                "risk_score": evolution_risk_score,
+                "anomaly_score": evolution_anomaly_score,
+                "confidence": evolution_confidence,
+                "research_only": True,
+                "affects_trade_authority": False,
+                "execution_authority": False,
+            },
             "unknowns": sorted(set(unknowns)),
             "execution_authority": False,
         }

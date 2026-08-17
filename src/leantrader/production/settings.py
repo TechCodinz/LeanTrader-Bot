@@ -101,6 +101,11 @@ class Settings:
     active_research_state_path: Path
     tail_risk_state_path: Path
     cognitive_governance_state_path: Path
+    evolution_fabric_state_path: Path
+    evolution_inbox_path: Path
+    evolution_enabled: bool
+    evolution_max_pack_age_seconds: int
+    evolution_min_shadow_samples: int
     market_sensor_fabric_state_path: Path
     fred_api_key_path: Path
     glassnode_api_key_path: Path
@@ -278,6 +283,15 @@ class Settings:
             cognitive_governance_state_path=Path(
                 os.getenv("COGNITIVE_GOVERNANCE_STATE_PATH", "runtime/vps_cognitive_governance.json")
             ),
+            evolution_fabric_state_path=Path(
+                os.getenv("EVOLUTION_FABRIC_STATE_PATH", "runtime/vps_evolution_fabric.json")
+            ),
+            evolution_inbox_path=Path(
+                os.getenv("EVOLUTION_INBOX_PATH", "runtime/evolution/inbox")
+            ),
+            evolution_enabled=_bool("EVOLUTION_FABRIC_ENABLED", True),
+            evolution_max_pack_age_seconds=_int("EVOLUTION_MAX_PACK_AGE_SECONDS", 3600),
+            evolution_min_shadow_samples=_int("EVOLUTION_MIN_SHADOW_SAMPLES", 100),
             market_sensor_fabric_state_path=Path(
                 os.getenv("MARKET_SENSOR_FABRIC_STATE_PATH", "runtime/vps_market_sensor_fabric.json")
             ),
@@ -367,6 +381,10 @@ class Settings:
                 raise ValueError("Bybit CONFIRM_TIMEFRAMES must include the complete verified matrix or AUTO")
         if self.public_context_refresh_seconds < 300:
             raise ValueError("PUBLIC_CONTEXT_REFRESH_SECONDS must be at least 300")
+        if self.evolution_max_pack_age_seconds < 300:
+            raise ValueError("EVOLUTION_MAX_PACK_AGE_SECONDS must be at least 300")
+        if not 10 <= self.evolution_min_shadow_samples <= 100000:
+            raise ValueError("EVOLUTION_MIN_SHADOW_SAMPLES must be in [10, 100000]")
         if self.news_max_age_seconds < 3_600:
             raise ValueError("NEWS_MAX_AGE_SECONDS must be at least 3600")
         if not 0 <= self.news_max_future_skew_seconds <= 3_600:

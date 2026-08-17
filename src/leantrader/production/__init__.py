@@ -15,6 +15,7 @@ __all__ = [
     "ccxt_compat",
     "decision_router",
     "error_attribution",
+    "evolution_fabric",
     "exchange_intelligence",
     "exchange_protection",
     "ledger",

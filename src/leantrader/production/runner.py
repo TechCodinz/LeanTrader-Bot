@@ -24,6 +24,7 @@ from .cognitive_governance import CognitiveGovernanceBridge
 from .decision_router import BoundedDecisionRouter, MarketEvidenceGate
 from .engine_control import EngineRegistry
 from .error_attribution import ErrorAttributionTracker
+from .evolution_fabric import EvolutionFabric
 from .exchange_intelligence import ExchangeIntelligence, timeframe_seconds
 from .exchange_protection import ExchangeProtectionOrchestrator
 from .intelligence import AdaptiveIntelligence, IntelligenceDecision, MINIMUM_INTELLIGENCE_CANDLES
@@ -322,6 +323,14 @@ class PaperRunner:
         self.active_research = ActiveResearchPlanner(settings.active_research_state_path)
         self.tail_risk = TailRiskSentinel(settings.tail_risk_state_path)
         self.cognitive_governance = CognitiveGovernanceBridge(settings.cognitive_governance_state_path)
+        self.evolution_fabric = EvolutionFabric(
+            settings.evolution_fabric_state_path,
+            settings.evolution_inbox_path,
+            enabled=settings.evolution_enabled,
+            max_pack_age_seconds=settings.evolution_max_pack_age_seconds,
+            minimum_shadow_samples=settings.evolution_min_shadow_samples,
+            round_trip_cost_bps=2 * (settings.fee_bps + settings.slippage_bps),
+        )
         self.capital_growth = CapitalGrowthGovernor(
             settings.capital_growth_state_path,
             starting_equity=settings.starting_cash,
@@ -544,6 +553,13 @@ class PaperRunner:
             version=self.cognitive_governance.VERSION,
         )
         self.engines.register(
+            "evolution_fabric",
+            self.evolution_fabric,
+            required=False,
+            dependencies=("active_research_planner", "strategy_observatory"),
+            version=self.evolution_fabric.VERSION,
+        )
+        self.engines.register(
             "capital_growth",
             self.capital_growth,
             dependencies=("paper_ledger", "research_governor"),
@@ -631,6 +647,9 @@ class PaperRunner:
         research_plans: dict[str, dict[str, Any]] = {}
         tail_risk_states: dict[str, dict[str, Any]] = {}
         cognitive_governance_states: dict[str, dict[str, Any]] = {}
+        evolution_snapshot: dict[str, Any] = {}
+        evolution_capabilities: dict[str, Any] = {}
+        evolution_requests: dict[str, Any] = {}
         public_symbol_context: dict[str, dict[str, Any]] = {}
         errors: dict[str, str] = {}
         self.engines.call("market_temporal_guard", "sync_clock")
@@ -821,6 +840,7 @@ class PaperRunner:
                     timeframe_signals=decisions[symbol].timeframe_signals,
                     timeframe_coverage=decisions[symbol].multi_timeframe_coverage,
                     external_sensors=sensor_symbols.get(symbol, {}),
+                    evolution_evidence=self.evolution_fabric.evidence_for(symbol),
                 )
                 routed_decisions[symbol] = self.engines.call(
                     "decision_router",
@@ -1053,6 +1073,22 @@ class PaperRunner:
             frames,
         )
         post_symbol_engine_health = self.engines.snapshot()
+        evolution_snapshot = self._shadow_call(
+            errors,
+            "evolution_fabric:refresh",
+            "evolution_fabric",
+            "refresh",
+            prices={symbol: decision.close for symbol, decision in decisions.items()},
+            engine_health=post_symbol_engine_health,
+            world_market=world_market_snapshot,
+            strategy_health=self.strategy_observatory.health(),
+        )
+        evolution_capabilities = self._shadow_call(
+            errors,
+            "evolution_fabric:capabilities",
+            "evolution_fabric",
+            "capability_status",
+        )
         for symbol in world_states:
             tail_risk_states[symbol] = self._shadow_call(
                 errors,
@@ -1083,7 +1119,18 @@ class PaperRunner:
                 arbitrage=arbitrage_collection,
                 market_world=world_market_snapshot,
                 sensor_snapshot=sensor_snapshot,
+                external_capabilities=evolution_capabilities,
             )
+
+        evolution_requests = self._shadow_call(
+            errors,
+            "evolution_fabric:research_demand",
+            "evolution_fabric",
+            "sync_research_demand",
+            adapter_backlog=self.active_research.adapter_backlog(),
+            research_agenda=self.active_research.agenda(50),
+            world_market=world_market_snapshot,
+        )
 
         # Higher-order intelligence is now a bounded final Brain safety review.
         # The council/critic/world/self/tail/research stack still has no direct
@@ -1642,7 +1689,7 @@ class PaperRunner:
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v12.10-cognitive-governance-bridge",
+            "runtime": "verified-multi-engine-v12.11-continuous-evolution-fabric",
             "exchange": self.settings.exchange,
             "resolved_timeframes": list(resolved_timeframes),
             "cycle_symbols": cycle_symbols,
@@ -1736,6 +1783,16 @@ class PaperRunner:
                 "adapter_backlog": self.active_research.adapter_backlog(),
                 "health": self.active_research.health(),
                 "execution_authority": False,
+            },
+            "continuous_evolution": {
+                "snapshot": evolution_snapshot,
+                "capabilities": evolution_capabilities,
+                "research_requests": evolution_requests,
+                "hot_reload_without_core_restart": True,
+                "data_only_external_packs": True,
+                "arbitrary_code_execution": False,
+                "execution_authority": False,
+                "can_increase_upstream_risk": False,
             },
             "tail_risk_sentinel": {
                 "symbols": tail_risk_states,
@@ -2022,6 +2079,8 @@ def preflight(settings: Settings) -> dict[str, Any]:
     settings.active_research_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.tail_risk_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.cognitive_governance_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.evolution_fabric_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.evolution_inbox_path.mkdir(parents=True, exist_ok=True)
     settings.market_sensor_fabric_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.provenance_path.parent.mkdir(parents=True, exist_ok=True)
     settings.metrics_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2044,7 +2103,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v12.10-cognitive-governance-bridge",
+        "runtime": "verified-multi-engine-v12.11-continuous-evolution-fabric",
         "cns_brain_memory": {
             "cns_execution_authority": False,
             "brain_can_only_reduce_or_veto": True,
@@ -2073,6 +2132,10 @@ def preflight(settings: Settings) -> dict[str, Any]:
             "cognitive_governance_bridge": True,
             "cognitive_governance_fail_closed": True,
             "cognitive_governance_can_only_preserve_reduce_or_veto": True,
+            "continuous_evolution_fabric": True,
+            "hot_reload_data_packs_without_core_restart": True,
+            "out_of_process_challenger_support": True,
+            "external_pack_arbitrary_code_execution": False,
             "cross_market_lead_lag_discovery": True,
             "consciousness_claim": False,
             "novelty_is_not_trade_authority": True,

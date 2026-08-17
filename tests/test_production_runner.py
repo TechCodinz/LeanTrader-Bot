@@ -32,7 +32,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
-    assert result["runtime"] == "verified-multi-engine-v12.10-cognitive-governance-bridge"
+    assert result["runtime"] == "verified-multi-engine-v12.11-continuous-evolution-fabric"
     assert set(result["engines"]) == {
         "market_data",
         "exchange_intelligence",
@@ -48,6 +48,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
         "research_governor",
         "decision_router",
         "error_attribution",
+        "evolution_fabric",
         "strategy_observatory",
         "memory_retention",
         "central_nervous_system",

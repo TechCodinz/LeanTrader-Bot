@@ -76,6 +76,7 @@ class ActiveResearchPlanner:
         public_context: dict[str, Any],
         arbitrage: dict[str, Any] | None,
         sensor_snapshot: dict[str, Any] | None = None,
+        external_capabilities: dict[str, Any] | None = None,
     ) -> dict[str, str]:
         status = {name: "adapter_needed" for name, row in self.SOURCE_CATALOG.items() if row["tier"] == "adapter_needed"}
         status.update(
@@ -93,6 +94,12 @@ class ActiveResearchPlanner:
         for name, value in ((sensor_snapshot or {}).get("source_status") or {}).items():
             if name in status and value:
                 status[name] = str(value)
+        for name, value in (external_capabilities or {}).items():
+            if name not in status:
+                continue
+            row = value if isinstance(value, dict) else {}
+            if row.get("status") == "available_external_shadow":
+                status[name] = "available_external_shadow"
         return status
 
     def plan_symbol(
@@ -109,6 +116,7 @@ class ActiveResearchPlanner:
         arbitrage: dict[str, Any] | None = None,
         market_world: dict[str, Any] | None = None,
         sensor_snapshot: dict[str, Any] | None = None,
+        external_capabilities: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         symbol = symbol.upper()
         patterns = set(str(value) for value in (world.get("latent_patterns") or []))
@@ -241,12 +249,13 @@ class ActiveResearchPlanner:
             public_context=public_context_health,
             arbitrage=arbitrage,
             sensor_snapshot=sensor_snapshot,
+            external_capabilities=external_capabilities,
         )
         missing_adapters = [source for source in required_sources if source_status.get(source) == "adapter_needed"]
         degraded_sources = [
             source
             for source in required_sources
-            if source_status.get(source) not in {"available", "adapter_needed"}
+            if source_status.get(source) not in {"available", "available_external_shadow", "adapter_needed"}
         ]
         priority = min(
             1.0,
