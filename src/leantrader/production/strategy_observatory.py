@@ -23,9 +23,12 @@ class StrategyObservatory:
     direction flips. The round-trip cost is charged once at episode close.
     """
 
-    VERSION = "2.0"
-    SCHEMA_VERSION = 2
+    VERSION = "3.0"
+    SCHEMA_VERSION = 3
     EVIDENCE_AUTHORITY = "costed_shadow_episode_v2"
+    PROFITABILITY_AUTHORITY = "prospective_paper_net_of_costs_v1"
+    MAX_CYCLE_RETURNS = 20_000
+    MAX_FUNNEL_CYCLES = 2_000
 
     def __init__(self, state_path: Path, *, round_trip_cost_bps: float = 30.0) -> None:
         if round_trip_cost_bps < 0:
@@ -298,6 +301,244 @@ class StrategyObservatory:
             "symbols": len(record.get("symbols", {})),
         }
 
+
+    @staticmethod
+    def _finite_metric(value: float, name: str) -> float:
+        result = float(value)
+        if not math.isfinite(result):
+            raise ValueError(f"{name} must be finite")
+        return result
+
+    def record_cycle(
+        self,
+        *,
+        equity: float,
+        cash: float,
+        realized_pnl: float,
+        starting_equity: float,
+        open_positions: int,
+        paper_trade_events: int,
+        execution_funnel: dict[str, Any],
+        decisions: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Persist net portfolio evidence and final no-trade attribution.
+
+        This method is observational only. It cannot promote a strategy, change a
+        threshold, submit an order, or grant testnet/live authority.
+        """
+        equity = self._finite_metric(equity, "equity")
+        cash = self._finite_metric(cash, "cash")
+        realized_pnl = self._finite_metric(realized_pnl, "realized_pnl")
+        starting_equity = self._finite_metric(starting_equity, "starting_equity")
+        if starting_equity <= 0:
+            raise ValueError("starting_equity must be positive")
+        if open_positions < 0 or paper_trade_events < 0:
+            raise ValueError("portfolio counts cannot be negative")
+        if not isinstance(execution_funnel, dict) or not isinstance(decisions, dict):
+            raise ValueError("cycle evidence must use mapping inputs")
+
+        now = time.time()
+        portfolio = self.state.setdefault("portfolio", {})
+        authoritative_start = float(portfolio.get("starting_equity") or starting_equity)
+        if authoritative_start <= 0:
+            authoritative_start = starting_equity
+        previous_equity = float(portfolio.get("equity") or authoritative_start)
+        cycle_return = equity / previous_equity - 1.0 if previous_equity > 0 else 0.0
+        cycle_returns = [
+            float(value)
+            for value in portfolio.get("cycle_returns", [])
+            if isinstance(value, (int, float)) and math.isfinite(float(value))
+        ]
+        cycle_returns.append(cycle_return)
+        cycle_returns = cycle_returns[-self.MAX_CYCLE_RETURNS :]
+
+        peak_equity = max(
+            authoritative_start,
+            float(portfolio.get("peak_equity") or authoritative_start),
+            equity,
+        )
+        current_drawdown = max(0.0, (peak_equity - equity) / max(peak_equity, 1e-12))
+        max_drawdown = max(
+            current_drawdown,
+            float(portfolio.get("max_drawdown_pct") or 0.0),
+        )
+        net_pnl = equity - authoritative_start
+        unrealized_pnl = net_pnl - realized_pnl
+        portfolio.update(
+            {
+                "authority": self.PROFITABILITY_AUTHORITY,
+                "cycles": int(portfolio.get("cycles", 0)) + 1,
+                "starting_equity": authoritative_start,
+                "equity": equity,
+                "cash": cash,
+                "net_pnl": net_pnl,
+                "net_return": net_pnl / authoritative_start,
+                "realized_pnl": realized_pnl,
+                "unrealized_pnl": unrealized_pnl,
+                "peak_equity": peak_equity,
+                "current_drawdown_pct": current_drawdown,
+                "max_drawdown_pct": max_drawdown,
+                "open_positions": int(open_positions),
+                "paper_trade_events": int(paper_trade_events),
+                "cycle_returns": cycle_returns,
+                "first_observed_at": float(portfolio.get("first_observed_at") or now),
+                "last_observed_at": now,
+            }
+        )
+
+        funnel = self.state.setdefault(
+            "decision_funnel",
+            {
+                "cycles": 0,
+                "totals": {},
+                "entry_block_reasons": {},
+                "final_route_reasons": {},
+                "regimes": {},
+                "recent_cycles": [],
+            },
+        )
+        funnel["cycles"] = int(funnel.get("cycles", 0)) + 1
+        totals = funnel.setdefault("totals", {})
+        aggregate_fields = (
+            "symbols_evaluated",
+            "base_enter_candidates",
+            "router_approved_pre_brain",
+            "brain_approved",
+            "cognitive_governance_reviewed",
+            "cognitive_governance_vetoes",
+            "cognitive_governance_reductions",
+            "final_route_allowed",
+            "entry_attempts",
+            "entry_failures",
+            "buy_events",
+            "sell_events",
+            "entry_blocks",
+        )
+        for key in aggregate_fields:
+            value = int(execution_funnel.get(key, 0) or 0)
+            if value < 0:
+                raise ValueError(f"execution_funnel.{key} cannot be negative")
+            totals[key] = int(totals.get(key, 0)) + value
+
+        block_reasons = funnel.setdefault("entry_block_reasons", {})
+        for reason, count in (execution_funnel.get("entry_block_reasons") or {}).items():
+            normalized = str(reason or "unspecified").strip() or "unspecified"
+            block_reasons[normalized] = int(block_reasons.get(normalized, 0)) + max(
+                0, int(count or 0)
+            )
+
+        route_reasons = funnel.setdefault("final_route_reasons", {})
+        regimes = funnel.setdefault("regimes", {})
+        for symbol, decision in decisions.items():
+            if not isinstance(decision, dict):
+                continue
+            allowed = decision.get("allowed") is True
+            reason = "allowed" if allowed else str(
+                decision.get("reason") or "unspecified_block"
+            ).strip()
+            route_reasons[reason] = int(route_reasons.get(reason, 0)) + 1
+            regime = str(decision.get("regime") or "unknown").strip() or "unknown"
+            regime_row = regimes.setdefault(regime, {"evaluated": 0, "allowed": 0})
+            regime_row["evaluated"] = int(regime_row.get("evaluated", 0)) + 1
+            regime_row["allowed"] = int(regime_row.get("allowed", 0)) + int(allowed)
+
+        recent = list(funnel.get("recent_cycles", []))
+        recent.append(
+            {
+                "timestamp": now,
+                "equity": equity,
+                "net_return": net_pnl / authoritative_start,
+                "symbols_evaluated": int(execution_funnel.get("symbols_evaluated", 0) or 0),
+                "final_route_allowed": int(
+                    execution_funnel.get("final_route_allowed", 0) or 0
+                ),
+                "entry_attempts": int(execution_funnel.get("entry_attempts", 0) or 0),
+                "buy_events": int(execution_funnel.get("buy_events", 0) or 0),
+                "entry_blocks": int(execution_funnel.get("entry_blocks", 0) or 0),
+                "halted": bool(execution_funnel.get("halted")),
+            }
+        )
+        funnel["recent_cycles"] = recent[-self.MAX_FUNNEL_CYCLES :]
+        funnel["last_observed_at"] = now
+        self.state["last_profitability_cycle_epoch"] = now
+        self._save()
+        return self.profitability_snapshot()
+
+    def profitability_snapshot(self) -> dict[str, Any]:
+        portfolio = self.state.get("portfolio", {})
+        returns = [
+            float(value)
+            for value in portfolio.get("cycle_returns", [])
+            if isinstance(value, (int, float)) and math.isfinite(float(value))
+        ]
+        samples = len(returns)
+        average = sum(returns) / samples if samples else 0.0
+        volatility = (
+            math.sqrt(sum((value - average) ** 2 for value in returns) / samples)
+            if samples
+            else 0.0
+        )
+        downside = [value for value in returns if value < 0]
+        downside_deviation = (
+            math.sqrt(sum(value * value for value in downside) / len(downside))
+            if downside
+            else 0.0
+        )
+        gross_profit = sum(value for value in returns if value > 0)
+        gross_loss = abs(sum(value for value in returns if value < 0))
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else None
+        positive_cycles = sum(1 for value in returns if value > 0)
+        return {
+            "authority": self.PROFITABILITY_AUTHORITY,
+            "state": (
+                "collecting_prospective_evidence"
+                if int(portfolio.get("cycles", 0)) > 0
+                else "waiting_for_first_cycle"
+            ),
+            "cycles": int(portfolio.get("cycles", 0)),
+            "return_samples": samples,
+            "starting_equity": float(portfolio.get("starting_equity", 0.0)),
+            "equity": float(portfolio.get("equity", 0.0)),
+            "cash": float(portfolio.get("cash", 0.0)),
+            "net_pnl": float(portfolio.get("net_pnl", 0.0)),
+            "net_return": float(portfolio.get("net_return", 0.0)),
+            "realized_pnl": float(portfolio.get("realized_pnl", 0.0)),
+            "unrealized_pnl": float(portfolio.get("unrealized_pnl", 0.0)),
+            "peak_equity": float(portfolio.get("peak_equity", 0.0)),
+            "current_drawdown_pct": float(
+                portfolio.get("current_drawdown_pct", 0.0)
+            ),
+            "max_drawdown_pct": float(portfolio.get("max_drawdown_pct", 0.0)),
+            "average_cycle_return": average,
+            "cycle_return_volatility": volatility,
+            "downside_deviation": downside_deviation,
+            "positive_cycle_rate": positive_cycles / samples if samples else 0.0,
+            "profit_factor": profit_factor,
+            "open_positions": int(portfolio.get("open_positions", 0)),
+            "paper_trade_events": int(portfolio.get("paper_trade_events", 0)),
+            "promotion_authority": False,
+            "testnet_authority": False,
+            "live_authority": False,
+        }
+
+    def decision_funnel_snapshot(self) -> dict[str, Any]:
+        funnel = self.state.get("decision_funnel", {})
+        totals = dict(funnel.get("totals", {}))
+        evaluated = int(totals.get("symbols_evaluated", 0))
+        allowed = int(totals.get("final_route_allowed", 0))
+        buys = int(totals.get("buy_events", 0))
+        return {
+            "cycles": int(funnel.get("cycles", 0)),
+            "totals": totals,
+            "final_route_allow_rate": allowed / evaluated if evaluated else 0.0,
+            "paper_entry_conversion_rate": buys / evaluated if evaluated else 0.0,
+            "entry_block_reasons": dict(funnel.get("entry_block_reasons", {})),
+            "final_route_reasons": dict(funnel.get("final_route_reasons", {})),
+            "regimes": dict(funnel.get("regimes", {})),
+            "recent_cycles_retained": len(funnel.get("recent_cycles", [])),
+            "execution_authority": False,
+        }
+
     def health(self) -> dict[str, Any]:
         strategies = {
             name: self._summary(record, value_key="cumulative_net_return", ewma_key="ewma_net_return")
@@ -334,6 +575,9 @@ class StrategyObservatory:
             "legacy_v1_preserved": isinstance(self.state.get("legacy_v1"), dict),
             "strategies": strategies,
             "directional_strategies": directional,
+            "profitability_intelligence": self.profitability_snapshot(),
+            "decision_funnel": self.decision_funnel_snapshot(),
+            "promotion_authority": False,
         }
 
     def _load(self) -> dict[str, Any]:
@@ -344,6 +588,8 @@ class StrategyObservatory:
                 "episodes": {},
                 "strategies": {},
                 "directional_strategies": {},
+                "portfolio": {},
+                "decision_funnel": {},
             }
         try:
             payload = json.loads(self.state_path.read_text(encoding="utf-8"))
@@ -352,6 +598,14 @@ class StrategyObservatory:
                 payload.setdefault("episodes", {})
                 payload.setdefault("strategies", {})
                 payload.setdefault("directional_strategies", {})
+                payload.setdefault("portfolio", {})
+                payload.setdefault("decision_funnel", {})
+                return payload
+            if payload.get("schema_version") == 2:
+                payload["schema_version"] = self.SCHEMA_VERSION
+                payload.setdefault("portfolio", {})
+                payload.setdefault("decision_funnel", {})
+                payload["migrated_from_v2_at"] = time.time()
                 return payload
             if payload.get("schema_version") == 1:
                 # Preserve contaminated v1 evidence for forensics/audit, but never
@@ -362,6 +616,8 @@ class StrategyObservatory:
                     "episodes": {},
                     "strategies": {},
                     "directional_strategies": {},
+                    "portfolio": {},
+                    "decision_funnel": {},
                     "legacy_v1": payload,
                     "migrated_at": time.time(),
                 }
@@ -373,6 +629,8 @@ class StrategyObservatory:
             "episodes": {},
             "strategies": {},
             "directional_strategies": {},
+            "portfolio": {},
+            "decision_funnel": {},
         }
 
     def _save(self) -> None:
