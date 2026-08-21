@@ -1434,12 +1434,14 @@ class PaperRunner:
                     entry_blocks[symbol] = "capital_growth:principal_floor"
                     continue
                 position = self.ledger.positions.get(symbol)
-                if position and (
-                    position.entry_count >= self.settings.max_entries_per_symbol
-                    or decision.confidence < self.settings.scale_in_min_confidence
-                ):
+                if position and position.entry_count >= self.settings.max_entries_per_symbol:
+                    entry_blocks[symbol] = "position:max_entries_per_symbol"
+                    continue
+                if position and decision.confidence < self.settings.scale_in_min_confidence:
+                    entry_blocks[symbol] = "position:scale_in_confidence_below_threshold"
                     continue
                 if position is None and len(self.ledger.positions) >= self.settings.max_open_positions:
+                    entry_blocks[symbol] = "portfolio:max_open_positions"
                     break
                 equity = self.engines.call("paper_ledger", "equity", prices)
                 existing_notional = position.quantity * decision.close if position else 0.0
@@ -1660,6 +1662,29 @@ class PaperRunner:
             "paper_trade_events_total": self.ledger.trade_count,
             "halted": bool(halt),
         }
+
+        profitability_intelligence = self._shadow_call(
+            errors,
+            "strategy_observatory:profitability_cycle",
+            "strategy_observatory",
+            "record_cycle",
+            equity=equity,
+            cash=self.ledger.cash,
+            realized_pnl=self.ledger.realized_pnl,
+            starting_equity=self.settings.starting_cash,
+            open_positions=len(self.ledger.positions),
+            paper_trade_events=self.ledger.trade_count,
+            execution_funnel=execution_funnel,
+            decisions={
+                symbol: {
+                    "allowed": route.get("allowed") is True,
+                    "reason": str(route.get("reason") or "unspecified_block"),
+                    "regime": decisions[symbol].regime,
+                }
+                for symbol, route in routed_decisions.items()
+                if symbol in decisions
+            },
+        )
         self_system_awareness = self._shadow_call(
             errors,
             "meta_cognitive_self_model:system",
@@ -1705,6 +1730,7 @@ class PaperRunner:
             "entry_blocks": entry_blocks,
             "execution_funnel": execution_funnel,
             "strategy_observatory_health": observatory_health,
+            "profitability_intelligence": profitability_intelligence,
             "memory_health": memory_health,
             "decisions": {
                 symbol: {
