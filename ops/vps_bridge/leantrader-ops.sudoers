@@ -14,3 +14,5 @@ leanops ALL=(root) NOPASSWD: /usr/local/sbin/leantrader-ops-helper logs 200
 leanops ALL=(root) NOPASSWD: /usr/local/sbin/leantrader-ops-helper restart
 leanops ALL=(root) NOPASSWD: /usr/local/sbin/leantrader-ops-helper halt
 leanops ALL=(root) NOPASSWD: /usr/local/sbin/leantrader-ops-helper deploy
+leanops ALL=(root) NOPASSWD: /usr/local/sbin/leantrader-ops-helper repo-read
+leanops ALL=(root) NOPASSWD: /usr/local/sbin/leantrader-ops-helper repo-write

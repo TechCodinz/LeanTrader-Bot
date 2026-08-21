@@ -19,6 +19,6 @@ RUN mkdir -p /app/runtime /app/logs \
 USER 10001:10001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
-    CMD ["python", "-m", "leantrader.production.healthcheck"]
+    CMD ["python", "/app/src/leantrader/production/healthcheck.py"]
 
 CMD ["python", "-m", "leantrader.production.runner"]

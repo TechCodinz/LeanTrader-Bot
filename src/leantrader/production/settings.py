@@ -93,6 +93,29 @@ class Settings:
     decision_router_state_path: Path
     cns_state_path: Path
     brain_state_path: Path
+    market_world_model_state_path: Path
+    meta_cognition_state_path: Path
+    intelligence_council_state_path: Path
+    adversarial_critic_state_path: Path
+    hypothesis_lab_state_path: Path
+    active_research_state_path: Path
+    tail_risk_state_path: Path
+    cognitive_governance_state_path: Path
+    evolution_fabric_state_path: Path
+    evolution_inbox_path: Path
+    evolution_enabled: bool
+    evolution_max_pack_age_seconds: int
+    evolution_min_shadow_samples: int
+    market_sensor_fabric_state_path: Path
+    fred_api_key_path: Path
+    glassnode_api_key_path: Path
+    defillama_api_key_path: Path
+    ethereum_rpc_url_path: Path
+    solana_rpc_url_path: Path
+    sensor_derivatives_refresh_seconds: int
+    sensor_options_refresh_seconds: int
+    sensor_macro_refresh_seconds: int
+    sensor_onchain_refresh_seconds: int
     memory_retention_state_path: Path
     legacy_memory_path: Path
     error_attribution_state_path: Path
@@ -236,6 +259,51 @@ class Settings:
             ),
             cns_state_path=Path(os.getenv("CNS_STATE_PATH", "runtime/vps_cns_state.json")),
             brain_state_path=Path(os.getenv("BRAIN_STATE_PATH", "runtime/vps_brain_state.json")),
+            market_world_model_state_path=Path(
+                os.getenv("MARKET_WORLD_MODEL_STATE_PATH", "runtime/vps_market_world_model.json")
+            ),
+            meta_cognition_state_path=Path(
+                os.getenv("META_COGNITION_STATE_PATH", "runtime/vps_meta_cognition.json")
+            ),
+            intelligence_council_state_path=Path(
+                os.getenv("INTELLIGENCE_COUNCIL_STATE_PATH", "runtime/vps_intelligence_council.json")
+            ),
+            adversarial_critic_state_path=Path(
+                os.getenv("ADVERSARIAL_CRITIC_STATE_PATH", "runtime/vps_adversarial_critic.json")
+            ),
+            hypothesis_lab_state_path=Path(
+                os.getenv("HYPOTHESIS_LAB_STATE_PATH", "runtime/vps_hypothesis_lab.json")
+            ),
+            active_research_state_path=Path(
+                os.getenv("ACTIVE_RESEARCH_STATE_PATH", "runtime/vps_active_research.json")
+            ),
+            tail_risk_state_path=Path(
+                os.getenv("TAIL_RISK_STATE_PATH", "runtime/vps_tail_risk.json")
+            ),
+            cognitive_governance_state_path=Path(
+                os.getenv("COGNITIVE_GOVERNANCE_STATE_PATH", "runtime/vps_cognitive_governance.json")
+            ),
+            evolution_fabric_state_path=Path(
+                os.getenv("EVOLUTION_FABRIC_STATE_PATH", "runtime/vps_evolution_fabric.json")
+            ),
+            evolution_inbox_path=Path(
+                os.getenv("EVOLUTION_INBOX_PATH", "runtime/evolution/inbox")
+            ),
+            evolution_enabled=_bool("EVOLUTION_FABRIC_ENABLED", True),
+            evolution_max_pack_age_seconds=_int("EVOLUTION_MAX_PACK_AGE_SECONDS", 3600),
+            evolution_min_shadow_samples=_int("EVOLUTION_MIN_SHADOW_SAMPLES", 100),
+            market_sensor_fabric_state_path=Path(
+                os.getenv("MARKET_SENSOR_FABRIC_STATE_PATH", "runtime/vps_market_sensor_fabric.json")
+            ),
+            fred_api_key_path=Path(os.getenv("FRED_API_KEY_FILE", "/run/secrets/fred_api_key")),
+            glassnode_api_key_path=Path(os.getenv("GLASSNODE_API_KEY_FILE", "/run/secrets/glassnode_api_key")),
+            defillama_api_key_path=Path(os.getenv("DEFILLAMA_API_KEY_FILE", "/run/secrets/defillama_api_key")),
+            ethereum_rpc_url_path=Path(os.getenv("ETHEREUM_RPC_URL_FILE", "/run/secrets/ethereum_rpc_url")),
+            solana_rpc_url_path=Path(os.getenv("SOLANA_RPC_URL_FILE", "/run/secrets/solana_rpc_url")),
+            sensor_derivatives_refresh_seconds=_int("SENSOR_DERIVATIVES_REFRESH_SECONDS", 300),
+            sensor_options_refresh_seconds=_int("SENSOR_OPTIONS_REFRESH_SECONDS", 600),
+            sensor_macro_refresh_seconds=_int("SENSOR_MACRO_REFRESH_SECONDS", 1800),
+            sensor_onchain_refresh_seconds=_int("SENSOR_ONCHAIN_REFRESH_SECONDS", 900),
             memory_retention_state_path=Path(
                 os.getenv("MEMORY_RETENTION_STATE_PATH", "runtime/vps_memory_retention.json")
             ),
@@ -313,6 +381,10 @@ class Settings:
                 raise ValueError("Bybit CONFIRM_TIMEFRAMES must include the complete verified matrix or AUTO")
         if self.public_context_refresh_seconds < 300:
             raise ValueError("PUBLIC_CONTEXT_REFRESH_SECONDS must be at least 300")
+        if self.evolution_max_pack_age_seconds < 300:
+            raise ValueError("EVOLUTION_MAX_PACK_AGE_SECONDS must be at least 300")
+        if not 10 <= self.evolution_min_shadow_samples <= 100000:
+            raise ValueError("EVOLUTION_MIN_SHADOW_SAMPLES must be in [10, 100000]")
         if self.news_max_age_seconds < 3_600:
             raise ValueError("NEWS_MAX_AGE_SECONDS must be at least 3600")
         if not 0 <= self.news_max_future_skew_seconds <= 3_600:

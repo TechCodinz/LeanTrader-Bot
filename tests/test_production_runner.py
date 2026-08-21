@@ -32,7 +32,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["mode"] == "paper"
     assert result["healthy"] is True
     assert result["errors"] == {}
-    assert result["runtime"] == "verified-multi-engine-v12.2-cns-brain-memory"
+    assert result["runtime"] == "verified-multi-engine-v12.11-continuous-evolution-fabric"
     assert set(result["engines"]) == {
         "market_data",
         "exchange_intelligence",
@@ -48,16 +48,35 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
         "research_governor",
         "decision_router",
         "error_attribution",
+        "evolution_fabric",
         "strategy_observatory",
         "memory_retention",
         "central_nervous_system",
         "trading_brain",
+        "market_sensor_fabric",
+        "market_world_model",
+        "meta_cognitive_self_model",
+        "intelligence_council",
+        "adversarial_critic",
+        "hypothesis_lab",
+        "active_research_planner",
+        "tail_risk_sentinel",
+        "cognitive_governance",
         "capital_growth",
         "operations_safety",
     }
     assert all(engine["healthy"] for engine in result["engines"].values())
     assert result["decisions"]["BTC/USDT"]["quality_score"] == 1.0
     assert result["advanced_shadow"]["execution_authority"] is False
+    assert result["market_world_model"]["execution_authority"] is False
+    assert result["meta_cognitive_self_model"]["consciousness_claim"] is False
+    assert result["intelligence_council"]["execution_authority"] is False
+    assert result["adversarial_critic"]["execution_authority"] is False
+    assert result["hypothesis_lab"]["research_only"] is True
+    assert result["active_research"]["execution_authority"] is False
+    assert result["tail_risk_sentinel"]["governance_advisory"] is True
+    assert result["cognitive_governance"]["execution_authority"] is False
+    assert result["cognitive_governance"]["fail_closed"] is True
     assert result["research_governor"]["capital_preservation"]["state"] == "normal"
     assert result["capital_growth"]["martingale"] is False
     assert result["capital_growth"]["can_increase_upstream_risk"] is False
@@ -218,10 +237,49 @@ def test_dynamic_universe_scans_exchange_candidates_in_rotating_batches(monkeypa
     second = runner.cycle()
 
     assert first["cycle_symbols"] == ["BTC/USDT", "ETH/USDT"]
-    # Positions opened in the first batch stay at the front for exit safety;
-    # SOL still enters the next rotating batch, proving forward coverage.
-    assert second["cycle_symbols"] == ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+    # Cognitive governance may now veto all first-batch entries, so the second
+    # batch need not contain mandatory open positions. Forward rotation must
+    # still expose the unseen SOL market without losing universe coverage.
+    assert "SOL/USDT" in second["cycle_symbols"]
+    assert set(first["cycle_symbols"]) | set(second["cycle_symbols"]) == {
+        "BTC/USDT", "ETH/USDT", "SOL/USDT"
+    }
     universe = second["engines"]["market_universe"]
     assert universe["eligible_symbols"] == 3
     assert universe["full_sweeps"] == 1
     assert universe["all_eligible_markets_rotate"] is True
+
+
+def test_immature_symbol_history_is_availability_and_skips_context_matrix(monkeypatch, tmp_path):
+    class MixedHistoryFeed(FakeFeed):
+        def __init__(self):
+            self.calls: list[tuple[str, str]] = []
+
+        def candles(self, symbol: str, timeframe: str, limit: int) -> pd.DataFrame:
+            self.calls.append((symbol, timeframe))
+            frame = super().candles(symbol, timeframe, limit)
+            if symbol == "KII/USDT" and timeframe == "15m":
+                return frame.tail(109).reset_index(drop=True)
+            return frame
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PAPER_SYMBOLS", "BTC/USDT,KII/USDT")
+    feed = MixedHistoryFeed()
+    runner = PaperRunner(Settings.from_env(), feed)
+
+    result = runner.cycle()
+
+    assert result["healthy"] is True
+    assert result["errors"] == {}
+    assert "BTC/USDT" in result["decisions"]
+    assert "KII/USDT" not in result["decisions"]
+    row = runner.error_attribution.records["KII/USDT"]
+    assert row["availability_state"] == "unavailable"
+    assert row["component"] == "symbol_history"
+    assert row["failures"] == 0
+    assert row["unavailable_count"] == 1
+    assert all(
+        timeframe == "15m"
+        for symbol, timeframe in feed.calls
+        if symbol == "KII/USDT"
+    )

@@ -20,7 +20,8 @@ import numpy as np
 class PublicMarketContextEngine:
     """Cached, read-only fundamentals, global context, trending data and news."""
 
-    VERSION = "1.0"
+    VERSION = "1.1"
+    MARKET_BATCH_SIZE = 50
     COINGECKO = "https://api.coingecko.com/api/v3"
     NEWS_SOURCES: ClassVar[dict[str, str]] = {
         "coindesk": "https://www.coindesk.com/arc/outboundfeeds/rss/",
@@ -91,25 +92,16 @@ class PublicMarketContextEngine:
         news_items: list[dict[str, Any]] = []
         market_rows: dict[str, dict[str, Any]] = {}
 
-        for offset in range(0, len(bases), 100):
-            batch = bases[offset : offset + 100]
-            query = urllib.parse.urlencode(
-                {
-                    "vs_currency": "usd",
-                    "symbols": ",".join(value.lower() for value in batch),
-                    "include_tokens": "top",
-                    "order": "market_cap_desc",
-                    "per_page": 250,
-                    "page": 1,
-                    "sparkline": "false",
-                    "price_change_percentage": "1h,24h,7d",
-                }
-            )
+        market_batch_failures: list[str] = []
+        market_batch_successes = 0
+        for offset in range(0, len(bases), self.MARKET_BATCH_SIZE):
+            batch = bases[offset : offset + self.MARKET_BATCH_SIZE]
             try:
-                payload = self.json_fetcher(f"{self.COINGECKO}/coins/markets?{query}")
-                if not isinstance(payload, list):
-                    raise TypeError("coins/markets response must be a list")
+                payload = self._fetch_market_batch(batch)
+                market_batch_successes += 1
                 for row in payload:
+                    if not isinstance(row, dict):
+                        continue
                     symbol = str(row.get("symbol", "")).upper()
                     if symbol not in batch or symbol in market_rows:
                         continue
@@ -137,10 +129,16 @@ class PublicMarketContextEngine:
                         ),
                         "updated_at": str(row.get("last_updated", "")),
                     }
-                successful_sources.append("coingecko_markets")
             except Exception as exc:  # noqa: BLE001 - provider failures remain explicit and non-fabricated
-                errors["coingecko_markets"] = f"{type(exc).__name__}: {exc}"
-                break
+                market_batch_failures.append(
+                    f"batch={offset // self.MARKET_BATCH_SIZE + 1},symbols={len(batch)}:"
+                    f"{type(exc).__name__}: {exc}"
+                )
+
+        if market_batch_successes:
+            successful_sources.append("coingecko_markets")
+        if market_batch_failures:
+            errors["coingecko_markets"] = " | ".join(market_batch_failures[-4:])
 
         global_context: dict[str, Any] | None = None
         try:
@@ -194,8 +192,10 @@ class PublicMarketContextEngine:
             self.state["last_market_refresh_epoch"] = now
         if global_context is not None:
             self.state["global"] = global_context
+            self.state["last_global_refresh_epoch"] = now
         if trending is not None:
             self.state["trending"] = trending
+            self.state["last_trending_refresh_epoch"] = now
         self.state["last_attempt_epoch"] = now
         self.state["successful_sources"] = list(dict.fromkeys(successful_sources))
         self.state["last_errors"] = errors
@@ -217,15 +217,37 @@ class PublicMarketContextEngine:
     def evaluate(self, symbol: str) -> dict[str, Any]:
         base = symbol.split("/", 1)[0].upper()
         row = dict((self.state.get("markets") or {}).get(base, {}))
-        age = self.now_fn() - float(self.state.get("last_market_refresh_epoch") or 0.0)
-        fresh = bool(row) and age <= self.refresh_seconds * 2
-        if not fresh:
+        now = self.now_fn()
+        market_epoch = float(self.state.get("last_market_refresh_epoch") or 0.0)
+        market_age = now - market_epoch if market_epoch else None
+        market_fresh = bool(row) and market_age is not None and market_age <= self.refresh_seconds * 2
+        if not market_fresh:
+            health = self.health()
+            global_fresh = bool(health.get("global_context_fresh"))
+            news_fresh = bool(health.get("news_fresh"))
+            trending_fresh = bool(health.get("trending_fresh"))
+            context_fresh = global_fresh or news_fresh or trending_fresh
+            if context_fresh:
+                return {
+                    "available": True,
+                    "fresh": True,
+                    "symbol_market_available": False,
+                    "context_scope": "global_news_fallback",
+                    "score": 0.0,
+                    "confidence": 0.12,
+                    "reason": "fresh_global_or_news_context_without_symbol_market_row",
+                    "global_context_available": bool(self.state.get("global")),
+                    "news_fresh": news_fresh,
+                    "trending": base in set(self.state.get("trending") or []),
+                }
             return {
                 "available": False,
                 "fresh": False,
+                "symbol_market_available": False,
+                "context_scope": "none",
                 "score": 0.0,
                 "confidence": 0.0,
-                "reason": "market_context_missing_or_stale",
+                "reason": "public_context_missing_or_stale",
             }
         changes = [
             float(row.get("price_change_percentage_1h") or 0.0),
@@ -241,6 +263,8 @@ class PublicMarketContextEngine:
         return {
             "available": True,
             "fresh": True,
+            "symbol_market_available": True,
+            "context_scope": "symbol_market",
             "score": score,
             "confidence": confidence,
             "trending": trending,
@@ -252,6 +276,10 @@ class PublicMarketContextEngine:
         age = self.now_fn() - last_success if last_success else None
         last_market_refresh = float(self.state.get("last_market_refresh_epoch") or 0.0)
         market_refresh_age = self.now_fn() - last_market_refresh if last_market_refresh else None
+        last_global_refresh = float(self.state.get("last_global_refresh_epoch") or 0.0)
+        global_refresh_age = self.now_fn() - last_global_refresh if last_global_refresh else None
+        last_trending_refresh = float(self.state.get("last_trending_refresh_epoch") or 0.0)
+        trending_refresh_age = self.now_fn() - last_trending_refresh if last_trending_refresh else None
         last_news_refresh = float(self.state.get("last_news_refresh_epoch") or 0.0)
         news_refresh_age = self.now_fn() - last_news_refresh if last_news_refresh else None
         latest_news_item = float(self.state.get("latest_news_item_epoch") or 0.0)
@@ -267,6 +295,20 @@ class PublicMarketContextEngine:
             "markets": len(self.state.get("markets") or {}),
             "trending_symbols": len(self.state.get("trending") or []),
             "global_context_available": bool(self.state.get("global")),
+            "last_global_refresh_epoch": last_global_refresh or None,
+            "global_refresh_age_seconds": global_refresh_age,
+            "global_context_fresh": (
+                bool(self.state.get("global"))
+                and global_refresh_age is not None
+                and global_refresh_age <= self.refresh_seconds * 2
+            ),
+            "last_trending_refresh_epoch": last_trending_refresh or None,
+            "trending_refresh_age_seconds": trending_refresh_age,
+            "trending_fresh": (
+                bool(self.state.get("trending"))
+                and trending_refresh_age is not None
+                and trending_refresh_age <= self.refresh_seconds * 2
+            ),
             "last_market_refresh_epoch": last_market_refresh or None,
             "market_refresh_age_seconds": market_refresh_age,
             "market_data_fresh": (
@@ -300,6 +342,36 @@ class PublicMarketContextEngine:
             "failures": self.failures,
             "state_path": str(self.state_path),
         }
+
+    def _fetch_market_batch(self, batch: list[str]) -> list[dict[str, Any]]:
+        if not batch:
+            return []
+        query = urllib.parse.urlencode(
+            {
+                "vs_currency": "usd",
+                "symbols": ",".join(value.lower() for value in batch),
+                "include_tokens": "top",
+                "order": "market_cap_desc",
+                "per_page": min(250, max(1, len(batch))),
+                "page": 1,
+                "sparkline": "false",
+                "price_change_percentage": "1h,24h,7d",
+            }
+        )
+        try:
+            payload = self.json_fetcher(f"{self.COINGECKO}/coins/markets?{query}")
+        except Exception as exc:  # noqa: BLE001
+            # Provider-side lookup limits and a single malformed/unsupported
+            # symbol should not blind the entire universe. Split only explicit
+            # bad-request failures; transport/server failures remain visible.
+            code = getattr(exc, "code", None)
+            if len(batch) > 1 and (code == 400 or "400" in str(exc)):
+                middle = max(1, len(batch) // 2)
+                return self._fetch_market_batch(batch[:middle]) + self._fetch_market_batch(batch[middle:])
+            raise
+        if not isinstance(payload, list):
+            raise TypeError("coins/markets response must be a list")
+        return [row for row in payload if isinstance(row, dict)]
 
     @classmethod
     def _parse_rss(cls, payload: str, source: str, bases: list[str]) -> list[dict[str, Any]]:

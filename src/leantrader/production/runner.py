@@ -11,30 +11,54 @@ from typing import Any
 
 import pandas as pd
 
+from .active_research import ActiveResearchPlanner
+from .adversarial_critic import AdversarialCritic
 from .advanced_engines import UltraEngineSuite
 from .arbitrage_monitor import CrossVenueQuoteCollector
 from .brain import TradingBrain
+from .hypothesis_lab import HypothesisLab
+from .intelligence_council import IntelligenceCouncil
 from .capital_growth import CapitalGrowthGovernor
 from .cns import CentralNervousSystem
+from .cognitive_governance import CognitiveGovernanceBridge
 from .decision_router import BoundedDecisionRouter, MarketEvidenceGate
 from .engine_control import EngineRegistry
 from .error_attribution import ErrorAttributionTracker
+from .evolution_fabric import EvolutionFabric
 from .exchange_intelligence import ExchangeIntelligence, timeframe_seconds
 from .exchange_protection import ExchangeProtectionOrchestrator
-from .intelligence import AdaptiveIntelligence, IntelligenceDecision
+from .intelligence import AdaptiveIntelligence, IntelligenceDecision, MINIMUM_INTELLIGENCE_CANDLES
 from .ledger import PaperLedger
 from .market_universe import MarketUniverse
+from .market_world_model import MarketWorldModel
+from .market_sensor_fabric import MarketSensorFabric
 from .memory_retention import MarketFingerprint, MemoryRetentionEngine
+from .meta_cognition import MetaCognitiveSelfModel
 from .model_research import ModelResearchEngine, StructuredResearchProvider
 from .operations_engines import OperationsEngineSuite
 from .public_context import PublicMarketContextEngine
 from .research_engines import ResearchEngineSuite
 from .settings import Settings
 from .strategy_observatory import StrategyObservatory
+from .tail_risk_sentinel import TailRiskSentinel
 from .temporal_guard import MarketTemporalGuard
 from .testnet_execution import BybitTestnetExecutionEngine
 
 LOGGER = logging.getLogger("leantrader.production")
+
+
+def _is_symbol_history_unavailable(exc: Exception) -> bool:
+    """Return True only for a genuine not-yet-mature market-history gap.
+
+    A newly listed symbol can be active and liquid while still having fewer than
+    the minimum 220 closed candles required by the adaptive intelligence layer.
+    That is an availability state, not a required-engine failure. Other quality
+    problems (invalid prices, gaps, malformed timestamps, etc.) remain failures.
+    """
+    return (
+        isinstance(exc, ValueError)
+        and str(exc).strip() == "market data rejected: fewer than 220 candles"
+    )
 
 
 def atr_sized_notional(
@@ -278,6 +302,35 @@ class PaperRunner:
             quarantine_expectancy_floor=settings.brain_quarantine_expectancy_floor,
             recovery_expectancy_floor=settings.brain_recovery_expectancy_floor,
         )
+        self.market_world_model = MarketWorldModel(settings.market_world_model_state_path)
+        self.market_sensor_fabric = MarketSensorFabric(
+            settings.market_sensor_fabric_state_path,
+            fred_api_key_file=settings.fred_api_key_path,
+            glassnode_api_key_file=settings.glassnode_api_key_path,
+            defillama_api_key_file=settings.defillama_api_key_path,
+            ethereum_rpc_url_file=settings.ethereum_rpc_url_path,
+            solana_rpc_url_file=settings.solana_rpc_url_path,
+            derivatives_refresh_seconds=settings.sensor_derivatives_refresh_seconds,
+            options_refresh_seconds=settings.sensor_options_refresh_seconds,
+            macro_refresh_seconds=settings.sensor_macro_refresh_seconds,
+            onchain_refresh_seconds=settings.sensor_onchain_refresh_seconds,
+            enabled=hasattr(feed, "exchange"),
+        )
+        self.meta_cognition = MetaCognitiveSelfModel(settings.meta_cognition_state_path)
+        self.intelligence_council = IntelligenceCouncil(settings.intelligence_council_state_path)
+        self.adversarial_critic = AdversarialCritic(settings.adversarial_critic_state_path)
+        self.hypothesis_lab = HypothesisLab(settings.hypothesis_lab_state_path)
+        self.active_research = ActiveResearchPlanner(settings.active_research_state_path)
+        self.tail_risk = TailRiskSentinel(settings.tail_risk_state_path)
+        self.cognitive_governance = CognitiveGovernanceBridge(settings.cognitive_governance_state_path)
+        self.evolution_fabric = EvolutionFabric(
+            settings.evolution_fabric_state_path,
+            settings.evolution_inbox_path,
+            enabled=settings.evolution_enabled,
+            max_pack_age_seconds=settings.evolution_max_pack_age_seconds,
+            minimum_shadow_samples=settings.evolution_min_shadow_samples,
+            round_trip_cost_bps=2 * (settings.fee_bps + settings.slippage_bps),
+        )
         self.capital_growth = CapitalGrowthGovernor(
             settings.capital_growth_state_path,
             starting_equity=settings.starting_cash,
@@ -425,8 +478,86 @@ class PaperRunner:
         self.engines.register(
             "trading_brain",
             self.brain,
-            dependencies=("central_nervous_system", "memory_retention", "strategy_observatory", "decision_router"),
+            dependencies=("central_nervous_system", "memory_retention", "strategy_observatory", "decision_router", "cognitive_governance"),
             version=self.brain.VERSION,
+        )
+        self.engines.register(
+            "market_sensor_fabric",
+            self.market_sensor_fabric,
+            required=False,
+            dependencies=("market_data",),
+            version=self.market_sensor_fabric.VERSION,
+        )
+        self.engines.register(
+            "market_world_model",
+            self.market_world_model,
+            required=False,
+            dependencies=("adaptive_intelligence", "advanced_shadow_suite", "public_market_context", "market_sensor_fabric"),
+            version=self.market_world_model.VERSION,
+        )
+        self.engines.register(
+            "meta_cognitive_self_model",
+            self.meta_cognition,
+            required=False,
+            dependencies=("market_world_model", "central_nervous_system", "memory_retention", "strategy_observatory"),
+            version=self.meta_cognition.VERSION,
+        )
+        self.engines.register(
+            "intelligence_council",
+            self.intelligence_council,
+            required=False,
+            dependencies=("market_world_model", "meta_cognitive_self_model", "adaptive_intelligence", "advanced_shadow_suite"),
+            version=self.intelligence_council.VERSION,
+        )
+        self.engines.register(
+            "adversarial_critic",
+            self.adversarial_critic,
+            required=False,
+            dependencies=("intelligence_council", "meta_cognitive_self_model"),
+            version=self.adversarial_critic.VERSION,
+        )
+        self.engines.register(
+            "hypothesis_lab",
+            self.hypothesis_lab,
+            required=False,
+            dependencies=("market_world_model", "intelligence_council", "adversarial_critic"),
+            version=self.hypothesis_lab.VERSION,
+        )
+        self.engines.register(
+            "active_research_planner",
+            self.active_research,
+            required=False,
+            dependencies=("hypothesis_lab", "market_world_model", "meta_cognitive_self_model"),
+            version=self.active_research.VERSION,
+        )
+        self.engines.register(
+            "tail_risk_sentinel",
+            self.tail_risk,
+            required=False,
+            dependencies=("market_world_model", "advanced_shadow_suite"),
+            version=self.tail_risk.VERSION,
+        )
+        self.engines.register(
+            "cognitive_governance",
+            self.cognitive_governance,
+            dependencies=(
+                "market_world_model",
+                "meta_cognitive_self_model",
+                "intelligence_council",
+                "adversarial_critic",
+                "hypothesis_lab",
+                "active_research_planner",
+                "tail_risk_sentinel",
+                "memory_retention",
+            ),
+            version=self.cognitive_governance.VERSION,
+        )
+        self.engines.register(
+            "evolution_fabric",
+            self.evolution_fabric,
+            required=False,
+            dependencies=("active_research_planner", "strategy_observatory"),
+            version=self.evolution_fabric.VERSION,
         )
         self.engines.register(
             "capital_growth",
@@ -457,6 +588,47 @@ class PaperRunner:
         self._recover_open_position_memory()
         self.stop_requested = False
 
+    def _shadow_call(
+        self,
+        cycle_errors: dict[str, str],
+        key: str,
+        engine_name: str,
+        method: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Call an optional intelligence engine without changing trading authority.
+
+        v12.6 meta/world/research engines are deliberately shadow-only. Their
+        failures must remain visible but can never turn an otherwise valid market
+        decision into a required symbol-pipeline failure.
+        """
+        if not self.error_attribution.should_attempt(key):
+            return {
+                "available": False,
+                "reason": "optional_error_cooldown",
+                "engine": engine_name,
+                "execution_authority": False,
+            }
+        try:
+            result = self.engines.call(engine_name, method, *args, **kwargs)
+            self.error_attribution.success(key)
+            return result if isinstance(result, dict) else {"result": result}
+        except Exception as exc:  # noqa: BLE001 - optional intelligence cannot interrupt canonical trading
+            error_text = f"{type(exc).__name__}: {exc}"
+            cycle_errors[key] = error_text
+            self.error_attribution.failure(
+                key, error_text, optional=True, component=engine_name,
+                symbol=str(kwargs.get("symbol") or "") or None,
+            )
+            LOGGER.warning("optional intelligence failure engine=%s key=%s error=%s", engine_name, key, error_text)
+            return {
+                "available": False,
+                "error": error_text,
+                "engine": engine_name,
+                "execution_authority": False,
+            }
+
     def cycle(self) -> dict[str, Any]:
         decisions: dict[str, IntelligenceDecision] = {}
         frames: dict[str, pd.DataFrame] = {}
@@ -467,6 +639,18 @@ class PaperRunner:
         memory_summaries: dict[str, dict[str, Any]] = {}
         cns_packets: dict[str, dict[str, Any]] = {}
         brain_decisions: dict[str, dict[str, Any]] = {}
+        world_states: dict[str, dict[str, Any]] = {}
+        self_awareness: dict[str, dict[str, Any]] = {}
+        council_decisions: dict[str, dict[str, Any]] = {}
+        critic_reviews: dict[str, dict[str, Any]] = {}
+        hypothesis_updates: dict[str, dict[str, Any]] = {}
+        research_plans: dict[str, dict[str, Any]] = {}
+        tail_risk_states: dict[str, dict[str, Any]] = {}
+        cognitive_governance_states: dict[str, dict[str, Any]] = {}
+        evolution_snapshot: dict[str, Any] = {}
+        evolution_capabilities: dict[str, Any] = {}
+        evolution_requests: dict[str, Any] = {}
+        public_symbol_context: dict[str, dict[str, Any]] = {}
         errors: dict[str, str] = {}
         self.engines.call("market_temporal_guard", "sync_clock")
         allowed_testnet_symbols = (
@@ -500,6 +684,14 @@ class PaperRunner:
             "next_batch",
             mandatory_symbols=set(self.ledger.positions),
         )
+        sensor_snapshot: dict[str, Any] = self._shadow_call(
+            errors,
+            "market_sensor_fabric:collect",
+            "market_sensor_fabric",
+            "collect",
+            cycle_symbols,
+        )
+        sensor_symbols = sensor_snapshot.get("symbols") or {} if isinstance(sensor_snapshot, dict) else {}
         context_refresh = self.engines.call(
             "public_market_context", "refresh", tuple(self.universe.symbols)
         )
@@ -519,6 +711,7 @@ class PaperRunner:
         else:
             arbitrage_collection = {"available": False, "quotes": [], "reason": "optional_error_cooldown"}
         resolved_timeframes = self.engines.call("exchange_intelligence", "resolve_timeframes")
+        cycle_engine_health = self.engines.snapshot()
         news_items = list(context_refresh.get("news_items") or [])
         if news_items:
             self.advanced.news.ingest(news_items)
@@ -534,6 +727,25 @@ class PaperRunner:
                     self.settings.timeframe,
                     source_requires_timestamp=hasattr(self.feed, "exchange"),
                 )
+                if len(frame) < MINIMUM_INTELLIGENCE_CANDLES:
+                    # Market discovery can legitimately find a newly listed, liquid
+                    # spot market before enough base-timeframe history exists for
+                    # the adaptive intelligence contract.  Do not fetch the full
+                    # multi-timeframe matrix or classify this as a required engine
+                    # failure.  Preserve observability and automatically retry when
+                    # the symbol rotates through the universe again.
+                    reason = (
+                        f"{self.settings.timeframe} history immature: "
+                        f"{len(frame)} closed candles; requires "
+                        f"{MINIMUM_INTELLIGENCE_CANDLES}"
+                    )
+                    self.error_attribution.unavailable(
+                        symbol, reason, component="symbol_history", symbol=symbol
+                    )
+                    LOGGER.info(
+                        "symbol history unavailable symbol=%s reason=%s", symbol, reason
+                    )
+                    continue
                 frames[symbol] = frame
                 research_observations[symbol] = self.engines.call(
                     "research_governor", "observe_symbol", symbol, frame
@@ -542,6 +754,10 @@ class PaperRunner:
                 for timeframe in resolved_timeframes:
                     if timeframe == self.settings.timeframe:
                         context_frames[timeframe] = frame
+                        continue
+                    error_key = f"{symbol}:timeframe:{timeframe}"
+                    if not self.error_attribution.should_attempt(error_key):
+                        context_frames[timeframe] = pd.DataFrame()
                         continue
                     try:
                         context_frame = self.feed.candles(
@@ -554,13 +770,22 @@ class PaperRunner:
                             timeframe,
                             source_requires_timestamp=hasattr(self.feed, "exchange"),
                         )
+                        self.error_attribution.success(error_key)
                     except Exception as exc:  # noqa: BLE001 - one interval must not hide all others
                         context_frames[timeframe] = pd.DataFrame()
-                        error_key = f"{symbol}:timeframe:{timeframe}"
-                        errors[error_key] = f"{type(exc).__name__}: {exc}"
-                        self.error_attribution.failure(
-                            error_key, errors[error_key], optional=True, component="multi_timeframe", symbol=symbol
-                        )
+                        error_text = f"{type(exc).__name__}: {exc}"
+                        # A newly listed asset can legitimately have no completed
+                        # weekly/monthly candle yet.  Treat that as unavailable
+                        # evidence, not as a runtime failure.
+                        if isinstance(exc, ValueError) and "has no closed candles" in str(exc):
+                            self.error_attribution.unavailable(
+                                error_key, error_text, component="multi_timeframe", symbol=symbol
+                            )
+                        else:
+                            errors[error_key] = error_text
+                            self.error_attribution.failure(
+                                error_key, error_text, optional=True, component="multi_timeframe", symbol=symbol
+                            )
                 decisions[symbol] = self.engines.call(
                     "adaptive_intelligence",
                     "evaluate",
@@ -581,6 +806,9 @@ class PaperRunner:
                         self.error_attribution.failure(
                             error_key, errors[error_key], optional=True, component="order_book", symbol=symbol
                         )
+                public_symbol_context[symbol] = self.engines.call(
+                    "public_market_context", "evaluate", symbol
+                )
                 advanced_decisions[symbol] = self.engines.call(
                     "advanced_shadow_suite",
                     "evaluate_symbol",
@@ -589,11 +817,30 @@ class PaperRunner:
                     order_book,
                     self.settings.order_usd / max(decisions[symbol].close, 1e-12),
                     context_frames,
-                    self.engines.call("public_market_context", "evaluate", symbol),
+                    public_symbol_context[symbol],
                 )
                 base_score = sum(
                     decisions[symbol].component_scores[name] * decisions[symbol].weights[name]
                     for name in decisions[symbol].component_scores
+                )
+                world_states[symbol] = self._shadow_call(
+                    errors,
+                    f"{symbol}:market_world_model",
+                    "market_world_model",
+                    "observe_symbol",
+                    symbol,
+                    frame,
+                    adaptive={
+                        "score": base_score,
+                        "confidence": decisions[symbol].confidence,
+                        "regime": decisions[symbol].regime,
+                    },
+                    advanced=advanced_decisions[symbol],
+                    public_context=public_symbol_context[symbol],
+                    timeframe_signals=decisions[symbol].timeframe_signals,
+                    timeframe_coverage=decisions[symbol].multi_timeframe_coverage,
+                    external_sensors=sensor_symbols.get(symbol, {}),
+                    evolution_evidence=self.evolution_fabric.evidence_for(symbol),
                 )
                 routed_decisions[symbol] = self.engines.call(
                     "decision_router",
@@ -660,18 +907,26 @@ class PaperRunner:
                     runtime_errors=errors,
                 )
                 upstream_allowed = bool(routed_decisions[symbol].get("allowed"))
+                routed_decisions[symbol]["router_allowed_pre_brain"] = upstream_allowed
+                routed_decisions[symbol]["router_reason_pre_brain"] = str(
+                    routed_decisions[symbol].get("reason") or "unknown"
+                )
+                routed_decisions[symbol]["router_size_multiplier_pre_brain"] = float(
+                    routed_decisions[symbol].get("size_multiplier", 1.0)
+                )
+                strategy_evidence = self.engines.call(
+                    "strategy_observatory",
+                    "evidence",
+                    "engine:bounded_decision_router",
+                    symbol,
+                )
                 brain_decisions[symbol] = self.engines.call(
                     "trading_brain",
                     "evaluate",
                     symbol=symbol,
                     cns=cns_packets[symbol],
                     memory=memory_summaries[symbol],
-                    strategy_evidence=self.engines.call(
-                        "strategy_observatory",
-                        "evidence",
-                        "engine:bounded_decision_router",
-                        symbol,
-                    ),
+                    strategy_evidence=strategy_evidence,
                     upstream_allowed=upstream_allowed,
                     strategy_name=f"bounded_decision_router:{symbol}",
                 )
@@ -692,6 +947,61 @@ class PaperRunner:
                     )
                     routed_decisions[symbol]["reason"] = f"brain:{reason}"
                     routed_decisions[symbol]["size_multiplier"] = 0.0
+
+                self_awareness[symbol] = self._shadow_call(
+                    errors,
+                    f"{symbol}:meta_cognition",
+                    "meta_cognitive_self_model",
+                    "assess_symbol",
+                    symbol=symbol,
+                    world=world_states.get(symbol, {}),
+                    cns=cns_packets[symbol],
+                    memory=memory_summaries[symbol],
+                    route=routed_decisions[symbol],
+                    brain=brain_decisions[symbol],
+                    strategy_evidence=strategy_evidence,
+                    engine_health=cycle_engine_health,
+                )
+                council_decisions[symbol] = self._shadow_call(
+                    errors,
+                    f"{symbol}:intelligence_council",
+                    "intelligence_council",
+                    "deliberate",
+                    symbol=symbol,
+                    adaptive={
+                        "score": base_score,
+                        "confidence": decisions[symbol].confidence,
+                    },
+                    advanced=advanced_decisions[symbol],
+                    world=world_states.get(symbol, {}),
+                    self_model=self_awareness.get(symbol, {}),
+                    memory=memory_summaries[symbol],
+                    public_context=public_symbol_context.get(symbol, {}),
+                )
+                critic_reviews[symbol] = self._shadow_call(
+                    errors,
+                    f"{symbol}:adversarial_critic",
+                    "adversarial_critic",
+                    "review",
+                    symbol=symbol,
+                    council=council_decisions.get(symbol, {}),
+                    world=world_states.get(symbol, {}),
+                    self_model=self_awareness.get(symbol, {}),
+                    memory=memory_summaries[symbol],
+                    route=routed_decisions[symbol],
+                    brain=brain_decisions[symbol],
+                    public_context=public_symbol_context.get(symbol, {}),
+                )
+                hypothesis_updates[symbol] = self._shadow_call(
+                    errors,
+                    f"{symbol}:hypothesis_lab",
+                    "hypothesis_lab",
+                    "observe",
+                    symbol=symbol,
+                    world=world_states.get(symbol, {}),
+                    council=council_decisions.get(symbol, {}),
+                    critic=critic_reviews.get(symbol, {}),
+                )
 
                 observatory_signals = list(advanced_decisions[symbol].get("signals", []))
                 observatory_signals.extend(
@@ -728,11 +1038,160 @@ class PaperRunner:
                     observatory_signals,
                     decisions[symbol].timeframe_signals,
                 )
-                self.engines.call(
+                # Clear any previous symbol-level failure/unavailable state only
+                # after the full canonical symbol pipeline completes successfully.
+                # This lets transient provider failures and young-market maturity
+                # gaps recover automatically without hiding malformed-data faults.
+                self.error_attribution.success(symbol)
+            except Exception as exc:  # noqa: BLE001 - isolate individual symbol/feed failures
+                error_text = f"{type(exc).__name__}: {exc}"
+                if _is_symbol_history_unavailable(exc):
+                    # Young/newly listed markets can be tradable before enough
+                    # closed base-timeframe history exists for the intelligence
+                    # quality contract. Keep them visible and retry later, but do
+                    # not turn an expected maturity gap into a required failure.
+                    self.error_attribution.unavailable(
+                        symbol, error_text, component="symbol_history", symbol=symbol
+                    )
+                    LOGGER.info(
+                        "symbol history unavailable symbol=%s reason=%s", symbol, error_text
+                    )
+                else:
+                    errors[symbol] = error_text
+                    self.error_attribution.failure(
+                        symbol, error_text, optional=False, component="symbol_pipeline", symbol=symbol
+                    )
+                    LOGGER.warning(
+                        "symbol pipeline failure symbol=%s error=%s", symbol, error_text
+                    )
+
+        world_market_snapshot = self._shadow_call(
+            errors,
+            "market_world_model:market_snapshot",
+            "market_world_model",
+            "observe_market",
+            frames,
+        )
+        post_symbol_engine_health = self.engines.snapshot()
+        evolution_snapshot = self._shadow_call(
+            errors,
+            "evolution_fabric:refresh",
+            "evolution_fabric",
+            "refresh",
+            prices={symbol: decision.close for symbol, decision in decisions.items()},
+            engine_health=post_symbol_engine_health,
+            world_market=world_market_snapshot,
+            strategy_health=self.strategy_observatory.health(),
+        )
+        evolution_capabilities = self._shadow_call(
+            errors,
+            "evolution_fabric:capabilities",
+            "evolution_fabric",
+            "capability_status",
+        )
+        for symbol in world_states:
+            tail_risk_states[symbol] = self._shadow_call(
+                errors,
+                f"{symbol}:tail_risk_sentinel",
+                "tail_risk_sentinel",
+                "assess",
+                symbol=symbol,
+                world=world_states.get(symbol, {}),
+                market_world=world_market_snapshot,
+                advanced=advanced_decisions.get(symbol, {}),
+                runtime_errors=errors,
+            )
+            research_plans[symbol] = self._shadow_call(
+                errors,
+                f"{symbol}:active_research_planner",
+                "active_research_planner",
+                "plan_symbol",
+                symbol=symbol,
+                world=world_states.get(symbol, {}),
+                self_model=self_awareness.get(symbol, {}),
+                council=council_decisions.get(symbol, {}),
+                critic=critic_reviews.get(symbol, {}),
+                hypotheses=hypothesis_updates.get(symbol, {}),
+                engine_health=post_symbol_engine_health,
+                public_context_health={
+                    key: value for key, value in context_refresh.items() if key != "news_items"
+                },
+                arbitrage=arbitrage_collection,
+                market_world=world_market_snapshot,
+                sensor_snapshot=sensor_snapshot,
+                external_capabilities=evolution_capabilities,
+            )
+
+        evolution_requests = self._shadow_call(
+            errors,
+            "evolution_fabric:research_demand",
+            "evolution_fabric",
+            "sync_research_demand",
+            adapter_backlog=self.active_research.adapter_backlog(),
+            research_agenda=self.active_research.agenda(50),
+            world_market=world_market_snapshot,
+        )
+
+        # Higher-order intelligence is now a bounded final Brain safety review.
+        # The council/critic/world/self/tail/research stack still has no direct
+        # execution authority: it can only preserve, reduce or veto an upstream
+        # Router + CNS + Memory + Brain approval through this fail-closed bridge.
+        for symbol in list(routed_decisions):
+            if symbol not in brain_decisions:
+                continue
+            route = routed_decisions[symbol]
+            upstream_allowed = bool(route.get("router_allowed_pre_brain"))
+            governance_key = f"{symbol}:cognitive_governance"
+            try:
+                governance = self.engines.call(
+                    "cognitive_governance",
+                    "evaluate",
+                    symbol=symbol,
+                    upstream_allowed=upstream_allowed,
+                    world=world_states.get(symbol, {}),
+                    self_model=self_awareness.get(symbol, {}),
+                    council=council_decisions.get(symbol, {}),
+                    critic=critic_reviews.get(symbol, {}),
+                    hypothesis=hypothesis_updates.get(symbol, {}),
+                    tail_risk=tail_risk_states.get(symbol, {}),
+                    research_plan=research_plans.get(symbol, {}),
+                    memory=memory_summaries.get(symbol, {}),
+                    public_context=public_symbol_context.get(symbol, {}),
+                    sensor_context=sensor_symbols.get(symbol, {}),
+                )
+                cognitive_governance_states[symbol] = governance
+                final_brain = self.engines.call(
+                    "trading_brain",
+                    "apply_cognitive_governance",
+                    symbol=symbol,
+                    base_decision=brain_decisions[symbol],
+                    governance=governance,
+                )
+                brain_decisions[symbol] = final_brain
+                route["brain"] = final_brain
+                route["cognitive_governance"] = governance
+                base_size = max(0.0, min(1.0, float(route.get("router_size_multiplier_pre_brain", 1.0))))
+                route["size_multiplier"] = max(
+                    0.0, min(1.0, base_size * float(final_brain.get("risk_multiplier", 0.0)))
+                )
+                if upstream_allowed and not final_brain.get("allow_entry"):
+                    route["allowed"] = False
+                    cognitive_reasons = [
+                        value for value in final_brain.get("reasons", [])
+                        if str(value).startswith("cognitive:")
+                    ]
+                    reason = cognitive_reasons[0] if cognitive_reasons else "cognitive_governance_veto"
+                    route["reason"] = f"brain:{reason}"
+                    route["size_multiplier"] = 0.0
+                self.error_attribution.success(governance_key)
+                self._shadow_call(
+                    errors,
+                    f"{symbol}:operations_provenance",
                     "operations_safety",
                     "record_decision",
                     symbol,
                     {
+                        "decision_stage": "post_cognitive_governance",
                         "close": decisions[symbol].close,
                         "regime": decisions[symbol].regime,
                         "confidence": decisions[symbol].confidence,
@@ -740,15 +1199,37 @@ class PaperRunner:
                         "component_scores": decisions[symbol].component_scores,
                         "weights": decisions[symbol].weights,
                         "advanced_shadow": advanced_decisions[symbol],
-                        "decision_route": routed_decisions[symbol],
-                        "cns": cns_packets[symbol],
-                        "brain": brain_decisions[symbol],
-                        "memory_summary": memory_summaries[symbol],
-                        "research_observation": research_observations[symbol],
+                        "decision_route": route,
+                        "cns": cns_packets.get(symbol, {}),
+                        "brain": final_brain,
+                        "memory_summary": memory_summaries.get(symbol, {}),
+                        "market_world_model": world_states.get(symbol, {}),
+                        "meta_cognitive_self_model": self_awareness.get(symbol, {}),
+                        "intelligence_council": council_decisions.get(symbol, {}),
+                        "adversarial_critic": critic_reviews.get(symbol, {}),
+                        "hypothesis_lab": hypothesis_updates.get(symbol, {}),
+                        "tail_risk_sentinel": tail_risk_states.get(symbol, {}),
+                        "active_research_plan": research_plans.get(symbol, {}),
+                        "cognitive_governance": governance,
+                        "research_observation": research_observations.get(symbol, {}),
                     },
                 )
-            except Exception as exc:  # noqa: BLE001 - isolate individual symbol/feed failures
-                errors[symbol] = f"{type(exc).__name__}: {exc}"
+            except Exception as exc:  # noqa: BLE001 - final safety bridge fails closed
+                error_text = f"{type(exc).__name__}: {exc}"
+                errors[governance_key] = error_text
+                self.error_attribution.failure(
+                    governance_key,
+                    error_text,
+                    optional=False,
+                    component="cognitive_governance",
+                    symbol=symbol,
+                )
+                route["allowed"] = False
+                route["reason"] = "cognitive_governance:unavailable"
+                route["size_multiplier"] = 0.0
+                LOGGER.error(
+                    "cognitive governance fail-closed symbol=%s error=%s", symbol, error_text
+                )
 
         prices = {symbol: decision.close for symbol, decision in decisions.items()}
         events: list[dict[str, Any]] = []
@@ -777,6 +1258,13 @@ class PaperRunner:
             required_engines_healthy=self.engines.required_healthy(),
         )
         capital_state = research_state["capital_preservation"]
+        bounded_research_context = self._shadow_call(
+            errors,
+            "active_research_planner:model_context",
+            "active_research_planner",
+            "model_research_context",
+            20,
+        )
         try:
             model_research_observation = self.engines.call(
                 "model_research",
@@ -803,6 +1291,20 @@ class PaperRunner:
                     "public_context": {
                         key: value for key, value in context_refresh.items() if key != "news_items"
                     },
+                    "market_sensor_fabric": {
+                "snapshot": sensor_snapshot,
+                "health": self.market_sensor_fabric.health(),
+                "read_only": True,
+                "execution_authority": False,
+            },
+            "market_world_model": {
+                        "market": world_market_snapshot,
+                        "research_candidates": self.market_world_model.research_candidates(20),
+                    },
+                    "meta_cognitive_self_model": self.meta_cognition.health(),
+                    "hypothesis_agenda": self.hypothesis_lab.agenda(20),
+                    "active_research": bounded_research_context,
+                    "tail_risk": self.tail_risk.health(),
                 },
             )
         except Exception as exc:  # noqa: BLE001 - external research never interrupts trading/accounting
@@ -887,6 +1389,19 @@ class PaperRunner:
                         event["memory_retention"] = self._settle_trade_memory(event)
                     except Exception as exc:  # noqa: BLE001 - closed accounting is final; expose memory failure
                         errors[f"{symbol}:memory_retention"] = f"{type(exc).__name__}: {exc}"
+                    try:
+                        event["meta_cognition_outcome"] = self.engines.call(
+                            "meta_cognitive_self_model",
+                            "record_outcome",
+                            dict(event.get("position_metadata") or {}),
+                            float(event.get("trade_realized_return_total") or 0.0),
+                        )
+                    except Exception as exc:  # noqa: BLE001 - accounting is final; self-model learning is optional
+                        error_key = f"{symbol}:meta_cognition_outcome"
+                        errors[error_key] = f"{type(exc).__name__}: {exc}"
+                        self.error_attribution.failure(
+                            error_key, errors[error_key], optional=True, component="meta_cognitive_self_model", symbol=symbol
+                        )
 
         # Re-evaluate protected capital after exits so a realized loss can
         # block same-cycle re-entry instead of waiting for the next poll.
@@ -904,6 +1419,8 @@ class PaperRunner:
         )
         available_deployable_notional = float(growth_state["remaining_deployable_notional"])
 
+        entry_attempts = 0
+        entry_failures = 0
         if not halt:
             for symbol, decision in decisions.items():
                 route = routed_decisions.get(symbol)
@@ -958,11 +1475,21 @@ class PaperRunner:
                     "multi_timeframe_coverage": decision.multi_timeframe_coverage,
                     "timeframe_signals": decision.timeframe_signals,
                     "session_allowed": decision.session_allowed,
+                    "symbol": symbol,
                     "advanced_feature_vector": advanced_decisions.get(symbol, {}).get("feature_vector", {}),
+                    "advanced_shadow": advanced_decisions.get(symbol, {}),
                     "decision_route": route,
                     "cns": cns_packets.get(symbol, {}),
                     "brain": brain_decisions.get(symbol, {}),
                     "memory_summary": memory_summaries.get(symbol, {}),
+                    "market_world_model": world_states.get(symbol, {}),
+                    "meta_cognitive_self_model": self_awareness.get(symbol, {}),
+                    "intelligence_council": council_decisions.get(symbol, {}),
+                    "adversarial_critic": critic_reviews.get(symbol, {}),
+                    "hypothesis_lab": hypothesis_updates.get(symbol, {}),
+                    "tail_risk_sentinel": tail_risk_states.get(symbol, {}),
+                    "active_research_plan": research_plans.get(symbol, {}),
+                    "cognitive_governance": cognitive_governance_states.get(symbol, {}),
                     "capital_growth": growth_state,
                 }
                 if position is None:
@@ -977,6 +1504,7 @@ class PaperRunner:
                         }
                     )
                 try:
+                    entry_attempts += 1
                     event = self.engines.call(
                         "paper_ledger",
                         "buy",
@@ -1010,6 +1538,7 @@ class PaperRunner:
                         except Exception as exc:  # noqa: BLE001 - paper fill is final; expose memory capture failure
                             errors[f"{symbol}:memory_capture"] = f"{type(exc).__name__}: {exc}"
                 except ValueError as exc:
+                    entry_failures += 1
                     errors[symbol] = str(exc)
 
         equity = self.engines.call("paper_ledger", "equity", prices)
@@ -1096,6 +1625,52 @@ class PaperRunner:
             )
         except Exception as exc:  # noqa: BLE001 - advanced suite is shadow-only
             advanced_market = {"error": f"{type(exc).__name__}: {exc}"}
+        block_reason_counts: dict[str, int] = {}
+        for reason in entry_blocks.values():
+            block_reason_counts[str(reason)] = block_reason_counts.get(str(reason), 0) + 1
+        execution_funnel = {
+            "symbols_evaluated": len(decisions),
+            "base_enter_candidates": sum(1 for decision in decisions.values() if decision.enter_long),
+            "router_approved_pre_brain": sum(
+                1 for route in routed_decisions.values() if route.get("router_allowed_pre_brain") is True
+            ),
+            "brain_approved": sum(
+                1
+                for symbol, brain in brain_decisions.items()
+                if brain.get("allow_entry") is True
+                and (routed_decisions.get(symbol) or {}).get("router_allowed_pre_brain") is True
+            ),
+            "cognitive_governance_reviewed": len(cognitive_governance_states),
+            "cognitive_governance_vetoes": sum(
+                1 for row in cognitive_governance_states.values() if row.get("action") == "veto"
+            ),
+            "cognitive_governance_reductions": sum(
+                1 for row in cognitive_governance_states.values() if row.get("action") == "reduce"
+            ),
+            "final_route_allowed": sum(
+                1 for route in routed_decisions.values() if route.get("allowed") is True
+            ),
+            "entry_attempts": entry_attempts,
+            "entry_failures": entry_failures,
+            "buy_events": sum(1 for event in events if event.get("side") == "buy"),
+            "sell_events": sum(1 for event in events if event.get("side") == "sell"),
+            "entry_blocks": len(entry_blocks),
+            "entry_block_reasons": block_reason_counts,
+            "open_positions": len(self.ledger.positions),
+            "paper_trade_events_total": self.ledger.trade_count,
+            "halted": bool(halt),
+        }
+        self_system_awareness = self._shadow_call(
+            errors,
+            "meta_cognitive_self_model:system",
+            "meta_cognitive_self_model",
+            "observe_system",
+            engines=self.engines.snapshot(),
+            execution_funnel=execution_funnel,
+            errors=errors,
+            capital=growth_state,
+            world_health=self.market_world_model.health(),
+        )
         engine_status = self.engines.snapshot()
         error_attribution = self.error_attribution.cycle_summary(errors)
         if errors:
@@ -1106,11 +1681,15 @@ class PaperRunner:
                 error_attribution["required_count"],
                 ",".join(error_attribution["keys"]),
             )
+        observatory_health = self.strategy_observatory.health()
+        memory_health = self.memory.health()
+        availability_total = self.error_attribution.health().get("total_unavailable")
+
         status = {
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
             "mode": "paper",
-            "runtime": "verified-multi-engine-v12.2-cns-brain-memory",
+            "runtime": "verified-multi-engine-v12.11-continuous-evolution-fabric",
             "exchange": self.settings.exchange,
             "resolved_timeframes": list(resolved_timeframes),
             "cycle_symbols": cycle_symbols,
@@ -1122,7 +1701,11 @@ class PaperRunner:
             "events": events,
             "errors": errors,
             "error_attribution": error_attribution,
+            "availability_total": availability_total,
             "entry_blocks": entry_blocks,
+            "execution_funnel": execution_funnel,
+            "strategy_observatory_health": observatory_health,
+            "memory_health": memory_health,
             "decisions": {
                 symbol: {
                     "regime": decision.regime,
@@ -1160,8 +1743,70 @@ class PaperRunner:
             },
             "memory_retention": {
                 "summaries": memory_summaries,
-                "health": self.memory.health(),
+                "health": memory_health,
                 "execution_authority": False,
+            },
+            "market_world_model": {
+                "symbols": world_states,
+                "market": world_market_snapshot,
+                "health": self.market_world_model.health(),
+                "execution_authority": False,
+            },
+            "meta_cognitive_self_model": {
+                "symbols": self_awareness,
+                "system": self_system_awareness,
+                "health": self.meta_cognition.health(),
+                "execution_authority": False,
+                "consciousness_claim": False,
+            },
+            "intelligence_council": {
+                "symbols": council_decisions,
+                "health": self.intelligence_council.health(),
+                "execution_authority": False,
+            },
+            "adversarial_critic": {
+                "symbols": critic_reviews,
+                "health": self.adversarial_critic.health(),
+                "governance_advisory": True,
+                "execution_authority": False,
+            },
+            "hypothesis_lab": {
+                "symbols": hypothesis_updates,
+                "agenda": self.hypothesis_lab.agenda(25),
+                "health": self.hypothesis_lab.health(),
+                "research_only": True,
+                "execution_authority": False,
+            },
+            "active_research": {
+                "symbols": research_plans,
+                "agenda": self.active_research.agenda(50),
+                "adapter_backlog": self.active_research.adapter_backlog(),
+                "health": self.active_research.health(),
+                "execution_authority": False,
+            },
+            "continuous_evolution": {
+                "snapshot": evolution_snapshot,
+                "capabilities": evolution_capabilities,
+                "research_requests": evolution_requests,
+                "hot_reload_without_core_restart": True,
+                "data_only_external_packs": True,
+                "arbitrary_code_execution": False,
+                "execution_authority": False,
+                "can_increase_upstream_risk": False,
+            },
+            "tail_risk_sentinel": {
+                "symbols": tail_risk_states,
+                "health": self.tail_risk.health(),
+                "governance_advisory": True,
+                "execution_authority": False,
+            },
+            "cognitive_governance": {
+                "symbols": cognitive_governance_states,
+                "health": self.cognitive_governance.health(),
+                "evidence_authority": "bounded_cognitive_safety_v1",
+                "fail_closed": True,
+                "execution_authority": False,
+                "can_increase_upstream_risk": False,
             },
             "error_attribution_health": self.error_attribution.health(),
             "research_observations": research_observations,
@@ -1173,7 +1818,30 @@ class PaperRunner:
                 key: value for key, value in arbitrage_collection.items() if key != "quotes"
             },
             "operation_alerts": operation_alerts,
-            "testnet_execution": {
+            "market_sensor_fabric": {
+                "enabled_on_public_exchange_feed": True,
+                "version": self.market_sensor_fabric.VERSION,
+                "snapshot": sensor_snapshot,
+                "health": self.market_sensor_fabric.health(),
+                "bybit_derivatives_positioning": True,
+                "bybit_liquidation_websocket": True,
+                "deribit_options_surface": True,
+                "defillama_stablecoin_liquidity": True,
+                "defillama_chain_liquidity_flows": True,
+                "glassnode_exchange_whale_flows_optional": True,
+                "glassnode_whale_concentration_optional": True,
+                "defillama_pro_institutional_bridge_flows_optional": True,
+                "ethereum_rpc_congestion_optional": True,
+                "solana_rpc_congestion_optional": True,
+                "ethereum_stablecoin_mint_burn_optional": True,
+                "fred_macro_rates_calendar_optional": True,
+                "flow_intelligence_synthesizer": True,
+                "read_only": True,
+                "credentials_loaded_by_default": False,
+                "execution_authority": False,
+                "can_increase_upstream_risk": False,
+            },
+        "testnet_execution": {
                 "enabled": self.testnet is not None,
                 "events": testnet_events,
                 "live_authority": False,
@@ -1403,6 +2071,17 @@ def preflight(settings: Settings) -> dict[str, Any]:
     settings.memory_retention_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.error_attribution_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.capital_growth_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.market_world_model_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.meta_cognition_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.intelligence_council_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.adversarial_critic_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.hypothesis_lab_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.active_research_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.tail_risk_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.cognitive_governance_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.evolution_fabric_state_path.parent.mkdir(parents=True, exist_ok=True)
+    settings.evolution_inbox_path.mkdir(parents=True, exist_ok=True)
+    settings.market_sensor_fabric_state_path.parent.mkdir(parents=True, exist_ok=True)
     settings.provenance_path.parent.mkdir(parents=True, exist_ok=True)
     settings.metrics_path.parent.mkdir(parents=True, exist_ok=True)
     settings.heartbeat_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1424,7 +2103,7 @@ def preflight(settings: Settings) -> dict[str, Any]:
         },
         "starting_cash": settings.starting_cash,
         "order_usd": settings.order_usd,
-        "runtime": "verified-multi-engine-v12.2-cns-brain-memory",
+        "runtime": "verified-multi-engine-v12.11-continuous-evolution-fabric",
         "cns_brain_memory": {
             "cns_execution_authority": False,
             "brain_can_only_reduce_or_veto": True,
@@ -1441,6 +2120,52 @@ def preflight(settings: Settings) -> dict[str, Any]:
             "profit_reinvest_fraction": settings.capital_profit_reinvest_fraction,
             "martingale": False,
             "can_increase_upstream_risk": False,
+        },
+        "world_model_self_awareness": {
+            "market_world_model": True,
+            "meta_cognitive_self_model": True,
+            "intelligence_council": True,
+            "adversarial_critic": True,
+            "hypothesis_lab": True,
+            "active_research_planner": True,
+            "tail_risk_sentinel": True,
+            "cognitive_governance_bridge": True,
+            "cognitive_governance_fail_closed": True,
+            "cognitive_governance_can_only_preserve_reduce_or_veto": True,
+            "continuous_evolution_fabric": True,
+            "hot_reload_data_packs_without_core_restart": True,
+            "out_of_process_challenger_support": True,
+            "external_pack_arbitrary_code_execution": False,
+            "cross_market_lead_lag_discovery": True,
+            "consciousness_claim": False,
+            "novelty_is_not_trade_authority": True,
+            "relationship_discovery_is_not_trade_authority": True,
+            "execution_authority": False,
+            "can_increase_upstream_risk": False,
+            "can_enable_live": False,
+            "can_modify_code": False,
+            "can_deploy": False,
+        },
+        "market_sensor_fabric": {
+            "version": "2.2",
+            "bybit_derivatives_positioning": True,
+            "bybit_liquidation_websocket": True,
+            "deribit_options_surface": True,
+            "defillama_stablecoin_liquidity": True,
+            "defillama_chain_liquidity_flows": True,
+            "glassnode_exchange_whale_flows_optional": True,
+            "glassnode_whale_concentration_optional": True,
+            "defillama_pro_institutional_bridge_flows_optional": True,
+            "ethereum_rpc_congestion_optional": True,
+            "solana_rpc_congestion_optional": True,
+            "ethereum_stablecoin_mint_burn_optional": True,
+            "fred_macro_rates_calendar_optional": True,
+            "flow_intelligence_synthesizer": True,
+            "read_only": True,
+            "execution_authority": False,
+            "can_increase_upstream_risk": False,
+            "can_add_credentials": False,
+            "can_enable_live": False,
         },
         "testnet_execution": {
             "enabled": settings.testnet_enabled,

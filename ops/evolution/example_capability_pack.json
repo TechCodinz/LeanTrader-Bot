@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "pack_id": "example-research-sidecar",
+  "version": "1.0.0",
+  "producer": "example-only",
+  "generated_at": 0,
+  "expires_at": 0,
+  "execution_authority": false,
+  "can_enable_live": false,
+  "can_increase_risk": false,
+  "can_add_credentials": false,
+  "capabilities": ["rates_fx_cross_asset"],
+  "observations": [
+    {
+      "symbol": "BTC/USDT",
+      "kind": "context",
+      "score": 0.0,
+      "confidence": 0.0,
+      "source": "replace-with-documented-source",
+      "provenance": "replace-with-source-and-observation-id",
+      "observed_at": 0,
+      "horizon_seconds": 900,
+      "metadata": {
+        "template": true,
+        "note": "Replace zero timestamps and evidence before publishing to runtime/evolution/inbox."
+      }
+    }
+  ]
+}
