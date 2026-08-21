@@ -20,6 +20,7 @@ from .brain import TradingBrain
 from .hypothesis_lab import HypothesisLab
 from .intelligence_council import IntelligenceCouncil
 from .capital_growth import CapitalGrowthGovernor
+from .capital_stress import CapitalStressSimulator
 from .cns import CentralNervousSystem
 from .cognitive_governance import CognitiveGovernanceBridge
 from .decision_router import BoundedDecisionRouter, MarketEvidenceGate
@@ -28,6 +29,7 @@ from .error_attribution import ErrorAttributionTracker
 from .evolution_fabric import EvolutionFabric
 from .exchange_intelligence import ExchangeIntelligence, timeframe_seconds
 from .exchange_protection import ExchangeProtectionOrchestrator
+from .execution_quality import ExecutionQualityIntelligence
 from .intelligence import AdaptiveIntelligence, IntelligenceDecision, MINIMUM_INTELLIGENCE_CANDLES
 from .ledger import PaperLedger
 from .market_universe import MarketUniverse
@@ -303,6 +305,26 @@ class PaperRunner:
             minimum_samples=settings.evolution_min_shadow_samples,
             round_trip_cost_bps=2
             * (settings.fee_bps + settings.slippage_bps),
+        )
+        modeled_round_trip_cost_bps = 2 * (
+            settings.fee_bps + settings.slippage_bps
+        )
+        self.execution_quality = ExecutionQualityIntelligence(
+            settings.strategy_observatory_state_path.with_name(
+                "vps_execution_quality.json"
+            ),
+            modeled_round_trip_cost_bps=modeled_round_trip_cost_bps,
+        )
+        self.capital_stress = CapitalStressSimulator(
+            settings.strategy_observatory_state_path.with_name(
+                "vps_capital_stress.json"
+            ),
+            starting_equity=settings.starting_cash,
+            principal_floor_fraction=settings.capital_principal_floor_fraction,
+            risk_per_trade_fraction=settings.risk_per_trade_pct,
+            max_daily_loss_fraction=settings.max_daily_loss_pct,
+            max_drawdown_fraction=settings.max_drawdown_pct,
+            modeled_round_trip_cost_bps=modeled_round_trip_cost_bps,
         )
         self.memory = MemoryRetentionEngine(
             settings.memory_retention_state_path,
@@ -597,6 +619,24 @@ class PaperRunner:
                 "alpha_tournament",
             ),
             version=self.prospective_validation.VERSION,
+        )
+        self.engines.register(
+            "execution_quality_intelligence",
+            self.execution_quality,
+            required=False,
+            dependencies=("paper_ledger", "strategy_observatory"),
+            version=self.execution_quality.VERSION,
+        )
+        self.engines.register(
+            "capital_stress_simulator",
+            self.capital_stress,
+            required=False,
+            dependencies=(
+                "paper_ledger",
+                "capital_growth",
+                "execution_quality_intelligence",
+            ),
+            version=self.capital_stress.VERSION,
         )
         self.engines.register(
             "capital_growth",
@@ -1786,6 +1826,36 @@ class PaperRunner:
                 if symbol in decisions
             },
         )
+        execution_quality = self._shadow_call(
+            errors,
+            "execution_quality_intelligence:observe",
+            "execution_quality_intelligence",
+            "observe",
+            events=events,
+            reference_prices={
+                symbol: decision.close
+                for symbol, decision in decisions.items()
+            },
+        )
+        capital_stress = self._shadow_call(
+            errors,
+            "capital_stress_simulator:evaluate",
+            "capital_stress_simulator",
+            "evaluate",
+            equity=equity,
+            cash=self.ledger.cash,
+            peak_equity=self.ledger.peak_equity,
+            positions={
+                symbol: {
+                    "notional": position.quantity
+                    * prices.get(symbol, position.entry_price),
+                    "price": prices.get(symbol, position.entry_price),
+                    "atr": position.atr,
+                }
+                for symbol, position in self.ledger.positions.items()
+            },
+            execution_quality=execution_quality,
+        )
         self_system_awareness = self._shadow_call(
             errors,
             "meta_cognitive_self_model:system",
@@ -1854,6 +1924,36 @@ class PaperRunner:
                 "testnet_authority": False,
                 "live_authority": False,
                 "can_increase_upstream_risk": False,
+                "execution_authority": False,
+            },
+            "execution_quality_intelligence": {
+                "snapshot": execution_quality,
+                "health": self.execution_quality.health(),
+                "paper_fill_model_not_live_execution": True,
+                "research_only": True,
+                "advisory_only": True,
+                "paper_promotion_authority": False,
+                "testnet_authority": False,
+                "live_authority": False,
+                "can_modify_orders": False,
+                "can_modify_sizing": False,
+                "can_increase_risk": False,
+                "execution_authority": False,
+            },
+            "capital_stress_simulator": {
+                "snapshot": capital_stress,
+                "health": self.capital_stress.health(),
+                "deterministic_scenarios": True,
+                "not_a_forecast": True,
+                "research_only": True,
+                "advisory_only": True,
+                "cannot_override_capital_governor": True,
+                "paper_promotion_authority": False,
+                "testnet_authority": False,
+                "live_authority": False,
+                "can_modify_orders": False,
+                "can_modify_sizing": False,
+                "can_increase_risk": False,
                 "execution_authority": False,
             },
             "memory_health": memory_health,

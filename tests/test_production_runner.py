@@ -51,6 +51,8 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
         "evolution_fabric",
         "alpha_tournament",
         "prospective_validation_lab",
+        "execution_quality_intelligence",
+        "capital_stress_simulator",
         "strategy_observatory",
         "memory_retention",
         "central_nervous_system",
@@ -83,6 +85,13 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["prospective_validation_lab"]["counterfactual_gate_attribution"] is True
     assert result["prospective_validation_lab"]["execution_authority"] is False
     assert result["prospective_validation_lab"]["live_authority"] is False
+    assert result["execution_quality_intelligence"]["research_only"] is True
+    assert result["execution_quality_intelligence"]["execution_authority"] is False
+    assert result["execution_quality_intelligence"]["live_authority"] is False
+    assert result["capital_stress_simulator"]["not_a_forecast"] is True
+    assert result["capital_stress_simulator"]["cannot_override_capital_governor"] is True
+    assert result["capital_stress_simulator"]["execution_authority"] is False
+    assert result["capital_stress_simulator"]["live_authority"] is False
     assert result["research_governor"]["capital_preservation"]["state"] == "normal"
     assert result["capital_growth"]["martingale"] is False
     assert result["capital_growth"]["can_increase_upstream_risk"] is False
