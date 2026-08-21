@@ -1323,11 +1323,11 @@ def deploy_verified_commit(payload: dict[str, Any]) -> dict[str, Any]:
     diff_check = _git(["diff", "--check", previous_commit, commit], timeout=60)
     _checked(diff_check, "deployment diff failed whitespace validation")
     for changed_path in reviewed_paths:
-        mode = _checked(
+        tree_row = _checked(
             _git(["ls-tree", commit, "--", changed_path], timeout=30),
             f"unable to inspect target path {changed_path}",
-        ).split(maxsplit=1)[0]
-        if mode == "120000":
+        )
+        if tree_row and tree_row.split(maxsplit=1)[0] == "120000":
             raise ValueError(
                 f"automatic deployment refuses changed symlink: {changed_path}"
             )
