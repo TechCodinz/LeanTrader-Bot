@@ -53,6 +53,8 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
         "prospective_validation_lab",
         "execution_quality_intelligence",
         "capital_stress_simulator",
+        "net_profit_attribution",
+        "probability_calibration_lab",
         "strategy_observatory",
         "memory_retention",
         "central_nervous_system",
@@ -92,6 +94,20 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["capital_stress_simulator"]["cannot_override_capital_governor"] is True
     assert result["capital_stress_simulator"]["execution_authority"] is False
     assert result["capital_stress_simulator"]["live_authority"] is False
+    assert result["net_profit_attribution"]["sample_unit"] == (
+        "fully_closed_costed_paper_trade"
+    )
+    assert result["net_profit_attribution"]["observational_not_causal"] is True
+    assert result["net_profit_attribution"]["execution_authority"] is False
+    assert result["net_profit_attribution"]["live_authority"] is False
+    assert result["probability_calibration_lab"][
+        "prospective_closed_outcomes_only"
+    ] is True
+    assert result["probability_calibration_lab"][
+        "can_rewrite_probabilities"
+    ] is False
+    assert result["probability_calibration_lab"]["execution_authority"] is False
+    assert result["probability_calibration_lab"]["live_authority"] is False
     assert result["research_governor"]["capital_preservation"]["state"] == "normal"
     assert result["capital_growth"]["martingale"] is False
     assert result["capital_growth"]["can_increase_upstream_risk"] is False
