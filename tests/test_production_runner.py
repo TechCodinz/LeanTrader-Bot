@@ -50,6 +50,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
         "error_attribution",
         "evolution_fabric",
         "alpha_tournament",
+        "prospective_validation_lab",
         "strategy_observatory",
         "memory_retention",
         "central_nervous_system",
@@ -78,6 +79,10 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert result["tail_risk_sentinel"]["governance_advisory"] is True
     assert result["cognitive_governance"]["execution_authority"] is False
     assert result["cognitive_governance"]["fail_closed"] is True
+    assert result["prospective_validation_lab"]["walk_forward"] is True
+    assert result["prospective_validation_lab"]["counterfactual_gate_attribution"] is True
+    assert result["prospective_validation_lab"]["execution_authority"] is False
+    assert result["prospective_validation_lab"]["live_authority"] is False
     assert result["research_governor"]["capital_preservation"]["state"] == "normal"
     assert result["capital_growth"]["martingale"] is False
     assert result["capital_growth"]["can_increase_upstream_risk"] is False

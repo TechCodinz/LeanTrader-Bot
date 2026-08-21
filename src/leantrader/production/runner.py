@@ -38,6 +38,7 @@ from .meta_cognition import MetaCognitiveSelfModel
 from .model_research import ModelResearchEngine, StructuredResearchProvider
 from .operations_engines import OperationsEngineSuite
 from .public_context import PublicMarketContextEngine
+from .prospective_validation import ProspectiveValidationLab
 from .research_engines import ResearchEngineSuite
 from .settings import Settings
 from .strategy_observatory import StrategyObservatory
@@ -293,6 +294,14 @@ class PaperRunner:
             ),
             minimum_samples=settings.evolution_min_shadow_samples,
             expected_round_trip_cost_bps=2
+            * (settings.fee_bps + settings.slippage_bps),
+        )
+        self.prospective_validation = ProspectiveValidationLab(
+            settings.strategy_observatory_state_path.with_name(
+                "vps_prospective_validation.json"
+            ),
+            minimum_samples=settings.evolution_min_shadow_samples,
+            round_trip_cost_bps=2
             * (settings.fee_bps + settings.slippage_bps),
         )
         self.memory = MemoryRetentionEngine(
@@ -580,6 +589,16 @@ class PaperRunner:
             version=self.alpha_tournament.VERSION,
         )
         self.engines.register(
+            "prospective_validation_lab",
+            self.prospective_validation,
+            required=False,
+            dependencies=(
+                "strategy_observatory",
+                "alpha_tournament",
+            ),
+            version=self.prospective_validation.VERSION,
+        )
+        self.engines.register(
             "capital_growth",
             self.capital_growth,
             dependencies=("paper_ledger", "research_governor"),
@@ -655,6 +674,7 @@ class PaperRunner:
         advanced_decisions: dict[str, dict[str, Any]] = {}
         routed_decisions: dict[str, dict[str, Any]] = {}
         research_observations: dict[str, dict[str, Any]] = {}
+        observatory_updates: dict[str, dict[str, Any]] = {}
         memory_fingerprints: dict[str, MarketFingerprint] = {}
         memory_summaries: dict[str, dict[str, Any]] = {}
         cns_packets: dict[str, dict[str, Any]] = {}
@@ -1050,7 +1070,7 @@ class PaperRunner:
                         },
                     ]
                 )
-                self.engines.call(
+                observatory_updates[symbol] = self.engines.call(
                     "strategy_observatory",
                     "observe",
                     symbol,
@@ -1714,6 +1734,58 @@ class PaperRunner:
             hypothesis_agenda=self.hypothesis_lab.agenda(25),
             evolution_snapshot=evolution_snapshot,
         )
+        costed_strategy_episodes = [
+            {
+                **outcome,
+                "symbol": symbol,
+                "regime": decisions[symbol].regime,
+                "evidence_authority": update.get("evidence_authority"),
+            }
+            for symbol, update in observatory_updates.items()
+            for outcome in list(update.get("outcomes") or [])
+            if symbol in decisions and isinstance(outcome, dict)
+        ]
+        prospective_validation = self._shadow_call(
+            errors,
+            "prospective_validation_lab:observe_cycle",
+            "prospective_validation_lab",
+            "observe_cycle",
+            observatory_authority=str(
+                self.strategy_observatory.health().get(
+                    "evidence_authority"
+                )
+                or ""
+            ),
+            observed_round_trip_cost_bps=float(
+                self.strategy_observatory.health().get(
+                    "round_trip_cost_bps"
+                )
+                or 0.0
+            ),
+            strategy_episodes=costed_strategy_episodes,
+            foundry_manifests=list(
+                (alpha_tournament or {}).get("foundry_manifests") or []
+            )
+            if isinstance(alpha_tournament, dict)
+            else [],
+            market_rows={
+                symbol: {
+                    "price": decisions[symbol].close,
+                    "base_enter_candidate": decisions[symbol].enter_long,
+                    "final_allowed": (
+                        route.get("allowed") is True
+                        and symbol not in entry_blocks
+                    ),
+                    "route_reason": entry_blocks.get(symbol)
+                    or str(route.get("reason") or "unspecified_block"),
+                    "regime": decisions[symbol].regime,
+                    "confidence": decisions[symbol].confidence,
+                    "quality_score": decisions[symbol].quality_score,
+                }
+                for symbol, route in routed_decisions.items()
+                if symbol in decisions
+            },
+        )
         self_system_awareness = self._shadow_call(
             errors,
             "meta_cognitive_self_model:system",
@@ -1764,6 +1836,19 @@ class PaperRunner:
                 "snapshot": alpha_tournament,
                 "health": self.alpha_tournament.health(),
                 "strategy_foundry": True,
+                "research_only": True,
+                "paper_promotion_authority": False,
+                "testnet_authority": False,
+                "live_authority": False,
+                "can_increase_upstream_risk": False,
+                "execution_authority": False,
+            },
+            "prospective_validation_lab": {
+                "snapshot": prospective_validation,
+                "health": self.prospective_validation.health(),
+                "walk_forward": True,
+                "counterfactual_gate_attribution": True,
+                "multiple_testing_correction": "bonferroni",
                 "research_only": True,
                 "paper_promotion_authority": False,
                 "testnet_authority": False,
