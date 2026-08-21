@@ -55,6 +55,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
         "capital_stress_simulator",
         "net_profit_attribution",
         "probability_calibration_lab",
+        "unified_decision_control_plane",
         "strategy_observatory",
         "memory_retention",
         "central_nervous_system",
@@ -108,6 +109,21 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     ] is False
     assert result["probability_calibration_lab"]["execution_authority"] is False
     assert result["probability_calibration_lab"]["live_authority"] is False
+    control = result["unified_decision_control_plane"]
+    assert control["v1_41_shadow_integration"] is True
+    assert control["correlated_evidence_deduplicated"] is True
+    assert control["all_in_paper_execution_costing"] is True
+    assert control["tamper_evident_lineage"] is True
+    assert control["paper_promotion_authority"] is False
+    assert control["testnet_authority"] is False
+    assert control["live_authority"] is False
+    assert control["execution_authority"] is False
+    assert set(control["validation_partitions"]) == {
+        "training",
+        "validation",
+        "prospective_paper",
+        "untouched_holdout",
+    }
     assert result["research_governor"]["capital_preservation"]["state"] == "normal"
     assert result["capital_growth"]["martingale"] is False
     assert result["capital_growth"]["can_increase_upstream_risk"] is False
