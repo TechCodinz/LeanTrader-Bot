@@ -42,6 +42,156 @@ def test_state_changing_tools_require_exact_confirmation(monkeypatch):
     assert server.deploy_verified_paper_release("DEPLOY_VERIFIED_PAPER_RELEASE")["ok"] is True
 
 
+def test_ci_verified_deploy_requires_exact_confirmation(monkeypatch):
+    calls = []
+
+    def fake_invoke(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {"ok": True}
+
+    monkeypatch.setattr(server, "_invoke", fake_invoke)
+    denied = server.deploy_ci_verified_paper_commit(
+        "feature/v1.41-test",
+        "a" * 40,
+        "deploy",
+    )
+    assert denied["ok"] is False
+    assert calls == []
+
+    accepted = server.deploy_ci_verified_paper_commit(
+        "feature/v1.41-test",
+        "a" * 40,
+        "DEPLOY_CI_VERIFIED_PAPER_COMMIT",
+    )
+    assert accepted["ok"] is True
+    assert calls[0][0] == ("repo-write",)
+    assert calls[0][1]["payload"] == {
+        "operation": "deploy-verified-commit",
+        "branch": "feature/v1.41-test",
+        "commit": "a" * 40,
+    }
+
+
+def test_autodeploy_identity_and_path_policy_fail_closed():
+    assert privileged_helper._validate_autodeploy_identity(
+        "feature/v1.41-safe",
+        "a" * 40,
+    ) == ("feature/v1.41-safe", "a" * 40)
+
+    for branch, commit in (
+        ("main", "a" * 40),
+        ("feature/../escape", "a" * 40),
+        ("feature/safe", "short"),
+    ):
+        try:
+            privileged_helper._validate_autodeploy_identity(branch, commit)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("unsafe deployment identity was accepted")
+
+    assert privileged_helper._validate_autodeploy_paths(
+        ["src/leantrader/production/new_engine.py", "tests/test_new_engine.py"]
+    ) == ["src/leantrader/production/new_engine.py", "tests/test_new_engine.py"]
+
+    for path in (
+        "docker-compose.yml",
+        "Dockerfile",
+        ".github/workflows/supported-release.yml",
+        "ops/vps_bridge/server.py",
+        "scripts/bootstrap_verified_vps.sh",
+        "runtime/orders.json",
+    ):
+        try:
+            privileged_helper._validate_autodeploy_paths([path])
+        except ValueError as exc:
+            assert "protected path" in str(exc)
+        else:
+            raise AssertionError(f"protected deployment path was accepted: {path}")
+
+
+def test_autodeploy_compose_policy_preserves_paper_and_research_floors():
+    safe = {
+        "TRADING_MODE": "paper",
+        "ENABLE_LIVE": "false",
+        "ALLOW_LIVE": "false",
+        "LIVE_CONFIRM": "NO",
+        "BYBIT_TESTNET_ENABLED": "false",
+        "EVOLUTION_MIN_SHADOW_SAMPLES": "100",
+        "BRAIN_MIN_STRATEGY_SAMPLES": "50",
+        "BRAIN_QUARANTINE_MIN_SAMPLES": "100",
+        "MARKET_EVIDENCE_MIN_SAMPLES": "8",
+        "ADAPTIVE_MIN_SAMPLES": "5",
+        "CAPITAL_PRINCIPAL_FLOOR_FRACTION": "0.70",
+        "RISK_PER_TRADE_PCT": "0.005",
+        "MAX_DAILY_LOSS_PCT": "0.02",
+        "MAX_DRAWDOWN_PCT": "0.10",
+        "MAX_POSITION_PCT": "0.10",
+        "CAPITAL_PROFIT_REINVEST_FRACTION": "0.50",
+        "PAPER_FEE_BPS": "10",
+        "PAPER_SLIPPAGE_BPS": "5",
+    }
+    snapshot = privileged_helper._validate_compose_environment(safe)
+    assert snapshot == {
+        "mode": "paper",
+        "live_enabled": False,
+        "testnet_enabled": False,
+        "round_trip_cost_bps": 30.0,
+        "research_sample_floor": 100,
+    }
+
+    unsafe_cases = [
+        {"ENABLE_LIVE": "true"},
+        {"BYBIT_TESTNET_ENABLED": "true"},
+        {"EVOLUTION_MIN_SHADOW_SAMPLES": "99"},
+        {"RISK_PER_TRADE_PCT": "0.006"},
+        {"PAPER_SLIPPAGE_BPS": "4"},
+    ]
+    for change in unsafe_cases:
+        candidate = {**safe, **change}
+        try:
+            privileged_helper._validate_compose_environment(candidate)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"unsafe Compose change was accepted: {change}")
+
+
+def test_autodeploy_accepts_only_successful_supported_github_check(monkeypatch):
+    success = {
+        "check_runs": [
+            {
+                "name": "supported-paper-runtime",
+                "head_sha": "a" * 40,
+                "status": "completed",
+                "conclusion": "success",
+                "completed_at": "2026-08-21T00:00:00Z",
+                "app": {"slug": "github-actions"},
+            }
+        ]
+    }
+
+    monkeypatch.setattr(
+        privileged_helper,
+        "_run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0],
+            0,
+            json.dumps(success),
+            "",
+        ),
+    )
+    assert privileged_helper._verify_ci_success("a" * 40)["conclusion"] == "success"
+
+    success["check_runs"][0]["conclusion"] = "failure"
+    try:
+        privileged_helper._verify_ci_success("a" * 40)
+    except ValueError as exc:
+        assert "successful" in str(exc)
+    else:
+        raise AssertionError("failed CI check was accepted")
+
+
 def test_helper_heartbeat_summary_is_bounded_projection(monkeypatch, tmp_path):
     app_dir = tmp_path / "app"
     heartbeat_path = app_dir / "runtime/vps_heartbeat.json"

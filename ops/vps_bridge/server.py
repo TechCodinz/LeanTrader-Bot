@@ -113,9 +113,11 @@ server = MCPServer(
     instructions=(
         "Use read-only tools first. Never claim live-trading authority. Repository writes require exact "
         "operation-specific confirmations and never force-push. The server cannot read credentials, run "
-        "arbitrary shell commands, enable live trading, loosen research gates, or remove an emergency halt."
+        "arbitrary shell commands, enable live trading, loosen research gates, or remove an emergency halt. "
+        "Exact-commit deployment accepts only a canonical fast-forward branch head with successful supported CI, "
+        "protected deployment files unchanged, paper-only Compose safety, and automatic health verification."
     ),
-    version="1.1.0",
+    version="1.2.0",
 )
 
 READ_ONLY = ToolAnnotations(
@@ -286,6 +288,31 @@ def deploy_verified_paper_release(confirmation: str) -> dict[str, Any]:
             "error": "explicit confirmation DEPLOY_VERIFIED_PAPER_RELEASE is required",
         }
     return _invoke("deploy", timeout=2_400)
+
+
+@server.tool(annotations=EXTERNAL_WRITE, structured_output=True)
+def deploy_ci_verified_paper_commit(
+    branch: str,
+    commit: str,
+    confirmation: str,
+) -> dict[str, Any]:
+    """Deploy one exact canonical fast-forward commit after supported CI and paper-safety verification."""
+    expected = "DEPLOY_CI_VERIFIED_PAPER_COMMIT"
+    if confirmation != expected:
+        return {
+            "ok": False,
+            "action": "repo-write",
+            "error": f"explicit confirmation {expected} is required",
+        }
+    return _invoke(
+        "repo-write",
+        payload={
+            "operation": "deploy-verified-commit",
+            "branch": branch,
+            "commit": commit,
+        },
+        timeout=2_400,
+    )
 
 
 if __name__ == "__main__":
