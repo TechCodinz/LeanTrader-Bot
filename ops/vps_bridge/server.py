@@ -18,6 +18,7 @@ from mcp.types import ToolAnnotations
 HELPER = os.environ.get("LEANTRADER_OPS_HELPER", "/usr/local/sbin/leantrader-ops-helper")
 AUDIT_LOG = Path(os.environ.get("LEANTRADER_OPS_AUDIT", "/var/log/leantrader-ops/audit.jsonl"))
 MAX_OUTPUT_CHARS = 65_536
+MAX_PAYLOAD_CHARS = 131_072
 LOG_LINE_CHOICES = (20, 50, 100, 200)
 
 SECRET_PATTERNS = (
@@ -27,6 +28,7 @@ SECRET_PATTERNS = (
         r"\s*([=:])\s*([^\s,;]+)"
     ),
     re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b"),
+    re.compile(r"\b(?:ghp|github_pat)_[A-Za-z0-9_]{12,}\b"),
 )
 
 
@@ -35,8 +37,9 @@ def _redact(value: str) -> str:
     result = SECRET_PATTERNS[0].sub(r"\1 [REDACTED]", result)
     result = SECRET_PATTERNS[1].sub(r"\1\2[REDACTED]", result)
     result = SECRET_PATTERNS[2].sub("[REDACTED_OPENAI_KEY]", result)
+    result = SECRET_PATTERNS[3].sub("[REDACTED_GITHUB_TOKEN]", result)
     if len(result) > MAX_OUTPUT_CHARS:
-        result = result[-MAX_OUTPUT_CHARS:] + "\n[output truncated to the newest 65536 characters]"
+        result = result[:MAX_OUTPUT_CHARS] + "\n[output truncated at 65536 characters]"
     return result
 
 
@@ -52,7 +55,6 @@ def _audit(action: str, *, ok: bool, detail: str = "") -> None:
         with AUDIT_LOG.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(event, sort_keys=True) + "\n")
     except OSError:
-        # Auditing must never inject protocol noise into the stdio channel.
         print("leantrader-ops: unable to append audit event", file=sys.stderr)
 
 
@@ -66,14 +68,25 @@ def _decode_output(output: str) -> Any:
         return clean
 
 
-def _invoke(action: str, *args: str, timeout: int = 60) -> dict[str, Any]:
+def _invoke(
+    action: str,
+    *args: str,
+    timeout: int = 60,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     command = ["sudo", "-n", HELPER, action, *args]
+    encoded_payload = None
+    if payload is not None:
+        encoded_payload = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+        if len(encoded_payload) > MAX_PAYLOAD_CHARS:
+            return {"ok": False, "action": action, "error": "request payload exceeds 131072 characters"}
     try:
         completed = subprocess.run(
             command,
             check=False,
             capture_output=True,
             text=True,
+            input=encoded_payload,
             timeout=timeout,
             env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin"},
         )
@@ -98,11 +111,11 @@ server = MCPServer(
     title="LeanTrader VPS Operations",
     description="A restricted, audited operations surface for the supported paper/Testnet LeanTrader VPS.",
     instructions=(
-        "Use read-only tools first. Never claim live-trading authority. State-changing tools require "
-        "explicit confirmations, except the fail-safe emergency halt. This server cannot read secrets, "
-        "run arbitrary shell commands, enable live trading, or remove an emergency halt."
+        "Use read-only tools first. Never claim live-trading authority. Repository writes require exact "
+        "operation-specific confirmations and never force-push. The server cannot read credentials, run "
+        "arbitrary shell commands, enable live trading, loosen research gates, or remove an emergency halt."
     ),
-    version="1.0.0",
+    version="1.1.0",
 )
 
 READ_ONLY = ToolAnnotations(
@@ -116,6 +129,12 @@ STATE_CHANGE = ToolAnnotations(
     destructiveHint=False,
     idempotentHint=False,
     openWorldHint=False,
+)
+EXTERNAL_WRITE = ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=False,
+    openWorldHint=True,
 )
 FAIL_SAFE = ToolAnnotations(
     readOnlyHint=False,
@@ -141,7 +160,7 @@ def leantrader_status() -> dict[str, Any]:
 def leantrader_heartbeat(
     section: Literal["summary", "engines", "runtime", "testnet"] = "summary",
 ) -> dict[str, Any]:
-    """Read one allowlisted section of the canonical heartbeat; credentials and secret files are inaccessible."""
+    """Read one bounded projection of the canonical heartbeat; raw credentials and private data are omitted."""
     return _invoke("heartbeat", section)
 
 
@@ -153,15 +172,98 @@ def leantrader_logs(lines: Literal[20, 50, 100, 200] = 50) -> dict[str, Any]:
     return _invoke("logs", str(lines))
 
 
+@server.tool(annotations=READ_ONLY, structured_output=True)
+def leantrader_repository_read(
+    operation: Literal[
+        "inventory",
+        "history",
+        "diff",
+        "read-source",
+        "source-inventory",
+        "evidence-inventory",
+    ],
+    path: str = "",
+    ref: str = "HEAD",
+    scope: Literal["worktree", "staged", "unpushed"] = "worktree",
+    start_line: int = 1,
+    end_line: int = 400,
+    limit: int = 20,
+) -> dict[str, Any]:
+    """Inspect the fixed LeanTrader repo and discovered sidecar sources through bounded, secret-denying operations."""
+    payload = {
+        "operation": operation,
+        "path": path,
+        "ref": ref,
+        "scope": scope,
+        "start_line": start_line,
+        "end_line": end_line,
+        "limit": limit,
+    }
+    return _invoke("repo-read", payload=payload, timeout=180)
+
+
+WRITE_CONFIRMATIONS = {
+    "test": "RUN_REPOSITORY_TESTS",
+    "backup": "CREATE_RECONCILIATION_BACKUP",
+    "stage": "STAGE_REVIEWED_PATHS",
+    "commit": "COMMIT_REVIEWED_BASELINE",
+    "push": "PUSH_RECONCILED_BRANCHES",
+    "tag-v1.34": "TAG_KNOWN_GOOD_V1_34",
+    "push-tag-v1.34": "PUSH_KNOWN_GOOD_V1_34_TAG",
+    "import-source": "IMPORT_REVIEWED_VPS_SOURCE",
+}
+
+
+@server.tool(annotations=EXTERNAL_WRITE, structured_output=True)
+def leantrader_repository_write(
+    operation: Literal[
+        "test",
+        "backup",
+        "stage",
+        "commit",
+        "push",
+        "tag-v1.34",
+        "push-tag-v1.34",
+        "import-source",
+    ],
+    confirmation: str,
+    suite: Literal["bridge", "all"] = "bridge",
+    paths: list[str] | None = None,
+    message: str = "",
+    branches: list[str] | None = None,
+    commit: str = "",
+    source_path: str = "",
+    destination_path: str = "",
+    expected_sha256: str = "",
+) -> dict[str, Any]:
+    """Perform one fixed, audited repository operation. Every operation requires its documented exact confirmation."""
+    expected = WRITE_CONFIRMATIONS.get(operation)
+    if expected is None or confirmation != expected:
+        return {
+            "ok": False,
+            "action": "repo-write",
+            "error": f"explicit confirmation {expected or 'for a supported operation'} is required",
+        }
+    payload = {
+        "operation": operation,
+        "suite": suite,
+        "paths": paths or [],
+        "message": message,
+        "branches": branches or [],
+        "commit": commit,
+        "source_path": source_path,
+        "destination_path": destination_path,
+        "expected_sha256": expected_sha256,
+    }
+    timeout = 2_400 if operation in {"test", "backup"} else 300
+    return _invoke("repo-write", payload=payload, timeout=timeout)
+
+
 @server.tool(annotations=STATE_CHANGE, structured_output=True)
 def restart_leantrader(confirmation: str) -> dict[str, Any]:
     """Restart only the LeanTrader Compose service. Requires confirmation='RESTART_LEANTRADER'."""
     if confirmation != "RESTART_LEANTRADER":
-        return {
-            "ok": False,
-            "action": "restart",
-            "error": "explicit confirmation RESTART_LEANTRADER is required",
-        }
+        return {"ok": False, "action": "restart", "error": "explicit confirmation RESTART_LEANTRADER is required"}
     return _invoke("restart", timeout=180)
 
 
