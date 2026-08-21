@@ -40,6 +40,8 @@ from .meta_cognition import MetaCognitiveSelfModel
 from .model_research import ModelResearchEngine, StructuredResearchProvider
 from .operations_engines import OperationsEngineSuite
 from .public_context import PublicMarketContextEngine
+from .probability_calibration import ProbabilityCalibrationLab
+from .profit_attribution import NetProfitAttribution
 from .prospective_validation import ProspectiveValidationLab
 from .research_engines import ResearchEngineSuite
 from .settings import Settings
@@ -324,6 +326,23 @@ class PaperRunner:
             risk_per_trade_fraction=settings.risk_per_trade_pct,
             max_daily_loss_fraction=settings.max_daily_loss_pct,
             max_drawdown_fraction=settings.max_drawdown_pct,
+            modeled_round_trip_cost_bps=modeled_round_trip_cost_bps,
+        )
+        self.profit_attribution = NetProfitAttribution(
+            settings.strategy_observatory_state_path.with_name(
+                "vps_profit_attribution.json"
+            ),
+            minimum_samples=settings.evolution_min_shadow_samples,
+            minimum_regimes=2,
+            modeled_round_trip_cost_bps=modeled_round_trip_cost_bps,
+        )
+        self.probability_calibration = ProbabilityCalibrationLab(
+            settings.strategy_observatory_state_path.with_name(
+                "vps_probability_calibration.json"
+            ),
+            minimum_samples=settings.evolution_min_shadow_samples,
+            minimum_regimes=2,
+            minimum_class_samples=20,
             modeled_round_trip_cost_bps=modeled_round_trip_cost_bps,
         )
         self.memory = MemoryRetentionEngine(
@@ -637,6 +656,28 @@ class PaperRunner:
                 "execution_quality_intelligence",
             ),
             version=self.capital_stress.VERSION,
+        )
+        self.engines.register(
+            "net_profit_attribution",
+            self.profit_attribution,
+            required=False,
+            dependencies=(
+                "paper_ledger",
+                "execution_quality_intelligence",
+                "prospective_validation_lab",
+            ),
+            version=self.profit_attribution.VERSION,
+        )
+        self.engines.register(
+            "probability_calibration_lab",
+            self.probability_calibration,
+            required=False,
+            dependencies=(
+                "paper_ledger",
+                "decision_router",
+                "net_profit_attribution",
+            ),
+            version=self.probability_calibration.VERSION,
         )
         self.engines.register(
             "capital_growth",
@@ -1837,6 +1878,20 @@ class PaperRunner:
                 for symbol, decision in decisions.items()
             },
         )
+        profit_attribution = self._shadow_call(
+            errors,
+            "net_profit_attribution:observe",
+            "net_profit_attribution",
+            "observe",
+            events=events,
+        )
+        probability_calibration = self._shadow_call(
+            errors,
+            "probability_calibration_lab:observe",
+            "probability_calibration_lab",
+            "observe",
+            events=events,
+        )
         capital_stress = self._shadow_call(
             errors,
             "capital_stress_simulator:evaluate",
@@ -1935,6 +1990,40 @@ class PaperRunner:
                 "paper_promotion_authority": False,
                 "testnet_authority": False,
                 "live_authority": False,
+                "can_modify_orders": False,
+                "can_modify_sizing": False,
+                "can_increase_risk": False,
+                "execution_authority": False,
+            },
+            "net_profit_attribution": {
+                "snapshot": profit_attribution,
+                "health": self.profit_attribution.health(),
+                "sample_unit": "fully_closed_costed_paper_trade",
+                "multiple_testing_correction": "bonferroni",
+                "observational_not_causal": True,
+                "research_only": True,
+                "advisory_only": True,
+                "paper_promotion_authority": False,
+                "testnet_authority": False,
+                "live_authority": False,
+                "can_modify_routes": False,
+                "can_modify_orders": False,
+                "can_modify_sizing": False,
+                "can_increase_risk": False,
+                "execution_authority": False,
+            },
+            "probability_calibration_lab": {
+                "snapshot": probability_calibration,
+                "health": self.probability_calibration.health(),
+                "sample_unit": "fully_closed_costed_paper_trade",
+                "prospective_closed_outcomes_only": True,
+                "research_only": True,
+                "advisory_only": True,
+                "paper_promotion_authority": False,
+                "testnet_authority": False,
+                "live_authority": False,
+                "can_rewrite_probabilities": False,
+                "can_modify_routes": False,
                 "can_modify_orders": False,
                 "can_modify_sizing": False,
                 "can_increase_risk": False,
