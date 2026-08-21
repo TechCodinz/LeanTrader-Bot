@@ -74,4 +74,3 @@ gates. Passing unit or CI tests is not profitability evidence.
 The production paper runner records v1.41 recommendations for prospective
 comparison only. It does not modify the existing route, order, size, risk
 limits, Testnet state, or live authority.
-
