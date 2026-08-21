@@ -12,6 +12,7 @@ from typing import Any
 import pandas as pd
 
 from .active_research import ActiveResearchPlanner
+from .alpha_tournament import AlphaTournament
 from .adversarial_critic import AdversarialCritic
 from .advanced_engines import UltraEngineSuite
 from .arbitrage_monitor import CrossVenueQuoteCollector
@@ -286,6 +287,14 @@ class PaperRunner:
             settings.strategy_observatory_state_path,
             round_trip_cost_bps=2 * (settings.fee_bps + settings.slippage_bps),
         )
+        self.alpha_tournament = AlphaTournament(
+            settings.strategy_observatory_state_path.with_name(
+                "vps_alpha_tournament.json"
+            ),
+            minimum_samples=settings.evolution_min_shadow_samples,
+            expected_round_trip_cost_bps=2
+            * (settings.fee_bps + settings.slippage_bps),
+        )
         self.memory = MemoryRetentionEngine(
             settings.memory_retention_state_path,
             max_episodes=settings.memory_max_episodes,
@@ -558,6 +567,17 @@ class PaperRunner:
             required=False,
             dependencies=("active_research_planner", "strategy_observatory"),
             version=self.evolution_fabric.VERSION,
+        )
+        self.engines.register(
+            "alpha_tournament",
+            self.alpha_tournament,
+            required=False,
+            dependencies=(
+                "strategy_observatory",
+                "evolution_fabric",
+                "hypothesis_lab",
+            ),
+            version=self.alpha_tournament.VERSION,
         )
         self.engines.register(
             "capital_growth",
@@ -1685,6 +1705,15 @@ class PaperRunner:
                 if symbol in decisions
             },
         )
+        alpha_tournament = self._shadow_call(
+            errors,
+            "alpha_tournament:evaluate",
+            "alpha_tournament",
+            "evaluate",
+            strategy_health=self.strategy_observatory.health(),
+            hypothesis_agenda=self.hypothesis_lab.agenda(25),
+            evolution_snapshot=evolution_snapshot,
+        )
         self_system_awareness = self._shadow_call(
             errors,
             "meta_cognitive_self_model:system",
@@ -1731,6 +1760,17 @@ class PaperRunner:
             "execution_funnel": execution_funnel,
             "strategy_observatory_health": observatory_health,
             "profitability_intelligence": profitability_intelligence,
+            "alpha_tournament": {
+                "snapshot": alpha_tournament,
+                "health": self.alpha_tournament.health(),
+                "strategy_foundry": True,
+                "research_only": True,
+                "paper_promotion_authority": False,
+                "testnet_authority": False,
+                "live_authority": False,
+                "can_increase_upstream_risk": False,
+                "execution_authority": False,
+            },
             "memory_health": memory_health,
             "decisions": {
                 symbol: {
