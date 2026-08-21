@@ -13,8 +13,8 @@ readonly API_KEY_PATH="${CONFIG_ROOT}/runtime_api_key"
 readonly WORK_DIR="$(mktemp -d)"
 
 # These hashes are updated with the audited files in the same release commit.
-readonly SERVER_SHA="37cb9f3c9dae507f05eb334bf286048cb58555a93b89bae1dadc8ad304846619"
-readonly HELPER_SHA="5ad31aa1be843ccb9346a03111373a72fb3634268acd5c155bd4c83a3234d2ac"
+readonly SERVER_SHA="c602fd623b933e95adb747279fea87bf602a10088b1fe798db3088e9f5ff2f39"
+readonly HELPER_SHA="bca2ccaa26eab2d63699c5708a814aef57135a1581bc1b784c43dd35aca17b92"
 readonly REQUIREMENTS_SHA="2ba90ca762c2825bcc60e50421fa8431e57ae64c9b56d3ed1159a3d2c65edfcf"
 readonly SUDOERS_SHA="449cc4aaa3b81c4b5e337e81c7d53961ecab1383552b395741854da56803c277"
 readonly SERVICE_SHA="f06e1147322643f2d0d7e90a1bc87a56ed21ea53c4ff37c7738af7ea15c80093"
