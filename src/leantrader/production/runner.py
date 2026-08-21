@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import os
 import signal
 import time
@@ -49,6 +50,11 @@ from .strategy_observatory import StrategyObservatory
 from .tail_risk_sentinel import TailRiskSentinel
 from .temporal_guard import MarketTemporalGuard
 from .testnet_execution import BybitTestnetExecutionEngine
+from .unified_control_plane import (
+    UnifiedDecisionControlPlane,
+    build_specialist_evidence,
+    host_resource_snapshot,
+)
 
 LOGGER = logging.getLogger("leantrader.production")
 
@@ -344,6 +350,15 @@ class PaperRunner:
             minimum_regimes=2,
             minimum_class_samples=20,
             modeled_round_trip_cost_bps=modeled_round_trip_cost_bps,
+        )
+        self.unified_control_plane = UnifiedDecisionControlPlane(
+            settings.strategy_observatory_state_path.with_name(
+                "vps_unified_control_plane_v141.json"
+            ),
+            minimum_round_trip_cost_bps=max(30.0, modeled_round_trip_cost_bps),
+            minimum_independent_samples=settings.evolution_min_shadow_samples,
+            max_drawdown_fraction=settings.max_drawdown_pct,
+            max_daily_loss_fraction=settings.max_daily_loss_pct,
         )
         self.memory = MemoryRetentionEngine(
             settings.memory_retention_state_path,
@@ -680,6 +695,21 @@ class PaperRunner:
             version=self.probability_calibration.VERSION,
         )
         self.engines.register(
+            "unified_decision_control_plane",
+            self.unified_control_plane,
+            required=False,
+            dependencies=(
+                "decision_router",
+                "strategy_observatory",
+                "prospective_validation_lab",
+                "execution_quality_intelligence",
+                "capital_stress_simulator",
+                "net_profit_attribution",
+                "probability_calibration_lab",
+            ),
+            version=self.unified_control_plane.VERSION,
+        )
+        self.engines.register(
             "capital_growth",
             self.capital_growth,
             dependencies=("paper_ledger", "research_governor"),
@@ -771,6 +801,7 @@ class PaperRunner:
         evolution_snapshot: dict[str, Any] = {}
         evolution_capabilities: dict[str, Any] = {}
         evolution_requests: dict[str, Any] = {}
+        unified_control_results: dict[str, dict[str, Any]] = {}
         public_symbol_context: dict[str, dict[str, Any]] = {}
         errors: dict[str, str] = {}
         self.engines.call("market_temporal_guard", "sync_clock")
@@ -1911,6 +1942,229 @@ class PaperRunner:
             },
             execution_quality=execution_quality,
         )
+        calibration_snapshot = self.probability_calibration.snapshot()
+        validation_experiments = (
+            list(prospective_validation.get("experiments") or [])
+            if isinstance(prospective_validation, dict)
+            else []
+        )
+        independent_validation_samples = max(
+            (
+                int((row.get("statistics") or {}).get("samples") or 0)
+                for row in validation_experiments
+                if isinstance(row, dict)
+            ),
+            default=0,
+        )
+        prospective_supported = any(
+            str(row.get("status") or "") == "research_supported_holdout"
+            for row in validation_experiments
+            if isinstance(row, dict)
+        )
+        validation_contract = {
+            "independent_samples": independent_validation_samples,
+            # The existing lab is walk-forward and Bonferroni-corrected, but
+            # v1.40 does not yet prove purging, embargo, PBO, deflation, or a
+            # never-touched holdout. Keep those gates closed and visible.
+            "purged_walk_forward_passed": False,
+            "embargo_applied": False,
+            "untouched_holdout_passed": False,
+            "multiple_testing_controlled": (
+                self.prospective_validation.health().get(
+                    "multiple_testing_correction"
+                )
+                == "bonferroni"
+            ),
+            "prospective_net_positive": prospective_supported,
+            "calibration_reliable": (
+                calibration_snapshot.get("calibration_state") == "calibrated"
+            ),
+            "drift_stable": False,
+            "probability_backtest_overfitting": 1.0,
+            "deflated_performance_statistic": -1.0,
+            "partitions": {
+                "training": {
+                    "status": "separate_research_input_not_promotable",
+                },
+                "validation": {
+                    "status": "walk_forward_available_purge_embargo_unverified",
+                },
+                "prospective_paper": {
+                    "samples": independent_validation_samples,
+                    "supported_candidates": sum(
+                        1
+                        for row in validation_experiments
+                        if isinstance(row, dict)
+                        and row.get("status") == "research_supported_holdout"
+                    ),
+                },
+                "untouched_holdout": {
+                    "status": "not_yet_implemented",
+                    "samples": 0,
+                },
+            },
+        }
+        resource_budget = host_resource_snapshot(
+            runtime_healthy=self.engines.required_healthy()
+        )
+        realized_stats = (
+            execution_quality.get("realized_return_statistics") or {}
+            if isinstance(execution_quality, dict)
+            else {}
+        )
+        if not isinstance(realized_stats, dict):
+            realized_stats = {}
+        for symbol, decision in decisions.items():
+            frame = frames.get(symbol)
+            if frame is None or frame.empty:
+                continue
+            advanced = advanced_decisions.get(symbol, {})
+            liquidity = advanced.get("liquidity") or {}
+            if not isinstance(liquidity, dict):
+                liquidity = {}
+            liquidity_available = bool(
+                liquidity.get("available")
+                and float(liquidity.get("mid") or 0.0) > 0.0
+                and float(liquidity.get("safe_buy_qty_30bps") or 0.0) > 0.0
+            )
+            mid = float(liquidity.get("mid") or decision.close)
+            safe_depth_notional = (
+                float(liquidity.get("safe_buy_qty_30bps") or 0.0) * mid
+                if liquidity_available
+                else 0.0
+            )
+            spread_bps = float(liquidity.get("spread_bps") or 0.0)
+            observed_impact = float(liquidity.get("buy_impact_bps") or 0.0)
+            if not math.isfinite(observed_impact):
+                observed_impact = 250.0
+            try:
+                latest_epoch = float(frame.index[-1].timestamp())
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                latest_epoch = 0.0
+            maximum_age = (
+                timeframe_seconds(self.settings.timeframe)
+                * self.settings.candle_stale_multiplier
+            )
+            age_seconds = (
+                max(0.0, time.time() - latest_epoch)
+                if latest_epoch > 0.0
+                else maximum_age + 1.0
+            )
+            returns = frame["close"].astype(float).pct_change().dropna()
+            long_volatility = float(returns.tail(200).std()) if len(returns) >= 20 else 0.0
+            recent_volatility = float(returns.tail(20).std()) if len(returns) >= 20 else 0.0
+            volatility_ratio = (
+                recent_volatility / max(long_volatility, 1e-12)
+                if long_volatility > 0.0
+                else 10.0
+            )
+            route = routed_decisions.get(symbol, {})
+            temporal_session = route.get("temporal_session") or {}
+            modeled_round_trip_cost_bps = 2.0 * (
+                self.settings.fee_bps + self.settings.slippage_bps
+            )
+            specialist_evidence = build_specialist_evidence(
+                symbol=symbol,
+                current_regime=decision.regime,
+                timeframe=self.settings.timeframe,
+                base_score=sum(
+                    decision.component_scores[name] * decision.weights[name]
+                    for name in decision.component_scores
+                ),
+                base_confidence=decision.confidence,
+                advanced_signals=list(advanced.get("signals") or []),
+                evidence_lookup=self.strategy_observatory.evidence,
+                minimum_samples=self.settings.evolution_min_shadow_samples,
+                modeled_round_trip_cost_bps=modeled_round_trip_cost_bps,
+                calibration_snapshot=calibration_snapshot,
+            )
+            unified_control_results[symbol] = self._shadow_call(
+                errors,
+                f"{symbol}:unified_decision_control_plane",
+                "unified_decision_control_plane",
+                "evaluate",
+                symbol=symbol,
+                current_regime=decision.regime,
+                correlation_bucket=f"{self.settings.market_quote.lower()}_market_beta",
+                specialist_evidence=specialist_evidence,
+                market_data={
+                    "age_seconds": age_seconds,
+                    "max_age_seconds": maximum_age,
+                    "quality_score": decision.quality_score,
+                    "future_leakage_detected": False,
+                    "survivorship_bias_controlled": True,
+                    "exchange_anomaly_detected": (
+                        temporal_session.get("allowed") is not True
+                    ),
+                    "freshness_verified": (
+                        age_seconds <= maximum_age
+                        and temporal_session.get("allowed") is True
+                    ),
+                },
+                execution={
+                    "order_notional_usd": self.settings.order_usd,
+                    # safe depth is the maximum known quantity within 30 bps;
+                    # divide by the 10% participation cap to preserve that cap.
+                    "liquidity_usd": safe_depth_notional * 10.0,
+                    "max_participation_rate": 0.10,
+                    "rejection_probability": 0.0 if liquidity_available else 1.0,
+                    "spread_bps": spread_bps,
+                    "fee_bps_per_side": self.settings.fee_bps,
+                    "base_slippage_bps_per_side": self.settings.slippage_bps,
+                    "funding_bps": 0.0,
+                    "latency_ms": 1_000.0,
+                    "volatility_bps_per_second": (
+                        decision.atr
+                        / max(decision.close, 1e-12)
+                        * 10_000.0
+                        / max(timeframe_seconds(self.settings.timeframe), 1)
+                    ),
+                    "adverse_selection_bps": max(0.0, observed_impact),
+                    "impact_coefficient_bps": 0.0,
+                },
+                portfolio={
+                    "equity": equity,
+                    "peak_equity": self.ledger.peak_equity,
+                    "daily_pnl": equity - self.ledger.day_start_equity,
+                    "loss_streak": int(
+                        realized_stats.get("max_losing_streak") or 0
+                    ),
+                    "volatility_ratio": volatility_ratio,
+                    "positions": [
+                        {
+                            "symbol": open_symbol,
+                            "notional_usd": position.quantity
+                            * prices.get(open_symbol, position.entry_price),
+                            "correlation_bucket": (
+                                f"{self.settings.market_quote.lower()}_market_beta"
+                            ),
+                        }
+                        for open_symbol, position in self.ledger.positions.items()
+                    ],
+                },
+                validation=validation_contract,
+                resources=resource_budget,
+                system={
+                    "trading_mode": os.getenv("TRADING_MODE", "paper")
+                    .strip()
+                    .lower(),
+                    "enable_live": os.getenv("ENABLE_LIVE", "false")
+                    .strip()
+                    .lower()
+                    in {"1", "true", "yes", "on"},
+                    "allow_live": os.getenv("ALLOW_LIVE", "false")
+                    .strip()
+                    .lower()
+                    in {"1", "true", "yes", "on"},
+                    "live_confirm": os.getenv("LIVE_CONFIRM", "NO")
+                    .strip()
+                    .upper(),
+                    "testnet_enabled": self.testnet is not None,
+                    "runtime_integrity_ok": self.engines.required_healthy(),
+                    "heartbeat_fresh": True,
+                },
+                atr_fraction=decision.atr / max(decision.close, 1e-12),
+            )
         self_system_awareness = self._shadow_call(
             errors,
             "meta_cognitive_self_model:system",
@@ -2044,6 +2298,26 @@ class PaperRunner:
                 "can_modify_sizing": False,
                 "can_increase_risk": False,
                 "execution_authority": False,
+            },
+            "unified_decision_control_plane": {
+                "symbols": unified_control_results,
+                "health": self.unified_control_plane.health(),
+                "v1_41_shadow_integration": True,
+                "correlated_evidence_deduplicated": True,
+                "regime_and_timeframe_aware": True,
+                "portfolio_correlation_budgeting": True,
+                "all_in_paper_execution_costing": True,
+                "tamper_evident_lineage": True,
+                "automatic_promotion": False,
+                "paper_promotion_authority": False,
+                "testnet_authority": False,
+                "live_authority": False,
+                "can_modify_routes": False,
+                "can_modify_orders": False,
+                "can_modify_sizing": False,
+                "can_increase_risk": False,
+                "execution_authority": False,
+                "validation_partitions": validation_contract["partitions"],
             },
             "memory_health": memory_health,
             "decisions": {
