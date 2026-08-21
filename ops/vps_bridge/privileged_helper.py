@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable
@@ -30,6 +31,14 @@ MAX_COMMAND_OUTPUT = 65_536
 MAX_REQUEST_BYTES = 131_072
 MAX_SOURCE_BYTES = 2 * 1_048_576
 MAX_BACKUP_BYTES = 32 * 1024 * 1024 * 1024
+AUTODEPLOY_CONFIRMATION = "DEPLOY_CI_VERIFIED_PAPER_COMMIT"
+AUTODEPLOY_DENIED_PATHS = {
+    "docker-compose.yml",
+    "Dockerfile",
+    "scripts/bootstrap_verified_vps.sh",
+    "scripts/install_vps_ops_bridge.sh",
+}
+AUTODEPLOY_DENIED_PREFIXES = (".github/workflows/", "ops/vps_bridge/")
 
 SAFE_REF = re.compile(r"^(?:HEAD|[0-9a-f]{7,40}|refs/(?:heads|tags)/[A-Za-z0-9._/-]+|[A-Za-z0-9][A-Za-z0-9._/-]{0,127})$")
 SAFE_BRANCH = re.compile(r"^(?:local|recovery|feature|codex|release)/[A-Za-z0-9][A-Za-z0-9._/-]{0,120}$")
@@ -119,6 +128,8 @@ def _run(
         env={
             "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
             "GIT_TERMINAL_PROMPT": "0",
+            "GH_CONFIG_DIR": "/root/.config/gh",
+            "HOME": "/root",
         },
     )
 
@@ -982,6 +993,412 @@ def import_source(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+
+def _validate_autodeploy_identity(branch: str, commit: str) -> tuple[str, str]:
+    branch = branch.strip()
+    commit = commit.strip().lower()
+    if (
+        not SAFE_BRANCH.fullmatch(branch)
+        or ".." in branch
+        or not re.fullmatch(r"[0-9a-f]{40}", commit)
+    ):
+        raise ValueError("deployment requires an allowlisted branch and full commit SHA")
+    return branch, commit
+
+
+def _validate_autodeploy_paths(paths: list[str]) -> list[str]:
+    if len(paths) > 500:
+        raise ValueError("deployment diff exceeds the 500-path review limit")
+    validated: list[str] = []
+    for raw in paths:
+        normalized = Path(raw).as_posix()
+        if (
+            not normalized
+            or _is_denied_path(Path(normalized))
+            or normalized in AUTODEPLOY_DENIED_PATHS
+            or normalized.startswith(AUTODEPLOY_DENIED_PREFIXES)
+        ):
+            raise ValueError(
+                f"automatic deployment cannot change protected path: {normalized}"
+            )
+        validated.append(normalized)
+    return validated
+
+
+def _validate_compose_environment(environment: dict[str, Any]) -> dict[str, Any]:
+    normalized = {str(key): str(value).strip() for key, value in environment.items()}
+    required_exact = {
+        "TRADING_MODE": "paper",
+        "ENABLE_LIVE": "false",
+        "ALLOW_LIVE": "false",
+        "LIVE_CONFIRM": "NO",
+        "BYBIT_TESTNET_ENABLED": "false",
+    }
+    for key, expected in required_exact.items():
+        if normalized.get(key, "").lower() != expected.lower():
+            raise ValueError(f"automatic deployment requires {key}={expected}")
+
+    numeric_floors = {
+        "EVOLUTION_MIN_SHADOW_SAMPLES": 100.0,
+        "BRAIN_MIN_STRATEGY_SAMPLES": 50.0,
+        "BRAIN_QUARANTINE_MIN_SAMPLES": 100.0,
+        "MARKET_EVIDENCE_MIN_SAMPLES": 8.0,
+        "ADAPTIVE_MIN_SAMPLES": 5.0,
+        "CAPITAL_PRINCIPAL_FLOOR_FRACTION": 0.70,
+    }
+    numeric_ceilings = {
+        "RISK_PER_TRADE_PCT": 0.005,
+        "MAX_DAILY_LOSS_PCT": 0.02,
+        "MAX_DRAWDOWN_PCT": 0.10,
+        "MAX_POSITION_PCT": 0.10,
+        "CAPITAL_PROFIT_REINVEST_FRACTION": 0.50,
+    }
+    try:
+        for key, floor in numeric_floors.items():
+            if float(normalized.get(key, "nan")) < floor:
+                raise ValueError(f"automatic deployment cannot lower {key}")
+        for key, ceiling in numeric_ceilings.items():
+            if float(normalized.get(key, "nan")) > ceiling:
+                raise ValueError(f"automatic deployment cannot raise {key}")
+        round_trip_cost = 2.0 * (
+            float(normalized.get("PAPER_FEE_BPS", "nan"))
+            + float(normalized.get("PAPER_SLIPPAGE_BPS", "nan"))
+        )
+    except (TypeError, ValueError) as exc:
+        if isinstance(exc, ValueError) and str(exc).startswith("automatic deployment"):
+            raise
+        raise ValueError("automatic deployment found invalid numeric safety configuration") from exc
+    if not round_trip_cost >= 30.0:
+        raise ValueError("automatic deployment cannot lower the 30-bps cost floor")
+    return {
+        "mode": "paper",
+        "live_enabled": False,
+        "testnet_enabled": False,
+        "round_trip_cost_bps": round_trip_cost,
+        "research_sample_floor": int(
+            float(normalized["EVOLUTION_MIN_SHADOW_SAMPLES"])
+        ),
+    }
+
+
+def _working_tree_autodeploy_safe() -> None:
+    result = _git(["status", "--porcelain", "--untracked-files=no"], timeout=30)
+    lines = _checked(result, "unable to inspect tracked worktree").splitlines()
+    unexpected = [
+        line
+        for line in lines
+        if line != " M runtime/signals_seen.json"
+    ]
+    if unexpected:
+        raise ValueError(
+            "automatic deployment refuses unexpected tracked changes: "
+            + "; ".join(unexpected[:20])
+        )
+
+
+def _verify_ci_success(commit: str) -> dict[str, Any]:
+    result = _run(
+        [
+            "gh",
+            "api",
+            "-H",
+            "Accept: application/vnd.github+json",
+            f"repos/{CANONICAL_REPOSITORY}/commits/{commit}/check-runs?per_page=100",
+        ],
+        timeout=90,
+    )
+    document = json.loads(_checked(result, "unable to verify GitHub Actions checks"))
+    checks = document.get("check_runs") or []
+    supported = [
+        row
+        for row in checks
+        if isinstance(row, dict)
+        and row.get("name") == "supported-paper-runtime"
+        and row.get("head_sha") == commit
+        and row.get("status") == "completed"
+        and row.get("conclusion") == "success"
+        and ((row.get("app") or {}).get("slug") == "github-actions")
+    ]
+    if not supported:
+        raise ValueError(
+            "target commit lacks a successful supported-paper-runtime GitHub Actions check"
+        )
+    return {
+        "check": "supported-paper-runtime",
+        "conclusion": "success",
+        "completed_at": supported[-1].get("completed_at"),
+    }
+
+
+def _compose_safety_snapshot() -> dict[str, Any]:
+    result = _run(
+        ["docker", "compose", "config", "--format", "json"],
+        cwd=APP_DIR,
+        timeout=90,
+    )
+    document = json.loads(_checked(result, "docker compose config validation failed"))
+    service = (document.get("services") or {}).get("leantrader") or {}
+    environment = service.get("environment") or {}
+    if isinstance(environment, list):
+        environment = {
+            str(item).split("=", 1)[0]: (
+                str(item).split("=", 1)[1]
+                if "=" in str(item)
+                else ""
+            )
+            for item in environment
+        }
+    if not isinstance(environment, dict):
+        raise ValueError("leantrader Compose environment is unavailable")
+    return _validate_compose_environment(environment)
+
+
+def _switch_to_remote_commit(branch: str, commit: str) -> None:
+    local = _git(["show-ref", "--verify", "--quiet", f"refs/heads/{branch}"], timeout=15)
+    current = _checked(
+        _git(["branch", "--show-current"], timeout=15),
+        "unable to resolve current branch",
+    )
+    if local.returncode == 0:
+        local_commit = _checked(
+            _git(["rev-parse", f"refs/heads/{branch}"], timeout=15),
+            "unable to resolve local deployment branch",
+        )
+        if local_commit != commit:
+            ancestor = _git(
+                ["merge-base", "--is-ancestor", local_commit, commit],
+                timeout=15,
+            )
+            if ancestor.returncode != 0:
+                raise ValueError(
+                    "local deployment branch is not a fast-forward ancestor"
+                )
+        if current != branch:
+            _checked(_git(["switch", branch], timeout=60), "unable to switch branch")
+        if local_commit != commit:
+            _checked(
+                _git(["merge", "--ff-only", f"origin/{branch}"], timeout=120),
+                "unable to fast-forward deployment branch",
+            )
+    else:
+        _checked(
+            _git(
+                ["switch", "--track", "-c", branch, f"origin/{branch}"],
+                timeout=120,
+            ),
+            "unable to create tracked deployment branch",
+        )
+    deployed = _checked(_git(["rev-parse", "HEAD"], timeout=15), "unable to resolve deployed commit")
+    if deployed != commit:
+        raise RuntimeError("checked-out commit does not match the verified target")
+
+
+def _fresh_healthy_heartbeat(previous_mtime_ns: int, timeout_seconds: int = 600) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_seconds
+    last_reason = "waiting for new heartbeat"
+    while time.monotonic() < deadline:
+        container = status().get("container") or {}
+        if (
+            container.get("status") == "running"
+            and container.get("restart_count") == 0
+            and container.get("health") == "healthy"
+            and HEARTBEAT.is_file()
+            and HEARTBEAT.stat().st_mtime_ns > previous_mtime_ns
+        ):
+            document = json.loads(HEARTBEAT.read_text(encoding="utf-8"))
+            engines = document.get("engines") or {}
+            required_failures = [
+                name
+                for name, row in engines.items()
+                if isinstance(row, dict)
+                and row.get("required") is True
+                and row.get("healthy") is not True
+            ]
+            testnet = document.get("testnet_execution") or {}
+            if (
+                document.get("healthy") is True
+                and document.get("mode") == "paper"
+                and testnet.get("enabled") is False
+                and not required_failures
+            ):
+                return {
+                    "timestamp": document.get("timestamp"),
+                    "equity": document.get("equity"),
+                    "engine_count": len(engines),
+                    "required_engine_failures": [],
+                    "mode": "paper",
+                    "testnet_enabled": False,
+                }
+            last_reason = (
+                f"heartbeat unsafe or unhealthy; required failures={required_failures[:20]}"
+            )
+        else:
+            last_reason = (
+                f"container status={container.get('status')} "
+                f"health={container.get('health')} "
+                f"restarts={container.get('restart_count')}"
+            )
+        time.sleep(10)
+    raise RuntimeError(f"deployment did not produce a fresh healthy heartbeat: {last_reason}")
+
+
+def _restore_recovery_commit(previous_commit: str) -> dict[str, Any]:
+    _checked(
+        _git(["switch", "recovery/last-known-good"], timeout=60),
+        "unable to switch to recovery branch",
+    )
+    restored = _checked(
+        _git(["rev-parse", "HEAD"], timeout=15),
+        "unable to resolve recovery commit",
+    )
+    if restored != previous_commit:
+        raise RuntimeError("recovery branch does not match previous commit")
+    build = _run(
+        ["docker", "compose", "build", "leantrader"],
+        cwd=APP_DIR,
+        timeout=2_400,
+    )
+    _checked(build, "recovery container build failed")
+    up = _run(
+        ["docker", "compose", "up", "-d", "--no-deps", "leantrader"],
+        cwd=APP_DIR,
+        timeout=300,
+    )
+    _checked(up, "recovery container start failed")
+    return {"rolled_back": True, "commit": previous_commit}
+
+
+def deploy_verified_commit(payload: dict[str, Any]) -> dict[str, Any]:
+    branch, commit = _validate_autodeploy_identity(
+        str(payload.get("branch") or ""),
+        str(payload.get("commit") or ""),
+    )
+    _working_tree_autodeploy_safe()
+    remote = _checked(
+        _git(["remote", "get-url", "origin"], timeout=15),
+        "origin remote is unavailable",
+    )
+    if not _canonical_remote_ok(remote):
+        raise ValueError(
+            "origin does not match the canonical TechCodinz/LeanTrader-Bot repository"
+        )
+
+    fetch = _git(
+        [
+            "fetch",
+            "--no-tags",
+            "origin",
+            f"refs/heads/{branch}:refs/remotes/origin/{branch}",
+        ],
+        timeout=300,
+    )
+    _checked(fetch, "unable to fetch deployment branch")
+    remote_commit = _checked(
+        _git(["rev-parse", f"refs/remotes/origin/{branch}"], timeout=15),
+        "unable to resolve remote deployment branch",
+    )
+    if remote_commit != commit:
+        raise ValueError("requested commit is not the remote branch head")
+
+    previous_commit = _checked(
+        _git(["rev-parse", "HEAD"], timeout=15),
+        "unable to resolve current commit",
+    )
+    previous_branch = _checked(
+        _git(["branch", "--show-current"], timeout=15),
+        "unable to resolve current branch",
+    )
+    ancestor = _git(
+        ["merge-base", "--is-ancestor", previous_commit, commit],
+        timeout=30,
+    )
+    if ancestor.returncode != 0:
+        raise ValueError("automatic deployment permits fast-forward descendants only")
+
+    changed = _checked(
+        _git(["diff", "--name-only", previous_commit, commit], timeout=60),
+        "unable to inspect deployment paths",
+    ).splitlines()
+    reviewed_paths = _validate_autodeploy_paths(changed)
+    diff_check = _git(["diff", "--check", previous_commit, commit], timeout=60)
+    _checked(diff_check, "deployment diff failed whitespace validation")
+    for changed_path in reviewed_paths:
+        mode = _checked(
+            _git(["ls-tree", commit, "--", changed_path], timeout=30),
+            f"unable to inspect target path {changed_path}",
+        ).split(maxsplit=1)[0]
+        if mode == "120000":
+            raise ValueError(
+                f"automatic deployment refuses changed symlink: {changed_path}"
+            )
+
+    ci = _verify_ci_success(commit)
+    _checked(
+        _git(["branch", "-f", "recovery/last-known-good", previous_commit], timeout=30),
+        "unable to record recovery commit",
+    )
+    previous_heartbeat_mtime = (
+        HEARTBEAT.stat().st_mtime_ns if HEARTBEAT.is_file() else 0
+    )
+    try:
+        _switch_to_remote_commit(branch, commit)
+        safety = _compose_safety_snapshot()
+        build = _run(
+            ["docker", "compose", "build", "leantrader"],
+            cwd=APP_DIR,
+            timeout=2_400,
+        )
+        build_output = _checked(build, "LeanTrader container build failed")
+        preflight = _run(
+            [
+                "docker",
+                "compose",
+                "run",
+                "--rm",
+                "--no-deps",
+                "leantrader",
+                "python",
+                "-m",
+                "leantrader.production.runner",
+                "--preflight",
+            ],
+            cwd=APP_DIR,
+            timeout=300,
+        )
+        preflight_output = _checked(preflight, "paper safety preflight failed")
+        up = _run(
+            ["docker", "compose", "up", "-d", "--no-deps", "leantrader"],
+            cwd=APP_DIR,
+            timeout=300,
+        )
+        up_output = _checked(up, "LeanTrader container start failed")
+        fresh = _fresh_healthy_heartbeat(previous_heartbeat_mtime)
+    except Exception as exc:
+        rollback = _restore_recovery_commit(previous_commit)
+        raise RuntimeError(
+            f"verified deployment failed and rollback was attempted: {exc}; "
+            f"rollback={rollback}"
+        ) from exc
+
+    return {
+        "deployed": True,
+        "branch": branch,
+        "commit": commit,
+        "previous_branch": previous_branch,
+        "previous_commit": previous_commit,
+        "ci": ci,
+        "safety": safety,
+        "changed_paths": reviewed_paths,
+        "force_push_used": False,
+        "live_enabled": False,
+        "testnet_enabled": False,
+        "fresh_heartbeat": fresh,
+        "build_tail": _bounded(build_output)[-4000:],
+        "preflight_tail": _bounded(preflight_output)[-4000:],
+        "start_tail": _bounded(up_output)[-4000:],
+    }
+
+
 def repository_write(payload: dict[str, Any]) -> dict[str, Any]:
     operation = str(payload.get("operation", ""))
     if operation == "test":
@@ -1000,6 +1417,8 @@ def repository_write(payload: dict[str, Any]) -> dict[str, Any]:
         return push_tag_v134()
     if operation == "import-source":
         return import_source(payload)
+    if operation == "deploy-verified-commit":
+        return deploy_verified_commit(payload)
     raise ValueError("unsupported repository write operation")
 
 
