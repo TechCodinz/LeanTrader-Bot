@@ -110,35 +110,40 @@ install -m 0440 -o root -g root "${WORK_DIR}/leantrader-ops.sudoers" /etc/sudoer
 visudo -cf /etc/sudoers.d/leantrader-ops >/dev/null
 install -m 0644 -o root -g root "${WORK_DIR}/leantrader-tunnel.service" /etc/systemd/system/leantrader-tunnel.service
 
-if [[ -z "${CONTROL_PLANE_TUNNEL_ID:-}" ]]; then
-  read -r -p "Paste the tunnel ID (starts with tunnel_): " CONTROL_PLANE_TUNNEL_ID </dev/tty
-fi
-if [[ ! "${CONTROL_PLANE_TUNNEL_ID}" =~ ^tunnel_[A-Za-z0-9]+$ ]]; then
-  fail "invalid tunnel ID"
-fi
-if [[ -z "${CONTROL_PLANE_API_KEY:-}" ]]; then
-  read -r -s -p "Paste the Runtime API key (hidden): " CONTROL_PLANE_API_KEY </dev/tty
-  echo >/dev/tty
-fi
-if [[ -z "${CONTROL_PLANE_API_KEY}" || "${CONTROL_PLANE_API_KEY}" =~ [[:space:]] ]]; then
-  fail "runtime API key is empty or contains whitespace"
-fi
-
-install -m 0400 -o leantunnel -g leantunnel /dev/null "${API_KEY_PATH}"
-printf '%s\n' "${CONTROL_PLANE_API_KEY}" >"${API_KEY_PATH}"
-unset CONTROL_PLANE_API_KEY
-
 profile_dir="/var/lib/leantunnel/profiles"
 install -d -m 0700 -o leantunnel -g leantunnel "${profile_dir}"
-runuser -u leantunnel -- /usr/local/bin/tunnel-client init \
-  --force \
-  --profile leantrader \
-  --profile-dir "${profile_dir}" \
-  --tunnel-id "${CONTROL_PLANE_TUNNEL_ID}" \
-  --control-plane-api-key-ref "file:${API_KEY_PATH}" \
-  --health-listen-addr "127.0.0.1:8080" \
-  --mcp-command "/usr/bin/sudo -n -u leanops /usr/local/bin/leantrader-mcp-server"
-install -m 0440 -o root -g leantunnel "${profile_dir}/leantrader.yaml" "${PROFILE_PATH}"
+
+if [[ -s "${PROFILE_PATH}" && -s "${API_KEY_PATH}"       && -z "${CONTROL_PLANE_TUNNEL_ID:-}"       && -z "${CONTROL_PLANE_API_KEY:-}" ]]; then
+  echo "Preserving existing LeanTrader tunnel profile and Runtime API key."
+else
+  if [[ -z "${CONTROL_PLANE_TUNNEL_ID:-}" ]]; then
+    read -r -p "Paste the tunnel ID (starts with tunnel_): " CONTROL_PLANE_TUNNEL_ID </dev/tty
+  fi
+  if [[ ! "${CONTROL_PLANE_TUNNEL_ID}" =~ ^tunnel_[A-Za-z0-9]+$ ]]; then
+    fail "invalid tunnel ID"
+  fi
+  if [[ -z "${CONTROL_PLANE_API_KEY:-}" ]]; then
+    read -r -s -p "Paste the Runtime API key (hidden): " CONTROL_PLANE_API_KEY </dev/tty
+    echo >/dev/tty
+  fi
+  if [[ -z "${CONTROL_PLANE_API_KEY}" || "${CONTROL_PLANE_API_KEY}" =~ [[:space:]] ]]; then
+    fail "runtime API key is empty or contains whitespace"
+  fi
+
+  install -m 0400 -o leantunnel -g leantunnel /dev/null "${API_KEY_PATH}"
+  printf '%s\n' "${CONTROL_PLANE_API_KEY}" >"${API_KEY_PATH}"
+  unset CONTROL_PLANE_API_KEY
+
+  runuser -u leantunnel -- /usr/local/bin/tunnel-client init \
+    --force \
+    --profile leantrader \
+    --profile-dir "${profile_dir}" \
+    --tunnel-id "${CONTROL_PLANE_TUNNEL_ID}" \
+    --control-plane-api-key-ref "file:${API_KEY_PATH}" \
+    --health-listen-addr "127.0.0.1:8080" \
+    --mcp-command "/usr/bin/sudo -n -u leanops /usr/local/bin/leantrader-mcp-server"
+  install -m 0440 -o root -g leantunnel "${profile_dir}/leantrader.yaml" "${PROFILE_PATH}"
+fi
 
 runuser -u leantunnel -- /usr/local/bin/tunnel-client doctor \
   --profile-file "${PROFILE_PATH}" --explain
