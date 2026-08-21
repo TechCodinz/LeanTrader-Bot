@@ -4,7 +4,7 @@ import math
 from pathlib import Path
 from typing import Any
 
-from .evidence_qualification import EvidenceQualificationEngine
+from .runtime_evidence_qualification import RuntimeEvidenceQualificationEngine
 from .unified_control_plane_v141 import *  # noqa: F401,F403
 from .unified_control_plane_v141 import UnifiedDecisionControlPlane as _V141UnifiedDecisionControlPlane
 
@@ -15,7 +15,7 @@ class UnifiedDecisionControlPlane(_V141UnifiedDecisionControlPlane):
     The v1.41 decision, execution-costing, portfolio, safety and authority logic
     is preserved byte-for-byte in ``unified_control_plane_v141.py``. v1.42 only
     replaces the intentionally closed validation placeholders with persisted,
-    reproducible measurements when the prospective evidence store exists.
+    reproducible measurements from the precommitted partition protocol.
 
     Missing, corrupt or immature measured evidence remains fail-closed. This
     wrapper has no authority to promote paper routes, enable Testnet, enable
@@ -29,7 +29,7 @@ class UnifiedDecisionControlPlane(_V141UnifiedDecisionControlPlane):
         self._prospective_state_path = Path(state_path).with_name(
             "vps_prospective_validation.json"
         )
-        self.evidence_qualification = EvidenceQualificationEngine(
+        self.evidence_qualification = RuntimeEvidenceQualificationEngine(
             Path(state_path).with_name("vps_evidence_qualification_v142.json"),
             prospective_state_path=self._prospective_state_path,
             minimum_samples=self.minimum_independent_samples,
