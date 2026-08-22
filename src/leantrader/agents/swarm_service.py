@@ -24,7 +24,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.2"
+    VERSION = "1.49.0"
     ROLE_BY_TIMEFRAME = {
         "1m": AgentRole.SCALP,
         "5m": AgentRole.MOMENTUM,
@@ -59,6 +59,7 @@ class ReadOnlySwarmService:
         max_micro_symbols: int = 2,
         micro_calibration_journal: MicroCalibrationJournal | None = None,
         micro_calibration_feed: Any | None = None,
+        slow_calibration_journal: MicroCalibrationJournal | None = None,
     ) -> None:
         if scan_batch_size < 1:
             raise ValueError("scan_batch_size must be positive")
@@ -95,6 +96,7 @@ class ReadOnlySwarmService:
         self.max_micro_symbols = max(1, int(max_micro_symbols))
         self.micro_calibration_journal = micro_calibration_journal
         self.micro_calibration_feed = micro_calibration_feed
+        self.slow_calibration_journal = slow_calibration_journal
         self._calibration_thread: threading.Thread | None = None
         self.calibration_sample_attempts = 0
         self.calibration_sample_failures = 0
@@ -819,6 +821,86 @@ class ReadOnlySwarmService:
         # Prefer the current micro midpoint for sub-minute shadow accounting.
         marks.update(micro_marks)
 
+        slow_registered = 0
+        if self.slow_calibration_journal is not None:
+            slow_horizons = {
+                "1m": 120,
+                "5m": 300,
+                "15m": 900,
+            }
+
+            for symbol, timeframe_rows in assessments.items():
+                if not isinstance(timeframe_rows, dict):
+                    continue
+
+                midpoint = float(marks.get(symbol) or 0.0)
+                if midpoint <= 0:
+                    continue
+
+                registration_rows: list[dict[str, Any]] = []
+
+                for timeframe, horizon in slow_horizons.items():
+                    row = timeframe_rows.get(timeframe)
+                    if not isinstance(row, dict):
+                        continue
+
+                    direction = str(
+                        row.get("direction") or ""
+                    ).lower()
+
+                    if direction not in {"long", "short"}:
+                        continue
+
+                    registration_rows.append(
+                        {
+                            "horizon_seconds": horizon,
+                            "direction": direction,
+                            "confidence": float(
+                                row.get("confidence") or 0.0
+                            ),
+                            "pressure_score": float(
+                                row.get(
+                                    "directional_consistency"
+                                ) or 0.0
+                            ),
+                            "expected_edge_bps": float(
+                                row.get(
+                                    "expected_edge_bps"
+                                ) or 0.0
+                            ),
+                            "modeled_round_trip_cost_bps": max(
+                                30.0,
+                                float(
+                                    row.get(
+                                        "modeled_round_trip_cost_bps"
+                                    ) or 30.0
+                                ),
+                            ),
+                            "independently_qualified": (
+                                row.get(
+                                    "independently_qualified"
+                                ) is True
+                            ),
+                            "reason": str(
+                                row.get("reason") or "unknown"
+                            ),
+                            "specialist": (
+                                f"timeframe_mind_{timeframe}"
+                            ),
+                            "regime": direction,
+                        }
+                    )
+
+                if registration_rows:
+                    slow_registered += (
+                        self.slow_calibration_journal.register(
+                            symbol=symbol,
+                            midpoint=midpoint,
+                            assessments=registration_rows,
+                            observed_at=time.time(),
+                        )
+                    )
+
         micro_calibration_resolved = 0
         if (
             self.micro_calibration_journal is not None
@@ -851,6 +933,12 @@ class ReadOnlySwarmService:
         result["micro_calibration"] = (
             self.micro_calibration_journal.health()
             if self.micro_calibration_journal is not None
+            else {}
+        )
+        result["slow_calibration_registered"] = slow_registered
+        result["slow_calibration"] = (
+            self.slow_calibration_journal.health()
+            if self.slow_calibration_journal is not None
             else {}
         )
         result["timeframe_assessments"] = assessments
@@ -902,15 +990,29 @@ class ReadOnlySwarmService:
             try:
                 now = time.time()
 
-                self.micro_calibration_journal.censor_expired(
-                    observed_at=now,
-                )
+                journals = [
+                    journal
+                    for journal in (
+                        self.micro_calibration_journal,
+                        self.slow_calibration_journal,
+                    )
+                    if journal is not None
+                ]
 
-                symbols = self.micro_calibration_journal.due_symbols(
-                    observed_at=now,
-                    lookahead_seconds=0.5,
-                    limit=4,
-                )
+                due_symbols: list[str] = []
+
+                for journal in journals:
+                    journal.censor_expired(observed_at=now)
+
+                    for symbol in journal.due_symbols(
+                        observed_at=now,
+                        lookahead_seconds=0.5,
+                        limit=4,
+                    ):
+                        if symbol not in due_symbols:
+                            due_symbols.append(symbol)
+
+                symbols = due_symbols[:6]
                 for symbol in symbols:
                     if self._stop.is_set():
                         break
@@ -925,12 +1027,13 @@ class ReadOnlySwarmService:
                         if midpoint <= 0:
                             self.calibration_sample_failures += 1
                             continue
-                        self.calibration_labels_resolved += (
-                            self.micro_calibration_journal.resolve(
-                                marks={symbol: midpoint},
-                                observed_at=observed_at,
+                        for journal in journals:
+                            self.calibration_labels_resolved += (
+                                journal.resolve(
+                                    marks={symbol: midpoint},
+                                    observed_at=observed_at,
+                                )
                             )
-                        )
                     except Exception:
                         self.calibration_sample_failures += 1
             except Exception:

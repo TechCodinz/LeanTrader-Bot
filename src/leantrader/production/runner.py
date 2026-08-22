@@ -146,6 +146,10 @@ class PaperRunner(_V142PaperRunner):
                 base.with_name("vps_micro_calibration.json")
             ),
             micro_calibration_feed=calibration_feed,
+            slow_calibration_journal=MicroCalibrationJournal(
+                base.with_name("vps_slow_calibration.json"),
+                accepted_horizons=(120, 300, 900),
+            ),
         )
 
     def start_fast_swarm(self) -> None:

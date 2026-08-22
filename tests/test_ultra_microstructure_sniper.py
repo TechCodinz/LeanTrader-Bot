@@ -173,3 +173,51 @@ def test_foundry_rejects_negative_or_under_sampled_evidence():
             }
         },
     ) == []
+
+def test_generalized_calibration_journal_enforces_owned_horizons(tmp_path):
+    from leantrader.agents.micro_calibration import MicroCalibrationJournal
+
+    slow = MicroCalibrationJournal(
+        tmp_path / "slow.json",
+        accepted_horizons=(120, 300, 900),
+    )
+
+    rows = [
+        {
+            "horizon_seconds": 60,
+            "direction": "long",
+            "confidence": 0.5,
+            "pressure_score": 0.5,
+            "expected_edge_bps": 40.0,
+            "modeled_round_trip_cost_bps": 30.0,
+            "independently_qualified": True,
+            "reason": "qualified",
+            "specialist": "wrong_horizon",
+            "regime": "long",
+        },
+        {
+            "horizon_seconds": 300,
+            "direction": "long",
+            "confidence": 0.6,
+            "pressure_score": 0.7,
+            "expected_edge_bps": 50.0,
+            "modeled_round_trip_cost_bps": 30.0,
+            "independently_qualified": True,
+            "reason": "qualified",
+            "specialist": "timeframe_mind_5m",
+            "regime": "long",
+        },
+    ]
+
+    added = slow.register(
+        symbol="BTC/USDT",
+        midpoint=100.0,
+        assessments=rows,
+        observed_at=1000.0,
+    )
+
+    assert added == 1
+
+    health = slow.health()
+    assert health["accepted_horizons_seconds"] == [120, 300, 900]
+    assert health["pending_labels"] == 1

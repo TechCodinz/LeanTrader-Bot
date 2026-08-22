@@ -21,14 +21,29 @@ def _finite(value: Any, default: float = 0.0) -> float:
 class MicroCalibrationJournal:
     """Prospective, non-executable labels for sub-minute assessments."""
 
-    VERSION = "1.48.0"
+    VERSION = "1.49.0"
     SCHEMA_VERSION = 1
     MAX_PENDING = 10_000
     MAX_RESOLVED = 50_000
     MAX_RESOLUTION_DELAY_SECONDS = 3.0
 
-    def __init__(self, path: Path) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        accepted_horizons: tuple[int, ...] = (5, 15, 30, 60),
+    ) -> None:
+        horizons = tuple(
+            sorted({
+                int(value)
+                for value in accepted_horizons
+                if int(value) > 0
+            })
+        )
+        if not horizons:
+            raise ValueError("accepted_horizons cannot be empty")
         self.path = path
+        self.accepted_horizons = horizons
         self._lock = threading.RLock()
         self.state = self._load()
 
@@ -89,7 +104,7 @@ class MicroCalibrationJournal:
 
                 horizon = int(raw.get("horizon_seconds") or 0)
                 direction = str(raw.get("direction") or "")
-                if horizon not in {5, 15, 30, 60}:
+                if horizon not in self.accepted_horizons:
                     continue
                 if direction not in {"long", "short", "flat"}:
                     continue
@@ -500,7 +515,7 @@ class MicroCalibrationJournal:
             ]
 
         by_horizon: dict[str, dict[str, Any]] = {}
-        for horizon in (5, 15, 30, 60):
+        for horizon in self.accepted_horizons:
             rows = [
                 row
                 for row in timing_valid
@@ -516,6 +531,9 @@ class MicroCalibrationJournal:
 
         return {
             "version": self.VERSION,
+            "accepted_horizons_seconds": list(
+                self.accepted_horizons
+            ),
             "evidence_ranked_groups": len(rankings),
             "evidence_qualified_groups": len(eligible),
             "evidence_no_trade_groups": (
