@@ -400,9 +400,14 @@ class ReadOnlySwarmService:
         output: dict[str, Any] = {}
         marks: dict[str, float] = {}
         proposals: list[dict[str, Any]] = []
+        # v1.45.1: the sub-minute scout must not depend on the slower
+        # 1-minute opportunity gate. Inspect the strongest ranked markets,
+        # then require the microstructure engine's own independent,
+        # cost-aware qualification before any shadow proposal is allowed.
         selected = [
             row for row in ranked
-            if isinstance(row, dict) and row.get("qualified") is True
+            if isinstance(row, dict)
+            and str(row.get("symbol") or "").strip()
         ][: self.max_micro_symbols]
         for score in selected:
             symbol = str(score.get("symbol") or "").upper()
@@ -463,6 +468,200 @@ class ReadOnlySwarmService:
                 output[symbol] = {"error": f"{type(exc).__name__}: {exc}"}
         return output, marks, proposals
 
+    def _open_micro_shadow_candidates(
+        self,
+        *,
+        proposals: list[dict[str, Any]],
+        ranked: list[dict[str, Any]],
+        marks: dict[str, float],
+    ) -> list[dict[str, Any]]:
+        """Open only independently-qualified micro proposals in shadow capital.
+
+        This never mutates the canonical paper ledger and has no Testnet/live
+        execution authority.
+        """
+        if self.shadow_portfolio is None:
+            return []
+
+        score_map = {
+            str(row.get("symbol") or "").upper(): row
+            for row in ranked
+            if isinstance(row, dict)
+        }
+        events: list[dict[str, Any]] = []
+
+        for proposal in proposals:
+            if proposal.get("independently_qualified") is not True:
+                continue
+            if proposal.get("execution_authority") is not False:
+                continue
+
+            symbol = str(proposal.get("symbol") or "").upper()
+            side = str(proposal.get("side") or "").lower()
+            horizon = int(proposal.get("horizon_seconds") or 0)
+            mark = float(marks.get(symbol) or 0.0)
+
+            if not symbol or side not in {"long", "short"}:
+                continue
+            if horizon not in {5, 15, 30, 60}:
+                continue
+            if mark <= 0:
+                continue
+
+            score = score_map.get(symbol) or {}
+            modeled_cost = max(
+                30.0,
+                float(
+                    proposal.get("modeled_round_trip_cost_bps")
+                    or score.get("modeled_round_trip_cost_bps")
+                    or 30.0
+                ),
+            )
+            expected_edge = float(proposal.get("expected_edge_bps") or 0.0)
+            confidence = float(proposal.get("confidence") or 0.0)
+
+            # Recheck fail-closed constraints at the shadow-entry seam.
+            if expected_edge <= modeled_cost:
+                continue
+            if confidence <= 0.0:
+                continue
+
+            role = (
+                AgentRole.REVERSAL
+                if proposal.get("specialist") == "reversal_snapper"
+                else AgentRole.SCALP
+            )
+            agent_timeframe = (
+                f"micro-{horizon}s-"
+                f"{str(proposal.get('specialist') or 'micro')}"
+            )
+
+            agent = self.runtime.swarm.find_agent(
+                symbol=symbol,
+                timeframe=agent_timeframe,
+                role=role,
+            )
+            if agent is None:
+                agent = self.runtime.swarm.spawn_agent(
+                    role=role,
+                    timeframe=agent_timeframe,
+                    symbol=symbol,
+                )
+
+            if self.shadow_portfolio.has_open_agent(agent.agent_id):
+                continue
+
+            equity = self.shadow_portfolio.equity(marks)
+            deployable = self.shadow_portfolio.remaining_deployable_notional(marks)
+            if equity <= 0 or deployable <= 0:
+                continue
+
+            # Small bounded shadow allocation only.
+            requested = min(
+                self.base_order_usd,
+                deployable,
+                max(0.01, equity * 0.01),
+            )
+            if requested <= 0:
+                continue
+
+            # This is a distinct microstructure opportunity, not a claim that
+            # the slower 1-minute radar qualified. Its edge is derived only
+            # from the independently-qualified micro proposal after costs.
+            net_micro_edge = max(0.0, expected_edge - modeled_cost)
+            opportunity = OpportunityScore(
+                symbol=symbol,
+                score=(
+                    net_micro_edge
+                    * max(
+                        1.0,
+                        float(score.get("movement_frequency_per_minute") or 1.0),
+                    )
+                    * max(
+                        confidence,
+                        float(score.get("quality_multiplier") or 0.0),
+                    )
+                ),
+                net_capture_bps=net_micro_edge,
+                modeled_round_trip_cost_bps=modeled_cost,
+                movement_frequency_per_minute=max(
+                    0.0,
+                    float(score.get("movement_frequency_per_minute") or 0.0),
+                ),
+                quality_multiplier=max(
+                    0.0,
+                    min(
+                        1.0,
+                        max(
+                            confidence,
+                            float(score.get("quality_multiplier") or 0.0),
+                        ),
+                    ),
+                ),
+                nominal_price=mark,
+                qualified=True,
+                reason="independently_qualified_microstructure_edge",
+                source="ultra_microstructure_v1.45.1",
+            )
+
+            decision = self.runtime.swarm.consider_join(
+                agent_id=agent.agent_id,
+                opportunity=opportunity,
+                side=side,
+                entry_price=mark,
+                requested_notional=requested,
+                equity=equity,
+                upstream_remaining_deployable_notional=deployable,
+                confidence=confidence,
+                expected_edge_bps=expected_edge,
+                independently_qualified=True,
+                evidence_multiplier=max(0.0, min(1.0, confidence)),
+            )
+
+            if decision.get("allowed") is not True:
+                continue
+
+            try:
+                record = self.shadow_portfolio.open_tranche(
+                    tranche_id=str(decision["tranche_id"]),
+                    agent_id=agent.agent_id,
+                    role=role.value,
+                    timeframe=f"{horizon}s",
+                    symbol=symbol,
+                    side=side,
+                    reference_price=mark,
+                    notional=float(decision["allocated_notional"]),
+                    confidence=confidence,
+                    expected_edge_bps=expected_edge,
+                    modeled_round_trip_cost_bps=modeled_cost,
+                    marks=marks,
+                    regime=str(proposal.get("regime") or "micro_unknown"),
+                )
+                events.append(
+                    {
+                        "action": "micro_shadow_open",
+                        "specialist": proposal.get("specialist"),
+                        **record,
+                    }
+                )
+                self.shadow_entries += 1
+            except Exception as exc:
+                self.runtime.swarm.rollback_join(
+                    agent_id=agent.agent_id,
+                    tranche_id=str(decision["tranche_id"]),
+                )
+                self.shadow_failures += 1
+                events.append(
+                    {
+                        "action": "micro_shadow_open_failed",
+                        "agent_id": agent.agent_id,
+                        "symbol": symbol,
+                        "error": f"{type(exc).__name__}: {exc}",
+                    }
+                )
+
+        return events
+
     def step(self) -> dict[str, Any]:
         started = time.time()
         self._refresh_discovery()
@@ -503,9 +702,26 @@ class ReadOnlySwarmService:
         )
         fetch_errors.update(context_errors)
         marks = {symbol: self._last_close(frame) for symbol, frame in frames.items() if self._last_close(frame) > 0}
-        shadow_close_events = self._manage_shadow_exits(marks=marks, assessments=assessments)
-        shadow_open_events = self._open_shadow_candidates(ranked=list(result.get("ranked") or []), assessments=assessments, marks=marks)
+        # Prefer the current micro midpoint for sub-minute shadow accounting.
+        marks.update(micro_marks)
 
+        shadow_close_events = self._manage_shadow_exits(
+            marks=marks,
+            assessments=assessments,
+        )
+        shadow_open_events = self._open_shadow_candidates(
+            ranked=list(result.get("ranked") or []),
+            assessments=assessments,
+            marks=marks,
+        )
+        micro_shadow_events = self._open_micro_shadow_candidates(
+            proposals=micro_proposals,
+            ranked=ranked_rows,
+            marks=marks,
+        )
+
+        result["micro_shadow_events"] = micro_shadow_events
+        result["micro_shadow_is_canonical_paper"] = False
         result["timeframe_assessments"] = assessments
         result["shared_position_extension_candidates"] = extension_candidates
         result["extension_candidates_are_trade_authority"] = False
