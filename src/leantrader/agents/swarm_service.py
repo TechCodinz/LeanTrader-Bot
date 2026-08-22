@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 
 from .fast_path import FastSwarmRuntime
+from .micro_calibration import MicroCalibrationJournal
 from .microstructure_sniper import MicroAgentFoundry, UltraMicrostructureSniper
 from .opportunity_radar import OpportunityScore
 from .shared_position_graph import AgentRole
@@ -56,6 +57,7 @@ class ReadOnlySwarmService:
         micro_agent_foundry: MicroAgentFoundry | None = None,
         reference_feed: Any | None = None,
         max_micro_symbols: int = 2,
+        micro_calibration_journal: MicroCalibrationJournal | None = None,
     ) -> None:
         if scan_batch_size < 1:
             raise ValueError("scan_batch_size must be positive")
@@ -90,6 +92,7 @@ class ReadOnlySwarmService:
         self.micro_agent_foundry = micro_agent_foundry or MicroAgentFoundry()
         self.reference_feed = reference_feed
         self.max_micro_symbols = max(1, int(max_micro_symbols))
+        self.micro_calibration_journal = micro_calibration_journal
         self.micro_assessments = 0
         self.micro_qualified = 0
         self.micro_fetch_failures = 0
@@ -482,6 +485,15 @@ class ReadOnlySwarmService:
                     ),
                 )
                 proposed = self.micro_agent_foundry.propose(assessments)
+
+                if self.micro_calibration_journal is not None:
+                    self.micro_calibration_journal.register(
+                        symbol=symbol,
+                        midpoint=features.midpoint,
+                        assessments=[row.as_dict() for row in assessments],
+                        observed_at=features.timestamp,
+                    )
+
                 output[symbol] = {
                     "features": features.as_dict(),
                     "path_assessments": [r.as_dict() for r in assessments],
@@ -758,6 +770,12 @@ class ReadOnlySwarmService:
         # Prefer the current micro midpoint for sub-minute shadow accounting.
         marks.update(micro_marks)
 
+        micro_calibration_resolved = 0
+        if self.micro_calibration_journal is not None:
+            micro_calibration_resolved = (
+                self.micro_calibration_journal.resolve(marks=marks)
+            )
+
         shadow_close_events = self._manage_shadow_exits(
             marks=marks,
             assessments=assessments,
@@ -775,6 +793,12 @@ class ReadOnlySwarmService:
 
         result["micro_shadow_events"] = micro_shadow_events
         result["micro_shadow_is_canonical_paper"] = False
+        result["micro_calibration_resolved"] = micro_calibration_resolved
+        result["micro_calibration"] = (
+            self.micro_calibration_journal.health()
+            if self.micro_calibration_journal is not None
+            else {}
+        )
         result["timeframe_assessments"] = assessments
         result["shared_position_extension_candidates"] = extension_candidates
         result["extension_candidates_are_trade_authority"] = False
@@ -848,6 +872,11 @@ class ReadOnlySwarmService:
                 "micro_fetch_failures": self.micro_fetch_failures,
                 "microstructure_sniper": self.microstructure_sniper.health(),
                 "micro_agent_foundry": self.micro_agent_foundry.health(),
+                "micro_calibration": (
+                    self.micro_calibration_journal.health()
+                    if self.micro_calibration_journal is not None
+                    else {}
+                ),
                 "opportunity_qualification_rate": (
                     self.qualified_opportunities_total / self.ranked_opportunities_total
                     if self.ranked_opportunities_total

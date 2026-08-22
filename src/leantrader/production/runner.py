@@ -11,6 +11,7 @@ from .runner_v142 import MarketFeed, PaperRunner as _V142PaperRunner, configure_
 from .settings import Settings
 from ..agents.capital_allocator import SwarmCapitalAllocator
 from ..agents.fast_path import FastSwarmRuntime
+from ..agents.micro_calibration import MicroCalibrationJournal
 from ..agents.microstructure_sniper import MicroAgentFoundry, UltraMicrostructureSniper
 from ..agents.shared_position_graph import PositionCoordinator
 from ..agents.swarm_evidence import SwarmOutcomeJournal, build_v142_swarm_manifests
@@ -140,6 +141,9 @@ class PaperRunner(_V142PaperRunner):
             micro_agent_foundry=MicroAgentFoundry(maximum_candidates_per_symbol=2),
             reference_feed=reference_feed,
             max_micro_symbols=max(1, min(3, self.settings.max_open_positions)),
+            micro_calibration_journal=MicroCalibrationJournal(
+                base.with_name("vps_micro_calibration.json")
+            ),
         )
 
     def start_fast_swarm(self) -> None:
