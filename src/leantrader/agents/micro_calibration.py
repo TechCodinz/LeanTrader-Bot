@@ -21,7 +21,7 @@ def _finite(value: Any, default: float = 0.0) -> float:
 class MicroCalibrationJournal:
     """Prospective, non-executable labels for sub-minute assessments."""
 
-    VERSION = "1.49.0"
+    VERSION = "1.51.0"
     SCHEMA_VERSION = 1
     MAX_PENDING = 10_000
     MAX_RESOLVED = 50_000
@@ -32,6 +32,7 @@ class MicroCalibrationJournal:
         path: Path,
         *,
         accepted_horizons: tuple[int, ...] = (5, 15, 30, 60),
+        max_resolution_delay_seconds: float | None = None,
     ) -> None:
         horizons = tuple(
             sorted({
@@ -42,8 +43,19 @@ class MicroCalibrationJournal:
         )
         if not horizons:
             raise ValueError("accepted_horizons cannot be empty")
+        delay = (
+            self.MAX_RESOLUTION_DELAY_SECONDS
+            if max_resolution_delay_seconds is None
+            else float(max_resolution_delay_seconds)
+        )
+        if delay <= 0:
+            raise ValueError(
+                "max_resolution_delay_seconds must be positive"
+            )
+
         self.path = path
         self.accepted_horizons = horizons
+        self.max_resolution_delay_seconds = delay
         self._lock = threading.RLock()
         self.state = self._load()
 
@@ -183,7 +195,7 @@ class MicroCalibrationJournal:
                 if isinstance(row, dict)
                 and _finite(row.get("due_at")) <= cutoff
                 and now - _finite(row.get("due_at"))
-                    <= self.MAX_RESOLUTION_DELAY_SECONDS
+                    <= self.max_resolution_delay_seconds
             ]
 
         rows.sort(key=lambda row: _finite(row.get("due_at")))
@@ -216,7 +228,7 @@ class MicroCalibrationJournal:
                 due_at = _finite(row.get("due_at"))
                 delay = now - due_at
 
-                if delay <= self.MAX_RESOLUTION_DELAY_SECONDS:
+                if delay <= self.max_resolution_delay_seconds:
                     remaining.append(row)
                     continue
 
@@ -313,11 +325,11 @@ class MicroCalibrationJournal:
                     ),
                     "timing_valid": (
                         max(0.0, now - _finite(row.get("due_at")))
-                        <= self.MAX_RESOLUTION_DELAY_SECONDS
+                        <= self.max_resolution_delay_seconds
                     ),
                     "timing_censored": (
                         max(0.0, now - _finite(row.get("due_at")))
-                        > self.MAX_RESOLUTION_DELAY_SECONDS
+                        > self.max_resolution_delay_seconds
                     ),
                     "exit_midpoint": exit_mid,
                     "raw_return_bps": raw_return_bps,
@@ -546,7 +558,7 @@ class MicroCalibrationJournal:
             "timing_censored_labels": len(timing_censored),
             "legacy_unclassified_labels": len(legacy_unclassified),
             "maximum_resolution_delay_seconds": (
-                self.MAX_RESOLUTION_DELAY_SECONDS
+                self.max_resolution_delay_seconds
             ),
             "by_horizon": by_horizon,
             "minimum_evidence_before_calibration": 100,

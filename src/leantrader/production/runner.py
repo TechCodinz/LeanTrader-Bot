@@ -149,6 +149,7 @@ class PaperRunner(_V142PaperRunner):
             slow_calibration_journal=MicroCalibrationJournal(
                 base.with_name("vps_slow_calibration.json"),
                 accepted_horizons=(120, 300, 900),
+                max_resolution_delay_seconds=5.0,
             ),
         )
 

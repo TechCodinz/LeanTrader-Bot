@@ -24,7 +24,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.49.0"
+    VERSION = "1.51.0"
     ROLE_BY_TIMEFRAME = {
         "1m": AgentRole.SCALP,
         "5m": AgentRole.MOMENTUM,
@@ -990,29 +990,56 @@ class ReadOnlySwarmService:
             try:
                 now = time.time()
 
+                micro_journal = (
+                    self.micro_calibration_journal
+                )
+                slow_journal = (
+                    self.slow_calibration_journal
+                )
+
                 journals = [
                     journal
                     for journal in (
-                        self.micro_calibration_journal,
-                        self.slow_calibration_journal,
+                        micro_journal,
+                        slow_journal,
                     )
                     if journal is not None
                 ]
 
-                due_symbols: list[str] = []
-
                 for journal in journals:
-                    journal.censor_expired(observed_at=now)
+                    journal.censor_expired(
+                        observed_at=now
+                    )
 
-                    for symbol in journal.due_symbols(
+                # 5-60 second labels always receive first access to
+                # the precision sampler. Keep the pass bounded so
+                # sequential REST calls cannot exhaust the strict
+                # three-second micro timing window.
+                symbols: list[str] = []
+
+                if micro_journal is not None:
+                    symbols.extend(
+                        micro_journal.due_symbols(
+                            observed_at=now,
+                            lookahead_seconds=0.25,
+                            limit=2,
+                        )
+                    )
+
+                # Slow horizons may consume only spare capacity.
+                if (
+                    slow_journal is not None
+                    and len(symbols) < 2
+                ):
+                    for symbol in slow_journal.due_symbols(
                         observed_at=now,
-                        lookahead_seconds=0.5,
-                        limit=4,
+                        lookahead_seconds=0.25,
+                        limit=2,
                     ):
-                        if symbol not in due_symbols:
-                            due_symbols.append(symbol)
-
-                symbols = due_symbols[:6]
+                        if symbol not in symbols:
+                            symbols.append(symbol)
+                        if len(symbols) >= 2:
+                            break
                 for symbol in symbols:
                     if self._stop.is_set():
                         break
@@ -1040,7 +1067,7 @@ class ReadOnlySwarmService:
                 self.calibration_sample_failures += 1
 
             elapsed = time.monotonic() - started
-            self._stop.wait(max(0.0, 1.0 - elapsed))
+            self._stop.wait(max(0.0, 0.5 - elapsed))
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -1100,7 +1127,9 @@ class ReadOnlySwarmService:
                         "sampler_labels_resolved": (
                             self.calibration_labels_resolved
                         ),
-                        "sampler_cadence_seconds": 1.0,
+                        "sampler_cadence_seconds": 0.5,
+                        "micro_priority_sampling": True,
+                        "sampler_symbol_capacity": 2,
                     }
                     if self.micro_calibration_journal is not None
                     else {}

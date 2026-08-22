@@ -329,3 +329,74 @@ def test_v150_preserves_cost_floor_and_execution_safety():
     assert all(not row.execution_authority for row in rows)
     assert all(not row.testnet_authority for row in rows)
     assert all(not row.live_authority for row in rows)
+
+def test_v151_micro_and_slow_resolution_windows_are_separate(tmp_path):
+    from leantrader.agents.micro_calibration import MicroCalibrationJournal
+
+    micro_row = {
+        "horizon_seconds": 5,
+        "direction": "long",
+        "confidence": 0.6,
+        "pressure_score": 0.7,
+        "expected_edge_bps": 40.0,
+        "modeled_round_trip_cost_bps": 30.0,
+        "independently_qualified": False,
+        "reason": "research",
+        "specialist": "temporal_orderflow",
+        "regime": "micro_balanced",
+    }
+
+    micro = MicroCalibrationJournal(
+        tmp_path / "micro.json",
+        accepted_horizons=(5,),
+    )
+
+    assert micro.register(
+        symbol="BTC/USDT",
+        midpoint=100.0,
+        assessments=[micro_row],
+        observed_at=100.0,
+    ) == 1
+
+    # Due at 105.0. Micro evidence remains strict at 3 seconds.
+    assert micro.censor_expired(
+        observed_at=108.1,
+    ) == 1
+
+    assert micro.health()[
+        "maximum_resolution_delay_seconds"
+    ] == 3.0
+
+    slow_row = {
+        **micro_row,
+        "horizon_seconds": 120,
+        "specialist": "timeframe_mind_1m",
+    }
+
+    slow = MicroCalibrationJournal(
+        tmp_path / "slow.json",
+        accepted_horizons=(120,),
+        max_resolution_delay_seconds=5.0,
+    )
+
+    assert slow.register(
+        symbol="BTC/USDT",
+        midpoint=100.0,
+        assessments=[slow_row],
+        observed_at=100.0,
+    ) == 1
+
+    # Due at 220.0; 4.5 seconds late remains valid for slow evidence.
+    assert slow.resolve(
+        marks={"BTC/USDT": 101.0},
+        observed_at=224.5,
+    ) == 1
+
+    outcome = slow.state["resolved"][-1]
+
+    assert outcome["timing_valid"] is True
+    assert outcome["timing_censored"] is False
+
+    assert slow.health()[
+        "maximum_resolution_delay_seconds"
+    ] == 5.0
