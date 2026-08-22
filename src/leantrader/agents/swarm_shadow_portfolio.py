@@ -334,6 +334,7 @@ class SwarmShadowPortfolio:
             self.state.get("open", {}).pop(row.tranche_id, None)
             episode = {
                 "strategy": row.strategy,
+                "agent_id": row.agent_id,
                 "symbol": row.symbol,
                 "regime": row.regime,
                 "role": row.role,

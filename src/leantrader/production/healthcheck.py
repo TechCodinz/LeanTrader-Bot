@@ -10,7 +10,14 @@ DEFAULT_RUNTIME_ID = "verified-multi-engine-v12.11-continuous-evolution-fabric"
 
 
 def main() -> None:
-    path = Path(os.getenv("HEARTBEAT_PATH", "runtime/vps_heartbeat.json"))
+    heartbeat_path = Path(os.getenv("HEARTBEAT_PATH", "runtime/vps_heartbeat.json"))
+    health_state_path = Path(
+        os.getenv(
+            "HEALTH_STATE_PATH",
+            str(heartbeat_path.with_name("vps_health_state.json")),
+        )
+    )
+    path = health_state_path if health_state_path.is_file() else heartbeat_path
     max_age = float(os.getenv("HEARTBEAT_MAX_AGE", "180"))
     expected_runtime = os.getenv("EXPECTED_RUNTIME_ID", DEFAULT_RUNTIME_ID).strip()
     try:
@@ -31,6 +38,20 @@ def main() -> None:
     if payload.get("healthy") is not True:
         print(f"unhealthy: market cycle errors: {payload.get('errors', {})}")
         raise SystemExit(1)
+    swarm = payload.get("market_swarm") or {}
+    if isinstance(swarm, dict) and swarm.get("required") is True:
+        swarm_ok = (
+            swarm.get("running") is True
+            and swarm.get("healthy") is True
+            and swarm.get("stale") is not True
+        )
+        if not swarm_ok:
+            print(
+                "unhealthy: required market swarm degraded: "
+                f"running={swarm.get('running')} healthy={swarm.get('healthy')} "
+                f"stale={swarm.get('stale')} failures={swarm.get('consecutive_failures')}"
+            )
+            raise SystemExit(1)
     testnet = bool((payload.get("testnet_execution") or {}).get("enabled"))
     mode = "paper + Bybit testnet mirror" if testnet else "paper"
     print(f"healthy: {mode} heartbeat is {age:.1f}s old")

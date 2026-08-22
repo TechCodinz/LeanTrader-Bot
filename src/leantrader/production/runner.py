@@ -178,6 +178,39 @@ class PaperRunner(_V142PaperRunner):
             "live_authority": False,
         }
 
+    def _write_health_state(self, status: dict[str, Any]) -> None:
+        swarm = status.get("market_swarm") or {}
+        swarm_ok = bool(
+            isinstance(swarm, dict)
+            and swarm.get("running") is True
+            and swarm.get("healthy") is True
+            and swarm.get("stale") is not True
+        )
+        payload = {
+            "timestamp": status.get("timestamp"),
+            "runtime": status.get("runtime"),
+            "healthy": bool(status.get("healthy") is True and swarm_ok),
+            "errors": status.get("errors") or [],
+            "testnet_execution": status.get("testnet_execution") or {},
+            "market_swarm": {
+                "required": True,
+                "running": swarm.get("running") is True,
+                "healthy": swarm.get("healthy") is True,
+                "stale": swarm.get("stale") is True,
+                "cycles": int(swarm.get("cycles") or 0),
+                "consecutive_failures": int(swarm.get("consecutive_failures") or 0),
+                "last_success_at": swarm.get("last_success_at"),
+                "automatic_promotion": False,
+                "execution_authority": False,
+                "testnet_authority": False,
+                "live_authority": False,
+            },
+        }
+        self._write_json_atomic(
+            self.settings.heartbeat_path.with_name("vps_health_state.json"),
+            payload,
+        )
+
     def cycle(self) -> dict[str, Any]:
         status = super().cycle()
         swarm_evidence = self._ingest_swarm_outcomes() if self.fast_swarm_service is not None else {
@@ -201,7 +234,37 @@ class PaperRunner(_V142PaperRunner):
         status["market_swarm"]["execution_authority"] = False
         status["market_swarm"]["testnet_authority"] = False
         status["market_swarm"]["live_authority"] = False
+
+        engines = status.setdefault("engines", {})
+        if isinstance(engines, dict):
+            swarm_operational = bool(
+                status["market_swarm"].get("running") is True
+                and status["market_swarm"].get("healthy") is True
+                and status["market_swarm"].get("stale") is not True
+            )
+            engines["market_swarm"] = {
+                "required": True,
+                "healthy": swarm_operational,
+                "state": "running" if swarm_operational else "degraded",
+                "failures": int(status["market_swarm"].get("consecutive_failures") or 0),
+            }
+            portfolio = status["market_swarm"].get("shadow_portfolio")
+            engines["swarm_shadow_portfolio"] = {
+                "required": True,
+                "healthy": isinstance(portfolio, dict),
+                "state": "running" if isinstance(portfolio, dict) else "missing",
+                "failures": 0 if isinstance(portfolio, dict) else 1,
+            }
+            journal = status["market_swarm"].get("swarm_outcome_journal")
+            engines["swarm_outcome_journal"] = {
+                "required": True,
+                "healthy": isinstance(journal, dict),
+                "state": "running" if isinstance(journal, dict) else "missing",
+                "failures": 0 if isinstance(journal, dict) else 1,
+            }
+
         self._write_json_atomic(self.settings.heartbeat_path, status)
+        self._write_health_state(status)
         return status
 
     def run(self, once: bool = False) -> None:

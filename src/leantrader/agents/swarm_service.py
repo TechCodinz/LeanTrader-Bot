@@ -97,11 +97,18 @@ class ReadOnlySwarmService:
         self.shadow_entries = 0
         self.shadow_exits = 0
         self.shadow_failures = 0
+        self.started_at = 0.0
+        self.last_success_at = 0.0
+        self.last_failure_at = 0.0
+        self.consecutive_failures = 0
+        self.ranked_opportunities_total = 0
+        self.qualified_opportunities_total = 0
 
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
             return
         self._stop.clear()
+        self.started_at = time.time()
         self._thread = threading.Thread(target=self._run, name="leantrader-market-swarm", daemon=True)
         self._thread.start()
 
@@ -390,6 +397,12 @@ class ReadOnlySwarmService:
 
         runtime_candidates = [row for row in selected if row.get("_risk_only") is not True]
         result = self.runtime.evaluate_batch(candidates=runtime_candidates, frames=frames, timeframe_seconds=self.timeframe_seconds)
+        ranked_rows = list(result.get("ranked") or [])
+        with self._lock:
+            self.ranked_opportunities_total += len(ranked_rows)
+            self.qualified_opportunities_total += sum(
+                1 for row in ranked_rows if isinstance(row, dict) and row.get("qualified") is True
+            )
         required_symbols = self.shadow_portfolio.open_symbols() if self.shadow_portfolio is not None else set()
         assessments, extension_candidates, context_errors = self._assess_context(
             ranked=list(result.get("ranked") or []),
@@ -425,6 +438,8 @@ class ReadOnlySwarmService:
             self.cycles += 1
             self.last_step = result
             self.last_error = None
+            self.last_success_at = time.time()
+            self.consecutive_failures = 0
         return dict(result)
 
     def _run(self) -> None:
@@ -435,18 +450,43 @@ class ReadOnlySwarmService:
             except Exception as exc:  # noqa: BLE001
                 with self._lock:
                     self.last_error = f"{type(exc).__name__}: {exc}"
+                    self.last_failure_at = time.time()
+                    self.consecutive_failures += 1
             elapsed = time.monotonic() - started
             self._stop.wait(max(0.0, self.cadence_seconds - elapsed))
 
     def health(self, *, equity: float) -> dict[str, Any]:
         thread = self._thread
         with self._lock:
+            now = time.time()
+            running = bool(thread is not None and thread.is_alive() and not self._stop.is_set())
+            stale_after_seconds = max(60.0, self.cadence_seconds * 6.0)
+            freshness_anchor = self.last_success_at or self.started_at
+            stale = bool(
+                running
+                and freshness_anchor > 0
+                and now - freshness_anchor > stale_after_seconds
+            )
+            healthy = bool(running and not stale and self.consecutive_failures < 3)
             result = {
                 "version": self.VERSION,
-                "running": bool(thread is not None and thread.is_alive() and not self._stop.is_set()),
-                "healthy": self.last_error is None,
+                "running": running,
+                "healthy": healthy,
+                "stale": stale,
+                "stale_after_seconds": stale_after_seconds,
+                "started_at": self.started_at,
+                "last_success_at": self.last_success_at,
+                "last_failure_at": self.last_failure_at,
+                "consecutive_failures": self.consecutive_failures,
                 "cycles": self.cycles,
                 "full_sweeps": self.full_sweeps,
+                "ranked_opportunities_total": self.ranked_opportunities_total,
+                "qualified_opportunities_total": self.qualified_opportunities_total,
+                "opportunity_qualification_rate": (
+                    self.qualified_opportunities_total / self.ranked_opportunities_total
+                    if self.ranked_opportunities_total
+                    else 0.0
+                ),
                 "universe_candidates": len(self._candidates),
                 "cursor": self._cursor,
                 "cadence_seconds": self.cadence_seconds,

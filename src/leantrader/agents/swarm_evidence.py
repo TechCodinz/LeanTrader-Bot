@@ -121,13 +121,19 @@ class SwarmOutcomeJournal:
         self.state = self._load()
 
     def _load(self) -> dict[str, Any]:
-        empty = {"schema_version": self.SCHEMA_VERSION, "pending": [], "acknowledged": 0}
+        empty = {
+            "schema_version": self.SCHEMA_VERSION,
+            "pending": [],
+            "history": [],
+            "acknowledged": 0,
+        }
         if not self.state_path.exists():
             return empty
         try:
             payload = json.loads(self.state_path.read_text(encoding="utf-8"))
             if int(payload.get("schema_version") or 0) == self.SCHEMA_VERSION:
                 payload.setdefault("pending", [])
+                payload.setdefault("history", [])
                 payload.setdefault("acknowledged", 0)
                 return payload
         except (OSError, TypeError, ValueError, json.JSONDecodeError):
@@ -165,7 +171,12 @@ class SwarmOutcomeJournal:
         episode_id = str(row.get("episode_id") or f"swarm-{hashlib.sha256(canonical.encode('utf-8')).hexdigest()[:24]}")
         row["episode_id"] = episode_id
         with self._lock:
-            existing = {str(item.get("episode_id")) for item in self.state.get("pending") or [] if isinstance(item, dict)}
+            existing = {
+                str(item.get("episode_id"))
+                for bucket in ("pending", "history")
+                for item in self.state.get(bucket) or []
+                if isinstance(item, dict)
+            }
             if episode_id not in existing:
                 rows = list(self.state.get("pending") or [])
                 rows.append(row)
@@ -184,19 +195,93 @@ class SwarmOutcomeJournal:
             return 0
         with self._lock:
             before = list(self.state.get("pending") or [])
-            after = [row for row in before if str((row or {}).get("episode_id")) not in ids]
+            moved = [
+                dict(row)
+                for row in before
+                if isinstance(row, dict) and str(row.get("episode_id")) in ids
+            ]
+            after = [
+                row
+                for row in before
+                if str((row or {}).get("episode_id")) not in ids
+            ]
             removed = len(before) - len(after)
+            history = list(self.state.get("history") or [])
+            history.extend(moved)
+            self.state["history"] = history[-self.MAX_RETAINED :]
             self.state["pending"] = after
             self.state["acknowledged"] = int(self.state.get("acknowledged") or 0) + removed
             self._save()
             return removed
 
+    @staticmethod
+    def _summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        rows = [row for row in rows if isinstance(row, dict)]
+        pnls = [_finite(row.get("net_pnl")) for row in rows]
+        gross_profit = sum(value for value in pnls if value > 0)
+        gross_loss = abs(sum(value for value in pnls if value < 0))
+        wins = sum(1 for value in pnls if value > 0)
+        return {
+            "trades": len(rows),
+            "net_pnl": sum(pnls),
+            "win_rate": wins / len(rows) if rows else 0.0,
+            "gross_profit": gross_profit,
+            "gross_loss": gross_loss,
+            "profit_factor": (
+                gross_profit / gross_loss if gross_loss > 0 else None
+            ),
+            "average_net_return": (
+                sum(_finite(row.get("net_return")) for row in rows) / len(rows)
+                if rows
+                else 0.0
+            ),
+        }
+
+    @classmethod
+    def _grouped(
+        cls,
+        rows: list[dict[str, Any]],
+        key: str,
+        *,
+        limit: int = 100,
+    ) -> dict[str, dict[str, Any]]:
+        groups: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            value = str(row.get(key) or "unknown")
+            groups.setdefault(value, []).append(row)
+        return {
+            name: cls._summary(group)
+            for name, group in sorted(
+                groups.items(),
+                key=lambda item: (-len(item[1]), item[0]),
+            )[:limit]
+        }
+
     def health(self) -> dict[str, Any]:
         with self._lock:
+            pending = [
+                dict(row)
+                for row in self.state.get("pending") or []
+                if isinstance(row, dict)
+            ]
+            history = [
+                dict(row)
+                for row in self.state.get("history") or []
+                if isinstance(row, dict)
+            ]
+            rows = history + pending
             return {
                 "version": self.VERSION,
-                "pending_closed_outcomes": len(self.state.get("pending") or []),
+                "pending_closed_outcomes": len(pending),
                 "acknowledged_closed_outcomes": int(self.state.get("acknowledged") or 0),
+                "retained_closed_outcomes": len(history),
+                "metrics": self._summary(rows),
+                "by_pair": self._grouped(rows, "symbol"),
+                "by_timeframe": self._grouped(rows, "timeframe"),
+                "by_agent": self._grouped(rows, "agent_id"),
+                "by_strategy": self._grouped(rows, "strategy"),
                 "evidence_authority": EVIDENCE_AUTHORITY,
                 "closed_outcomes_only": True,
                 "automatic_promotion": False,
