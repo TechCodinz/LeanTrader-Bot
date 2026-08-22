@@ -7,18 +7,20 @@ from typing import Any
 import pandas as pd
 
 from .fast_path import FastSwarmRuntime
+from .timeframe_mind import MultiTimeframeMind
 
 
 class ReadOnlySwarmService:
     """Parallel market-scouting service with no trading authority.
 
     Uses a dedicated public/read-only feed so market scouting is not serialized
-    behind the slower production intelligence/evidence cycle. The service only
-    profiles and ranks opportunities plus activates observer specialists.
-    Capital/tranche decisions remain gated elsewhere.
+    behind the slower production intelligence/evidence cycle. The service first
+    profiles 1m movement across rotating markets, then asks independent higher
+    timeframe minds to assess only the strongest opportunities. It never places
+    orders or allocates capital from movement/timeframe evidence alone.
     """
 
-    VERSION = "1.0"
+    VERSION = "1.1"
 
     def __init__(
         self,
@@ -34,6 +36,9 @@ class ReadOnlySwarmService:
         discovery_refresh_seconds: float = 60.0,
         timeframe: str = "1m",
         timeframe_seconds: float = 60.0,
+        timeframe_mind: MultiTimeframeMind | None = None,
+        context_timeframes: tuple[str, ...] = ("5m", "15m", "1h", "4h"),
+        max_context_symbols: int = 2,
     ) -> None:
         if scan_batch_size < 1:
             raise ValueError("scan_batch_size must be positive")
@@ -43,6 +48,8 @@ class ReadOnlySwarmService:
             raise ValueError("cadence_seconds must be at least one second")
         if discovery_refresh_seconds < cadence_seconds:
             raise ValueError("discovery refresh cannot be faster than service cadence")
+        if max_context_symbols < 1:
+            raise ValueError("max_context_symbols must be positive")
         self.feed = feed
         self.runtime = runtime
         self.market_quote = str(market_quote).upper()
@@ -54,6 +61,9 @@ class ReadOnlySwarmService:
         self.discovery_refresh_seconds = float(discovery_refresh_seconds)
         self.timeframe = str(timeframe)
         self.timeframe_seconds = float(timeframe_seconds)
+        self.timeframe_mind = timeframe_mind or MultiTimeframeMind()
+        self.context_timeframes = tuple(dict.fromkeys(str(value) for value in context_timeframes if value))
+        self.max_context_symbols = int(max_context_symbols)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.RLock()
@@ -122,6 +132,69 @@ class ReadOnlySwarmService:
             return frame.iloc[0:0].copy()
         return frame.iloc[:-1].copy()
 
+    def _assess_context(
+        self,
+        *,
+        ranked: list[dict[str, Any]],
+        one_minute_frames: dict[str, pd.DataFrame],
+    ) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]], dict[str, str]]:
+        assessments: dict[str, dict[str, Any]] = {}
+        extension_candidates: list[dict[str, Any]] = []
+        errors: dict[str, str] = {}
+        examined = 0
+        for score in ranked:
+            if examined >= self.max_context_symbols:
+                break
+            if score.get("qualified") is not True:
+                continue
+            symbol = str(score.get("symbol") or "").upper()
+            base_frame = one_minute_frames.get(symbol)
+            if base_frame is None:
+                continue
+            examined += 1
+            context: dict[str, pd.DataFrame] = {self.timeframe: base_frame}
+            for timeframe in self.context_timeframes:
+                if timeframe == self.timeframe:
+                    continue
+                try:
+                    context[timeframe] = self._closed_candles(
+                        self.feed.candles(symbol, timeframe, self.candle_limit)
+                    )
+                except Exception as exc:  # noqa: BLE001 - one timeframe must not hide the others
+                    errors[f"{symbol}:{timeframe}"] = f"{type(exc).__name__}: {exc}"
+            measured_cost = float(score.get("modeled_round_trip_cost_bps") or 30.0)
+            rows = self.timeframe_mind.assess_many(
+                symbol=symbol,
+                frames=context,
+                modeled_round_trip_cost_bps=measured_cost,
+            )
+            assessments[symbol] = {timeframe: row.as_dict() for timeframe, row in rows.items()}
+            anchor = rows.get(self.timeframe)
+            if anchor is None or not anchor.independently_qualified:
+                continue
+            for timeframe, row in rows.items():
+                if timeframe == self.timeframe:
+                    continue
+                if not self.timeframe_mind.agrees_with_position(row, side=anchor.direction):
+                    continue
+                extension_candidates.append(
+                    {
+                        "symbol": symbol,
+                        "anchor_timeframe": self.timeframe,
+                        "anchor_side": anchor.direction,
+                        "timeframe": timeframe,
+                        "direction": row.direction,
+                        "confidence": row.confidence,
+                        "expected_edge_bps": row.expected_edge_bps,
+                        "modeled_round_trip_cost_bps": row.modeled_round_trip_cost_bps,
+                        "independently_qualified": True,
+                        "shared_position_join_candidate": True,
+                        "capital_allocated": False,
+                        "execution_authority": False,
+                    }
+                )
+        return assessments, extension_candidates, errors
+
     def step(self) -> dict[str, Any]:
         started = time.time()
         self._refresh_discovery()
@@ -143,6 +216,14 @@ class ReadOnlySwarmService:
             frames=frames,
             timeframe_seconds=self.timeframe_seconds,
         )
+        assessments, extension_candidates, context_errors = self._assess_context(
+            ranked=list(result.get("ranked") or []),
+            one_minute_frames=frames,
+        )
+        fetch_errors.update(context_errors)
+        result["timeframe_assessments"] = assessments
+        result["shared_position_extension_candidates"] = extension_candidates
+        result["extension_candidates_are_trade_authority"] = False
         result["fetch_errors"] = fetch_errors
         result["selected_symbols"] = [str(row.get("symbol") or "").upper() for row in selected]
         result["universe_candidates"] = len(self._candidates)
@@ -183,11 +264,14 @@ class ReadOnlySwarmService:
                 "cursor": self._cursor,
                 "cadence_seconds": self.cadence_seconds,
                 "timeframe": self.timeframe,
+                "context_timeframes": list(self.context_timeframes),
                 "forming_candle_excluded": True,
                 "dedicated_read_only_feed": True,
                 "last_error": self.last_error,
                 "last_step": dict(self.last_step),
                 "runtime": self.runtime.health(equity=equity),
+                "timeframe_mind": self.timeframe_mind.health(),
+                "shared_position_extension_candidates_are_trade_authority": False,
                 "automatic_promotion": False,
                 "execution_authority": False,
                 "testnet_authority": False,
