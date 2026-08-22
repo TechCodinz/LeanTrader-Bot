@@ -71,6 +71,9 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
         "cognitive_governance",
         "capital_growth",
         "operations_safety",
+        "market_swarm",
+        "swarm_shadow_portfolio",
+        "swarm_outcome_journal",
     }
     assert all(engine["healthy"] for engine in result["engines"].values())
     assert result["decisions"]["BTC/USDT"]["quality_score"] == 1.0
