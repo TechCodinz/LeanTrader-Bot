@@ -331,25 +331,81 @@ class UltraMicrostructureSniper:
 
 
 class MicroAgentFoundry:
-    VERSION = "1.0"
+    VERSION = "1.48.0"
 
     def __init__(self, maximum_candidates_per_symbol: int = 2) -> None:
         self.maximum_candidates_per_symbol = max(1, int(maximum_candidates_per_symbol))
         self.proposals = 0
 
-    def propose(self, assessments: Iterable[MicroPathAssessment]) -> list[dict[str, Any]]:
-        rows = [row for row in assessments if row.independently_qualified]
+    def propose(
+        self,
+        assessments: Iterable[MicroPathAssessment],
+        *,
+        evidence_rankings: Mapping[str, Mapping[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
+        rankings = evidence_rankings or {}
+        ranked_rows: list[
+            tuple[MicroPathAssessment, Mapping[str, Any]]
+        ] = []
+
+        for row in assessments:
+            if row.direction not in {"long", "short"}:
+                continue
+            if row.reason in {
+                "insufficient_depth",
+                "spread_too_wide",
+                "flat_micro_pressure",
+            }:
+                continue
+
+            key = (
+                f"{row.specialist}|"
+                f"{row.horizon_seconds}|"
+                f"{row.regime}"
+            )
+            evidence = rankings.get(key) or {}
+
+            if evidence.get("evidence_qualified") is not True:
+                continue
+
+            conservative_net = float(
+                evidence.get(
+                    "conservative_net_after_cost_bps"
+                ) or 0.0
+            )
+            if conservative_net <= 0:
+                continue
+
+            ranked_rows.append((row, evidence))
+
+        rows = ranked_rows
         rows.sort(
-            key=lambda row: (
-                row.expected_edge_bps - row.modeled_round_trip_cost_bps,
-                row.confidence,
-                -row.horizon_seconds,
+            key=lambda item: (
+                float(
+                    item[1].get(
+                        "conservative_net_after_cost_bps"
+                    ) or 0.0
+                ),
+                int(item[1].get("samples") or 0),
+                -item[0].horizon_seconds,
             ),
             reverse=True,
         )
         output = []
-        for row in rows[: self.maximum_candidates_per_symbol]:
+        for row, evidence in rows[
+            : self.maximum_candidates_per_symbol
+        ]:
             self.proposals += 1
+
+            conservative_net = float(
+                evidence.get(
+                    "conservative_net_after_cost_bps"
+                ) or 0.0
+            )
+            evidence_accuracy = float(
+                evidence.get("directional_accuracy") or 0.0
+            )
+
             output.append(
                 {
                     "candidate_kind": "microstructure_shadow_specialist",
@@ -358,9 +414,29 @@ class MicroAgentFoundry:
                     "timeframe": f"micro-{row.horizon_seconds}s-{row.specialist}",
                     "horizon_seconds": row.horizon_seconds,
                     "side": row.direction,
-                    "confidence": row.confidence,
-                    "expected_edge_bps": row.expected_edge_bps,
+                    "confidence": max(
+                        0.01,
+                        min(1.0, evidence_accuracy),
+                    ),
+                    "current_signal_confidence": row.confidence,
+                    "expected_edge_bps": (
+                        row.modeled_round_trip_cost_bps
+                        + conservative_net
+                    ),
+                    "conservative_net_edge_bps": conservative_net,
                     "modeled_round_trip_cost_bps": row.modeled_round_trip_cost_bps,
+                    "evidence_samples": int(
+                        evidence.get("samples") or 0
+                    ),
+                    "evidence_average_net_bps": float(
+                        evidence.get(
+                            "average_net_after_cost_bps"
+                        ) or 0.0
+                    ),
+                    "evidence_qualified": True,
+                    "qualification_basis": (
+                        "prospective_conservative_net_expectancy"
+                    ),
                     "regime": row.regime,
                     "independently_qualified": True,
                     "automatic_promotion": False,

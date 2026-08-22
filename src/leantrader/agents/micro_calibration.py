@@ -21,7 +21,7 @@ def _finite(value: Any, default: float = 0.0) -> float:
 class MicroCalibrationJournal:
     """Prospective, non-executable labels for sub-minute assessments."""
 
-    VERSION = "1.47.2"
+    VERSION = "1.48.0"
     SCHEMA_VERSION = 1
     MAX_PENDING = 10_000
     MAX_RESOLVED = 50_000
@@ -362,6 +362,117 @@ class MicroCalibrationJournal:
             ),
         }
 
+    def evidence_rankings(
+        self,
+        *,
+        minimum_samples: int = 30,
+    ) -> dict[str, dict[str, Any]]:
+        with self._lock:
+            rows = [
+                dict(row)
+                for row in self.state.get("resolved") or []
+                if isinstance(row, dict)
+                and row.get("timing_valid") is True
+                and str(row.get("original_reason") or "") not in {
+                    "insufficient_depth",
+                    "spread_too_wide",
+                    "flat_micro_pressure",
+                }
+            ]
+
+        groups: dict[tuple[str, int, str], list[dict[str, Any]]] = {}
+
+        for row in rows:
+            key = (
+                str(row.get("specialist") or "unknown"),
+                int(row.get("horizon_seconds") or 0),
+                str(row.get("regime") or "unknown"),
+            )
+            groups.setdefault(key, []).append(row)
+
+        output: dict[str, dict[str, Any]] = {}
+
+        for (specialist, horizon, regime), group in groups.items():
+            values = [
+                _finite(row.get("net_after_modeled_cost_bps"))
+                for row in group
+            ]
+            n = len(values)
+            if not values:
+                continue
+
+            mean = sum(values) / n
+
+            if n > 1:
+                variance = sum(
+                    (value - mean) ** 2
+                    for value in values
+                ) / (n - 1)
+                standard_error = math.sqrt(
+                    max(0.0, variance) / n
+                )
+            else:
+                standard_error = float("inf")
+
+            conservative_net = (
+                mean - 1.96 * standard_error
+                if math.isfinite(standard_error)
+                else float("-inf")
+            )
+
+            correct = sum(
+                row.get("direction_correct") is True
+                for row in group
+            )
+            cost_clear = sum(
+                row.get("cost_clearing") is True
+                for row in group
+            )
+
+            key = f"{specialist}|{horizon}|{regime}"
+
+            evidence_qualified = (
+                n >= max(1, int(minimum_samples))
+                and mean > 0.0
+                and conservative_net > 0.0
+            )
+
+            output[key] = {
+                "specialist": specialist,
+                "horizon_seconds": horizon,
+                "regime": regime,
+                "samples": n,
+                "directional_accuracy": correct / n,
+                "cost_clear_rate": cost_clear / n,
+                "average_net_after_cost_bps": mean,
+                "standard_error_net_bps": (
+                    standard_error
+                    if math.isfinite(standard_error)
+                    else None
+                ),
+                "conservative_net_after_cost_bps": (
+                    conservative_net
+                    if math.isfinite(conservative_net)
+                    else None
+                ),
+                "minimum_samples": max(
+                    1,
+                    int(minimum_samples),
+                ),
+                "evidence_qualified": evidence_qualified,
+                "action": (
+                    "shadow_candidate"
+                    if evidence_qualified
+                    else "no_trade"
+                ),
+                "automatic_promotion": False,
+                "execution_authority": False,
+                "testnet_authority": False,
+                "live_authority": False,
+            }
+
+        return output
+
     def health(self) -> dict[str, Any]:
         with self._lock:
             pending = [
@@ -397,8 +508,19 @@ class MicroCalibrationJournal:
             ]
             by_horizon[str(horizon)] = self._metrics(rows)
 
+        rankings = self.evidence_rankings()
+        eligible = [
+            row for row in rankings.values()
+            if row.get("evidence_qualified") is True
+        ]
+
         return {
             "version": self.VERSION,
+            "evidence_ranked_groups": len(rankings),
+            "evidence_qualified_groups": len(eligible),
+            "evidence_no_trade_groups": (
+                len(rankings) - len(eligible)
+            ),
             "pending_labels": len(pending),
             "resolved_labels": len(resolved),
             "metrics": self._metrics(timing_valid),

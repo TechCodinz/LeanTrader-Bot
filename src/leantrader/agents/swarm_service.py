@@ -510,7 +510,15 @@ class ReadOnlySwarmService:
                         30.0, float(score.get("modeled_round_trip_cost_bps") or 30.0)
                     ),
                 )
-                proposed = self.micro_agent_foundry.propose(assessments)
+                evidence_rankings = (
+                    self.micro_calibration_journal.evidence_rankings()
+                    if self.micro_calibration_journal is not None
+                    else {}
+                )
+                proposed = self.micro_agent_foundry.propose(
+                    assessments,
+                    evidence_rankings=evidence_rankings,
+                )
 
                 if self.micro_calibration_journal is not None:
                     self.micro_calibration_journal.register(
@@ -581,6 +589,8 @@ class ReadOnlySwarmService:
         events: list[dict[str, Any]] = []
 
         for proposal in proposals:
+            if proposal.get("evidence_qualified") is not True:
+                continue
             if proposal.get("independently_qualified") is not True:
                 continue
             if proposal.get("execution_authority") is not False:
@@ -610,7 +620,20 @@ class ReadOnlySwarmService:
             expected_edge = float(proposal.get("expected_edge_bps") or 0.0)
             confidence = float(proposal.get("confidence") or 0.0)
 
-            # Recheck fail-closed constraints at the shadow-entry seam.
+            # Recheck fail-closed evidence constraints at the
+            # shadow-entry seam. The conservative prospective net edge,
+            # not the original heuristic edge, is authoritative here.
+            conservative_net = float(
+                proposal.get("conservative_net_edge_bps") or 0.0
+            )
+            evidence_samples = int(
+                proposal.get("evidence_samples") or 0
+            )
+
+            if conservative_net <= 0.0:
+                continue
+            if evidence_samples < 30:
+                continue
             if expected_edge <= modeled_cost:
                 continue
             if confidence <= 0.0:
@@ -690,8 +713,8 @@ class ReadOnlySwarmService:
                 ),
                 nominal_price=mark,
                 qualified=True,
-                reason="independently_qualified_microstructure_edge",
-                source="ultra_microstructure_v1.45.1",
+                reason="prospective_evidence_qualified_micro_edge",
+                source="evidence_ranked_micro_v1.48",
             )
 
             decision = self.runtime.swarm.consider_join(
