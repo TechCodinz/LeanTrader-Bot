@@ -24,7 +24,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.51.0"
+    VERSION = "1.52.0"
     ROLE_BY_TIMEFRAME = {
         "1m": AgentRole.SCALP,
         "5m": AgentRole.MOMENTUM,
@@ -59,6 +59,7 @@ class ReadOnlySwarmService:
         max_micro_symbols: int = 2,
         micro_calibration_journal: MicroCalibrationJournal | None = None,
         micro_calibration_feed: Any | None = None,
+        microstream_feed: Any | None = None,
         slow_calibration_journal: MicroCalibrationJournal | None = None,
     ) -> None:
         if scan_batch_size < 1:
@@ -96,8 +97,20 @@ class ReadOnlySwarmService:
         self.max_micro_symbols = max(1, int(max_micro_symbols))
         self.micro_calibration_journal = micro_calibration_journal
         self.micro_calibration_feed = micro_calibration_feed
+        self.microstream_feed = microstream_feed
         self.slow_calibration_journal = slow_calibration_journal
+
+        self._microstream_thread: threading.Thread | None = None
         self._calibration_thread: threading.Thread | None = None
+
+        self.microstream_sample_attempts = 0
+        self.microstream_sample_failures = 0
+        self.microstream_trade_context_failures = 0
+        self.microstream_labels_resolved = 0
+        self.microstream_observations = 0
+        self.microstream_last_observation_at = 0.0
+        self._microstream_symbols: list[str] = []
+
         self.calibration_sample_attempts = 0
         self.calibration_sample_failures = 0
         self.calibration_labels_resolved = 0
@@ -130,8 +143,10 @@ class ReadOnlySwarmService:
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
             return
+
         self._stop.clear()
         self.started_at = time.time()
+
         self._thread = threading.Thread(
             target=self._run,
             name="leantrader-market-swarm",
@@ -141,25 +156,51 @@ class ReadOnlySwarmService:
 
         if (
             self.micro_calibration_journal is not None
+            and self.microstream_feed is not None
+        ):
+            self._microstream_thread = threading.Thread(
+                target=self._run_microstream,
+                name="leantrader-dedicated-microstream",
+                daemon=True,
+            )
+            self._microstream_thread.start()
+
+        if (
+            self.slow_calibration_journal is not None
             and self.micro_calibration_feed is not None
         ):
             self._calibration_thread = threading.Thread(
                 target=self._run_calibration_sampler,
-                name="leantrader-micro-calibration",
+                name="leantrader-slow-calibration",
                 daemon=True,
             )
             self._calibration_thread.start()
 
     def stop(self) -> None:
         self._stop.set()
+
         thread = self._thread
         if thread is not None and thread.is_alive():
             thread.join(
-                timeout=max(1.0, min(10.0, self.cadence_seconds + 1.0))
+                timeout=max(
+                    1.0,
+                    min(10.0, self.cadence_seconds + 1.0),
+                )
             )
+
+        microstream_thread = self._microstream_thread
+        if (
+            microstream_thread is not None
+            and microstream_thread.is_alive()
+        ):
+            microstream_thread.join(timeout=4.0)
+
         calibration_thread = self._calibration_thread
-        if calibration_thread is not None and calibration_thread.is_alive():
-            calibration_thread.join(timeout=3.0)
+        if (
+            calibration_thread is not None
+            and calibration_thread.is_alive()
+        ):
+            calibration_thread.join(timeout=4.0)
 
     def _refresh_discovery(self, *, force: bool = False) -> None:
         now = time.time()
@@ -471,6 +512,7 @@ class ReadOnlySwarmService:
         )[:pool_limit]
 
         structurally_viable = 0
+        active_microstream_symbols: list[str] = []
 
         for score in selected:
             symbol = str(score.get("symbol") or "").upper()
@@ -522,43 +564,59 @@ class ReadOnlySwarmService:
                     evidence_rankings=evidence_rankings,
                 )
 
-                if self.micro_calibration_journal is not None:
-                    self.micro_calibration_journal.register(
-                        symbol=symbol,
-                        midpoint=features.midpoint,
-                        assessments=[row.as_dict() for row in assessments],
-                        observed_at=features.timestamp,
-                    )
+                # Only symbols the dedicated stream can actually follow
+                # may create prospective micro labels. This prevents the
+                # evidence producer from outrunning the measurement sampler.
+                total_depth = (
+                    features.bid_depth_usd
+                    + features.ask_depth_usd
+                )
+                structurally_eligible = bool(
+                    features.spread_bps
+                    <= self.microstructure_sniper.maximum_spread_bps
+                    and total_depth
+                    >= self.microstructure_sniper.minimum_depth_usd
+                )
+
+                if structurally_eligible:
+                    active_microstream_symbols.append(symbol)
+
+                    if self.micro_calibration_journal is not None:
+                        self.micro_calibration_journal.register(
+                            symbol=symbol,
+                            midpoint=features.midpoint,
+                            assessments=[
+                                row.as_dict()
+                                for row in assessments
+                            ],
+                            observed_at=features.timestamp,
+                        )
 
                 output[symbol] = {
                     "features": features.as_dict(),
-                    "path_assessments": [r.as_dict() for r in assessments],
+                    "path_assessments": [
+                        r.as_dict()
+                        for r in assessments
+                    ],
                     "foundry_proposals": proposed,
+                    "microstream_tracked": structurally_eligible,
                     "automatic_promotion": False,
                     "execution_authority": False,
                     "testnet_authority": False,
                     "live_authority": False,
                 }
+
                 marks[symbol] = features.midpoint
                 proposals.extend(proposed)
+
                 self.micro_assessments += len(assessments)
                 self.micro_qualified += sum(
-                    1 for r in assessments
+                    1
+                    for r in assessments
                     if r.independently_qualified
                 )
 
-                # A symbol only consumes one of the scarce micro scout slots
-                # after its real book clears the structural liquidity gates.
-                total_depth = (
-                    features.bid_depth_usd
-                    + features.ask_depth_usd
-                )
-                if (
-                    features.spread_bps
-                    <= self.microstructure_sniper.maximum_spread_bps
-                    and total_depth
-                    >= self.microstructure_sniper.minimum_depth_usd
-                ):
+                if structurally_eligible:
                     structurally_viable += 1
                     if structurally_viable >= self.max_micro_symbols:
                         break
@@ -566,6 +624,11 @@ class ReadOnlySwarmService:
             except Exception as exc:
                 self.micro_fetch_failures += 1
                 output[symbol] = {"error": f"{type(exc).__name__}: {exc}"}
+        with self._lock:
+            self._microstream_symbols = list(
+                dict.fromkeys(active_microstream_symbols)
+            )[: self.max_micro_symbols]
+
         return output, marks, proposals
 
     def _open_micro_shadow_candidates(
@@ -984,90 +1047,225 @@ class ReadOnlySwarmService:
             return 0.0
         return (bid + ask) / 2.0
 
-    def _run_calibration_sampler(self) -> None:
+    def _run_microstream(self) -> None:
+        """Continuously sample bounded micro markets with no trade authority."""
+
+        cadence_seconds = 1.0
+
         while not self._stop.is_set():
             started = time.monotonic()
+
             try:
                 now = time.time()
+                journal = self.micro_calibration_journal
 
-                micro_journal = (
-                    self.micro_calibration_journal
-                )
-                slow_journal = (
-                    self.slow_calibration_journal
-                )
-
-                journals = [
-                    journal
-                    for journal in (
-                        micro_journal,
-                        slow_journal,
-                    )
-                    if journal is not None
-                ]
-
-                for journal in journals:
+                if journal is not None:
                     journal.censor_expired(
                         observed_at=now
                     )
 
-                # 5-60 second labels always receive first access to
-                # the precision sampler. Keep the pass bounded so
-                # sequential REST calls cannot exhaust the strict
-                # three-second micro timing window.
-                symbols: list[str] = []
-
-                if micro_journal is not None:
-                    symbols.extend(
-                        micro_journal.due_symbols(
-                            observed_at=now,
-                            lookahead_seconds=0.25,
-                            limit=2,
-                        )
+                with self._lock:
+                    active = list(
+                        self._microstream_symbols
                     )
 
-                # Slow horizons may consume only spare capacity.
-                if (
-                    slow_journal is not None
-                    and len(symbols) < 2
-                ):
-                    for symbol in slow_journal.due_symbols(
+                due: list[str] = []
+
+                if journal is not None:
+                    due = journal.due_symbols(
                         observed_at=now,
                         lookahead_seconds=0.25,
-                        limit=2,
-                    ):
-                        if symbol not in symbols:
-                            symbols.append(symbol)
-                        if len(symbols) >= 2:
-                            break
-                for symbol in symbols:
+                        limit=max(
+                            2,
+                            self.max_micro_symbols,
+                        ),
+                    )
+
+                # Due outcomes receive first priority; currently tracked
+                # micro markets consume remaining bounded capacity.
+                queue: list[str] = []
+
+                for symbol in due + active:
+                    symbol = str(symbol).upper()
+                    if symbol and symbol not in queue:
+                        queue.append(symbol)
+
+                capacity = max(
+                    1,
+                    min(2, self.max_micro_symbols),
+                )
+                queue = queue[:capacity]
+
+                for symbol in queue:
                     if self._stop.is_set():
                         break
-                    self.calibration_sample_attempts += 1
+
+                    self.microstream_sample_attempts += 1
+
                     try:
-                        book = self.micro_calibration_feed.order_book(
+                        # Trade flow enriches the temporal observation but is
+                        # deliberately optional. A trade endpoint failure must
+                        # never prevent a due midpoint label from resolving.
+                        trades = []
+
+                        try:
+                            if hasattr(
+                                self.microstream_feed,
+                                "public_trades",
+                            ):
+                                trades = (
+                                    self.microstream_feed.public_trades(
+                                        symbol,
+                                        limit=40,
+                                    )
+                                )
+                            elif (
+                                hasattr(
+                                    self.microstream_feed,
+                                    "exchange",
+                                )
+                                and self.microstream_feed.exchange.has.get(
+                                    "fetchTrades",
+                                    False,
+                                )
+                            ):
+                                trades = [
+                                    dict(row)
+                                    for row in (
+                                        self.microstream_feed.exchange.fetch_trades(
+                                            symbol,
+                                            limit=40,
+                                        )
+                                        or []
+                                    )
+                                ]
+                        except Exception:
+                            self.microstream_trade_context_failures += 1
+                            trades = []
+
+                        # Fetch the book last and timestamp it immediately.
+                        # This timestamp is the authoritative future midpoint
+                        # observation used by the prospective journal.
+                        book = self.microstream_feed.order_book(
                             symbol,
-                            limit=5,
+                            limit=10,
                         )
                         observed_at = time.time()
+
                         midpoint = self._book_midpoint(book)
+
                         if midpoint <= 0:
-                            self.calibration_sample_failures += 1
+                            self.microstream_sample_failures += 1
                             continue
-                        for journal in journals:
-                            self.calibration_labels_resolved += (
+
+                        # Resolve first so optional feature processing can never
+                        # distort the timing of the prospective label.
+                        if journal is not None:
+                            self.microstream_labels_resolved += (
                                 journal.resolve(
-                                    marks={symbol: midpoint},
+                                    marks={
+                                        symbol: midpoint
+                                    },
                                     observed_at=observed_at,
                                 )
                             )
+
+                        observation = (
+                            self.microstructure_sniper.observe_snapshot(
+                                symbol=symbol,
+                                order_book=book,
+                                trades=trades,
+                                now=observed_at,
+                            )
+                        )
+
+                        self.microstream_observations += 1
+                        self.microstream_last_observation_at = (
+                            observed_at
+                        )
+
                     except Exception:
-                        self.calibration_sample_failures += 1
+                        self.microstream_sample_failures += 1
+
+            except Exception:
+                self.microstream_sample_failures += 1
+
+            elapsed = time.monotonic() - started
+            self._stop.wait(
+                max(
+                    0.0,
+                    cadence_seconds - elapsed,
+                )
+            )
+
+    def _run_calibration_sampler(self) -> None:
+        """Resolve only slower 2m/5m/15m prospective labels."""
+
+        cadence_seconds = 1.0
+
+        while not self._stop.is_set():
+            started = time.monotonic()
+
+            try:
+                now = time.time()
+                journal = self.slow_calibration_journal
+
+                if journal is not None:
+                    journal.censor_expired(
+                        observed_at=now
+                    )
+
+                    symbols = journal.due_symbols(
+                        observed_at=now,
+                        lookahead_seconds=0.5,
+                        limit=2,
+                    )
+
+                    for symbol in symbols:
+                        if self._stop.is_set():
+                            break
+
+                        self.calibration_sample_attempts += 1
+
+                        try:
+                            book = (
+                                self.micro_calibration_feed.order_book(
+                                    symbol,
+                                    limit=5,
+                                )
+                            )
+
+                            observed_at = time.time()
+                            midpoint = self._book_midpoint(
+                                book
+                            )
+
+                            if midpoint <= 0:
+                                self.calibration_sample_failures += 1
+                                continue
+
+                            self.calibration_labels_resolved += (
+                                journal.resolve(
+                                    marks={
+                                        symbol: midpoint
+                                    },
+                                    observed_at=observed_at,
+                                )
+                            )
+
+                        except Exception:
+                            self.calibration_sample_failures += 1
+
             except Exception:
                 self.calibration_sample_failures += 1
 
             elapsed = time.monotonic() - started
-            self._stop.wait(max(0.0, 0.5 - elapsed))
+            self._stop.wait(
+                max(
+                    0.0,
+                    cadence_seconds - elapsed,
+                )
+            )
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -1117,23 +1315,56 @@ class ReadOnlySwarmService:
                 "micro_calibration": (
                     {
                         **self.micro_calibration_journal.health(),
-                        "sampler_running": bool(
-                            self._calibration_thread is not None
-                            and self._calibration_thread.is_alive()
+                        "microstream_running": bool(
+                            self._microstream_thread is not None
+                            and self._microstream_thread.is_alive()
                             and not self._stop.is_set()
                         ),
-                        "sampler_attempts": self.calibration_sample_attempts,
-                        "sampler_failures": self.calibration_sample_failures,
-                        "sampler_labels_resolved": (
-                            self.calibration_labels_resolved
+                        "microstream_attempts": (
+                            self.microstream_sample_attempts
                         ),
-                        "sampler_cadence_seconds": 0.5,
-                        "micro_priority_sampling": True,
-                        "sampler_symbol_capacity": 2,
+                        "microstream_failures": (
+                            self.microstream_sample_failures
+                        ),
+                        "microstream_trade_context_failures": (
+                            self.microstream_trade_context_failures
+                        ),
+                        "microstream_observations": (
+                            self.microstream_observations
+                        ),
+                        "microstream_labels_resolved": (
+                            self.microstream_labels_resolved
+                        ),
+                        "microstream_last_observation_at": (
+                            self.microstream_last_observation_at
+                        ),
+                        "microstream_cadence_seconds": 1.0,
+                        "microstream_symbol_capacity": max(
+                            1,
+                            min(2, self.max_micro_symbols),
+                        ),
+                        "microstream_symbols": list(
+                            self._microstream_symbols
+                        ),
+                        "same_sample_warms_and_resolves": True,
+                        "prospective_registration_is_capacity_bounded": True,
                     }
                     if self.micro_calibration_journal is not None
                     else {}
                 ),
+                "slow_calibration_sampler": {
+                    "running": bool(
+                        self._calibration_thread is not None
+                        and self._calibration_thread.is_alive()
+                        and not self._stop.is_set()
+                    ),
+                    "attempts": self.calibration_sample_attempts,
+                    "failures": self.calibration_sample_failures,
+                    "labels_resolved": (
+                        self.calibration_labels_resolved
+                    ),
+                    "cadence_seconds": 1.0,
+                },
                 "opportunity_qualification_rate": (
                     self.qualified_opportunities_total / self.ranked_opportunities_total
                     if self.ranked_opportunities_total

@@ -147,3 +147,123 @@ def test_v143_inactive_swarm_status_never_claims_authority() -> None:
     assert status["execution_authority"] is False
     assert status["testnet_authority"] is False
     assert status["live_authority"] is False
+
+def test_v152_startup_heartbeat_is_fail_closed_and_phase_labeled(
+    tmp_path,
+):
+    runner = object.__new__(PaperRunner)
+    runner.settings = _settings(tmp_path)
+
+    service = DummySwarmService()
+    service.start()
+
+    # Startup health must be explicit; no market-cycle evidence is implied.
+    service.health = lambda *, equity: {
+        "version": "1.52.0",
+        "running": True,
+        "healthy": True,
+        "stale": False,
+        "cycles": 0,
+        "consecutive_failures": 0,
+        "equity_seen": equity,
+        "automatic_promotion": False,
+        "execution_authority": False,
+        "testnet_authority": False,
+        "live_authority": False,
+    }
+
+    runner.fast_swarm_service = service
+    runner.testnet = None
+
+    runner.ledger = SimpleNamespace(
+        cash=40.0,
+        positions={
+            "AAA/USDT": SimpleNamespace(
+                quantity=2.0,
+                entry_price=5.0,
+            )
+        },
+    )
+
+    runner.engines = SimpleNamespace(
+        snapshot=lambda: {
+            "paper_ledger": {
+                "required": True,
+                "healthy": True,
+                "state": "running",
+            },
+            "market_data": {
+                "required": True,
+                "healthy": True,
+                "state": "running",
+            },
+        }
+    )
+
+    writes = []
+
+    runner._write_json_atomic = (
+        lambda path, payload: writes.append(
+            (path, dict(payload))
+        )
+    )
+
+    status = runner._write_startup_heartbeat()
+
+    assert status["healthy"] is True
+    assert status["mode"] == "paper"
+    assert status["startup_heartbeat"] is True
+    assert status["full_market_cycle_complete"] is False
+    assert status["equity"] == 50.0
+    assert status["testnet_execution"]["enabled"] is False
+    assert status["market_swarm"]["required"] is True
+    assert status["market_swarm"]["running"] is True
+    assert status["market_swarm"]["healthy"] is True
+    assert status["automatic_promotion"] is False
+    assert status["live_authority"] is False
+
+
+def test_v152_startup_heartbeat_rejects_required_engine_failure(
+    tmp_path,
+):
+    runner = object.__new__(PaperRunner)
+    runner.settings = _settings(tmp_path)
+
+    service = DummySwarmService()
+    service.start()
+    service.health = lambda *, equity: {
+        "running": True,
+        "healthy": True,
+        "stale": False,
+        "cycles": 0,
+        "consecutive_failures": 0,
+    }
+
+    runner.fast_swarm_service = service
+    runner.testnet = None
+    runner.ledger = SimpleNamespace(
+        cash=50.0,
+        positions={},
+    )
+
+    runner.engines = SimpleNamespace(
+        snapshot=lambda: {
+            "market_data": {
+                "required": True,
+                "healthy": False,
+                "state": "degraded",
+            }
+        }
+    )
+
+    writes = []
+    runner._write_json_atomic = (
+        lambda path, payload: writes.append(
+            (path, dict(payload))
+        )
+    )
+
+    status = runner._write_startup_heartbeat()
+
+    assert status["healthy"] is False
+    assert "market_data" in status["errors"][0]

@@ -400,3 +400,60 @@ def test_v151_micro_and_slow_resolution_windows_are_separate(tmp_path):
     assert slow.health()[
         "maximum_resolution_delay_seconds"
     ] == 5.0
+
+def test_v152_observe_snapshot_warms_and_resets_stale_history():
+    from leantrader.agents.microstructure_sniper import (
+        UltraMicrostructureSniper,
+    )
+
+    sniper = UltraMicrostructureSniper()
+
+    book1 = {
+        "bids": [[99.9, 200.0], [99.8, 100.0]],
+        "asks": [[100.1, 100.0], [100.2, 100.0]],
+    }
+    book2 = {
+        "bids": [[99.95, 220.0], [99.85, 100.0]],
+        "asks": [[100.05, 90.0], [100.15, 100.0]],
+    }
+
+    first = sniper.observe_snapshot(
+        symbol="BTC/USDT",
+        order_book=book1,
+        trades=[],
+        now=1.0,
+    )
+    second = sniper.observe_snapshot(
+        symbol="BTC/USDT",
+        order_book=book2,
+        trades=[],
+        now=2.0,
+    )
+    third = sniper.observe_snapshot(
+        symbol="BTC/USDT",
+        order_book=book2,
+        trades=[],
+        now=3.0,
+    )
+
+    assert first["temporal_samples"] == 1
+    assert second["temporal_samples"] == 2
+    assert third["temporal_samples"] == 3
+    assert third["research_only"] is True
+    assert third["automatic_promotion"] is False
+    assert third["execution_authority"] is False
+    assert third["testnet_authority"] is False
+    assert third["live_authority"] is False
+
+    stale_reset = sniper.observe_snapshot(
+        symbol="BTC/USDT",
+        order_book=book1,
+        trades=[],
+        now=100.0,
+    )
+
+    assert stale_reset["temporal_samples"] == 1
+    assert (
+        sniper.health()["temporal_history_max_age_seconds"]
+        == 90.0
+    )

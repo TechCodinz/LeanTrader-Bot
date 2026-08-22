@@ -110,3 +110,83 @@ def test_service_symbol_failure_is_isolated_from_other_markets() -> None:
     assert "AAA/USDT" in result["fetch_errors"]
     assert "BBB/USDT" in result["profiles"]
     assert any(row["symbol"] == "BBB/USDT" for row in result["ranked"])
+
+def test_v152_microstream_resolves_due_label_from_exact_book_sample(
+    tmp_path,
+):
+    import time
+
+    from leantrader.agents.micro_calibration import (
+        MicroCalibrationJournal,
+    )
+
+    class MicrostreamFeed:
+        def __init__(self):
+            self.service = None
+
+        def public_trades(self, symbol: str, limit: int = 40):
+            return []
+
+        def order_book(self, symbol: str, limit: int = 10):
+            # End the sampler after this one deterministic observation.
+            if self.service is not None:
+                self.service._stop.set()
+            return {
+                "bids": [[99.9, 200.0]],
+                "asks": [[100.1, 200.0]],
+            }
+
+    feed = FakeReadOnlyFeed()
+    stream = MicrostreamFeed()
+    journal = MicroCalibrationJournal(
+        tmp_path / "micro.json",
+        accepted_horizons=(5,),
+    )
+
+    service = ReadOnlySwarmService(
+        feed=feed,
+        runtime=FastSwarmRuntime(),
+        market_quote="USDT",
+        min_quote_volume_usd=250_000.0,
+        max_spread_bps=75.0,
+        cadence_seconds=1.0,
+        discovery_refresh_seconds=60.0,
+        micro_calibration_journal=journal,
+        microstream_feed=stream,
+    )
+
+    stream.service = service
+
+    observed = time.time() - 5.25
+
+    assert journal.register(
+        symbol="AAA/USDT",
+        midpoint=100.0,
+        assessments=[
+            {
+                "horizon_seconds": 5,
+                "direction": "long",
+                "confidence": 0.7,
+                "pressure_score": 0.8,
+                "expected_edge_bps": 40.0,
+                "modeled_round_trip_cost_bps": 30.0,
+                "independently_qualified": False,
+                "reason": "research",
+                "specialist": "temporal_orderflow",
+                "regime": "micro_balanced",
+            }
+        ],
+        observed_at=observed,
+    ) == 1
+
+    service._run_microstream()
+
+    resolved = journal.state["resolved"]
+
+    assert len(resolved) == 1
+    assert resolved[0]["timing_valid"] is True
+    assert resolved[0]["timing_censored"] is False
+    assert resolved[0]["exit_midpoint"] == 100.0
+    assert service.microstream_labels_resolved == 1
+    assert service.microstream_observations == 1
+    assert service.microstream_sample_failures == 0

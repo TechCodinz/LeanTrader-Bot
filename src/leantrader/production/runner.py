@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import signal
+import time
 from typing import Any
 
 from . import runner_v142 as _runner_v142
@@ -76,7 +77,12 @@ class PaperRunner(_V142PaperRunner):
 
     def _build_fast_swarm_service(self) -> ReadOnlySwarmService:
         dedicated_feed = MarketFeed(self.settings.exchange)
-        calibration_feed = MicrostructureMarketFeed(self.settings.exchange)
+        calibration_feed = MicrostructureMarketFeed(
+            self.settings.exchange
+        )
+        microstream_feed = MicrostructureMarketFeed(
+            self.settings.exchange
+        )
         reference_feed = None
         if (
             str(self.settings.exchange).lower() != "okx"
@@ -141,11 +147,18 @@ class PaperRunner(_V142PaperRunner):
             ),
             micro_agent_foundry=MicroAgentFoundry(maximum_candidates_per_symbol=2),
             reference_feed=reference_feed,
-            max_micro_symbols=max(1, min(3, self.settings.max_open_positions)),
+            max_micro_symbols=max(
+                1,
+                min(
+                    2,
+                    self.settings.max_open_positions,
+                ),
+            ),
             micro_calibration_journal=MicroCalibrationJournal(
                 base.with_name("vps_micro_calibration.json")
             ),
             micro_calibration_feed=calibration_feed,
+            microstream_feed=microstream_feed,
             slow_calibration_journal=MicroCalibrationJournal(
                 base.with_name("vps_slow_calibration.json"),
                 accepted_horizons=(120, 300, 900),
@@ -234,6 +247,12 @@ class PaperRunner(_V142PaperRunner):
             ),
             "errors": status.get("errors") or [],
             "testnet_execution": status.get("testnet_execution") or {},
+            "startup_heartbeat": (
+                status.get("startup_heartbeat") is True
+            ),
+            "full_market_cycle_complete": (
+                status.get("full_market_cycle_complete") is True
+            ),
             "market_swarm": {
                 "required": swarm_required,
                 "running": swarm.get("running") is True,
@@ -253,8 +272,142 @@ class PaperRunner(_V142PaperRunner):
             payload,
         )
 
+    def _write_startup_heartbeat(self) -> dict[str, Any]:
+        """Publish initialized paper-runtime health before the long first cycle."""
+
+        now = time.time()
+        service = self.fast_swarm_service
+
+        # Before the first fresh market marks exist, value open paper
+        # positions at their persisted entry prices. This is deterministic
+        # startup accounting and does not mutate the ledger.
+        startup_equity = float(self.ledger.cash)
+
+        for position in self.ledger.positions.values():
+            startup_equity += (
+                float(position.quantity)
+                * float(position.entry_price)
+            )
+
+        swarm_health = (
+            service.health(
+                equity=startup_equity
+            )
+            if service is not None
+            else self._inactive_swarm_status()
+        )
+
+        swarm_operational = bool(
+            service is not None
+            and swarm_health.get("running") is True
+            and swarm_health.get("healthy") is True
+            and swarm_health.get("stale") is not True
+        )
+
+        engines = dict(
+            self.engines.snapshot()
+        )
+
+        engines["market_swarm"] = {
+            "required": True,
+            "healthy": swarm_operational,
+            "state": (
+                "starting"
+                if swarm_operational
+                else "degraded"
+            ),
+            "failures": int(
+                swarm_health.get(
+                    "consecutive_failures"
+                )
+                or 0
+            ),
+        }
+
+        required_failures = [
+            name
+            for name, row in engines.items()
+            if isinstance(row, dict)
+            and row.get("required") is True
+            and row.get("healthy") is not True
+        ]
+
+        healthy = bool(
+            not required_failures
+            and swarm_operational
+        )
+
+        testnet_enabled = bool(
+            self.testnet is not None
+        )
+
+        errors = (
+            []
+            if healthy
+            else [
+                "startup_required_engine_failure:"
+                + ",".join(required_failures)
+            ]
+        )
+
+        status = {
+            "timestamp": now,
+            "runtime": (
+                "verified-multi-engine-v12.11-"
+                "continuous-evolution-fabric"
+            ),
+            "mode": "paper",
+            "healthy": healthy,
+            "errors": errors,
+            "equity": startup_equity,
+            "equity_mark_basis": (
+                "persisted_entry_prices_until_first_full_cycle"
+            ),
+            "cash": float(
+                getattr(
+                    self.ledger,
+                    "cash",
+                    self.settings.starting_cash,
+                )
+            ),
+            "open_positions": list(
+                self.ledger.positions
+            ),
+            "events": [],
+            "engines": engines,
+            "market_swarm": {
+                **swarm_health,
+                "required": True,
+                "startup_phase": True,
+                "full_market_cycle_complete": False,
+                "canonical_paper_ledger_mutation_from_fast_thread": False,
+                "automatic_promotion": False,
+                "execution_authority": False,
+                "testnet_authority": False,
+                "live_authority": False,
+            },
+            "testnet_execution": {
+                "enabled": testnet_enabled,
+                "live_authority": False,
+            },
+            "startup_heartbeat": True,
+            "full_market_cycle_complete": False,
+            "automatic_promotion": False,
+            "live_authority": False,
+        }
+
+        self._write_json_atomic(
+            self.settings.heartbeat_path,
+            status,
+        )
+        self._write_health_state(status)
+
+        return status
+
     def cycle(self) -> dict[str, Any]:
         status = super().cycle()
+        status["startup_heartbeat"] = False
+        status["full_market_cycle_complete"] = True
         swarm_evidence = self._ingest_swarm_outcomes() if self.fast_swarm_service is not None else {
             "submitted": 0,
             "episodes_recorded": 0,
@@ -312,6 +465,8 @@ class PaperRunner(_V142PaperRunner):
     def run(self, once: bool = False) -> None:
         if not once:
             self.start_fast_swarm()
+            self._write_startup_heartbeat()
+
         try:
             super().run(once=once)
         finally:

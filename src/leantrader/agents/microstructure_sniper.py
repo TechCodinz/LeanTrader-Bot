@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import asdict, dataclass
 import math
+import threading
 import time
 from typing import Any, Iterable, Mapping
 
@@ -81,7 +82,7 @@ class MicroPathAssessment:
 
 
 class UltraMicrostructureSniper:
-    VERSION = "1.50.0"
+    VERSION = "1.52.0"
     HORIZONS = (5, 15, 30, 60)
 
     def __init__(
@@ -105,8 +106,9 @@ class UltraMicrostructureSniper:
         self.rejected = 0
         self.rejection_reasons: dict[str, int] = {}
         self._history: dict[str, deque[dict[str, float]]] = defaultdict(
-            lambda: deque(maxlen=12)
+            lambda: deque(maxlen=64)
         )
+        self._history_lock = threading.RLock()
 
     @staticmethod
     def _depth(rows: Any, midpoint: float, levels: int = 10) -> float:
@@ -171,86 +173,214 @@ class UltraMicrostructureSniper:
         microprice_shift_bps: float,
         trade_imbalance: float,
     ) -> tuple[float, float, float, float, float, int]:
-        history = self._history[str(symbol).upper()]
+        key = str(symbol).upper()
 
-        depth_velocity = 0.0
-        micro_velocity = 0.0
-        spread_velocity = 0.0
-        trade_velocity = 0.0
+        with self._history_lock:
+            history = self._history[key]
 
-        if history:
-            previous = history[-1]
-            dt = max(
-                0.25,
-                timestamp - float(previous["timestamp"]),
+            # Sub-minute state must not inherit stale pressure from a symbol
+            # that has not been sampled recently.
+            while history:
+                oldest = float(history[0].get("timestamp") or 0.0)
+                if timestamp - oldest <= 90.0:
+                    break
+                history.popleft()
+
+            depth_velocity = 0.0
+            micro_velocity = 0.0
+            spread_velocity = 0.0
+            trade_velocity = 0.0
+
+            if history:
+                previous = history[-1]
+                dt = max(
+                    0.25,
+                    timestamp - float(previous["timestamp"]),
+                )
+
+                depth_velocity = (
+                    depth_imbalance
+                    - float(previous["depth_imbalance"])
+                ) / dt
+
+                micro_velocity = (
+                    microprice_shift_bps
+                    - float(previous["microprice_shift_bps"])
+                ) / dt
+
+                spread_velocity = (
+                    spread_bps
+                    - float(previous["spread_bps"])
+                ) / dt
+
+                trade_velocity = (
+                    trade_imbalance
+                    - float(previous["trade_imbalance"])
+                ) / dt
+
+            current_pressure = _signed(
+                0.45 * depth_imbalance
+                + 0.35 * trade_imbalance
+                + 0.20 * _signed(microprice_shift_bps / 8.0)
             )
 
-            depth_velocity = (
-                depth_imbalance
-                - float(previous["depth_imbalance"])
-            ) / dt
-
-            micro_velocity = (
-                microprice_shift_bps
-                - float(previous["microprice_shift_bps"])
-            ) / dt
-
-            spread_velocity = (
-                spread_bps
-                - float(previous["spread_bps"])
-            ) / dt
-
-            trade_velocity = (
-                trade_imbalance
-                - float(previous["trade_imbalance"])
-            ) / dt
-
-        current_pressure = _signed(
-            0.45 * depth_imbalance
-            + 0.35 * trade_imbalance
-            + 0.20 * _signed(microprice_shift_bps / 8.0)
-        )
-
-        recent_pressures = [
-            float(row["pressure"])
-            for row in list(history)[-5:]
-        ]
-
-        if recent_pressures:
-            same_sign = [
-                1.0
-                if value * current_pressure > 0
-                else 0.0
-                for value in recent_pressures
-                if abs(value) > 1e-9
+            recent_pressures = [
+                float(row["pressure"])
+                for row in list(history)[-5:]
             ]
-            persistence = (
-                sum(same_sign) / len(same_sign)
-                if same_sign else 0.0
-            )
-        else:
-            persistence = 0.0
 
-        history.append(
-            {
-                "timestamp": timestamp,
-                "midpoint": midpoint,
-                "spread_bps": spread_bps,
-                "depth_imbalance": depth_imbalance,
-                "microprice_shift_bps": microprice_shift_bps,
-                "trade_imbalance": trade_imbalance,
-                "pressure": current_pressure,
-            }
+            if recent_pressures:
+                same_sign = [
+                    1.0
+                    if value * current_pressure > 0
+                    else 0.0
+                    for value in recent_pressures
+                    if abs(value) > 1e-9
+                ]
+                persistence = (
+                    sum(same_sign) / len(same_sign)
+                    if same_sign else 0.0
+                )
+            else:
+                persistence = 0.0
+
+            history.append(
+                {
+                    "timestamp": timestamp,
+                    "midpoint": midpoint,
+                    "spread_bps": spread_bps,
+                    "depth_imbalance": depth_imbalance,
+                    "microprice_shift_bps": microprice_shift_bps,
+                    "trade_imbalance": trade_imbalance,
+                    "pressure": current_pressure,
+                }
+            )
+
+            return (
+                depth_velocity,
+                micro_velocity,
+                spread_velocity,
+                trade_velocity,
+                persistence,
+                len(history),
+            )
+
+    def observe_snapshot(
+        self,
+        *,
+        symbol: str,
+        order_book: Mapping[str, Any],
+        trades: Iterable[Mapping[str, Any]] = (),
+        now: float | None = None,
+    ) -> dict[str, Any]:
+        """Update temporal microstructure state without creating a signal.
+
+        This is read-only research telemetry. It never creates execution,
+        Testnet, live, paper-ledger, or automatic-promotion authority.
+        """
+        now = time.time() if now is None else float(now)
+
+        bids = list(order_book.get("bids") or [])
+        asks = list(order_book.get("asks") or [])
+
+        if not bids or not asks:
+            raise ValueError(
+                "microstream requires non-empty order book"
+            )
+
+        bid = _finite(bids[0][0])
+        ask = _finite(asks[0][0])
+
+        if bid <= 0 or ask < bid:
+            raise ValueError("invalid microstream top of book")
+
+        midpoint = (bid + ask) / 2.0
+        spread_bps = (
+            (ask - bid) / midpoint * 10_000.0
         )
 
-        return (
+        bid_depth = self._depth(bids, midpoint)
+        ask_depth = self._depth(asks, midpoint)
+        total_depth = bid_depth + ask_depth
+
+        depth_imbalance = (
+            0.0
+            if total_depth <= 0
+            else (bid_depth - ask_depth) / total_depth
+        )
+
+        bid_amount = _finite(bids[0][1])
+        ask_amount = _finite(asks[0][1])
+        top_total = bid_amount + ask_amount
+
+        microprice = (
+            midpoint
+            if top_total <= 0
+            else (
+                ask * bid_amount
+                + bid * ask_amount
+            ) / top_total
+        )
+
+        micro_shift = (
+            (microprice - midpoint)
+            / midpoint
+            * 10_000.0
+        )
+
+        trade_imbalance, intensity = (
+            self._trade_features(trades, now)
+        )
+
+        (
             depth_velocity,
             micro_velocity,
             spread_velocity,
             trade_velocity,
             persistence,
-            len(history),
+            temporal_samples,
+        ) = self._temporal_features(
+            symbol=str(symbol).upper(),
+            timestamp=now,
+            midpoint=midpoint,
+            spread_bps=spread_bps,
+            depth_imbalance=depth_imbalance,
+            microprice_shift_bps=micro_shift,
+            trade_imbalance=trade_imbalance,
         )
+
+        return {
+            "symbol": str(symbol).upper(),
+            "timestamp": now,
+            "midpoint": midpoint,
+            "spread_bps": spread_bps,
+            "bid_depth_usd": bid_depth,
+            "ask_depth_usd": ask_depth,
+            "depth_imbalance": _signed(
+                depth_imbalance
+            ),
+            "microprice_shift_bps": micro_shift,
+            "trade_imbalance": trade_imbalance,
+            "trade_intensity_per_second": max(
+                0.0,
+                intensity,
+            ),
+            "depth_imbalance_velocity": depth_velocity,
+            "microprice_velocity_bps_per_second": (
+                micro_velocity
+            ),
+            "spread_velocity_bps_per_second": (
+                spread_velocity
+            ),
+            "trade_imbalance_velocity": trade_velocity,
+            "pressure_persistence": persistence,
+            "temporal_samples": temporal_samples,
+            "research_only": True,
+            "automatic_promotion": False,
+            "execution_authority": False,
+            "testnet_authority": False,
+            "live_authority": False,
+        }
 
     def extract(
         self,
@@ -598,6 +728,10 @@ class UltraMicrostructureSniper:
             "order_book_pressure": True,
             "public_trade_pressure": True,
             "cross_venue_reference": True,
+            "dedicated_microstream_ready": True,
+            "temporal_history_symbols": len(self._history),
+            "temporal_history_max_samples_per_symbol": 64,
+            "temporal_history_max_age_seconds": 90.0,
             "predictive_profit_claim": False,
             "automatic_promotion": False,
             "execution_authority": False,
