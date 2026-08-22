@@ -160,7 +160,7 @@ def leantrader_status() -> dict[str, Any]:
 
 @server.tool(annotations=READ_ONLY, structured_output=True)
 def leantrader_heartbeat(
-    section: Literal["summary", "engines", "runtime", "testnet"] = "summary",
+    section: Literal["summary", "engines", "runtime", "testnet", "swarm"] = "summary",
 ) -> dict[str, Any]:
     """Read one bounded projection of the canonical heartbeat; raw credentials and private data are omitted."""
     return _invoke("heartbeat", section)

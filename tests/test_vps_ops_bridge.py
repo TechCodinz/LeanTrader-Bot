@@ -244,6 +244,62 @@ def test_helper_engine_projection_omits_unapproved_fields(monkeypatch, tmp_path)
     assert result == {"router": {"required": True, "healthy": True, "state": "ready"}}
 
 
+def test_helper_swarm_projection_is_bounded_and_authority_free(monkeypatch, tmp_path):
+    heartbeat_path = tmp_path / "heartbeat.json"
+    heartbeat_path.write_text(
+        json.dumps(
+            {
+                "market_swarm": {
+                    "running": True,
+                    "healthy": True,
+                    "stale": False,
+                    "cycles": 12,
+                    "micro_assessments": 40,
+                    "micro_qualified": 5,
+                    "micro_fetch_failures": 1,
+                    "microstructure_sniper": {
+                        "version": "1.45.0",
+                        "minimum_modeled_round_trip_cost_bps": 30.0,
+                    },
+                    "last_step": {
+                        "micro_agent_foundry_proposals": [
+                            {
+                                "specialist": "micro_burst_hunter",
+                                "symbol": "BTC/USDT",
+                                "horizon_seconds": 15,
+                            }
+                        ],
+                        "microstructure": {
+                            "BTC/USDT": {
+                                "path_assessments": [
+                                    {"independently_qualified": True},
+                                    {"independently_qualified": False},
+                                ]
+                            }
+                        },
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(privileged_helper, "HEARTBEAT", heartbeat_path)
+
+    result = privileged_helper.heartbeat("swarm")
+    assert result["micro_assessments"] == 40
+    assert result["micro_qualified"] == 5
+    assert result["micro_qualification_rate"] == 0.125
+    assert result["latest_specialists"] == {"micro_burst_hunter": 1}
+    assert result["latest_horizons"] == {"15": 1}
+    assert result["latest_qualified_by_symbol"] == {"BTC/USDT": 1}
+    assert result["modeled_round_trip_cost_floor_bps"] == 30.0
+    assert result["automatic_promotion"] is False
+    assert result["execution_authority"] is False
+    assert result["testnet_authority"] is False
+    assert result["live_authority"] is False
+
+
+
 def test_helper_rejects_non_allowlisted_values():
     for section in ("../secrets", "all", "summary extra"):
         try:

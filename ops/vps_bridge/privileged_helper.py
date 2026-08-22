@@ -25,7 +25,7 @@ BACKUP_ROOT = Path("/opt/leantrader/backups/reconciliation")
 EVOLUTION_SERVICE = "leantrader-evolution-sidecar.service"
 CANONICAL_REPOSITORY = "TechCodinz/LeanTrader-Bot"
 ALLOWED_LOG_LINES = {"20", "50", "100", "200"}
-ALLOWED_HEARTBEAT_SECTIONS = {"summary", "engines", "runtime", "testnet"}
+ALLOWED_HEARTBEAT_SECTIONS = {"summary", "engines", "runtime", "testnet", "swarm"}
 MAX_HEARTBEAT_BYTES = 16 * 1_048_576
 MAX_COMMAND_OUTPUT = 65_536
 MAX_REQUEST_BYTES = 131_072
@@ -261,6 +261,95 @@ def heartbeat(section: str) -> dict[str, Any]:
             name: {key: value.get(key) for key in ("required", "healthy", "state", "failures", "error") if key in value}
             for name, value in list(engines.items())[:500]
             if isinstance(value, dict)
+        }
+    if section == "swarm":
+        swarm = document.get("market_swarm") or {}
+        last_step = swarm.get("last_step") or {}
+        micro = last_step.get("microstructure") or {}
+        proposals = last_step.get("micro_agent_foundry_proposals") or []
+
+        specialist_counts = {}
+        horizon_counts = {}
+        symbol_counts = {}
+        qualified_by_symbol = {}
+
+        for raw in list(proposals)[:200]:
+            if not isinstance(raw, dict):
+                continue
+            specialist = str(raw.get("specialist") or "unknown")[:80]
+            symbol = str(raw.get("symbol") or "unknown")[:40]
+            horizon = str(raw.get("horizon_seconds") or "unknown")[:20]
+            specialist_counts[specialist] = specialist_counts.get(specialist, 0) + 1
+            symbol_counts[symbol] = symbol_counts.get(symbol, 0) + 1
+            horizon_counts[horizon] = horizon_counts.get(horizon, 0) + 1
+
+        for symbol, raw in list(micro.items())[:100]:
+            if not isinstance(raw, dict):
+                continue
+            assessments = raw.get("path_assessments") or []
+            qualified_by_symbol[str(symbol)[:40]] = sum(
+                1
+                for row in list(assessments)[:20]
+                if isinstance(row, dict)
+                and row.get("independently_qualified") is True
+            )
+
+        portfolio = swarm.get("shadow_portfolio") or {}
+        journal = swarm.get("swarm_outcome_journal") or {}
+        return {
+            "available": True,
+            "source_bytes": heartbeat_bytes,
+            "version": _safe_projection(
+                (swarm.get("microstructure_sniper") or {}).get("version")
+            ),
+            "running": swarm.get("running"),
+            "healthy": swarm.get("healthy"),
+            "stale": swarm.get("stale"),
+            "cycles": swarm.get("cycles"),
+            "last_success_at": swarm.get("last_success_at"),
+            "micro_assessments": swarm.get("micro_assessments", 0),
+            "micro_qualified": swarm.get("micro_qualified", 0),
+            "micro_fetch_failures": swarm.get("micro_fetch_failures", 0),
+            "micro_qualification_rate": (
+                float(swarm.get("micro_qualified") or 0)
+                / float(swarm.get("micro_assessments") or 1)
+            ),
+            "latest_specialists": _safe_projection(specialist_counts),
+            "latest_horizons": _safe_projection(horizon_counts),
+            "latest_symbols": _safe_projection(symbol_counts),
+            "latest_qualified_by_symbol": _safe_projection(qualified_by_symbol),
+            "shadow_portfolio": _safe_projection({
+                key: portfolio.get(key)
+                for key in (
+                    "equity",
+                    "realized_pnl",
+                    "unrealized_pnl",
+                    "open_tranches",
+                    "closed_tranches",
+                    "max_drawdown",
+                )
+                if key in portfolio
+            }),
+            "outcome_journal": _safe_projection({
+                key: journal.get(key)
+                for key in (
+                    "closed_outcomes",
+                    "pending_outcomes",
+                    "net_pnl",
+                    "wins",
+                    "losses",
+                )
+                if key in journal
+            }),
+            "modeled_round_trip_cost_floor_bps": (
+                (swarm.get("microstructure_sniper") or {}).get(
+                    "minimum_modeled_round_trip_cost_bps"
+                )
+            ),
+            "automatic_promotion": False,
+            "execution_authority": False,
+            "testnet_authority": False,
+            "live_authority": False,
         }
     key = "runtime" if section == "runtime" else "testnet_execution"
     return {"available": True, "source_bytes": heartbeat_bytes, section: _safe_projection(document.get(key, {}))}
