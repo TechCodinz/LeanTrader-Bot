@@ -180,6 +180,7 @@ class PaperRunner(_V142PaperRunner):
 
     def _write_health_state(self, status: dict[str, Any]) -> None:
         swarm = status.get("market_swarm") or {}
+        swarm_required = self.fast_swarm_service is not None
         swarm_ok = bool(
             isinstance(swarm, dict)
             and swarm.get("running") is True
@@ -189,11 +190,14 @@ class PaperRunner(_V142PaperRunner):
         payload = {
             "timestamp": status.get("timestamp"),
             "runtime": status.get("runtime"),
-            "healthy": bool(status.get("healthy") is True and swarm_ok),
+            "healthy": bool(
+                status.get("healthy") is True
+                and (not swarm_required or swarm_ok)
+            ),
             "errors": status.get("errors") or [],
             "testnet_execution": status.get("testnet_execution") or {},
             "market_swarm": {
-                "required": True,
+                "required": swarm_required,
                 "running": swarm.get("running") is True,
                 "healthy": swarm.get("healthy") is True,
                 "stale": swarm.get("stale") is True,
@@ -236,7 +240,7 @@ class PaperRunner(_V142PaperRunner):
         status["market_swarm"]["live_authority"] = False
 
         engines = status.setdefault("engines", {})
-        if isinstance(engines, dict):
+        if isinstance(engines, dict) and service is not None:
             swarm_operational = bool(
                 status["market_swarm"].get("running") is True
                 and status["market_swarm"].get("healthy") is True
