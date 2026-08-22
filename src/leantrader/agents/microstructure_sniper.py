@@ -96,6 +96,7 @@ class UltraMicrostructureSniper:
         self.assessments = 0
         self.qualified = 0
         self.rejected = 0
+        self.rejection_reasons: dict[str, int] = {}
 
     @staticmethod
     def _depth(rows: Any, midpoint: float, levels: int = 10) -> float:
@@ -300,6 +301,9 @@ class UltraMicrostructureSniper:
                 self.qualified += 1
             else:
                 self.rejected += 1
+                self.rejection_reasons[reason] = (
+                    self.rejection_reasons.get(reason, 0) + 1
+                )
             rows.append(row)
         return rows
 
@@ -310,6 +314,9 @@ class UltraMicrostructureSniper:
             "assessments": self.assessments,
             "qualified": self.qualified,
             "rejected": self.rejected,
+            "rejection_reasons": dict(
+                sorted(self.rejection_reasons.items())
+            ),
             "minimum_modeled_round_trip_cost_bps": self.minimum_modeled_round_trip_cost_bps,
             "short_path_distribution": True,
             "order_book_pressure": True,

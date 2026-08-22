@@ -396,6 +396,7 @@ class ReadOnlySwarmService:
         *,
         ranked: list[dict[str, Any]],
         frames: dict[str, pd.DataFrame],
+        profiles: dict[str, dict[str, Any]] | None = None,
     ) -> tuple[dict[str, Any], dict[str, float], list[dict[str, Any]]]:
         output: dict[str, Any] = {}
         marks: dict[str, float] = {}
@@ -404,11 +405,42 @@ class ReadOnlySwarmService:
         # 1-minute opportunity gate. Inspect the strongest ranked markets,
         # then require the microstructure engine's own independent,
         # cost-aware qualification before any shadow proposal is allowed.
-        selected = [
+        profile_map = profiles or {}
+
+        candidates = [
             row for row in ranked
             if isinstance(row, dict)
             and str(row.get("symbol") or "").strip()
-        ][: self.max_micro_symbols]
+        ]
+
+        def micro_priority(row: dict[str, Any]) -> tuple[float, float, float, float]:
+            symbol = str(row.get("symbol") or "").upper()
+            profile = profile_map.get(symbol) or {}
+            fill = float(profile.get("fill_probability") or 0.0)
+            liquidity = float(profile.get("liquidity_score") or 0.0)
+            spread = float(profile.get("spread_bps") or 1_000_000.0)
+            movement_score = float(row.get("score") or 0.0)
+            return (
+                fill,
+                liquidity,
+                -spread,
+                movement_score,
+            )
+
+        # Examine a bounded pool rather than allowing the first two
+        # movement-ranked but shallow markets to consume all micro slots.
+        pool_limit = max(
+            self.max_micro_symbols,
+            self.max_micro_symbols * 4,
+        )
+        selected = sorted(
+            candidates,
+            key=micro_priority,
+            reverse=True,
+        )[:pool_limit]
+
+        structurally_viable = 0
+
         for score in selected:
             symbol = str(score.get("symbol") or "").upper()
             frame = frames.get(symbol)
@@ -462,7 +494,27 @@ class ReadOnlySwarmService:
                 marks[symbol] = features.midpoint
                 proposals.extend(proposed)
                 self.micro_assessments += len(assessments)
-                self.micro_qualified += sum(1 for r in assessments if r.independently_qualified)
+                self.micro_qualified += sum(
+                    1 for r in assessments
+                    if r.independently_qualified
+                )
+
+                # A symbol only consumes one of the scarce micro scout slots
+                # after its real book clears the structural liquidity gates.
+                total_depth = (
+                    features.bid_depth_usd
+                    + features.ask_depth_usd
+                )
+                if (
+                    features.spread_bps
+                    <= self.microstructure_sniper.maximum_spread_bps
+                    and total_depth
+                    >= self.microstructure_sniper.minimum_depth_usd
+                ):
+                    structurally_viable += 1
+                    if structurally_viable >= self.max_micro_symbols:
+                        break
+
             except Exception as exc:
                 self.micro_fetch_failures += 1
                 output[symbol] = {"error": f"{type(exc).__name__}: {exc}"}
@@ -689,6 +741,7 @@ class ReadOnlySwarmService:
         microstructure, micro_marks, micro_proposals = self._microstructure_assess(
             ranked=ranked_rows,
             frames=frames,
+            profiles=dict(result.get("profiles") or {}),
         )
         result["microstructure"] = microstructure
         result["micro_agent_foundry_proposals"] = micro_proposals
