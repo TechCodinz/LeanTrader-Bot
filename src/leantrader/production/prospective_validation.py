@@ -16,6 +16,13 @@ class ProspectiveValidationLab(_V141ProspectiveValidationLab):
     original contract. New v1.42 manifests precommit their partition schedule
     at registration; only episodes whose signal opened after that registration
     are accepted into the v1.42 evidence partitions.
+
+    v1.42 also enforces temporal independence at record time. For each frozen
+    candidate, a new episode is accepted only when its signal opens at or after
+    the previous accepted episode's label end. This deterministic rule is based
+    only on timestamps, never outcome sign or magnitude, so overlapping market
+    episodes cannot be counted as independent samples or retrospectively
+    selected after their returns are known.
     """
 
     VERSION = "1.42.0"
@@ -67,6 +74,12 @@ class ProspectiveValidationLab(_V141ProspectiveValidationLab):
         for key in required_true:
             if protocol.get(key) is not True:
                 return False, f"v1.42 protocol requires {key}=true"
+        try:
+            protocol_cost = float(protocol.get("round_trip_cost_bps") or 0.0)
+        except (TypeError, ValueError):
+            return False, "v1.42 protocol has invalid round_trip_cost_bps"
+        if protocol_cost < max(30.0, float(self.round_trip_cost_bps)):
+            return False, "v1.42 protocol lowers the modeled round-trip cost floor"
         return True, "accepted"
 
     @staticmethod
@@ -134,6 +147,15 @@ class ProspectiveValidationLab(_V141ProspectiveValidationLab):
         )
         self.state["partition_rejections"] = rows[-self.PARTITION_REJECTION_LIMIT :]
 
+    @staticmethod
+    def _episode_sort_key(episode: dict[str, Any]) -> tuple[float, float, str, str]:
+        return (
+            _finite(episode.get("opened_at"), math.inf),
+            _finite(episode.get("closed_at"), math.inf),
+            str(episode.get("strategy") or ""),
+            str(episode.get("symbol") or ""),
+        )
+
     def _record_strategy_episodes(
         self,
         *,
@@ -156,9 +178,11 @@ class ProspectiveValidationLab(_V141ProspectiveValidationLab):
             contract_valid=contract_valid,
         )
         v142_ids = sorted(existing_experiment_ids - legacy_ids)
-        for episode in episodes:
-            if not isinstance(episode, dict):
-                continue
+        ordered_episodes = sorted(
+            (episode for episode in episodes if isinstance(episode, dict)),
+            key=self._episode_sort_key,
+        )
+        for episode in ordered_episodes:
             if episode.get("evidence_authority") != self.EVIDENCE_AUTHORITY:
                 continue
             strategy = str(episode.get("strategy") or "").strip()
@@ -171,7 +195,7 @@ class ProspectiveValidationLab(_V141ProspectiveValidationLab):
                 or not math.isfinite(net_return)
                 or not math.isfinite(opened_at)
                 or not math.isfinite(closed_at)
-                or closed_at < opened_at
+                or closed_at <= opened_at
                 or not interval_complete
             ):
                 continue
@@ -188,6 +212,16 @@ class ProspectiveValidationLab(_V141ProspectiveValidationLab):
                     self._reject_partition_episode(
                         candidate_id,
                         "episode signal opened before v1.42 manifest registration",
+                    )
+                    continue
+                last_label_end = _finite(
+                    experiment.get("last_independent_label_end"),
+                    -math.inf,
+                )
+                if opened_at < last_label_end:
+                    self._reject_partition_episode(
+                        candidate_id,
+                        "overlapping episode rejected from independent evidence",
                     )
                     continue
                 protocol = experiment.get("protocol") or {}
@@ -215,6 +249,7 @@ class ProspectiveValidationLab(_V141ProspectiveValidationLab):
                 )
                 experiment["outcomes"] = outcomes[-self.RETURN_LIMIT :]
                 experiment["partition_episode_ordinal"] = ordinal + 1
+                experiment["last_independent_label_end"] = closed_at
                 regime_returns = experiment.setdefault("regime_returns", {})
                 values = regime_returns.setdefault(regime, [])
                 values.append(net_return)
@@ -266,6 +301,10 @@ class ProspectiveValidationLab(_V141ProspectiveValidationLab):
                     "evidence_protocol_version": "1.42",
                     "partition_counts": counts,
                     "partition_plan": plan,
+                    "independence_rule": "non_overlapping_label_intervals",
+                    "last_independent_label_end": experiment.get(
+                        "last_independent_label_end"
+                    ),
                     "walk_forward": "measured_by_v1_42_evidence_qualification",
                     "untouched_holdout": True,
                     "freeze_before_outcome": True,
@@ -285,6 +324,7 @@ class ProspectiveValidationLab(_V141ProspectiveValidationLab):
                 "version": self.VERSION,
                 "evidence_protocol_version": "1.42",
                 "partitioned_evidence": True,
+                "independence_rule": "non_overlapping_label_intervals",
                 "partition_rejections": len(self.state.get("partition_rejections") or []),
                 "automatic_promotion": False,
                 "paper_promotion_authority": False,
