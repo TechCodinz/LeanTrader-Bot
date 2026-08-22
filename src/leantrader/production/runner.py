@@ -5,6 +5,7 @@ import json
 import signal
 from typing import Any
 
+from . import runner_v141 as _runner_v141
 from .runner_v141 import *  # noqa: F401,F403
 from .runner_v141 import (
     MarketFeed,
@@ -24,6 +25,15 @@ class PaperRunner(_V141PaperRunner):
     """
 
     VERSION = "1.42.0"
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # Keep the v1.41 implementation byte-preserved while retaining the
+        # public runner module's test/integration seam. Legacy callers patch the
+        # exported Testnet engine before constructing PaperRunner; mirror that
+        # injected class into the preserved module instead of bypassing secret
+        # enforcement or changing the legacy tests.
+        _runner_v141.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
+        super().__init__(*args, **kwargs)
 
     @staticmethod
     def _apply_v142_measured_validation_status(
