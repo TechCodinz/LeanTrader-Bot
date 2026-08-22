@@ -23,15 +23,9 @@ class SwarmAgent:
 
 
 class MarketSwarmOrchestrator:
-    """Paper-only multi-agent coordination across markets and timeframes.
+    """Paper-only multi-agent coordination across markets and timeframes."""
 
-    Fast agents may open the first tranche, while independently-qualified
-    longer-timeframe agents can join the same shared symbol position. Each agent
-    owns and can close only its own tranche. The global coordinator retains the
-    aggregate exposure view.
-    """
-
-    VERSION = "1.0"
+    VERSION = "1.1"
 
     DEFAULT_SPECIALISTS: tuple[tuple[AgentRole, str], ...] = (
         (AgentRole.SCALP, "micro"),
@@ -65,15 +59,43 @@ class MarketSwarmOrchestrator:
         self.decisions = 0
         self.accepted = 0
         self.blocked: dict[str, int] = {}
+        self._restore_agents_from_coordinator()
+
+    def _restore_agents_from_coordinator(self) -> None:
+        """Rehydrate active agent ownership for persisted open tranches."""
+        for tranche in self.coordinator.open_tranches():
+            if tranche.agent_id in self.agents:
+                continue
+            self.agents[tranche.agent_id] = SwarmAgent(
+                agent_id=tranche.agent_id,
+                role=tranche.role,
+                timeframe=tranche.timeframe,
+                symbol=tranche.symbol,
+                spawned_at=tranche.opened_at,
+                active=True,
+                decisions=1,
+                accepted=1,
+            )
+            self.accepted += 1
 
     def spawn_agent(self, *, role: AgentRole, timeframe: str, symbol: str) -> SwarmAgent:
         self._agent_sequence += 1
         symbol = str(symbol).upper()
         role = AgentRole(role)
-        agent_id = f"{role.value}:{timeframe}:{symbol}:{self._agent_sequence}"
+        agent_id = f"{role.value}:{timeframe}:{symbol}:{time.time_ns()}:{self._agent_sequence}"
         agent = SwarmAgent(agent_id=agent_id, role=role, timeframe=str(timeframe), symbol=symbol)
         self.agents[agent_id] = agent
         return agent
+
+    def find_agent(self, *, symbol: str, timeframe: str, role: AgentRole) -> SwarmAgent | None:
+        symbol = str(symbol).upper()
+        role = AgentRole(role)
+        matches = [
+            agent
+            for agent in self.agents.values()
+            if agent.active and agent.symbol == symbol and agent.timeframe == str(timeframe) and agent.role == role
+        ]
+        return max(matches, key=lambda row: row.spawned_at) if matches else None
 
     def activate_specialists(
         self,
@@ -83,10 +105,11 @@ class MarketSwarmOrchestrator:
     ) -> list[SwarmAgent]:
         if not opportunity.qualified:
             return []
-        return [
-            self.spawn_agent(role=role, timeframe=timeframe, symbol=opportunity.symbol)
-            for role, timeframe in (specialists or self.DEFAULT_SPECIALISTS)
-        ]
+        activated: list[SwarmAgent] = []
+        for role, timeframe in (specialists or self.DEFAULT_SPECIALISTS):
+            existing = self.find_agent(symbol=opportunity.symbol, timeframe=timeframe, role=role)
+            activated.append(existing or self.spawn_agent(role=role, timeframe=timeframe, symbol=opportunity.symbol))
+        return activated
 
     def scan(self, snapshots: Iterable[OpportunitySnapshot]) -> list[OpportunityScore]:
         return self.radar.rank(snapshots)
@@ -97,7 +120,8 @@ class MarketSwarmOrchestrator:
 
     @property
     def capital_active_agents(self) -> int:
-        return sum(1 for agent in self.agents.values() if agent.active and agent.accepted > 0)
+        open_agent_ids = {row.agent_id for row in self.coordinator.open_tranches()}
+        return sum(1 for agent in self.agents.values() if agent.active and agent.agent_id in open_agent_ids)
 
     def consider_join(
         self,
@@ -174,7 +198,21 @@ class MarketSwarmOrchestrator:
         self.accepted += 1
         return self._decision_payload(agent, opportunity, True, "approved", allocated, tranche.tranche_id)
 
-    def close_agent_tranche(self, *, agent_id: str, tranche_id: str, exit_price: float) -> dict[str, Any]:
+    def rollback_join(self, *, agent_id: str, tranche_id: str) -> None:
+        agent = self.agents.get(agent_id)
+        if self.coordinator.remove_open_tranche(tranche_id):
+            if agent is not None:
+                agent.accepted = max(0, agent.accepted - 1)
+            self.accepted = max(0, self.accepted - 1)
+
+    def close_agent_tranche(
+        self,
+        *,
+        agent_id: str,
+        tranche_id: str,
+        exit_price: float,
+        net_realized_pnl: float | None = None,
+    ) -> dict[str, Any]:
         agent = self.agents.get(agent_id)
         if agent is None:
             raise KeyError(f"unknown agent: {agent_id}")
@@ -191,14 +229,18 @@ class MarketSwarmOrchestrator:
         if owned.state != TrancheState.OPEN:
             raise ValueError("tranche is already closed")
         tranche = self.coordinator.close_tranche(tranche_id, exit_price=exit_price)
-        recycle = self.allocator.record_realized_pnl(tranche.realized_pnl)
+        recycle_value = tranche.realized_pnl if net_realized_pnl is None else float(net_realized_pnl)
+        if not math.isfinite(recycle_value):
+            raise ValueError("net_realized_pnl must be finite")
+        recycle = self.allocator.record_realized_pnl(recycle_value)
         return {
             "tranche_id": tranche.tranche_id,
             "agent_id": agent_id,
             "symbol": tranche.symbol,
             "role": tranche.role.value,
             "timeframe": tranche.timeframe,
-            "realized_pnl": tranche.realized_pnl,
+            "gross_price_pnl": tranche.realized_pnl,
+            "net_realized_pnl": recycle_value,
             "recycled_profit": recycle["recycled_profit"],
             "other_tranches_remain_independent": True,
             "execution_authority": False,
