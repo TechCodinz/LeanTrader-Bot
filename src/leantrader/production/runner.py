@@ -76,6 +76,7 @@ class PaperRunner(_V142PaperRunner):
 
     def _build_fast_swarm_service(self) -> ReadOnlySwarmService:
         dedicated_feed = MarketFeed(self.settings.exchange)
+        calibration_feed = MicrostructureMarketFeed(self.settings.exchange)
         reference_feed = None
         if (
             str(self.settings.exchange).lower() != "okx"
@@ -144,6 +145,7 @@ class PaperRunner(_V142PaperRunner):
             micro_calibration_journal=MicroCalibrationJournal(
                 base.with_name("vps_micro_calibration.json")
             ),
+            micro_calibration_feed=calibration_feed,
         )
 
     def start_fast_swarm(self) -> None:

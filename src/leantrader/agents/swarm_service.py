@@ -58,6 +58,7 @@ class ReadOnlySwarmService:
         reference_feed: Any | None = None,
         max_micro_symbols: int = 2,
         micro_calibration_journal: MicroCalibrationJournal | None = None,
+        micro_calibration_feed: Any | None = None,
     ) -> None:
         if scan_batch_size < 1:
             raise ValueError("scan_batch_size must be positive")
@@ -93,6 +94,11 @@ class ReadOnlySwarmService:
         self.reference_feed = reference_feed
         self.max_micro_symbols = max(1, int(max_micro_symbols))
         self.micro_calibration_journal = micro_calibration_journal
+        self.micro_calibration_feed = micro_calibration_feed
+        self._calibration_thread: threading.Thread | None = None
+        self.calibration_sample_attempts = 0
+        self.calibration_sample_failures = 0
+        self.calibration_labels_resolved = 0
         self.micro_assessments = 0
         self.micro_qualified = 0
         self.micro_fetch_failures = 0
@@ -124,14 +130,34 @@ class ReadOnlySwarmService:
             return
         self._stop.clear()
         self.started_at = time.time()
-        self._thread = threading.Thread(target=self._run, name="leantrader-market-swarm", daemon=True)
+        self._thread = threading.Thread(
+            target=self._run,
+            name="leantrader-market-swarm",
+            daemon=True,
+        )
         self._thread.start()
+
+        if (
+            self.micro_calibration_journal is not None
+            and self.micro_calibration_feed is not None
+        ):
+            self._calibration_thread = threading.Thread(
+                target=self._run_calibration_sampler,
+                name="leantrader-micro-calibration",
+                daemon=True,
+            )
+            self._calibration_thread.start()
 
     def stop(self) -> None:
         self._stop.set()
         thread = self._thread
         if thread is not None and thread.is_alive():
-            thread.join(timeout=max(1.0, min(10.0, self.cadence_seconds + 1.0)))
+            thread.join(
+                timeout=max(1.0, min(10.0, self.cadence_seconds + 1.0))
+            )
+        calibration_thread = self._calibration_thread
+        if calibration_thread is not None and calibration_thread.is_alive():
+            calibration_thread.join(timeout=3.0)
 
     def _refresh_discovery(self, *, force: bool = False) -> None:
         now = time.time()
@@ -827,6 +853,59 @@ class ReadOnlySwarmService:
             self.consecutive_failures = 0
         return dict(result)
 
+    @staticmethod
+    def _book_midpoint(book: dict[str, Any]) -> float:
+        bids = list(book.get("bids") or [])
+        asks = list(book.get("asks") or [])
+        if not bids or not asks:
+            return 0.0
+        try:
+            bid = float(bids[0][0])
+            ask = float(asks[0][0])
+        except (TypeError, ValueError, IndexError):
+            return 0.0
+        if bid <= 0 or ask <= 0 or ask < bid:
+            return 0.0
+        return (bid + ask) / 2.0
+
+    def _run_calibration_sampler(self) -> None:
+        while not self._stop.is_set():
+            started = time.monotonic()
+            try:
+                now = time.time()
+                symbols = self.micro_calibration_journal.due_symbols(
+                    observed_at=now,
+                    lookahead_seconds=0.5,
+                    limit=4,
+                )
+                for symbol in symbols:
+                    if self._stop.is_set():
+                        break
+                    self.calibration_sample_attempts += 1
+                    try:
+                        book = self.micro_calibration_feed.order_book(
+                            symbol,
+                            limit=5,
+                        )
+                        observed_at = time.time()
+                        midpoint = self._book_midpoint(book)
+                        if midpoint <= 0:
+                            self.calibration_sample_failures += 1
+                            continue
+                        self.calibration_labels_resolved += (
+                            self.micro_calibration_journal.resolve(
+                                marks={symbol: midpoint},
+                                observed_at=observed_at,
+                            )
+                        )
+                    except Exception:
+                        self.calibration_sample_failures += 1
+            except Exception:
+                self.calibration_sample_failures += 1
+
+            elapsed = time.monotonic() - started
+            self._stop.wait(max(0.0, 1.0 - elapsed))
+
     def _run(self) -> None:
         while not self._stop.is_set():
             started = time.monotonic()
@@ -873,7 +952,20 @@ class ReadOnlySwarmService:
                 "microstructure_sniper": self.microstructure_sniper.health(),
                 "micro_agent_foundry": self.micro_agent_foundry.health(),
                 "micro_calibration": (
-                    self.micro_calibration_journal.health()
+                    {
+                        **self.micro_calibration_journal.health(),
+                        "sampler_running": bool(
+                            self._calibration_thread is not None
+                            and self._calibration_thread.is_alive()
+                            and not self._stop.is_set()
+                        ),
+                        "sampler_attempts": self.calibration_sample_attempts,
+                        "sampler_failures": self.calibration_sample_failures,
+                        "sampler_labels_resolved": (
+                            self.calibration_labels_resolved
+                        ),
+                        "sampler_cadence_seconds": 1.0,
+                    }
                     if self.micro_calibration_journal is not None
                     else {}
                 ),

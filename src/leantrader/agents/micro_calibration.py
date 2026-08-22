@@ -21,10 +21,11 @@ def _finite(value: Any, default: float = 0.0) -> float:
 class MicroCalibrationJournal:
     """Prospective, non-executable labels for sub-minute assessments."""
 
-    VERSION = "1.47.0"
+    VERSION = "1.47.1"
     SCHEMA_VERSION = 1
     MAX_PENDING = 10_000
     MAX_RESOLVED = 50_000
+    MAX_RESOLUTION_DELAY_SECONDS = 3.0
 
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -150,6 +151,37 @@ class MicroCalibrationJournal:
 
         return added
 
+    def due_symbols(
+        self,
+        *,
+        observed_at: float | None = None,
+        lookahead_seconds: float = 0.5,
+        limit: int = 4,
+    ) -> list[str]:
+        now = float(observed_at or time.time())
+        cutoff = now + max(0.0, float(lookahead_seconds))
+
+        with self._lock:
+            rows = [
+                row
+                for row in self.state.get("pending") or []
+                if isinstance(row, dict)
+                and _finite(row.get("due_at")) <= cutoff
+                and now - _finite(row.get("due_at"))
+                    <= self.MAX_RESOLUTION_DELAY_SECONDS
+            ]
+
+        rows.sort(key=lambda row: _finite(row.get("due_at")))
+
+        symbols: list[str] = []
+        for row in rows:
+            symbol = str(row.get("symbol") or "").upper()
+            if symbol and symbol not in symbols:
+                symbols.append(symbol)
+                if len(symbols) >= max(1, int(limit)):
+                    break
+        return symbols
+
     def resolve(
         self,
         *,
@@ -202,6 +234,19 @@ class MicroCalibrationJournal:
                 outcome = {
                     **row,
                     "resolved_at": now,
+                    "target_due_at": _finite(row.get("due_at")),
+                    "actual_observed_at": now,
+                    "resolution_delay_seconds": max(
+                        0.0, now - _finite(row.get("due_at"))
+                    ),
+                    "timing_valid": (
+                        max(0.0, now - _finite(row.get("due_at")))
+                        <= self.MAX_RESOLUTION_DELAY_SECONDS
+                    ),
+                    "timing_censored": (
+                        max(0.0, now - _finite(row.get("due_at")))
+                        > self.MAX_RESOLUTION_DELAY_SECONDS
+                    ),
                     "exit_midpoint": exit_mid,
                     "raw_return_bps": raw_return_bps,
                     "directional_return_bps": directional_bps,
@@ -272,12 +317,16 @@ class MicroCalibrationJournal:
                 for row in self.state.get("resolved") or []
                 if isinstance(row, dict)
             ]
+            timing_valid = [
+                row for row in resolved
+                if row.get("timing_valid") is True
+            ]
 
         by_horizon: dict[str, dict[str, Any]] = {}
         for horizon in (5, 15, 30, 60):
             rows = [
                 row
-                for row in resolved
+                for row in timing_valid
                 if int(row.get("horizon_seconds") or 0) == horizon
             ]
             by_horizon[str(horizon)] = self._metrics(rows)
@@ -286,7 +335,14 @@ class MicroCalibrationJournal:
             "version": self.VERSION,
             "pending_labels": len(pending),
             "resolved_labels": len(resolved),
-            "metrics": self._metrics(resolved),
+            "metrics": self._metrics(timing_valid),
+            "timing_valid_labels": len(timing_valid),
+            "timing_censored_labels": (
+                len(resolved) - len(timing_valid)
+            ),
+            "maximum_resolution_delay_seconds": (
+                self.MAX_RESOLUTION_DELAY_SECONDS
+            ),
             "by_horizon": by_horizon,
             "minimum_evidence_before_calibration": 100,
             "labels_are_not_trades": True,
