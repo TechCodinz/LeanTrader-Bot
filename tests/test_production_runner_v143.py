@@ -267,3 +267,67 @@ def test_v152_startup_heartbeat_rejects_required_engine_failure(
 
     assert status["healthy"] is False
     assert "market_data" in status["errors"][0]
+
+def test_v153_runtime_health_refresh_does_not_rewrite_market_heartbeat(
+    tmp_path,
+):
+    runner = object.__new__(PaperRunner)
+    runner.settings = _settings(tmp_path)
+
+    service = DummySwarmService()
+    service.start()
+    service.health = lambda *, equity: {
+        "running": True,
+        "healthy": True,
+        "stale": False,
+        "cycles": 1,
+        "consecutive_failures": 0,
+        "equity_seen": equity,
+    }
+
+    runner.fast_swarm_service = service
+    runner.testnet = None
+    runner._full_market_cycle_completed = True
+
+    runner.ledger = SimpleNamespace(
+        cash=40.0,
+        positions={
+            "AAA/USDT": SimpleNamespace(
+                quantity=2.0,
+                entry_price=5.0,
+            )
+        },
+    )
+
+    runner.engines = SimpleNamespace(
+        snapshot=lambda: {
+            "paper_ledger": {
+                "required": True,
+                "healthy": True,
+                "state": "running",
+            },
+            "market_data": {
+                "required": True,
+                "healthy": True,
+                "state": "running",
+            },
+        }
+    )
+
+    writes = []
+    runner._write_json_atomic = (
+        lambda path, payload: writes.append(
+            (Path(path), dict(payload))
+        )
+    )
+
+    status = runner._refresh_runtime_health_state()
+
+    assert status["healthy"] is True
+    assert status["full_market_cycle_complete"] is True
+    assert status["market_swarm"]["healthy"] is True
+
+    # Runtime liveness is separate from canonical market evidence.
+    assert len(writes) == 1
+    assert writes[0][0].name == "vps_health_state.json"
+    assert writes[0][0] != runner.settings.heartbeat_path

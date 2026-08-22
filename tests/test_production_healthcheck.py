@@ -44,3 +44,47 @@ def test_healthcheck_rejects_fresh_stale_release_heartbeat(tmp_path, monkeypatch
     out = capsys.readouterr().out
     assert "heartbeat runtime mismatch" in out
     assert "verified-multi-engine-v11-exchange-protection" in out
+
+def test_healthcheck_prefers_fresh_runtime_health_state_over_stale_cycle(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    heartbeat = tmp_path / "vps_heartbeat.json"
+    health_state = tmp_path / "vps_health_state.json"
+
+    _write_heartbeat(
+        heartbeat,
+        timestamp=time.time() - 1_000,
+    )
+
+    _write_heartbeat(
+        health_state,
+        market_swarm={
+            "required": True,
+            "running": True,
+            "healthy": True,
+            "stale": False,
+            "consecutive_failures": 0,
+        },
+    )
+
+    monkeypatch.setenv(
+        "HEARTBEAT_PATH",
+        str(heartbeat),
+    )
+    monkeypatch.setenv(
+        "EXPECTED_RUNTIME_ID",
+        "verified-multi-engine-v12.11-continuous-evolution-fabric",
+    )
+    monkeypatch.setenv(
+        "HEARTBEAT_MAX_AGE",
+        "180",
+    )
+
+    healthcheck.main()
+
+    assert (
+        "healthy: paper heartbeat"
+        in capsys.readouterr().out
+    )

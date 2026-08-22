@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import signal
+import threading
 import time
 from typing import Any
 
@@ -47,6 +48,9 @@ class PaperRunner(_V142PaperRunner):
             "episodes_recorded": 0,
             "qualification_refresh": "not_started",
         }
+        self._full_market_cycle_completed = False
+        self._health_refresh_stop = threading.Event()
+        self._health_refresh_thread: threading.Thread | None = None
 
     def _swarm_round_trip_cost_bps(self) -> float:
         return max(30.0, 2.0 * (self.settings.fee_bps + self.settings.slippage_bps))
@@ -272,6 +276,133 @@ class PaperRunner(_V142PaperRunner):
             payload,
         )
 
+    def _refresh_runtime_health_state(self) -> dict[str, Any]:
+        """Refresh Docker/runtime liveness without rewriting market evidence."""
+
+        now = time.time()
+        service = self.fast_swarm_service
+
+        equity = float(self.ledger.cash)
+        for position in self.ledger.positions.values():
+            equity += (
+                float(position.quantity)
+                * float(position.entry_price)
+            )
+
+        swarm_health = (
+            service.health(equity=equity)
+            if service is not None
+            else self._inactive_swarm_status()
+        )
+
+        swarm_ok = bool(
+            service is not None
+            and swarm_health.get("running") is True
+            and swarm_health.get("healthy") is True
+            and swarm_health.get("stale") is not True
+        )
+
+        engines = self.engines.snapshot()
+
+        required_failures = [
+            name
+            for name, row in engines.items()
+            if isinstance(row, dict)
+            and row.get("required") is True
+            and row.get("healthy") is not True
+        ]
+
+        failures = list(required_failures)
+        if not swarm_ok:
+            failures.append("market_swarm")
+
+        healthy = not failures
+
+        status = {
+            "timestamp": now,
+            "runtime": (
+                "verified-multi-engine-v12.11-"
+                "continuous-evolution-fabric"
+            ),
+            "healthy": healthy,
+            "errors": (
+                []
+                if healthy
+                else [
+                    "runtime_health_failure:"
+                    + ",".join(failures)
+                ]
+            ),
+            "testnet_execution": {
+                "enabled": self.testnet is not None,
+                "live_authority": False,
+            },
+            "startup_heartbeat": False,
+            "full_market_cycle_complete": (
+                self._full_market_cycle_completed
+            ),
+            "market_swarm": {
+                **swarm_health,
+                "required": True,
+                "automatic_promotion": False,
+                "execution_authority": False,
+                "testnet_authority": False,
+                "live_authority": False,
+            },
+        }
+
+        # Deliberately writes only vps_health_state.json.
+        self._write_health_state(status)
+        return status
+
+    def _run_health_state_refresher(self) -> None:
+        interval_seconds = 60.0
+
+        while not self._health_refresh_stop.wait(
+            interval_seconds
+        ):
+            try:
+                self._refresh_runtime_health_state()
+            except Exception as exc:
+                LOGGER.warning(
+                    "runtime health-state refresh failed: %s",
+                    exc,
+                )
+
+    def _start_health_state_refresher(self) -> None:
+        thread = self._health_refresh_thread
+        if thread is not None and thread.is_alive():
+            return
+
+        self._health_refresh_stop.clear()
+        self._health_refresh_thread = threading.Thread(
+            target=self._run_health_state_refresher,
+            name="leantrader-runtime-health-refresh",
+            daemon=True,
+        )
+        self._health_refresh_thread.start()
+
+    def _stop_health_state_refresher(self) -> None:
+        # Idempotent shutdown also supports one-shot/test runners that
+        # intentionally bypass __init__ and never start the refresher.
+        stop_event = getattr(
+            self,
+            "_health_refresh_stop",
+            None,
+        )
+        if stop_event is None:
+            return
+
+        stop_event.set()
+
+        thread = getattr(
+            self,
+            "_health_refresh_thread",
+            None,
+        )
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=5.0)
+
     def _write_startup_heartbeat(self) -> dict[str, Any]:
         """Publish initialized paper-runtime health before the long first cycle."""
 
@@ -406,6 +537,7 @@ class PaperRunner(_V142PaperRunner):
 
     def cycle(self) -> dict[str, Any]:
         status = super().cycle()
+        self._full_market_cycle_completed = True
         status["startup_heartbeat"] = False
         status["full_market_cycle_complete"] = True
         swarm_evidence = self._ingest_swarm_outcomes() if self.fast_swarm_service is not None else {
@@ -466,10 +598,13 @@ class PaperRunner(_V142PaperRunner):
         if not once:
             self.start_fast_swarm()
             self._write_startup_heartbeat()
+            self._start_health_state_refresher()
 
         try:
             super().run(once=once)
         finally:
+            if not once:
+                self._stop_health_state_refresher()
             self.stop_fast_swarm()
 
 
