@@ -221,3 +221,111 @@ def test_generalized_calibration_journal_enforces_owned_horizons(tmp_path):
     health = slow.health()
     assert health["accepted_horizons_seconds"] == [120, 300, 900]
     assert health["pending_labels"] == 1
+
+def test_v150_temporal_history_warms_before_qualification():
+    engine = UltraMicrostructureSniper(
+        minimum_confidence=0.0,
+        minimum_depth_usd=1.0,
+    )
+
+    for index in range(2):
+        features = engine.extract(
+            symbol="FAST/USDT",
+            order_book=book(6000.0 + index * 500, 20.0),
+            trades=[{
+                "timestamp": (1000.0 + index * 5.0) * 1000,
+                "price": 100.02,
+                "amount": 200,
+                "side": "buy",
+            }],
+            candles=candles(),
+            now=1000.0 + index * 5.0,
+        )
+
+        rows = engine.assess(
+            features,
+            modeled_round_trip_cost_bps=30.0,
+        )
+
+        assert all(
+            row.reason == "micro_temporal_history_warming"
+            for row in rows
+        )
+
+    assert features.temporal_samples == 2
+
+
+def test_v150_temporal_features_measure_change():
+    engine = UltraMicrostructureSniper(
+        minimum_confidence=0.0,
+        minimum_depth_usd=1.0,
+    )
+
+    engine.extract(
+        symbol="MOVE/USDT",
+        order_book=book(1000.0, 1000.0),
+        trades=[{
+            "timestamp": 1000.0 * 1000,
+            "price": 100.02,
+            "amount": 20,
+            "side": "sell",
+        }],
+        candles=candles(),
+        now=1000.0,
+    )
+
+    second = engine.extract(
+        symbol="MOVE/USDT",
+        order_book=book(7000.0, 100.0),
+        trades=[{
+            "timestamp": 1005.0 * 1000,
+            "price": 100.02,
+            "amount": 300,
+            "side": "buy",
+        }],
+        candles=candles(),
+        now=1005.0,
+    )
+
+    assert second.temporal_samples == 2
+    assert second.depth_imbalance_velocity > 0
+    assert second.trade_imbalance_velocity > 0
+
+
+def test_v150_preserves_cost_floor_and_execution_safety():
+    engine = UltraMicrostructureSniper(
+        minimum_confidence=0.0,
+        minimum_depth_usd=1.0,
+    )
+
+    features = None
+
+    for index in range(4):
+        features = engine.extract(
+            symbol="RARE/USDT",
+            order_book=book(
+                3000.0 + index * 2500.0,
+                max(10.0, 700.0 - index * 200.0),
+            ),
+            trades=[{
+                "timestamp": (1000.0 + index * 5.0) * 1000,
+                "price": 100.02,
+                "amount": 100 + index * 150,
+                "side": "buy",
+            }],
+            candles=candles(),
+            now=1000.0 + index * 5.0,
+        )
+
+    rows = engine.assess(
+        features,
+        modeled_round_trip_cost_bps=1.0,
+    )
+
+    assert all(
+        row.modeled_round_trip_cost_bps >= 30.0
+        for row in rows
+    )
+    assert all(not row.execution_authority for row in rows)
+    assert all(not row.testnet_authority for row in rows)
+    assert all(not row.live_authority for row in rows)

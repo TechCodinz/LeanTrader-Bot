@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict, deque
 from dataclasses import asdict, dataclass
 import math
 import time
@@ -42,6 +43,12 @@ class MicrostructureFeatures:
     cross_venue_basis_bps: float
     cross_venue_pressure: float
     liquidity_vacuum_score: float
+    depth_imbalance_velocity: float
+    microprice_velocity_bps_per_second: float
+    spread_velocity_bps_per_second: float
+    trade_imbalance_velocity: float
+    pressure_persistence: float
+    temporal_samples: int
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -74,7 +81,7 @@ class MicroPathAssessment:
 
 
 class UltraMicrostructureSniper:
-    VERSION = "1.45.0"
+    VERSION = "1.50.0"
     HORIZONS = (5, 15, 30, 60)
 
     def __init__(
@@ -97,6 +104,9 @@ class UltraMicrostructureSniper:
         self.qualified = 0
         self.rejected = 0
         self.rejection_reasons: dict[str, int] = {}
+        self._history: dict[str, deque[dict[str, float]]] = defaultdict(
+            lambda: deque(maxlen=12)
+        )
 
     @staticmethod
     def _depth(rows: Any, midpoint: float, levels: int = 10) -> float:
@@ -150,6 +160,98 @@ class UltraMicrostructureSniper:
             float(recent.abs().quantile(0.90)),
         )
 
+    def _temporal_features(
+        self,
+        *,
+        symbol: str,
+        timestamp: float,
+        midpoint: float,
+        spread_bps: float,
+        depth_imbalance: float,
+        microprice_shift_bps: float,
+        trade_imbalance: float,
+    ) -> tuple[float, float, float, float, float, int]:
+        history = self._history[str(symbol).upper()]
+
+        depth_velocity = 0.0
+        micro_velocity = 0.0
+        spread_velocity = 0.0
+        trade_velocity = 0.0
+
+        if history:
+            previous = history[-1]
+            dt = max(
+                0.25,
+                timestamp - float(previous["timestamp"]),
+            )
+
+            depth_velocity = (
+                depth_imbalance
+                - float(previous["depth_imbalance"])
+            ) / dt
+
+            micro_velocity = (
+                microprice_shift_bps
+                - float(previous["microprice_shift_bps"])
+            ) / dt
+
+            spread_velocity = (
+                spread_bps
+                - float(previous["spread_bps"])
+            ) / dt
+
+            trade_velocity = (
+                trade_imbalance
+                - float(previous["trade_imbalance"])
+            ) / dt
+
+        current_pressure = _signed(
+            0.45 * depth_imbalance
+            + 0.35 * trade_imbalance
+            + 0.20 * _signed(microprice_shift_bps / 8.0)
+        )
+
+        recent_pressures = [
+            float(row["pressure"])
+            for row in list(history)[-5:]
+        ]
+
+        if recent_pressures:
+            same_sign = [
+                1.0
+                if value * current_pressure > 0
+                else 0.0
+                for value in recent_pressures
+                if abs(value) > 1e-9
+            ]
+            persistence = (
+                sum(same_sign) / len(same_sign)
+                if same_sign else 0.0
+            )
+        else:
+            persistence = 0.0
+
+        history.append(
+            {
+                "timestamp": timestamp,
+                "midpoint": midpoint,
+                "spread_bps": spread_bps,
+                "depth_imbalance": depth_imbalance,
+                "microprice_shift_bps": microprice_shift_bps,
+                "trade_imbalance": trade_imbalance,
+                "pressure": current_pressure,
+            }
+        )
+
+        return (
+            depth_velocity,
+            micro_velocity,
+            spread_velocity,
+            trade_velocity,
+            persistence,
+            len(history),
+        )
+
     def extract(
         self,
         *,
@@ -201,8 +303,32 @@ class UltraMicrostructureSniper:
                     rt = rbd + rad
                     reference_pressure = 0.0 if rt <= 0 else (rbd - rad) / rt
 
-        depth_quality = min(1.0, total_depth / max(1.0, self.minimum_depth_usd * 4.0))
-        vacuum = _unit((1.0 - depth_quality) * (0.5 + 0.5 * abs(depth_imbalance)))
+        depth_quality = min(
+            1.0,
+            total_depth
+            / max(1.0, self.minimum_depth_usd * 4.0),
+        )
+        vacuum = _unit(
+            (1.0 - depth_quality)
+            * (0.5 + 0.5 * abs(depth_imbalance))
+        )
+
+        (
+            depth_velocity,
+            micro_velocity,
+            spread_velocity,
+            trade_velocity,
+            persistence,
+            temporal_samples,
+        ) = self._temporal_features(
+            symbol=str(symbol).upper(),
+            timestamp=now,
+            midpoint=midpoint,
+            spread_bps=spread,
+            depth_imbalance=depth_imbalance,
+            microprice_shift_bps=micro_shift,
+            trade_imbalance=trade_imbalance,
+        )
 
         return MicrostructureFeatures(
             symbol=str(symbol).upper(),
@@ -221,6 +347,12 @@ class UltraMicrostructureSniper:
             cross_venue_basis_bps=basis,
             cross_venue_pressure=_signed(reference_pressure),
             liquidity_vacuum_score=vacuum,
+            depth_imbalance_velocity=depth_velocity,
+            microprice_velocity_bps_per_second=micro_velocity,
+            spread_velocity_bps_per_second=spread_velocity,
+            trade_imbalance_velocity=trade_velocity,
+            pressure_persistence=persistence,
+            temporal_samples=temporal_samples,
         )
 
     @staticmethod
@@ -236,27 +368,147 @@ class UltraMicrostructureSniper:
         micro = _signed(features.microprice_shift_bps / 8.0)
         basis = _signed(features.cross_venue_basis_bps / 20.0)
 
-        pressure = _signed(
-            0.34 * features.depth_imbalance
-            + 0.28 * features.trade_imbalance
-            + 0.14 * micro
-            + 0.12 * momentum
-            + 0.08 * features.cross_venue_pressure
+        snapshot_pressure = _signed(
+            0.30 * features.depth_imbalance
+            + 0.24 * features.trade_imbalance
+            + 0.12 * micro
+            + 0.10 * momentum
+            + 0.14 * features.cross_venue_pressure
             - 0.04 * basis
+        )
+
+        temporal_pressure = _signed(
+            0.30 * _signed(
+                features.depth_imbalance_velocity / 0.08
+            )
+            + 0.30 * _signed(
+                features.microprice_velocity_bps_per_second / 0.75
+            )
+            + 0.24 * _signed(
+                features.trade_imbalance_velocity / 0.08
+            )
+            - 0.16 * _signed(
+                features.spread_velocity_bps_per_second / 0.50
+            )
+        )
+
+        temporal_ready = features.temporal_samples >= 3
+
+        persistence_multiplier = (
+            0.50 + 0.50 * features.pressure_persistence
+        )
+
+        pressure = _signed(
+            (
+                0.58 * snapshot_pressure
+                + 0.42 * temporal_pressure
+            )
+            * persistence_multiplier
+        )
+
+        dynamics = _unit(
+            0.25 * min(
+                1.0,
+                abs(features.depth_imbalance_velocity) / 0.08,
+            )
+            + 0.25 * min(
+                1.0,
+                abs(
+                    features.microprice_velocity_bps_per_second
+                ) / 0.75,
+            )
+            + 0.20 * min(
+                1.0,
+                abs(features.trade_imbalance_velocity) / 0.08,
+            )
+            + 0.15 * features.pressure_persistence
+            + 0.15 * features.liquidity_vacuum_score
         )
 
         rows = []
         for horizon in self.HORIZONS:
             scale = math.sqrt(horizon / 60.0)
-            path_budget = min(q90, max(abs(features.microprice_shift_bps) * 2.0, vol * scale, q90 * scale))
             strength = abs(pressure)
-            favorable = max(0.50, min(0.95, self._logistic(3.0 * strength * math.sqrt(horizon / 15.0))))
-            confidence = _unit((favorable - 0.50) * 2.0)
-            expected_edge = path_budget * strength * confidence
+
+            velocity_budget = (
+                abs(
+                    features.microprice_velocity_bps_per_second
+                )
+                * horizon
+                * 0.35
+            )
+
+            volatility_budget = max(
+                vol * scale,
+                q90 * scale,
+            )
+
+            burst_multiplier = (
+                1.0 + 2.5 * dynamics
+            )
+
+            predicted_magnitude_bps = max(
+                abs(features.microprice_shift_bps) * 2.0,
+                velocity_budget,
+                volatility_budget * burst_multiplier,
+            )
+
+            # Bound pathological extrapolation while allowing genuinely
+            # exceptional microstructure episodes to stand out.
+            path_budget = min(
+                predicted_magnitude_bps,
+                max(
+                    10.0,
+                    q90 * 8.0,
+                    vol * 8.0,
+                ),
+            )
+
+            favorable = max(
+                0.50,
+                min(
+                    0.95,
+                    self._logistic(
+                        3.2
+                        * strength
+                        * (0.65 + 0.70 * dynamics)
+                        * math.sqrt(horizon / 15.0)
+                    ),
+                ),
+            )
+
+            confidence = _unit(
+                (favorable - 0.50)
+                * 2.0
+                * (
+                    0.60
+                    + 0.40
+                    * features.pressure_persistence
+                )
+            )
+
+            expected_edge = (
+                path_budget
+                * strength
+                * confidence
+                * (0.50 + 0.50 * dynamics)
+            )
             direction = "long" if pressure > 0 else ("short" if pressure < 0 else "flat")
 
-            specialist = "orderflow_pressure"
-            if features.liquidity_vacuum_score >= 0.65 and strength >= 0.35:
+            specialist = "temporal_orderflow"
+            if (
+                temporal_ready
+                and dynamics >= 0.72
+                and features.pressure_persistence >= 0.60
+            ):
+                specialist = "micro_sweep_continuation"
+            elif (
+                temporal_ready
+                and dynamics >= 0.62
+                and snapshot_pressure * temporal_pressure < -0.15
+            ):
+                specialist = "micro_exhaustion_reversal"
+            elif features.liquidity_vacuum_score >= 0.65 and strength >= 0.35:
                 specialist = "liquidity_vacuum_sniper"
             elif features.trade_intensity_per_second >= 1.5 and strength >= 0.45:
                 specialist = "micro_burst_hunter"
@@ -267,16 +519,40 @@ class UltraMicrostructureSniper:
 
             regime = "micro_trend" if momentum * pressure > 0.10 else "micro_reversal" if momentum * pressure < -0.10 else "micro_balanced"
 
+            rare_event_score = _unit(
+                0.45 * dynamics
+                + 0.30 * strength
+                + 0.25 * features.pressure_persistence
+            )
+
             qualified = True
             reason = "qualified"
-            if direction == "flat":
+            if not temporal_ready:
+                qualified, reason = (
+                    False,
+                    "micro_temporal_history_warming",
+                )
+            elif direction == "flat":
                 qualified, reason = False, "flat_micro_pressure"
             elif features.spread_bps > self.maximum_spread_bps:
                 qualified, reason = False, "spread_too_wide"
             elif features.bid_depth_usd + features.ask_depth_usd < self.minimum_depth_usd:
                 qualified, reason = False, "insufficient_depth"
+            elif rare_event_score < 0.58:
+                qualified, reason = (
+                    False,
+                    "micro_not_rare_enough",
+                )
             elif confidence < self.minimum_confidence:
-                qualified, reason = False, "micro_confidence_below_threshold"
+                qualified, reason = (
+                    False,
+                    "micro_confidence_below_threshold",
+                )
+            elif path_budget <= cost + self.minimum_edge_buffer_bps:
+                qualified, reason = (
+                    False,
+                    "micro_predicted_magnitude_below_cost",
+                )
             elif expected_edge <= cost + self.minimum_edge_buffer_bps:
                 qualified, reason = False, "micro_edge_does_not_clear_cost_buffer"
 
