@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import copy
+import hashlib
+import json
 import math
 from pathlib import Path
 from typing import Any
@@ -38,14 +41,34 @@ class UnifiedDecisionControlPlane(_V141UnifiedDecisionControlPlane):
             embargo_seconds=1.0,
         )
         self._last_measured_validation: dict[str, Any] | None = None
+        self._last_measurement_cache_key: str | None = None
+        self._measurement_count = 0
 
     def start(self) -> None:
         super().start()
         self.evidence_qualification.start()
+        self._last_measured_validation = None
+        self._last_measurement_cache_key = None
 
     def stop(self) -> None:
         self.evidence_qualification.stop()
         super().stop()
+
+    def _measurement_cache_key(self, supplied: dict[str, Any]) -> str:
+        stat = self._prospective_state_path.stat()
+        payload = {
+            "prospective_mtime_ns": int(stat.st_mtime_ns),
+            "prospective_size": int(stat.st_size),
+            "base_validation": supplied,
+        }
+        encoded = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            default=str,
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
 
     def _measured_validation(self, supplied: dict[str, Any]) -> dict[str, Any]:
         # Unit callers may supply an already-qualified contract without a
@@ -53,7 +76,16 @@ class UnifiedDecisionControlPlane(_V141UnifiedDecisionControlPlane):
         # state file; when it exists, measured evidence is authoritative.
         if not self._prospective_state_path.exists():
             self._last_measured_validation = None
+            self._last_measurement_cache_key = None
             return supplied
+
+        cache_key = self._measurement_cache_key(supplied)
+        if (
+            cache_key == self._last_measurement_cache_key
+            and isinstance(self._last_measured_validation, dict)
+        ):
+            return copy.deepcopy(self._last_measured_validation)
+
         measured = self.evidence_qualification.qualify_from_disk(
             base_validation=supplied
         )
@@ -67,8 +99,10 @@ class UnifiedDecisionControlPlane(_V141UnifiedDecisionControlPlane):
             deflated = -1.0
         if not math.isfinite(deflated):
             measured["deflated_performance_statistic"] = -1.0
-        self._last_measured_validation = measured
-        return measured
+        self._last_measured_validation = copy.deepcopy(measured)
+        self._last_measurement_cache_key = cache_key
+        self._measurement_count += 1
+        return copy.deepcopy(measured)
 
     def evaluate(
         self,
@@ -122,7 +156,9 @@ class UnifiedDecisionControlPlane(_V141UnifiedDecisionControlPlane):
                 "v1_42_evidence_qualification": True,
                 "evidence_qualification": self.evidence_qualification.health(),
                 "measured_validation_applied": self._last_measured_validation is not None,
-                "measured_validation": self._last_measured_validation,
+                "measured_validation": copy.deepcopy(self._last_measured_validation),
+                "measurement_count": self._measurement_count,
+                "validation_cache_reuse": True,
                 "automatic_promotion": False,
                 "paper_promotion_authority": False,
                 "testnet_authority": False,
