@@ -457,3 +457,64 @@ def test_v152_observe_snapshot_warms_and_resets_stale_history():
         sniper.health()["temporal_history_max_age_seconds"]
         == 90.0
     )
+
+def test_v153_book_only_stream_does_not_fabricate_trade_velocity():
+    from leantrader.agents.microstructure_sniper import (
+        UltraMicrostructureSniper,
+    )
+
+    sniper = UltraMicrostructureSniper()
+
+    book = {
+        "bids": [[99.9, 200.0]],
+        "asks": [[100.1, 200.0]],
+    }
+
+    buy = [{
+        "timestamp": 1000,
+        "price": 100.0,
+        "amount": 1.0,
+        "side": "buy",
+    }]
+
+    sell = [{
+        "timestamp": 3000,
+        "price": 100.0,
+        "amount": 1.0,
+        "side": "sell",
+    }]
+
+    first = sniper.observe_snapshot(
+        symbol="BTC/USDT",
+        order_book=book,
+        trades=buy,
+        now=1.0,
+    )
+
+    book_only = sniper.observe_snapshot(
+        symbol="BTC/USDT",
+        order_book=book,
+        trades=None,
+        now=1.5,
+    )
+
+    third = sniper.observe_snapshot(
+        symbol="BTC/USDT",
+        order_book=book,
+        trades=sell,
+        now=3.0,
+    )
+
+    assert first["trade_context_observed"] is True
+    assert book_only["trade_context_observed"] is False
+
+    # The book-only sample carries the genuine trade state and
+    # therefore cannot manufacture a zero-to-nonzero velocity.
+    assert book_only["trade_imbalance"] == first["trade_imbalance"]
+    assert book_only["trade_imbalance_velocity"] == 0.0
+
+    # Genuine trade velocity spans the two genuine trade observations:
+    # +1 at t=1 to -1 at t=3 => -2 / 2s == -1.
+    assert abs(
+        third["trade_imbalance_velocity"] + 1.0
+    ) < 1e-9

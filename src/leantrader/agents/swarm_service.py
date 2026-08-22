@@ -24,7 +24,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.52.0"
+    VERSION = "1.53.0"
     ROLE_BY_TIMEFRAME = {
         "1m": AgentRole.SCALP,
         "5m": AgentRole.MOMENTUM,
@@ -106,6 +106,8 @@ class ReadOnlySwarmService:
         self.microstream_sample_attempts = 0
         self.microstream_sample_failures = 0
         self.microstream_trade_context_failures = 0
+        self.microstream_warmup_labels_skipped = 0
+        self.microstream_last_loop_seconds = 0.0
         self.microstream_labels_resolved = 0
         self.microstream_observations = 0
         self.microstream_last_observation_at = 0.0
@@ -248,6 +250,16 @@ class ReadOnlySwarmService:
                     mandatory.append(dict(row))
                 else:
                     mandatory.append({"symbol": symbol, "_risk_only": True})
+        with self._lock:
+            sticky_micro_symbols = list(
+                self._microstream_symbols
+            )
+
+        for symbol in sticky_micro_symbols:
+            row = self._candidate_map.get(symbol)
+            if row is not None:
+                mandatory.append(dict(row))
+
         dedup: dict[str, dict[str, Any]] = {}
         for row in mandatory + selected:
             symbol = str(row.get("symbol") or "").upper()
@@ -479,20 +491,55 @@ class ReadOnlySwarmService:
         # cost-aware qualification before any shadow proposal is allowed.
         profile_map = profiles or {}
 
+        with self._lock:
+            sticky_micro_symbols = set(
+                self._microstream_symbols
+            )
+
         candidates = [
             row for row in ranked
             if isinstance(row, dict)
             and str(row.get("symbol") or "").strip()
         ]
 
-        def micro_priority(row: dict[str, Any]) -> tuple[float, float, float, float]:
-            symbol = str(row.get("symbol") or "").upper()
+        def micro_priority(
+            row: dict[str, Any],
+        ) -> tuple[
+            float,
+            float,
+            float,
+            float,
+            float,
+        ]:
+            symbol = str(
+                row.get("symbol") or ""
+            ).upper()
             profile = profile_map.get(symbol) or {}
-            fill = float(profile.get("fill_probability") or 0.0)
-            liquidity = float(profile.get("liquidity_score") or 0.0)
-            spread = float(profile.get("spread_bps") or 1_000_000.0)
-            movement_score = float(row.get("score") or 0.0)
+
+            sticky = (
+                1.0
+                if symbol in sticky_micro_symbols
+                else 0.0
+            )
+
+            fill = float(
+                profile.get("fill_probability")
+                or 0.0
+            )
+            liquidity = float(
+                profile.get("liquidity_score")
+                or 0.0
+            )
+            spread = float(
+                profile.get("spread_bps")
+                or 1_000_000.0
+            )
+            movement_score = float(
+                row.get("score") or 0.0
+            )
+
             return (
+                sticky,
                 fill,
                 liquidity,
                 -spread,
@@ -578,19 +625,33 @@ class ReadOnlySwarmService:
                     >= self.microstructure_sniper.minimum_depth_usd
                 )
 
-                if structurally_eligible:
-                    active_microstream_symbols.append(symbol)
+                temporal_ready_for_label = bool(
+                    features.temporal_samples >= 3
+                )
 
-                    if self.micro_calibration_journal is not None:
-                        self.micro_calibration_journal.register(
-                            symbol=symbol,
-                            midpoint=features.midpoint,
-                            assessments=[
-                                row.as_dict()
-                                for row in assessments
-                            ],
-                            observed_at=features.timestamp,
-                        )
+                if structurally_eligible:
+                    active_microstream_symbols.append(
+                        symbol
+                    )
+
+                    if (
+                        self.micro_calibration_journal
+                        is not None
+                    ):
+                        if temporal_ready_for_label:
+                            self.micro_calibration_journal.register(
+                                symbol=symbol,
+                                midpoint=features.midpoint,
+                                assessments=[
+                                    row.as_dict()
+                                    for row in assessments
+                                ],
+                                observed_at=features.timestamp,
+                            )
+                        else:
+                            self.microstream_warmup_labels_skipped += (
+                                len(assessments)
+                            )
 
                 output[symbol] = {
                     "features": features.as_dict(),
@@ -600,6 +661,9 @@ class ReadOnlySwarmService:
                     ],
                     "foundry_proposals": proposed,
                     "microstream_tracked": structurally_eligible,
+                    "temporal_ready_for_prospective_label": (
+                        temporal_ready_for_label
+                    ),
                     "automatic_promotion": False,
                     "execution_authority": False,
                     "testnet_authority": False,
@@ -1050,7 +1114,7 @@ class ReadOnlySwarmService:
     def _run_microstream(self) -> None:
         """Continuously sample bounded micro markets with no trade authority."""
 
-        cadence_seconds = 1.0
+        cadence_seconds = 0.5
 
         while not self._stop.is_set():
             started = time.monotonic()
@@ -1103,45 +1167,11 @@ class ReadOnlySwarmService:
                     self.microstream_sample_attempts += 1
 
                     try:
-                        # Trade flow enriches the temporal observation but is
-                        # deliberately optional. A trade endpoint failure must
-                        # never prevent a due midpoint label from resolving.
-                        trades = []
-
-                        try:
-                            if hasattr(
-                                self.microstream_feed,
-                                "public_trades",
-                            ):
-                                trades = (
-                                    self.microstream_feed.public_trades(
-                                        symbol,
-                                        limit=40,
-                                    )
-                                )
-                            elif (
-                                hasattr(
-                                    self.microstream_feed,
-                                    "exchange",
-                                )
-                                and self.microstream_feed.exchange.has.get(
-                                    "fetchTrades",
-                                    False,
-                                )
-                            ):
-                                trades = [
-                                    dict(row)
-                                    for row in (
-                                        self.microstream_feed.exchange.fetch_trades(
-                                            symbol,
-                                            limit=40,
-                                        )
-                                        or []
-                                    )
-                                ]
-                        except Exception:
-                            self.microstream_trade_context_failures += 1
-                            trades = []
+                        # Precision lane deliberately uses only the
+                        # top/depth order book. Public-trade REST history
+                        # remains available to the slower full assessment,
+                        # but cannot delay 5-60 second midpoint resolution.
+                        trades = None
 
                         # Fetch the book last and timestamp it immediately.
                         # This timestamp is the authoritative future midpoint
@@ -1191,6 +1221,7 @@ class ReadOnlySwarmService:
                 self.microstream_sample_failures += 1
 
             elapsed = time.monotonic() - started
+            self.microstream_last_loop_seconds = elapsed
             self._stop.wait(
                 max(
                     0.0,
@@ -1338,7 +1369,16 @@ class ReadOnlySwarmService:
                         "microstream_last_observation_at": (
                             self.microstream_last_observation_at
                         ),
-                        "microstream_cadence_seconds": 1.0,
+                        "microstream_cadence_seconds": 0.5,
+                        "microstream_last_loop_seconds": (
+                            self.microstream_last_loop_seconds
+                        ),
+                        "microstream_warmup_labels_skipped": (
+                            self.microstream_warmup_labels_skipped
+                        ),
+                        "sticky_microstream_watchlist": True,
+                        "order_book_only_precision_lane": True,
+                        "trade_context_blocks_precision_lane": False,
                         "microstream_symbol_capacity": max(
                             1,
                             min(2, self.max_micro_symbols),

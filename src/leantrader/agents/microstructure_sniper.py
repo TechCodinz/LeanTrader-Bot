@@ -82,7 +82,7 @@ class MicroPathAssessment:
 
 
 class UltraMicrostructureSniper:
-    VERSION = "1.52.0"
+    VERSION = "1.53.0"
     HORIZONS = (5, 15, 30, 60)
 
     def __init__(
@@ -172,6 +172,7 @@ class UltraMicrostructureSniper:
         depth_imbalance: float,
         microprice_shift_bps: float,
         trade_imbalance: float,
+        trade_observed: bool = True,
     ) -> tuple[float, float, float, float, float, int]:
         key = str(symbol).upper()
 
@@ -213,15 +214,53 @@ class UltraMicrostructureSniper:
                     - float(previous["spread_bps"])
                 ) / dt
 
-                trade_velocity = (
-                    trade_imbalance
-                    - float(previous["trade_imbalance"])
-                ) / dt
+            effective_trade_imbalance = trade_imbalance
+
+            if not trade_observed and history:
+                effective_trade_imbalance = float(
+                    history[-1].get(
+                        "trade_imbalance",
+                        trade_imbalance,
+                    )
+                )
+
+            if trade_observed:
+                previous_trade = next(
+                    (
+                        row
+                        for row in reversed(history)
+                        if row.get(
+                            "trade_observed",
+                            True,
+                        ) is True
+                    ),
+                    None,
+                )
+
+                if previous_trade is not None:
+                    trade_dt = max(
+                        0.25,
+                        timestamp
+                        - float(
+                            previous_trade["timestamp"]
+                        ),
+                    )
+
+                    trade_velocity = (
+                        effective_trade_imbalance
+                        - float(
+                            previous_trade[
+                                "trade_imbalance"
+                            ]
+                        )
+                    ) / trade_dt
 
             current_pressure = _signed(
                 0.45 * depth_imbalance
-                + 0.35 * trade_imbalance
-                + 0.20 * _signed(microprice_shift_bps / 8.0)
+                + 0.35 * effective_trade_imbalance
+                + 0.20 * _signed(
+                    microprice_shift_bps / 8.0
+                )
             )
 
             recent_pressures = [
@@ -251,7 +290,10 @@ class UltraMicrostructureSniper:
                     "spread_bps": spread_bps,
                     "depth_imbalance": depth_imbalance,
                     "microprice_shift_bps": microprice_shift_bps,
-                    "trade_imbalance": trade_imbalance,
+                    "trade_imbalance": (
+                        effective_trade_imbalance
+                    ),
+                    "trade_observed": trade_observed,
                     "pressure": current_pressure,
                 }
             )
@@ -270,7 +312,7 @@ class UltraMicrostructureSniper:
         *,
         symbol: str,
         order_book: Mapping[str, Any],
-        trades: Iterable[Mapping[str, Any]] = (),
+        trades: Iterable[Mapping[str, Any]] | None = None,
         now: float | None = None,
     ) -> dict[str, Any]:
         """Update temporal microstructure state without creating a signal.
@@ -328,9 +370,34 @@ class UltraMicrostructureSniper:
             * 10_000.0
         )
 
-        trade_imbalance, intensity = (
-            self._trade_features(trades, now)
-        )
+        trade_observed = trades is not None
+
+        if trade_observed:
+            trade_imbalance, intensity = (
+                self._trade_features(
+                    trades or (),
+                    now,
+                )
+            )
+        else:
+            # The high-frequency book lane intentionally has no
+            # trade REST dependency. Carry the latest genuine trade
+            # state rather than fabricating a zero observation.
+            with self._history_lock:
+                history = self._history[
+                    str(symbol).upper()
+                ]
+                trade_imbalance = (
+                    float(
+                        history[-1].get(
+                            "trade_imbalance",
+                            0.0,
+                        )
+                    )
+                    if history
+                    else 0.0
+                )
+            intensity = 0.0
 
         (
             depth_velocity,
@@ -347,6 +414,7 @@ class UltraMicrostructureSniper:
             depth_imbalance=depth_imbalance,
             microprice_shift_bps=micro_shift,
             trade_imbalance=trade_imbalance,
+            trade_observed=trade_observed,
         )
 
         return {
@@ -365,6 +433,7 @@ class UltraMicrostructureSniper:
                 0.0,
                 intensity,
             ),
+            "trade_context_observed": trade_observed,
             "depth_imbalance_velocity": depth_velocity,
             "microprice_velocity_bps_per_second": (
                 micro_velocity

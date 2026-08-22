@@ -190,3 +190,88 @@ def test_v152_microstream_resolves_due_label_from_exact_book_sample(
     assert service.microstream_labels_resolved == 1
     assert service.microstream_observations == 1
     assert service.microstream_sample_failures == 0
+
+def test_v153_sticky_micro_symbols_survive_candidate_rotation():
+    feed = FakeReadOnlyFeed()
+    service = _service(feed, batch=1)
+
+    service._refresh_discovery(force=True)
+    service._cursor = 0
+    service._microstream_symbols = [
+        "CCC/USDT"
+    ]
+
+    rows = service._next_candidates()
+    symbols = {
+        str(row.get("symbol") or "").upper()
+        for row in rows
+    }
+
+    # AAA is the rotating batch member.
+    assert "AAA/USDT" in symbols
+
+    # CCC remains present because it is already being
+    # warmed by the dedicated microstream.
+    assert "CCC/USDT" in symbols
+
+
+def test_v153_precision_lane_never_calls_public_trades():
+    class PrecisionFeed:
+        def __init__(self):
+            self.service = None
+            self.book_calls = 0
+
+        def public_trades(
+            self,
+            symbol: str,
+            limit: int = 40,
+        ):
+            raise AssertionError(
+                "precision lane must not fetch trades"
+            )
+
+        def order_book(
+            self,
+            symbol: str,
+            limit: int = 10,
+        ):
+            self.book_calls += 1
+
+            if self.service is not None:
+                self.service._stop.set()
+
+            return {
+                "bids": [[99.9, 200.0]],
+                "asks": [[100.1, 200.0]],
+            }
+
+    base_feed = FakeReadOnlyFeed()
+    precision = PrecisionFeed()
+
+    service = ReadOnlySwarmService(
+        feed=base_feed,
+        runtime=FastSwarmRuntime(),
+        market_quote="USDT",
+        min_quote_volume_usd=250_000.0,
+        max_spread_bps=75.0,
+        cadence_seconds=1.0,
+        discovery_refresh_seconds=60.0,
+        microstream_feed=precision,
+    )
+
+    precision.service = service
+
+    service._microstream_symbols = [
+        "AAA/USDT"
+    ]
+
+    service._run_microstream()
+
+    assert precision.book_calls == 1
+    assert service.microstream_sample_attempts == 1
+    assert service.microstream_observations == 1
+    assert service.microstream_sample_failures == 0
+    assert (
+        service.microstream_trade_context_failures
+        == 0
+    )
