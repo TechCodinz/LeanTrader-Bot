@@ -797,7 +797,12 @@ class ReadOnlySwarmService:
         marks.update(micro_marks)
 
         micro_calibration_resolved = 0
-        if self.micro_calibration_journal is not None:
+        if (
+            self.micro_calibration_journal is not None
+            and self.micro_calibration_feed is None
+        ):
+            # Fallback only. When the dedicated 1-second sampler exists,
+            # the slower swarm loop must not consume horizon labels.
             micro_calibration_resolved = (
                 self.micro_calibration_journal.resolve(marks=marks)
             )
@@ -873,6 +878,11 @@ class ReadOnlySwarmService:
             started = time.monotonic()
             try:
                 now = time.time()
+
+                self.micro_calibration_journal.censor_expired(
+                    observed_at=now,
+                )
+
                 symbols = self.micro_calibration_journal.due_symbols(
                     observed_at=now,
                     lookahead_seconds=0.5,

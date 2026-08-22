@@ -21,7 +21,7 @@ def _finite(value: Any, default: float = 0.0) -> float:
 class MicroCalibrationJournal:
     """Prospective, non-executable labels for sub-minute assessments."""
 
-    VERSION = "1.47.1"
+    VERSION = "1.47.2"
     SCHEMA_VERSION = 1
     MAX_PENDING = 10_000
     MAX_RESOLVED = 50_000
@@ -182,6 +182,63 @@ class MicroCalibrationJournal:
                     break
         return symbols
 
+    def censor_expired(
+        self,
+        *,
+        observed_at: float | None = None,
+    ) -> int:
+        now = float(observed_at or time.time())
+        censored_count = 0
+
+        with self._lock:
+            remaining: list[dict[str, Any]] = []
+            resolved = list(self.state.get("resolved") or [])
+
+            for row in self.state.get("pending") or []:
+                if not isinstance(row, dict):
+                    continue
+
+                due_at = _finite(row.get("due_at"))
+                delay = now - due_at
+
+                if delay <= self.MAX_RESOLUTION_DELAY_SECONDS:
+                    remaining.append(row)
+                    continue
+
+                resolved.append(
+                    {
+                        **row,
+                        "resolved_at": now,
+                        "target_due_at": due_at,
+                        "actual_observed_at": None,
+                        "resolution_delay_seconds": max(0.0, delay),
+                        "timing_valid": False,
+                        "timing_censored": True,
+                        "censor_reason": "missed_resolution_window",
+                        "exit_midpoint": None,
+                        "raw_return_bps": None,
+                        "directional_return_bps": None,
+                        "net_after_modeled_cost_bps": None,
+                        "direction_correct": None,
+                        "cost_clearing": None,
+                        "prospective_label": True,
+                        "is_trade": False,
+                        "automatic_promotion": False,
+                        "execution_authority": False,
+                        "testnet_authority": False,
+                        "live_authority": False,
+                    }
+                )
+                censored_count += 1
+
+            self.state["pending"] = remaining[-self.MAX_PENDING :]
+            self.state["resolved"] = resolved[-self.MAX_RESOLVED :]
+
+            if censored_count:
+                self._save()
+
+        return censored_count
+
     def resolve(
         self,
         *,
@@ -321,6 +378,15 @@ class MicroCalibrationJournal:
                 row for row in resolved
                 if row.get("timing_valid") is True
             ]
+            timing_censored = [
+                row for row in resolved
+                if row.get("timing_censored") is True
+            ]
+            legacy_unclassified = [
+                row for row in resolved
+                if "timing_valid" not in row
+                and "timing_censored" not in row
+            ]
 
         by_horizon: dict[str, dict[str, Any]] = {}
         for horizon in (5, 15, 30, 60):
@@ -337,9 +403,8 @@ class MicroCalibrationJournal:
             "resolved_labels": len(resolved),
             "metrics": self._metrics(timing_valid),
             "timing_valid_labels": len(timing_valid),
-            "timing_censored_labels": (
-                len(resolved) - len(timing_valid)
-            ),
+            "timing_censored_labels": len(timing_censored),
+            "legacy_unclassified_labels": len(legacy_unclassified),
             "maximum_resolution_delay_seconds": (
                 self.MAX_RESOLUTION_DELAY_SECONDS
             ),
