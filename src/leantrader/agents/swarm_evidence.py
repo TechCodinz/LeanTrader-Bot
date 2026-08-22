@@ -98,6 +98,7 @@ def build_v142_swarm_manifests(
                 ],
                 "executable_code": None,
                 "parameter_mutation_authority": False,
+                "automatic_promotion": False,
                 "paper_promotion_authority": False,
                 "testnet_authority": False,
                 "live_authority": False,

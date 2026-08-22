@@ -11,11 +11,21 @@ from .runner_v142 import MarketFeed, PaperRunner as _V142PaperRunner, configure_
 from .settings import Settings
 from ..agents.capital_allocator import SwarmCapitalAllocator
 from ..agents.fast_path import FastSwarmRuntime
+from ..agents.microstructure_sniper import MicroAgentFoundry, UltraMicrostructureSniper
 from ..agents.shared_position_graph import PositionCoordinator
 from ..agents.swarm_evidence import SwarmOutcomeJournal, build_v142_swarm_manifests
 from ..agents.swarm_orchestrator import MarketSwarmOrchestrator
 from ..agents.swarm_service import ReadOnlySwarmService
 from ..agents.swarm_shadow_portfolio import SwarmShadowPortfolio
+
+
+class MicrostructureMarketFeed(MarketFeed):
+    def public_trades(self, symbol: str, limit: int = 80) -> list[dict[str, Any]]:
+        self._load_markets()
+        if not self.exchange.has.get("fetchTrades", False):
+            return []
+        rows = self.exchange.fetch_trades(symbol, limit=max(1, min(200, int(limit))))
+        return [dict(row) for row in rows or []]
 
 
 class PaperRunner(_V142PaperRunner):
@@ -65,6 +75,16 @@ class PaperRunner(_V142PaperRunner):
 
     def _build_fast_swarm_service(self) -> ReadOnlySwarmService:
         dedicated_feed = MarketFeed(self.settings.exchange)
+        reference_feed = None
+        if (
+            str(self.settings.exchange).lower() != "okx"
+            and hasattr(dedicated_feed, "order_book")
+            and hasattr(dedicated_feed, "exchange")
+        ):
+            try:
+                reference_feed = MarketFeed("okx")
+            except Exception:
+                reference_feed = None
         base = self.settings.strategy_observatory_state_path
         symbol_cap = max(0.01, min(0.20, float(self.settings.max_position_pct)))
         portfolio_cap = max(
@@ -113,6 +133,13 @@ class PaperRunner(_V142PaperRunner):
             shadow_portfolio=shadow_portfolio,
             outcome_journal=self.swarm_outcome_journal,
             base_order_usd=self.settings.order_usd,
+            microstructure_sniper=UltraMicrostructureSniper(
+                minimum_modeled_round_trip_cost_bps=self._swarm_round_trip_cost_bps(),
+                maximum_spread_bps=min(25.0, float(self.settings.market_max_spread_bps)),
+            ),
+            micro_agent_foundry=MicroAgentFoundry(maximum_candidates_per_symbol=2),
+            reference_feed=reference_feed,
+            max_micro_symbols=max(1, min(3, self.settings.max_open_positions)),
         )
 
     def start_fast_swarm(self) -> None:

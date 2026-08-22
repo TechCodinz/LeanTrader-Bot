@@ -60,6 +60,10 @@ class SwarmShadowPortfolio:
     VERSION = "1.0"
     SCHEMA_VERSION = 1
     HORIZON_SECONDS = {
+        "5s": 5.0,
+        "15s": 15.0,
+        "30s": 30.0,
+        "60s": 60.0,
         "1m": 12 * 60.0,
         "5m": 8 * 5 * 60.0,
         "15m": 6 * 15 * 60.0,

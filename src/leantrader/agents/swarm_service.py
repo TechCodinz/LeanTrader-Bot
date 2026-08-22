@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 
 from .fast_path import FastSwarmRuntime
+from .microstructure_sniper import MicroAgentFoundry, UltraMicrostructureSniper
 from .opportunity_radar import OpportunityScore
 from .shared_position_graph import AgentRole
 from .swarm_evidence import SwarmOutcomeJournal
@@ -51,6 +52,10 @@ class ReadOnlySwarmService:
         shadow_portfolio: SwarmShadowPortfolio | None = None,
         outcome_journal: SwarmOutcomeJournal | None = None,
         base_order_usd: float = 2.0,
+        microstructure_sniper: UltraMicrostructureSniper | None = None,
+        micro_agent_foundry: MicroAgentFoundry | None = None,
+        reference_feed: Any | None = None,
+        max_micro_symbols: int = 2,
     ) -> None:
         if scan_batch_size < 1:
             raise ValueError("scan_batch_size must be positive")
@@ -81,6 +86,13 @@ class ReadOnlySwarmService:
         self.shadow_portfolio = shadow_portfolio
         self.outcome_journal = outcome_journal
         self.base_order_usd = float(base_order_usd)
+        self.microstructure_sniper = microstructure_sniper or UltraMicrostructureSniper()
+        self.micro_agent_foundry = micro_agent_foundry or MicroAgentFoundry()
+        self.reference_feed = reference_feed
+        self.max_micro_symbols = max(1, int(max_micro_symbols))
+        self.micro_assessments = 0
+        self.micro_qualified = 0
+        self.micro_fetch_failures = 0
         if (self.shadow_portfolio is None) != (self.outcome_journal is None):
             raise ValueError("shadow portfolio and outcome journal must be configured together")
         self._stop = threading.Event()
@@ -379,6 +391,78 @@ class ReadOnlySwarmService:
                     events.append({"action": "shadow_open_failed", "agent_id": agent.agent_id, "symbol": symbol, "error": f"{type(exc).__name__}: {exc}"})
         return events
 
+    def _microstructure_assess(
+        self,
+        *,
+        ranked: list[dict[str, Any]],
+        frames: dict[str, pd.DataFrame],
+    ) -> tuple[dict[str, Any], dict[str, float], list[dict[str, Any]]]:
+        output: dict[str, Any] = {}
+        marks: dict[str, float] = {}
+        proposals: list[dict[str, Any]] = []
+        selected = [
+            row for row in ranked
+            if isinstance(row, dict) and row.get("qualified") is True
+        ][: self.max_micro_symbols]
+        for score in selected:
+            symbol = str(score.get("symbol") or "").upper()
+            frame = frames.get(symbol)
+            if not symbol or frame is None or frame.empty:
+                continue
+            try:
+                book = self.feed.order_book(symbol, limit=10)
+                if hasattr(self.feed, "public_trades"):
+                    trades = self.feed.public_trades(symbol, limit=80)
+                elif (
+                    hasattr(self.feed, "exchange")
+                    and self.feed.exchange.has.get("fetchTrades", False)
+                ):
+                    trades = [
+                        dict(row)
+                        for row in self.feed.exchange.fetch_trades(
+                            symbol, limit=80
+                        ) or []
+                    ]
+                else:
+                    trades = []
+                reference = None
+                if self.reference_feed is not None:
+                    try:
+                        reference = self.reference_feed.order_book(symbol, limit=10)
+                    except Exception:
+                        reference = None
+                features = self.microstructure_sniper.extract(
+                    symbol=symbol,
+                    order_book=book,
+                    trades=trades,
+                    candles=frame,
+                    reference_order_book=reference,
+                )
+                assessments = self.microstructure_sniper.assess(
+                    features,
+                    modeled_round_trip_cost_bps=max(
+                        30.0, float(score.get("modeled_round_trip_cost_bps") or 30.0)
+                    ),
+                )
+                proposed = self.micro_agent_foundry.propose(assessments)
+                output[symbol] = {
+                    "features": features.as_dict(),
+                    "path_assessments": [r.as_dict() for r in assessments],
+                    "foundry_proposals": proposed,
+                    "automatic_promotion": False,
+                    "execution_authority": False,
+                    "testnet_authority": False,
+                    "live_authority": False,
+                }
+                marks[symbol] = features.midpoint
+                proposals.extend(proposed)
+                self.micro_assessments += len(assessments)
+                self.micro_qualified += sum(1 for r in assessments if r.independently_qualified)
+            except Exception as exc:
+                self.micro_fetch_failures += 1
+                output[symbol] = {"error": f"{type(exc).__name__}: {exc}"}
+        return output, marks, proposals
+
     def step(self) -> dict[str, Any]:
         started = time.time()
         self._refresh_discovery()
@@ -403,6 +487,14 @@ class ReadOnlySwarmService:
             self.qualified_opportunities_total += sum(
                 1 for row in ranked_rows if isinstance(row, dict) and row.get("qualified") is True
             )
+        microstructure, micro_marks, micro_proposals = self._microstructure_assess(
+            ranked=ranked_rows,
+            frames=frames,
+        )
+        result["microstructure"] = microstructure
+        result["micro_agent_foundry_proposals"] = micro_proposals
+        result["microstructure_marks"] = micro_marks
+        result["microstructure_is_trade_authority"] = False
         required_symbols = self.shadow_portfolio.open_symbols() if self.shadow_portfolio is not None else set()
         assessments, extension_candidates, context_errors = self._assess_context(
             ranked=list(result.get("ranked") or []),
@@ -482,6 +574,11 @@ class ReadOnlySwarmService:
                 "full_sweeps": self.full_sweeps,
                 "ranked_opportunities_total": self.ranked_opportunities_total,
                 "qualified_opportunities_total": self.qualified_opportunities_total,
+                "micro_assessments": self.micro_assessments,
+                "micro_qualified": self.micro_qualified,
+                "micro_fetch_failures": self.micro_fetch_failures,
+                "microstructure_sniper": self.microstructure_sniper.health(),
+                "micro_agent_foundry": self.micro_agent_foundry.health(),
                 "opportunity_qualification_rate": (
                     self.qualified_opportunities_total / self.ranked_opportunities_total
                     if self.ranked_opportunities_total
