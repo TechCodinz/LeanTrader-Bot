@@ -20,6 +20,8 @@ class FakeBybit:
             "createOrder": True,
             "createMarketOrder": True,
             "fetchOrder": True,
+            "fetchOpenOrder": True,
+            "fetchClosedOrder": True,
             "fetchOpenOrders": True,
             "fetchClosedOrders": True,
             "cancelOrder": True,
@@ -84,8 +86,32 @@ class FakeBybit:
         self.orders[observed["id"]] = observed
         return observed
 
-    def fetch_order(self, order_id, _symbol):
+    def fetch_order(self, order_id, _symbol, _params=None):
         return self.orders[order_id]
+
+    def fetch_open_order(self, order_id, _symbol):
+        order = self.orders.get(order_id)
+
+        if (
+            order is None
+            or str(order.get("status") or "").lower()
+            != "open"
+        ):
+            raise RuntimeError("order is not open")
+
+        return order
+
+    def fetch_closed_order(self, order_id, _symbol):
+        order = self.orders.get(order_id)
+
+        if (
+            order is None
+            or str(order.get("status") or "").lower()
+            not in {"closed", "canceled"}
+        ):
+            raise RuntimeError("order is not closed")
+
+        return order
 
     def fetch_open_orders(self, _symbol, _since, _limit, params):
         return [
@@ -459,4 +485,77 @@ def test_required_reconciliation_fails_closed_and_recovers(tmp_path):
     assert (
         instance.health()["last_reconciliation_errors"]
         == []
+    )
+
+
+def test_bybit_spot_reconciliation_avoids_generic_fetch_order_limit(
+    tmp_path,
+):
+    instance, fake = engine(tmp_path)
+    instance.start()
+
+    event = buy_event()
+    client_id = instance._client_order_id(event)
+    order_id = "spot-recovery-1"
+
+    instance.state["orders"][client_id] = {
+        "client_order_id": client_id,
+        "symbol": "BTC/USDT",
+        "side": "buy",
+        "quantity": 0.05,
+        "submitted_usd": 5.0,
+        "reference_price": 100.0,
+        "reason": "paper_entry",
+        "paper_event_timestamp": event["timestamp"],
+        "status": "submitting",
+        "order_id": order_id,
+        "filled": 0.0,
+        "applied_filled": 0.0,
+        "filled_cost": 0.0,
+        "applied_fill_cost": 0.0,
+        "average": None,
+        "fee": 0.0,
+        "fee_currency": None,
+        "applied_fee": 0.0,
+        "fill_counted": False,
+    }
+
+    fake.orders[order_id] = {
+        "id": order_id,
+        "clientOrderId": client_id,
+        "symbol": "BTC/USDT",
+        "side": "buy",
+        "status": "closed",
+        "filled": 0.05,
+        "average": 100.0,
+        "cost": 5.0,
+        "fee": {
+            "cost": 0.0,
+            "currency": "USDT",
+        },
+        "info": {
+            "orderLinkId": client_id,
+        },
+    }
+
+    def blocked_generic_fetch_order(*_args, **_kwargs):
+        raise RuntimeError(
+            "bybit fetchOrder() can only access "
+            "an order if it is in last 500 orders"
+        )
+
+    fake.fetch_order = blocked_generic_fetch_order
+
+    result = instance.reconcile_required()
+
+    assert result["reconciled"] is True
+    assert result["errors"] == []
+
+    record = instance.state["orders"][client_id]
+
+    assert record["status"] == "closed"
+    assert record["filled"] == pytest.approx(0.05)
+    assert (
+        instance.health()["positions"]["BTC/USDT"]
+        == pytest.approx(0.05)
     )

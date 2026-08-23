@@ -22,7 +22,7 @@ class BybitTestnetExecutionEngine:
     exchange test funds only. It never accepts production credentials or URLs.
     """
 
-    VERSION = "2.1"
+    VERSION = "2.2"
     TESTNET_CONFIRMATION = "I_UNDERSTAND_TESTNET_ONLY"
 
     def __init__(
@@ -143,20 +143,34 @@ class BybitTestnetExecutionEngine:
         for client_id, record in list(self.state["orders"].items()):
             if record.get("status") in {"closed", "canceled", "rejected", "skipped"}:
                 continue
-            order_id = record.get("order_id")
             try:
-                observed = (
-                    self.exchange.fetch_order(order_id, record["symbol"])
-                    if order_id
-                    else self._find_order_by_client_id(record["symbol"], client_id)
+                observed = self._recover_order(
+                    record,
+                    client_id,
                 )
+
                 if observed is None:
-                    errors.append({"client_order_id": client_id, "reason": "order_state_ambiguous"})
+                    errors.append(
+                        {
+                            "client_order_id": client_id,
+                            "reason": "order_state_ambiguous",
+                        }
+                    )
                     continue
-                self._merge_observed(record, observed)
+
+                self._merge_observed(
+                    record,
+                    observed,
+                )
                 checked += 1
-            except Exception as exc:  # noqa: BLE001 - normalize any provider reconciliation failure
-                errors.append({"client_order_id": client_id, "reason": self._redact(str(exc))})
+
+            except Exception as exc:  # noqa: BLE001
+                errors.append(
+                    {
+                        "client_order_id": client_id,
+                        "reason": self._redact(str(exc)),
+                    }
+                )
         try:
             self._update_balance_snapshot(self.exchange.fetch_balance())
         except Exception as exc:  # noqa: BLE001 - a stale balance pauses new mirrors safely
@@ -224,8 +238,17 @@ class BybitTestnetExecutionEngine:
                 "fee_and_slippage_model": True,
                 "balance_reconciliation": True,
                 "order_idempotency": True,
-                "order_state_recovery": bool(methods.get("fetchOrder"))
-                or (bool(methods.get("fetchOpenOrders")) and bool(methods.get("fetchClosedOrders"))),
+                "order_state_recovery": (
+                    (
+                        bool(methods.get("fetchOpenOrder"))
+                        and bool(methods.get("fetchClosedOrder"))
+                    )
+                    or (
+                        bool(methods.get("fetchOpenOrders"))
+                        and bool(methods.get("fetchClosedOrders"))
+                    )
+                    or bool(methods.get("fetchOrder"))
+                ),
                 "position_and_daily_caps": True,
                 "kill_switch": True,
             },
@@ -333,6 +356,98 @@ class BybitTestnetExecutionEngine:
         self._merge_observed(record, observed)
         self._save_state()
         return {"client_order_id": client_id, "idempotent": False, **self._public_record(record)}
+
+    def _recover_order(
+        self,
+        record: dict[str, Any],
+        client_id: str,
+    ) -> dict[str, Any] | None:
+        """Recover a Bybit spot order without relying on generic fetchOrder.
+
+        Current Bybit/CCXT spot recovery is more reliable through the
+        dedicated open/closed endpoints. Client-id collections provide
+        the second recovery lane. Generic fetchOrder is only a final
+        compatibility fallback and explicitly acknowledges CCXT's warning.
+        """
+        symbol = str(
+            record.get("symbol") or ""
+        ).upper()
+
+        order_id = str(
+            record.get("order_id") or ""
+        )
+
+        if not symbol:
+            return None
+
+        # Prefer Bybit's targeted order endpoints.
+        if order_id:
+            for method_name in (
+                "fetch_open_order",
+                "fetch_closed_order",
+            ):
+                method = getattr(
+                    self.exchange,
+                    method_name,
+                    None,
+                )
+
+                if not callable(method):
+                    continue
+
+                try:
+                    observed = method(
+                        order_id,
+                        symbol,
+                    )
+                except Exception:
+                    # Open lookup normally fails for a closed order
+                    # and vice versa; continue to the next recovery lane.
+                    continue
+
+                if observed is not None:
+                    return observed
+
+        # orderLinkId is LeanTrader's idempotent exchange identity.
+        observed = self._find_order_by_client_id(
+            symbol,
+            client_id,
+        )
+
+        if observed is not None:
+            return observed
+
+        # Compatibility only. Modern Bybit spot should normally have
+        # resolved through one of the targeted paths above.
+        if order_id:
+            fetch_order = getattr(
+                self.exchange,
+                "fetch_order",
+                None,
+            )
+
+            if callable(fetch_order):
+                try:
+                    return fetch_order(
+                        order_id,
+                        symbol,
+                        {
+                            "acknowledged": True,
+                        },
+                    )
+                except TypeError:
+                    # Support older test doubles / adapters.
+                    try:
+                        return fetch_order(
+                            order_id,
+                            symbol,
+                        )
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+        return None
 
     def _find_order_by_client_id(self, symbol: str, client_id: str) -> dict[str, Any] | None:
         """Recover an order accepted during an ambiguous network failure."""
@@ -616,6 +731,8 @@ class BybitTestnetExecutionEngine:
                 "createOrder",
                 "createMarketOrder",
                 "fetchOrder",
+                "fetchOpenOrder",
+                "fetchClosedOrder",
                 "fetchOpenOrders",
                 "fetchClosedOrders",
                 "cancelOrder",
@@ -643,8 +760,20 @@ class BybitTestnetExecutionEngine:
         }
         required = ("fetchBalance", "createOrder")
         missing = [name for name in required if not methods[name]]
-        recoverable = methods["fetchOrder"] or (
-            methods["fetchOpenOrders"] and methods["fetchClosedOrders"]
+        targeted_recovery = (
+            methods["fetchOpenOrder"]
+            and methods["fetchClosedOrder"]
+        )
+
+        collection_recovery = (
+            methods["fetchOpenOrders"]
+            and methods["fetchClosedOrders"]
+        )
+
+        recoverable = (
+            targeted_recovery
+            or collection_recovery
+            or methods["fetchOrder"]
         )
         if missing or not recoverable:
             detail = missing + ([] if recoverable else ["order_recovery"])

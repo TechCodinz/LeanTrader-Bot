@@ -200,8 +200,16 @@ class ExchangeProtectionOrchestrator:
         checks["required_order_methods"] = bool(methods.get("fetchBalance")) and bool(
             methods.get("createOrder")
         )
-        checks["order_state_recovery"] = bool(methods.get("fetchOrder")) or (
-            bool(methods.get("fetchOpenOrders")) and bool(methods.get("fetchClosedOrders"))
+        checks["order_state_recovery"] = (
+            (
+                bool(methods.get("fetchOpenOrder"))
+                and bool(methods.get("fetchClosedOrder"))
+            )
+            or (
+                bool(methods.get("fetchOpenOrders"))
+                and bool(methods.get("fetchClosedOrders"))
+            )
+            or bool(methods.get("fetchOrder"))
         )
 
         missing = [name for name, passed in checks.items() if not passed]
