@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import threading
 import time
 from typing import Any
@@ -24,7 +25,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.55.0"
+    VERSION = "1.56.0"
     KINEMATIC_SLOW_HORIZONS = (120, 300, 900)
     KINEMATIC_SLOW_COOLDOWN_SECONDS = 900.0
     ROLE_BY_TIMEFRAME = {
@@ -1475,6 +1476,115 @@ class ReadOnlySwarmService:
                     cadence_seconds - elapsed,
                 )
             )
+
+    def collective_signal(self, symbol: str) -> dict[str, Any]:
+        """Return a bounded thread-safe signal snapshot for the canonical router.
+
+        This method does not place an order itself. It exposes the already-running
+        fast swarm, independently-qualified timeframe minds and evidence-qualified
+        micro specialists to the canonical paper/Testnet decision boundary.
+        """
+        normalized = str(symbol or "").upper()
+
+        with self._lock:
+            ranked = {}
+            for row in list(self.last_step.get("ranked") or []):
+                if (
+                    isinstance(row, dict)
+                    and str(row.get("symbol") or "").upper() == normalized
+                ):
+                    ranked = dict(row)
+                    break
+
+            assessments = copy.deepcopy(
+                (
+                    self.last_step.get("timeframe_assessments")
+                    or {}
+                ).get(normalized)
+                or {}
+            )
+
+            micro_proposals = [
+                dict(row)
+                for row in (
+                    self.last_step.get(
+                        "micro_agent_foundry_proposals"
+                    )
+                    or []
+                )
+                if (
+                    isinstance(row, dict)
+                    and str(row.get("symbol") or "").upper()
+                    == normalized
+                )
+            ]
+
+            microstructure = copy.deepcopy(
+                (
+                    self.last_step.get("microstructure")
+                    or {}
+                ).get(normalized)
+                or {}
+            )
+
+            last_success = float(
+                self.last_success_at or 0.0
+            )
+            cycles = int(self.cycles)
+
+        now = time.time()
+        stale_after = max(
+            60.0,
+            self.cadence_seconds * 6.0,
+        )
+        age = (
+            max(0.0, now - last_success)
+            if last_success > 0
+            else None
+        )
+
+        return {
+            "symbol": normalized,
+            "version": self.VERSION,
+            "available": bool(last_success > 0),
+            "fresh": bool(
+                last_success > 0
+                and age is not None
+                and age <= stale_after
+            ),
+            "age_seconds": age,
+            "cycles": cycles,
+            "ranked_opportunity": ranked,
+            "timeframe_assessments": assessments,
+            "micro_proposals": micro_proposals,
+            "microstructure": microstructure,
+            "qualified_timeframe_paths": sum(
+                1
+                for row in assessments.values()
+                if (
+                    isinstance(row, dict)
+                    and row.get(
+                        "independently_qualified"
+                    )
+                    is True
+                )
+            ),
+            "qualified_micro_proposals": sum(
+                1
+                for row in micro_proposals
+                if (
+                    row.get("evidence_qualified")
+                    is True
+                    and row.get(
+                        "independently_qualified"
+                    )
+                    is True
+                )
+            ),
+            "canonical_router_input": True,
+            "direct_execution_authority": False,
+            "live_authority": False,
+        }
 
     def _run(self) -> None:
         while not self._stop.is_set():

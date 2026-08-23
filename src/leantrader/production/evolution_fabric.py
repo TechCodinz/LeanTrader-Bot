@@ -220,13 +220,84 @@ class EvolutionFabric:
         symbol = str(symbol).upper()
         now = time.time()
         rows: list[dict[str, Any]] = []
-        for pack in (self.state.get("packs") or {}).values():
-            if pack.get("status") != "active" or float(pack.get("expires_at") or 0.0) < now:
+        metrics = self.state.get("shadow_metrics") or {}
+
+        for pack_id, pack in (
+            self.state.get("packs") or {}
+        ).items():
+            if (
+                pack.get("status") != "active"
+                or float(pack.get("expires_at") or 0.0)
+                < now
+            ):
                 continue
-            for observation in pack.get("observations") or []:
-                if observation.get("symbol") in {symbol, "GLOBAL"}:
-                    rows.append(dict(observation))
-        rows.sort(key=lambda row: (float(row.get("confidence") or 0.0), float(row.get("observed_at") or 0.0)), reverse=True)
+
+            metric = metrics.get(pack_id) or {}
+            if not isinstance(metric, dict):
+                metric = {}
+
+            for observation in (
+                pack.get("observations") or []
+            ):
+                if observation.get("symbol") not in {
+                    symbol,
+                    "GLOBAL",
+                }:
+                    continue
+
+                row = dict(observation)
+                row.update(
+                    {
+                        "pack_id": pack_id,
+                        "pack_version": pack.get(
+                            "version"
+                        ),
+                        "producer": pack.get(
+                            "producer"
+                        ),
+                        "research_validated": (
+                            metric.get(
+                                "research_validated"
+                            )
+                            is True
+                        ),
+                        "shadow_samples": int(
+                            metric.get("samples") or 0
+                        ),
+                        "shadow_win_rate": float(
+                            metric.get("win_rate")
+                            or 0.0
+                        ),
+                        "average_net_return": float(
+                            metric.get(
+                                "average_net_return"
+                            )
+                            or 0.0
+                        ),
+                        "ewma_net_return": float(
+                            metric.get(
+                                "ewma_net_return"
+                            )
+                            or 0.0
+                        ),
+                    }
+                )
+                rows.append(row)
+
+        rows.sort(
+            key=lambda row: (
+                row.get("research_validated") is True,
+                float(
+                    row.get("confidence")
+                    or 0.0
+                ),
+                float(
+                    row.get("observed_at")
+                    or 0.0
+                ),
+            ),
+            reverse=True,
+        )
         return rows[:50]
 
     def snapshot(self) -> dict[str, Any]:

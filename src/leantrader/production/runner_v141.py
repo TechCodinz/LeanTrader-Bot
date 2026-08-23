@@ -73,6 +73,65 @@ def _is_symbol_history_unavailable(exc: Exception) -> bool:
     )
 
 
+def _position_entry_origin(position: Any) -> str:
+    """Return the canonical entry origin stored with an open position."""
+    metadata = getattr(position, "metadata", {}) or {}
+    route = (
+        metadata.get("decision_route")
+        if isinstance(metadata, dict)
+        else {}
+    ) or {}
+
+    raw_origin = (
+        route.get("entry_origin")
+        if isinstance(route, dict)
+        else None
+    )
+
+    if raw_origin is None and isinstance(metadata, dict):
+        raw_origin = metadata.get("entry_origin")
+
+    origin = str(raw_origin or "").strip()
+
+    # Existing pre-v1.56 positions remain legacy adaptive/router positions.
+    return origin or "adaptive"
+
+
+def _legacy_trend_exit_applies(position: Any) -> bool:
+    """Pure collective entries do not inherit the legacy adaptive trend exit."""
+    return _position_entry_origin(position) != "collective_profit_fabric"
+
+
+def _collective_route_reversal(route: dict[str, Any] | None) -> bool:
+    """Require meaningful opposing collective evidence before collective exit."""
+    route = route if isinstance(route, dict) else {}
+    collective = route.get("collective_profit_fabric") or {}
+
+    if not isinstance(collective, dict):
+        return False
+
+    try:
+        score = float(
+            collective.get("ensemble_score") or 0.0
+        )
+        confidence = float(
+            collective.get("ensemble_confidence") or 0.0
+        )
+    except (TypeError, ValueError):
+        return False
+
+    if not (
+        math.isfinite(score)
+        and math.isfinite(confidence)
+    ):
+        return False
+
+    return bool(
+        score <= -0.20
+        and confidence >= 0.45
+    )
+
+
 def atr_sized_notional(
     *,
     equity: float,
@@ -802,6 +861,7 @@ class PaperRunner:
         evolution_capabilities: dict[str, Any] = {}
         evolution_requests: dict[str, Any] = {}
         unified_control_results: dict[str, dict[str, Any]] = {}
+        collective_contexts: dict[str, dict[str, Any]] = {}
         public_symbol_context: dict[str, dict[str, Any]] = {}
         errors: dict[str, str] = {}
         self.engines.call("market_temporal_guard", "sync_clock")
@@ -994,6 +1054,101 @@ class PaperRunner:
                     external_sensors=sensor_symbols.get(symbol, {}),
                     evolution_evidence=self.evolution_fabric.evidence_for(symbol),
                 )
+                fast_swarm_context: dict[str, Any] = {}
+                fast_service = getattr(
+                    self,
+                    "fast_swarm_service",
+                    None,
+                )
+                if (
+                    fast_service is not None
+                    and hasattr(
+                        fast_service,
+                        "collective_signal",
+                    )
+                ):
+                    try:
+                        fast_swarm_context = (
+                            fast_service.collective_signal(
+                                symbol
+                            )
+                        )
+                    except Exception as exc:
+                        fast_swarm_context = {
+                            "available": False,
+                            "fresh": False,
+                            "error": (
+                                f"{type(exc).__name__}: {exc}"
+                            ),
+                        }
+
+                alpha_state = getattr(
+                    self.alpha_tournament,
+                    "state",
+                    {},
+                )
+                alpha_latest = (
+                    dict(
+                        alpha_state.get(
+                            "latest"
+                        )
+                        or {}
+                    )
+                    if isinstance(
+                        alpha_state,
+                        dict,
+                    )
+                    else {}
+                )
+
+                evolution_router_evidence = (
+                    self.evolution_fabric.evidence_for(
+                        symbol
+                    )
+                )
+
+                symbol_arbitrage_quotes = [
+                    dict(row)
+                    for row in (
+                        arbitrage_collection.get(
+                            "quotes"
+                        )
+                        or []
+                    )
+                    if (
+                        isinstance(row, dict)
+                        and str(
+                            row.get("symbol")
+                            or ""
+                        ).upper()
+                        == symbol
+                    )
+                ]
+
+                collective_contexts[symbol] = {
+                    "fast_swarm": (
+                        fast_swarm_context
+                    ),
+                    "sensor_context": (
+                        sensor_symbols.get(
+                            symbol,
+                            {},
+                        )
+                    ),
+                    "evolution_evidence": (
+                        evolution_router_evidence
+                    ),
+                    "arbitrage_quotes": (
+                        symbol_arbitrage_quotes
+                    ),
+                    "primary_venue": (
+                        self.settings.exchange
+                    ),
+                    "alpha_tournament": (
+                        alpha_latest
+                    ),
+                }
+
                 routed_decisions[symbol] = self.engines.call(
                     "decision_router",
                     "route",
@@ -1002,6 +1157,7 @@ class PaperRunner:
                     base_score=base_score,
                     base_confidence=decisions[symbol].confidence,
                     advanced=advanced_decisions[symbol],
+                    collective=collective_contexts[symbol],
                 )
                 temporal_session = self.engines.call(
                     "market_temporal_guard",
@@ -1182,6 +1338,83 @@ class PaperRunner:
                         },
                     ]
                 )
+                collective_route = (
+                    routed_decisions[symbol].get(
+                        "collective_profit_fabric"
+                    )
+                    or {}
+                )
+
+                if (
+                    isinstance(
+                        collective_route,
+                        dict,
+                    )
+                    and int(
+                        collective_route.get(
+                            "contributor_count"
+                        )
+                        or 0
+                    )
+                    > 0
+                ):
+                    observatory_signals.append(
+                        {
+                            "engine": (
+                                "collective_profit_fabric"
+                            ),
+                            "score": float(
+                                collective_route.get(
+                                    "ensemble_score"
+                                )
+                                or 0.0
+                            ),
+                            "confidence": float(
+                                collective_route.get(
+                                    "ensemble_confidence"
+                                )
+                                or 0.0
+                            ),
+                        }
+                    )
+
+                    for contributor in (
+                        collective_route.get(
+                            "contributors"
+                        )
+                        or []
+                    )[:20]:
+                        if not isinstance(
+                            contributor,
+                            dict,
+                        ):
+                            continue
+                        observatory_signals.append(
+                            {
+                                "engine": (
+                                    "collective:"
+                                    + str(
+                                        contributor.get(
+                                            "name"
+                                        )
+                                        or "unknown"
+                                    )
+                                ),
+                                "score": float(
+                                    contributor.get(
+                                        "score"
+                                    )
+                                    or 0.0
+                                ),
+                                "confidence": float(
+                                    contributor.get(
+                                        "confidence"
+                                    )
+                                    or 0.0
+                                ),
+                            }
+                        )
+
                 observatory_updates[symbol] = self.engines.call(
                     "strategy_observatory",
                     "observe",
@@ -1488,7 +1721,18 @@ class PaperRunner:
                 and float((advanced_decisions.get(symbol, {}).get("swarm") or {}).get("confidence") or 0.0) >= 0.50
             ):
                 reason = "ultra_consensus_exit"
-            elif not decision.trend_up:
+            elif (
+                _position_entry_origin(position)
+                == "collective_profit_fabric"
+                and _collective_route_reversal(
+                    routed_decisions.get(symbol)
+                )
+            ):
+                reason = "collective_reversal"
+            elif (
+                _legacy_trend_exit_applies(position)
+                and not decision.trend_up
+            ):
                 reason = "trend_reversal"
             elif (
                 not position.partial_taken
@@ -1510,11 +1754,34 @@ class PaperRunner:
                 events.append(event)
                 if event["remaining_quantity"] <= 0:
                     try:
+                        closed_metadata = dict(
+                            event.get("position_metadata")
+                            or {}
+                        )
+                        closed_route = (
+                            closed_metadata.get(
+                                "decision_route"
+                            )
+                            or {}
+                        )
+                        event["entry_origin"] = str(
+                            closed_route.get(
+                                "entry_origin"
+                            )
+                            or closed_metadata.get(
+                                "entry_origin"
+                            )
+                            or "adaptive"
+                        )
+
                         promoted = self.engines.call(
                             "adaptive_intelligence",
                             "learn",
-                            event.get("position_metadata", {}),
-                            event.get("trade_realized_return_total", 0.0),
+                            closed_metadata,
+                            event.get(
+                                "trade_realized_return_total",
+                                0.0,
+                            ),
                         )
                         event["intelligence_promoted"] = promoted
                         self.engines.call(
@@ -1617,9 +1884,26 @@ class PaperRunner:
                     entry_blocks[symbol] = "capital_growth:no_remaining_deployable_notional"
                     continue
                 memory_decision_id = None
+                entry_origin = str(
+                    route.get("entry_origin")
+                    or "adaptive"
+                )
+                memory_strategy = (
+                    "collective_profit_fabric"
+                    if entry_origin
+                    == "collective_profit_fabric"
+                    else "bounded_decision_router"
+                )
+                route_confidence = float(
+                    route.get("predicted_probability")
+                    or decision.confidence
+                )
+
                 entry_metadata = {
                     "regime": decision.regime,
                     "confidence": decision.confidence,
+                    "route_confidence": route_confidence,
+                    "entry_origin": entry_origin,
                     "quality_score": decision.quality_score,
                     "component_scores": decision.component_scores,
                     "weights": decision.weights,
@@ -1652,7 +1936,7 @@ class PaperRunner:
                     entry_metadata.update(
                         {
                             "memory_decision_id": memory_decision_id,
-                            "memory_strategy": "bounded_decision_router",
+                            "memory_strategy": memory_strategy,
                             "memory_fingerprint": dict(fingerprint.__dict__),
                             "memory_observed_at": time.time(),
                         }
@@ -1680,9 +1964,9 @@ class PaperRunner:
                                 "remember_decision",
                                 memory_decision_id,
                                 symbol=symbol,
-                                strategy="bounded_decision_router",
+                                strategy=memory_strategy,
                                 fingerprint=memory_fingerprints[symbol],
-                                confidence=decision.confidence,
+                                confidence=route_confidence,
                                 metadata={
                                     "route_reason": route.get("reason"),
                                     "brain_reasons": brain_decisions.get(symbol, {}).get("reasons", []),
@@ -2318,6 +2602,40 @@ class PaperRunner:
                 "can_increase_risk": False,
                 "execution_authority": False,
                 "validation_partitions": validation_contract["partitions"],
+            },
+            "collective_profit_fabric": {
+                "version": "1.56.0",
+                "symbols": {
+                    symbol: (
+                        route.get(
+                            "collective_profit_fabric"
+                        )
+                        or {}
+                    )
+                    for symbol, route in (
+                        routed_decisions.items()
+                    )
+                },
+                "canonical_pretrade_integration": True,
+                "adaptive_intelligence": True,
+                "advanced_ultra_suite": True,
+                "fast_market_swarm": True,
+                "microstructure_sniper": True,
+                "multi_timeframe_minds": True,
+                "continuous_evolution": True,
+                "derivatives_positioning": True,
+                "liquidation_tape": True,
+                "options_positioning": True,
+                "flow_intelligence": True,
+                "cross_venue_context": True,
+                "alpha_tournament_feedback": True,
+                "brain_and_cns_review": True,
+                "cognitive_governance_review": True,
+                "paper_authority": True,
+                "testnet_mirror_enabled": (
+                    self.testnet is not None
+                ),
+                "live_authority": False,
             },
             "memory_health": memory_health,
             "decisions": {

@@ -224,7 +224,6 @@ def test_data_quality_gates_fail_closed(tmp_path, field, value, reason):
         ("enable_live", True, "enable_live_not_false"),
         ("allow_live", True, "allow_live_not_false"),
         ("live_confirm", "YES", "live_confirm_not_no"),
-        ("testnet_enabled", True, "testnet_execution_not_disabled"),
         ("runtime_integrity_ok", False, "runtime_integrity_not_verified"),
         ("heartbeat_fresh", False, "heartbeat_not_fresh"),
     ],
@@ -237,6 +236,30 @@ def test_authority_and_system_integrity_gates(tmp_path, field, value, reason):
 
     assert result["allowed_shadow_recommendation"] is False
     assert reason in result["reasons"]
+    assert result["live_authority"] is False
+
+
+def test_testnet_enabled_is_valid_sandbox_state(tmp_path):
+    inputs = valid_inputs()
+    inputs["system"]["testnet_enabled"] = True
+
+    result = plane(tmp_path).evaluate(**inputs)
+
+    assert result["allowed_shadow_recommendation"] is True
+    assert "testnet_execution_not_disabled" not in result["reasons"]
+    assert "testnet_execution_state_invalid" not in result["reasons"]
+    assert result["execution_authority"] is False
+    assert result["live_authority"] is False
+
+
+def test_invalid_testnet_state_fails_closed(tmp_path):
+    inputs = valid_inputs()
+    inputs["system"]["testnet_enabled"] = "unexpected"
+
+    result = plane(tmp_path).evaluate(**inputs)
+
+    assert result["allowed_shadow_recommendation"] is False
+    assert "testnet_execution_state_invalid" in result["reasons"]
     assert result["live_authority"] is False
 
 

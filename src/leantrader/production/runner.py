@@ -34,7 +34,7 @@ class MicrostructureMarketFeed(MarketFeed):
 class PaperRunner(_V142PaperRunner):
     """v1.43: v1.42 supervision plus parallel costed market-swarm shadow evidence."""
 
-    VERSION = "1.43.0"
+    VERSION = "1.56.0"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _runner_v142.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
@@ -629,6 +629,26 @@ def main() -> None:
             "automatic_promotion": False,
             "execution_authority": False,
             "testnet_authority": False,
+            "live_authority": False,
+        }
+        payload["collective_profit_fabric"] = {
+            "version": "1.56.0",
+            "canonical_pretrade_integration": True,
+            "sources": [
+                "adaptive_intelligence",
+                "advanced_ultra_suite",
+                "fast_market_swarm",
+                "microstructure_sniper",
+                "multi_timeframe_minds",
+                "continuous_evolution",
+                "market_sensor_fabric",
+                "cross_venue_context",
+                "alpha_tournament_feedback",
+            ],
+            "costed_edge_required_for_collective_origin": True,
+            "sensor_only_origin_allowed": False,
+            "paper_authority": True,
+            "testnet_mirror_enabled": settings.testnet_enabled,
             "live_authority": False,
         }
         print(json.dumps(payload, indent=2))

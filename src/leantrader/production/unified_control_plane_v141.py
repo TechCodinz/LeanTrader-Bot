@@ -438,8 +438,8 @@ class UnifiedDecisionControlPlane:
             reasons.append("allow_live_not_false")
         if str(system.get("live_confirm") or "").upper() != "NO":
             reasons.append("live_confirm_not_no")
-        if system.get("testnet_enabled") is not False:
-            reasons.append("testnet_execution_not_disabled")
+        if system.get("testnet_enabled") not in {True, False}:
+            reasons.append("testnet_execution_state_invalid")
         if system.get("runtime_integrity_ok") is not True:
             reasons.append("runtime_integrity_not_verified")
         if system.get("heartbeat_fresh") is not True:
