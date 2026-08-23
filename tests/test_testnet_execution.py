@@ -381,3 +381,50 @@ def test_testnet_round_trip_performance_is_observable(tmp_path):
     assert performance["closed_positions"] == 1
     assert performance["winning_positions"] == 0
     assert performance["realized_pnl_usd"] == pytest.approx(-0.02)
+
+
+def test_current_ccxt_bybit_template_urls_are_supported(tmp_path):
+    fake = FakeBybit()
+    fake.hostname = "bybit.com"
+
+    def sandbox(enabled):
+        fake.calls.append(("sandbox", enabled))
+        fake.urls = {
+            "api": {
+                "spot": "https://api-testnet.{hostname}",
+                "public": "https://api-testnet.{hostname}",
+                "private": "https://api-testnet.{hostname}",
+            }
+        }
+
+    fake.set_sandbox_mode = sandbox
+
+    instance, _ = engine(tmp_path, fake)
+    instance.start()
+
+    assert instance.health()["sandbox_endpoint_verified"] is True
+    assert instance.health()["authenticated"] is True
+
+
+def test_ccxt_template_cannot_escape_approved_bybit_hosts(tmp_path):
+    fake = FakeBybit()
+    fake.hostname = "example.com"
+
+    def sandbox(enabled):
+        fake.calls.append(("sandbox", enabled))
+        fake.urls = {
+            "api": {
+                "public": "https://api-testnet.{hostname}",
+                "private": "https://api-testnet.{hostname}",
+            }
+        }
+
+    fake.set_sandbox_mode = sandbox
+
+    instance, _ = engine(tmp_path, fake)
+
+    with pytest.raises(
+        SandboxSafetyError,
+        match="unexpected Bybit sandbox hostname",
+    ):
+        instance.start()

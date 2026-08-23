@@ -7,6 +7,7 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 
 class TestnetSafetyError(RuntimeError):
@@ -505,12 +506,89 @@ class BybitTestnetExecutionEngine:
 
     def _verify_testnet_urls(self) -> None:
         self.endpoint_verified = False
-        urls = getattr(self.exchange, "urls", {}).get("api", {})
+
+        exchange_id = str(
+            getattr(self.exchange, "id", "")
+        ).strip().lower()
+
+        if exchange_id != "bybit":
+            raise TestnetSafetyError(
+                f"unsupported testnet exchange adapter: {exchange_id}"
+            )
+
+        urls = getattr(
+            self.exchange,
+            "urls",
+            {},
+        ).get("api", {})
+
         flattened = self._flatten_urls(urls)
-        if not flattened or not all("testnet" in url.lower() for url in flattened):
-            raise TestnetSafetyError("exchange endpoints are not exclusively Bybit testnet URLs")
-        if not all("bybit" in url.lower() for url in flattened):
-            raise TestnetSafetyError("unexpected non-Bybit sandbox endpoint")
+
+        if not flattened:
+            raise TestnetSafetyError(
+                "exchange endpoints are not exclusively Bybit testnet URLs"
+            )
+
+        # Modern CCXT represents Bybit endpoints as:
+        # https://api-testnet.{hostname}
+        #
+        # Resolve that template only against CCXT's known Bybit domains.
+        allowed_domains = {
+            "bybit.com",
+            "bytick.com",
+            "bybit.nl",
+            "bybit.com.hk",
+        }
+
+        configured_hostname = str(
+            getattr(self.exchange, "hostname", "")
+            or ""
+        ).strip().lower().rstrip(".")
+
+        template_present = any(
+            "{hostname}" in str(url)
+            for url in flattened
+        )
+
+        if template_present:
+            if configured_hostname not in allowed_domains:
+                raise TestnetSafetyError(
+                    "unexpected Bybit sandbox hostname"
+                )
+
+        allowed_testnet_hosts = {
+            f"api-testnet.{domain}"
+            for domain in allowed_domains
+        }
+
+        for raw_url in flattened:
+            url = str(raw_url)
+
+            if "{hostname}" in url:
+                url = url.replace(
+                    "{hostname}",
+                    configured_hostname,
+                )
+
+            parsed = urlparse(url)
+            host = str(
+                parsed.hostname or ""
+            ).lower().rstrip(".")
+
+            if (
+                parsed.scheme.lower() != "https"
+                or "testnet" not in host
+            ):
+                raise TestnetSafetyError(
+                    "exchange endpoints are not exclusively "
+                    "Bybit testnet URLs"
+                )
+
+            if host not in allowed_testnet_hosts:
+                raise TestnetSafetyError(
+                    "unexpected non-Bybit sandbox endpoint"
+                )
+
         self.endpoint_verified = True
 
     def _attest_exchange_capabilities(self) -> None:
