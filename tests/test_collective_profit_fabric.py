@@ -397,3 +397,44 @@ def test_testnet_blocked_events_remain_pending():
         [handled],
         mirror_succeeded=False,
     ) == []
+
+
+def test_busy_fast_swarm_step_is_not_stale():
+    busy = ReadOnlySwarmService._step_liveness(
+        running=True,
+        now=1000.0,
+        freshness_anchor=800.0,
+        stale_after_seconds=60.0,
+        step_in_progress=True,
+        step_started_at=900.0,
+    )
+
+    assert busy["busy"] is True
+    assert busy["stale"] is False
+    assert busy["hung"] is False
+
+    idle_stale = ReadOnlySwarmService._step_liveness(
+        running=True,
+        now=1000.0,
+        freshness_anchor=800.0,
+        stale_after_seconds=60.0,
+        step_in_progress=False,
+        step_started_at=0.0,
+    )
+
+    assert idle_stale["busy"] is False
+    assert idle_stale["stale"] is True
+    assert idle_stale["hung"] is False
+
+    hung = ReadOnlySwarmService._step_liveness(
+        running=True,
+        now=1000.0,
+        freshness_anchor=800.0,
+        stale_after_seconds=60.0,
+        step_in_progress=True,
+        step_started_at=600.0,
+    )
+
+    assert hung["busy"] is False
+    assert hung["stale"] is True
+    assert hung["hung"] is True

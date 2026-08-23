@@ -25,7 +25,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.56.0"
+    VERSION = "1.56.1"
     KINEMATIC_SLOW_HORIZONS = (120, 300, 900)
     KINEMATIC_SLOW_COOLDOWN_SECONDS = 900.0
     ROLE_BY_TIMEFRAME = {
@@ -149,6 +149,9 @@ class ReadOnlySwarmService:
         self.started_at = 0.0
         self.last_success_at = 0.0
         self.last_failure_at = 0.0
+        self.step_in_progress = False
+        self.step_started_at = 0.0
+        self.last_step_duration_seconds = 0.0
         self.consecutive_failures = 0
         self.ranked_opportunities_total = 0
         self.qualified_opportunities_total = 0
@@ -1586,37 +1589,169 @@ class ReadOnlySwarmService:
             "live_authority": False,
         }
 
+    @staticmethod
+    def _step_liveness(
+        *,
+        running: bool,
+        now: float,
+        freshness_anchor: float,
+        stale_after_seconds: float,
+        step_in_progress: bool,
+        step_started_at: float,
+    ) -> dict[str, Any]:
+        """Separate active long work from a genuinely stale/hung worker."""
+
+        step_age = (
+            max(0.0, now - step_started_at)
+            if step_in_progress
+            and step_started_at > 0
+            else 0.0
+        )
+
+        # A normal fast-swarm step should usually finish far sooner.
+        # Five minutes is a bounded grace ceiling, not an unlimited
+        # suppression of stale detection.
+        busy_ceiling_seconds = max(
+            300.0,
+            stale_after_seconds * 5.0,
+        )
+
+        busy = bool(
+            running
+            and step_in_progress
+            and step_started_at > 0
+            and step_age <= busy_ceiling_seconds
+        )
+
+        hung = bool(
+            running
+            and step_in_progress
+            and step_started_at > 0
+            and step_age > busy_ceiling_seconds
+        )
+
+        stale = bool(
+            running
+            and freshness_anchor > 0
+            and now - freshness_anchor
+            > stale_after_seconds
+            and not busy
+        )
+
+        return {
+            "busy": busy,
+            "hung": hung,
+            "stale": stale,
+            "step_age_seconds": step_age,
+            "busy_ceiling_seconds": (
+                busy_ceiling_seconds
+            ),
+        }
+
     def _run(self) -> None:
         while not self._stop.is_set():
             started = time.monotonic()
+            wall_started = time.time()
+
+            with self._lock:
+                self.step_in_progress = True
+                self.step_started_at = wall_started
+
             try:
                 self.step()
+
             except Exception as exc:  # noqa: BLE001
                 with self._lock:
-                    self.last_error = f"{type(exc).__name__}: {exc}"
+                    self.last_error = (
+                        f"{type(exc).__name__}: {exc}"
+                    )
                     self.last_failure_at = time.time()
                     self.consecutive_failures += 1
+
+            finally:
+                with self._lock:
+                    self.step_in_progress = False
+                    self.last_step_duration_seconds = max(
+                        0.0,
+                        time.time() - wall_started,
+                    )
+
             elapsed = time.monotonic() - started
-            self._stop.wait(max(0.0, self.cadence_seconds - elapsed))
+
+            self._stop.wait(
+                max(
+                    0.0,
+                    self.cadence_seconds - elapsed,
+                )
+            )
 
     def health(self, *, equity: float) -> dict[str, Any]:
         thread = self._thread
         with self._lock:
             now = time.time()
             running = bool(thread is not None and thread.is_alive() and not self._stop.is_set())
-            stale_after_seconds = max(60.0, self.cadence_seconds * 6.0)
-            freshness_anchor = self.last_success_at or self.started_at
-            stale = bool(
-                running
-                and freshness_anchor > 0
-                and now - freshness_anchor > stale_after_seconds
+            stale_after_seconds = max(
+                60.0,
+                self.cadence_seconds * 6.0,
             )
-            healthy = bool(running and not stale and self.consecutive_failures < 3)
+
+            freshness_anchor = (
+                self.last_success_at
+                or self.started_at
+            )
+
+            liveness = self._step_liveness(
+                running=running,
+                now=now,
+                freshness_anchor=freshness_anchor,
+                stale_after_seconds=(
+                    stale_after_seconds
+                ),
+                step_in_progress=(
+                    self.step_in_progress
+                ),
+                step_started_at=(
+                    self.step_started_at
+                ),
+            )
+
+            stale = bool(
+                liveness["stale"]
+            )
+
+            healthy = bool(
+                running
+                and not stale
+                and not liveness["hung"]
+                and self.consecutive_failures < 3
+            )
+
             result = {
                 "version": self.VERSION,
                 "running": running,
                 "healthy": healthy,
                 "stale": stale,
+                "busy": liveness["busy"],
+                "hung": liveness["hung"],
+                "step_in_progress": (
+                    self.step_in_progress
+                ),
+                "step_started_at": (
+                    self.step_started_at
+                ),
+                "step_age_seconds": (
+                    liveness[
+                        "step_age_seconds"
+                    ]
+                ),
+                "step_busy_ceiling_seconds": (
+                    liveness[
+                        "busy_ceiling_seconds"
+                    ]
+                ),
+                "last_step_duration_seconds": (
+                    self.last_step_duration_seconds
+                ),
                 "stale_after_seconds": stale_after_seconds,
                 "started_at": self.started_at,
                 "last_success_at": self.last_success_at,

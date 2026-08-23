@@ -34,7 +34,7 @@ class MicrostructureMarketFeed(MarketFeed):
 class PaperRunner(_V142PaperRunner):
     """v1.43: v1.42 supervision plus parallel costed market-swarm shadow evidence."""
 
-    VERSION = "1.56.1"
+    VERSION = "1.56.2"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _runner_v142.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
