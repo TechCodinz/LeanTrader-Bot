@@ -166,6 +166,19 @@ class BybitTestnetExecutionEngine:
         self._save_state()
         return {"reconciled": not errors, "checked": checked, "errors": errors}
 
+    def reconcile_required(self) -> dict[str, Any]:
+        """Require a clean Testnet reconciliation before new mirrors."""
+        result = self.reconcile()
+
+        if result.get("reconciled") is not True:
+            issues = len(result.get("errors") or [])
+            raise RuntimeError(
+                "testnet reconciliation is unresolved "
+                f"({issues} issue(s))"
+            )
+
+        return result
+
     def health(self) -> dict[str, Any]:
         orders = list(self.state["orders"].values())
         execution_notional = float(self.state["execution_notional_usd"])

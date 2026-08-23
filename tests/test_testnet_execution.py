@@ -428,3 +428,35 @@ def test_ccxt_template_cannot_escape_approved_bybit_hosts(tmp_path):
         match="unexpected Bybit sandbox hostname",
     ):
         instance.start()
+
+
+def test_required_reconciliation_fails_closed_and_recovers(tmp_path):
+    instance, fake = engine(tmp_path)
+    instance.start()
+
+    healthy_fetch_balance = fake.fetch_balance
+
+    def temporary_failure():
+        raise RuntimeError("temporary balance failure")
+
+    fake.fetch_balance = temporary_failure
+
+    with pytest.raises(
+        RuntimeError,
+        match="testnet reconciliation is unresolved",
+    ):
+        instance.reconcile_required()
+
+    assert (
+        instance.health()["last_reconciliation_errors"]
+    )
+
+    fake.fetch_balance = healthy_fetch_balance
+
+    result = instance.reconcile_required()
+
+    assert result["reconciled"] is True
+    assert (
+        instance.health()["last_reconciliation_errors"]
+        == []
+    )

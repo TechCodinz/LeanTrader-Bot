@@ -237,6 +237,13 @@ def test_testnet_engine_is_required_and_visible_when_enabled(monkeypatch, tmp_pa
         def mirror_events(self, events):
             return [{"mirrored": event["side"]} for event in events]
 
+        def reconcile_required(self):
+            return {
+                "reconciled": True,
+                "checked": 0,
+                "errors": [],
+            }
+
         def eligible_symbols(self, quote="USDT"):
             assert quote == "USDT"
             return {"BTC/USDT"}
@@ -261,6 +268,124 @@ def test_testnet_engine_is_required_and_visible_when_enabled(monkeypatch, tmp_pa
     assert testnet["environment"] == "testnet"
     assert testnet["sandbox_endpoint_verified"] is True
     assert testnet["live_authority"] is False
+
+
+def test_testnet_reconciliation_failure_preserves_market_cycle(
+    monkeypatch,
+    tmp_path,
+):
+    class RecoveringTestnetEngine:
+        VERSION = "fake-reconcile-failure"
+
+        def __init__(self, **_kwargs):
+            self.started = False
+
+        def start(self):
+            self.started = True
+
+        def stop(self):
+            self.started = False
+
+        def reconcile_required(self):
+            raise RuntimeError(
+                "temporary testnet reconciliation failure"
+            )
+
+        def eligible_symbols(self, quote="USDT"):
+            assert quote == "USDT"
+            return {"BTC/USDT"}
+
+        def mirror_events(self, _events):
+            raise AssertionError(
+                "mirror must remain blocked while reconciliation fails"
+            )
+
+        def health(self):
+            return {
+                "provider": "bybit",
+                "environment": "testnet",
+                "execution_authority": "testnet_only",
+                "sandbox_endpoint_verified": True,
+                "authenticated": True,
+                "api_attestation": {
+                    "verified": True,
+                    "ip_bound": True,
+                    "spot_trade": True,
+                    "read_write": True,
+                    "withdrawal_permission": False,
+                },
+                "account_balance": {
+                    "timestamp": "2026-08-23T00:00:00+00:00",
+                },
+                "last_reconciliation": (
+                    "2026-08-23T00:00:00+00:00"
+                ),
+                "last_reconciliation_errors": [
+                    {
+                        "client_order_id": "account_balance",
+                        "reason": "temporary failure",
+                    }
+                ],
+                "protection_contract": {
+                    "market_precision_and_limits": True,
+                    "fee_and_slippage_model": True,
+                    "balance_reconciliation": True,
+                    "order_idempotency": True,
+                    "order_state_recovery": True,
+                    "position_and_daily_caps": True,
+                    "kill_switch": True,
+                },
+                "exchange_capabilities": {
+                    "methods": {
+                        "fetchBalance": True,
+                        "createOrder": True,
+                        "fetchOrder": True,
+                    }
+                },
+                "live_authority": False,
+            }
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(
+        "PAPER_SYMBOLS",
+        "BTC/USDT",
+    )
+    monkeypatch.setenv(
+        "BYBIT_TESTNET_ENABLED",
+        "true",
+    )
+    monkeypatch.setenv(
+        "BYBIT_TESTNET_CONFIRM",
+        "I_UNDERSTAND_TESTNET_ONLY",
+    )
+    monkeypatch.setattr(
+        runner_module,
+        "BybitTestnetExecutionEngine",
+        RecoveringTestnetEngine,
+    )
+
+    result = PaperRunner(
+        Settings.from_env(),
+        FakeFeed(),
+    ).cycle()
+
+    assert "BTC/USDT" in result["cycle_symbols"]
+    assert "bybit_testnet_execution" in result["errors"]
+
+    reconciliation = (
+        result["testnet_execution"]["reconciliation"]
+    )
+
+    assert reconciliation["reconciled"] is False
+    assert (
+        reconciliation["universe_source"]
+        == "cached_started_testnet_catalog"
+    )
+
+    engine = result["engines"]["bybit_testnet_execution"]
+    assert engine["required"] is True
+    assert engine["healthy"] is False
+    assert engine["live_authority"] is False
 
 
 def test_dynamic_universe_scans_exchange_candidates_in_rotating_batches(monkeypatch, tmp_path):

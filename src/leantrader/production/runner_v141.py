@@ -132,6 +132,33 @@ def _collective_route_reversal(route: dict[str, Any] | None) -> bool:
     )
 
 
+def _testnet_ack_event_ids(
+    delivery_events: list[dict[str, Any]],
+    handled_events: list[dict[str, Any]],
+    *,
+    mirror_succeeded: bool,
+) -> list[str]:
+    """Ack only paper events actually handled by Testnet."""
+    if not mirror_succeeded:
+        return []
+
+    handled_ids = {
+        str(event.get("event_id"))
+        for event in handled_events
+        if event.get("event_id")
+    }
+
+    return [
+        str(event["event_id"])
+        for event in delivery_events
+        if (
+            event.get("event_id")
+            and str(event["event_id"])
+            in handled_ids
+        )
+    ]
+
+
 def atr_sized_notional(
     *,
     equity: float,
@@ -864,12 +891,94 @@ class PaperRunner:
         collective_contexts: dict[str, dict[str, Any]] = {}
         public_symbol_context: dict[str, dict[str, Any]] = {}
         errors: dict[str, str] = {}
-        self.engines.call("market_temporal_guard", "sync_clock")
-        allowed_testnet_symbols = (
-            self.engines.call("bybit_testnet_execution", "eligible_symbols", self.settings.market_quote)
-            if self.testnet is not None
-            else None
+        self.engines.call(
+            "market_temporal_guard",
+            "sync_clock",
         )
+
+        testnet_reconciliation: dict[str, Any] = {
+            "reconciled": True,
+            "enabled": False,
+        }
+
+        if self.testnet is not None:
+            try:
+                testnet_reconciliation = self.engines.call(
+                    "bybit_testnet_execution",
+                    "reconcile_required",
+                )
+                testnet_reconciliation["enabled"] = True
+
+                allowed_testnet_symbols = self.engines.call(
+                    "bybit_testnet_execution",
+                    "eligible_symbols",
+                    self.settings.market_quote,
+                )
+
+                self.error_attribution.success(
+                    "bybit_testnet_execution"
+                )
+
+            except Exception as exc:
+                error_text = (
+                    f"{type(exc).__name__}: {exc}"
+                )
+
+                errors[
+                    "bybit_testnet_execution"
+                ] = error_text
+
+                self.error_attribution.failure(
+                    "bybit_testnet_execution",
+                    error_text,
+                    optional=False,
+                    component="bybit_testnet_execution",
+                )
+
+                testnet_reconciliation = {
+                    "enabled": True,
+                    "reconciled": False,
+                    "error": error_text,
+                }
+
+                # Reconciliation failure blocks Testnet execution,
+                # but must not prevent existing-position management
+                # or collapse the canonical market cycle.
+                #
+                # eligible_symbols() reads the sandbox market catalog
+                # already loaded at engine startup; it performs no order
+                # operation and we intentionally call the engine directly
+                # so the registry remains DEGRADED until reconciliation
+                # itself succeeds.
+                try:
+                    allowed_testnet_symbols = set(
+                        self.testnet.eligible_symbols(
+                            self.settings.market_quote
+                        )
+                    )
+                    testnet_reconciliation[
+                        "universe_source"
+                    ] = "cached_started_testnet_catalog"
+                except Exception as universe_exc:
+                    # Last-resort continuity for already-known symbols
+                    # and open positions. Exchange protection still
+                    # blocks new Testnet authority while reconciliation
+                    # remains unresolved.
+                    allowed_testnet_symbols = (
+                        set(self.universe.symbols)
+                        | set(self.ledger.positions)
+                    )
+                    testnet_reconciliation[
+                        "universe_source"
+                    ] = "existing_runtime_universe"
+                    testnet_reconciliation[
+                        "universe_error"
+                    ] = (
+                        f"{type(universe_exc).__name__}: "
+                        f"{universe_exc}"
+                    )
+        else:
+            allowed_testnet_symbols = None
         if self.universe.needs_refresh():
             discovery = self.engines.call(
                 "market_data",
@@ -1996,9 +2105,13 @@ class PaperRunner:
         for event in delivery_events:
             self._append_event(event)
         testnet_events: list[dict[str, Any]] = []
+
         if self.testnet is not None:
             try:
-                protected_events: list[dict[str, Any]] = []
+                protected_events: list[
+                    dict[str, Any]
+                ] = []
+
                 for event in delivery_events:
                     protection = self.engines.call(
                         "exchange_protection",
@@ -2008,31 +2121,59 @@ class PaperRunner:
                         execution_health=self.testnet.health(),
                         engine_health=self.engines.snapshot(),
                     )
+
                     if protection["allowed"]:
                         protected_events.append(event)
                     else:
+                        # Keep this paper event pending.
+                        # It must be retried after Testnet
+                        # protection/reconciliation recovers.
                         testnet_events.append(
                             {
                                 "symbol": event["symbol"],
                                 "side": event["side"],
                                 "status": "blocked",
-                                "skip_reason": f"exchange_protection:{protection['reason']}",
+                                "skip_reason": (
+                                    "exchange_protection:"
+                                    f"{protection['reason']}"
+                                ),
                                 "protection": protection,
+                                "paper_event_retained": True,
                             }
                         )
+
                 if protected_events:
-                    testnet_events.extend(
-                        self.engines.call(
-                            "bybit_testnet_execution", "mirror_events", protected_events
+                    mirrored = self.engines.call(
+                        "bybit_testnet_execution",
+                        "mirror_events",
+                        protected_events,
+                    )
+                    testnet_events.extend(mirrored)
+
+                    acknowledged_ids = (
+                        _testnet_ack_event_ids(
+                            delivery_events,
+                            protected_events,
+                            mirror_succeeded=True,
                         )
                     )
-                self.engines.call(
-                    "paper_ledger",
-                    "acknowledge_events",
-                    [str(event["event_id"]) for event in delivery_events],
+
+                    if acknowledged_ids:
+                        self.engines.call(
+                            "paper_ledger",
+                            "acknowledge_events",
+                            acknowledged_ids,
+                        )
+
+            except Exception as exc:
+                # Nothing from the failed mirror batch is
+                # acknowledged. Testnet orderLinkId
+                # idempotency makes later retries safe.
+                errors[
+                    "bybit_testnet_execution"
+                ] = (
+                    f"{type(exc).__name__}: {exc}"
                 )
-            except Exception as exc:  # noqa: BLE001 - expose and fail health; never fall through to live
-                errors["bybit_testnet_execution"] = f"{type(exc).__name__}: {exc}"
         else:
             self.engines.call(
                 "paper_ledger",
@@ -2776,6 +2917,10 @@ class PaperRunner:
         "testnet_execution": {
                 "enabled": self.testnet is not None,
                 "events": testnet_events,
+                "reconciliation": testnet_reconciliation,
+                "pending_paper_events": len(
+                    self.ledger.pending_events
+                ),
                 "live_authority": False,
             },
         }

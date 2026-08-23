@@ -17,6 +17,7 @@ from leantrader.production.runner_v141 import (
     _collective_route_reversal,
     _legacy_trend_exit_applies,
     _position_entry_origin,
+    _testnet_ack_event_ids,
 )
 
 
@@ -371,3 +372,28 @@ def test_collective_origin_has_origin_aware_exit_contract():
         )
         is True
     )
+
+
+def test_testnet_blocked_events_remain_pending():
+    handled = {
+        "event_id": "paper-1",
+        "symbol": "BTC/USDT",
+        "side": "buy",
+    }
+    blocked = {
+        "event_id": "paper-2",
+        "symbol": "ETH/USDT",
+        "side": "buy",
+    }
+
+    assert _testnet_ack_event_ids(
+        [handled, blocked],
+        [handled],
+        mirror_succeeded=True,
+    ) == ["paper-1"]
+
+    assert _testnet_ack_event_ids(
+        [handled, blocked],
+        [handled],
+        mirror_succeeded=False,
+    ) == []
