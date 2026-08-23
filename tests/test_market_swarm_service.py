@@ -446,3 +446,189 @@ def test_v154_journal_accepts_only_kinematic_event_rows(tmp_path):
     assert pending[-1]["execution_authority"] is False
     assert pending[-1]["testnet_authority"] is False
     assert pending[-1]["live_authority"] is False
+
+def test_v155_kinematic_event_registers_deduplicated_slow_followthrough(
+    tmp_path,
+):
+    from types import SimpleNamespace
+
+    from leantrader.agents.micro_calibration import (
+        MicroCalibrationJournal,
+    )
+    from leantrader.agents.microstructure_sniper import (
+        MicroPathAssessment,
+        MicrostructureFeatures,
+    )
+
+    class Feed(FakeReadOnlyFeed):
+        def order_book(
+            self,
+            symbol: str,
+            limit: int = 10,
+        ):
+            return {
+                "bids": [[100.00, 1_000.0]],
+                "asks": [[100.02, 1_000.0]],
+            }
+
+        def public_trades(
+            self,
+            symbol: str,
+            limit: int = 80,
+        ):
+            return []
+
+    features = MicrostructureFeatures(
+        symbol="AAA/USDT",
+        timestamp=10_000.0,
+        midpoint=100.01,
+        spread_bps=2.0,
+        bid_depth_usd=100_000.0,
+        ask_depth_usd=50_000.0,
+        depth_imbalance=0.30,
+        microprice_shift_bps=1.0,
+        trade_imbalance=0.20,
+        trade_intensity_per_second=1.0,
+        short_momentum_bps=4.0,
+        realized_volatility_bps_1m=5.0,
+        q90_abs_move_bps=7.0,
+        cross_venue_basis_bps=0.0,
+        cross_venue_pressure=0.1,
+        liquidity_vacuum_score=0.4,
+        depth_imbalance_velocity=0.10,
+        microprice_velocity_bps_per_second=1.0,
+        spread_velocity_bps_per_second=0.0,
+        trade_imbalance_velocity=0.05,
+        pressure_persistence=0.8,
+        temporal_samples=20,
+        midpoint_velocity_bps_per_second=3.0,
+        midpoint_acceleration_bps_per_second2=1.5,
+        total_depth_change_fraction_per_second=-0.1,
+        recent_midpoint_range_bps_5s=10.0,
+        recent_midpoint_trend_bps_5s=8.0,
+    )
+
+    rows = [
+        MicroPathAssessment(
+            symbol="AAA/USDT",
+            horizon_seconds=horizon,
+            direction="long",
+            specialist="kinematic_momentum_burst_v154",
+            probability_favorable_first=0.60,
+            probability_adverse_first=0.40,
+            confidence=0.50 + horizon / 1000.0,
+            path_budget_bps=15.0,
+            expected_edge_bps=5.0,
+            modeled_round_trip_cost_bps=30.0,
+            independently_qualified=False,
+            reason="micro_predicted_magnitude_below_cost",
+            pressure_score=0.5,
+            regime="micro_trend",
+        )
+        for horizon in (5, 15, 30, 60)
+    ]
+
+    class StubSniper:
+        maximum_spread_bps = 25.0
+        minimum_depth_usd = 10_000.0
+
+        def extract(self, **kwargs):
+            return features
+
+        def assess(self, *args, **kwargs):
+            return list(rows)
+
+    micro = MicroCalibrationJournal(
+        tmp_path / "micro.json",
+    )
+    slow = MicroCalibrationJournal(
+        tmp_path / "slow.json",
+        accepted_horizons=(120, 300, 900),
+        max_resolution_delay_seconds=5.0,
+    )
+
+    service = ReadOnlySwarmService(
+        feed=Feed(),
+        runtime=FastSwarmRuntime(),
+        market_quote="USDT",
+        min_quote_volume_usd=250_000.0,
+        max_spread_bps=75.0,
+        scan_batch_size=1,
+        candle_limit=48,
+        cadence_seconds=1.0,
+        discovery_refresh_seconds=60.0,
+        microstructure_sniper=StubSniper(),
+        micro_agent_foundry=SimpleNamespace(
+            propose=lambda assessments, evidence_rankings: []
+        ),
+        micro_calibration_journal=micro,
+        slow_calibration_journal=slow,
+    )
+
+    ranked = [{
+        "symbol": "AAA/USDT",
+        "score": 1.0,
+        "modeled_round_trip_cost_bps": 30.0,
+    }]
+
+    frames = {
+        "AAA/USDT": _frame(100.0),
+    }
+
+    service._microstructure_assess(
+        ranked=ranked,
+        frames=frames,
+        profiles={},
+    )
+
+    # Four micro horizons remain measurable.
+    assert micro.health()["pending_labels"] == 4
+
+    # But one underlying event produces only one
+    # 120/300/900 follow-through set.
+    assert slow.health()["pending_labels"] == 3
+
+    pending = slow.state["pending"]
+
+    assert {
+        int(row["horizon_seconds"])
+        for row in pending
+    } == {120, 300, 900}
+
+    assert {
+        row["specialist"]
+        for row in pending
+    } == {
+        "kinematic_momentum_burst_followthrough_v155"
+    }
+
+    assert all(
+        row["original_reason"]
+        == "kinematic_event_followthrough_research"
+        for row in pending
+    )
+
+    assert service.kinematic_slow_event_triggers_registered == 1
+    assert service.kinematic_slow_labels_registered == 3
+
+    # Same persistent event during the cooldown cannot
+    # inflate the prospective slow sample population.
+    service._microstructure_assess(
+        ranked=ranked,
+        frames=frames,
+        profiles={},
+    )
+
+    assert slow.health()["pending_labels"] == 3
+
+    assert (
+        service.kinematic_slow_labels_suppressed_by_cooldown
+        == 3
+    )
+
+    assert all(
+        row["execution_authority"] is False
+        and row["testnet_authority"] is False
+        and row["live_authority"] is False
+        for row in pending
+    )

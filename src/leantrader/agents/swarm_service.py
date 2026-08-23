@@ -24,7 +24,9 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.54.0"
+    VERSION = "1.55.0"
+    KINEMATIC_SLOW_HORIZONS = (120, 300, 900)
+    KINEMATIC_SLOW_COOLDOWN_SECONDS = 900.0
     ROLE_BY_TIMEFRAME = {
         "1m": AgentRole.SCALP,
         "5m": AgentRole.MOMENTUM,
@@ -109,6 +111,12 @@ class ReadOnlySwarmService:
         self.microstream_warmup_labels_skipped = 0
         self.microstream_non_event_labels_skipped = 0
         self.microstream_kinematic_labels_registered = 0
+
+        self.kinematic_slow_event_triggers_registered = 0
+        self.kinematic_slow_labels_registered = 0
+        self.kinematic_slow_labels_suppressed_by_cooldown = 0
+        self._kinematic_slow_last_registered: dict[str, float] = {}
+
         self.microstream_last_loop_seconds = 0.0
         self.microstream_labels_resolved = 0
         self.microstream_observations = 0
@@ -631,26 +639,33 @@ class ReadOnlySwarmService:
                     features.temporal_samples >= 3
                 )
 
+                kinematic_rows = (
+                    [
+                        row.as_dict()
+                        for row in assessments
+                        if str(
+                            row.specialist
+                        ).startswith("kinematic_")
+                    ]
+                    if temporal_ready_for_label
+                    else []
+                )
+
                 if structurally_eligible:
                     active_microstream_symbols.append(
                         symbol
                     )
 
-                    if (
-                        self.micro_calibration_journal
-                        is not None
-                    ):
-                        if temporal_ready_for_label:
-                            kinematic_rows = [
-                                row.as_dict()
-                                for row in assessments
-                                if str(
-                                    row.specialist
-                                ).startswith(
-                                    "kinematic_"
-                                )
-                            ]
+                    if not temporal_ready_for_label:
+                        self.microstream_warmup_labels_skipped += (
+                            len(assessments)
+                        )
 
+                    else:
+                        if (
+                            self.micro_calibration_journal
+                            is not None
+                        ):
                             if kinematic_rows:
                                 added = (
                                     self.micro_calibration_journal.register(
@@ -660,6 +675,7 @@ class ReadOnlySwarmService:
                                         observed_at=features.timestamp,
                                     )
                                 )
+
                                 self.microstream_kinematic_labels_registered += (
                                     added
                                 )
@@ -667,10 +683,153 @@ class ReadOnlySwarmService:
                                 self.microstream_non_event_labels_skipped += (
                                     len(assessments)
                                 )
-                        else:
-                            self.microstream_warmup_labels_skipped += (
-                                len(assessments)
+
+                        # One persistent burst must not manufacture many
+                        # overlapping 2m/5m/15m observations. Select one
+                        # representative assessment and impose a full
+                        # 15-minute per-symbol/specialist/direction cooldown.
+                        if (
+                            self.slow_calibration_journal
+                            is not None
+                            and kinematic_rows
+                        ):
+                            event_row = max(
+                                kinematic_rows,
+                                key=lambda row: (
+                                    float(
+                                        row.get("confidence")
+                                        or 0.0
+                                    ),
+                                    float(
+                                        row.get(
+                                            "expected_edge_bps"
+                                        )
+                                        or 0.0
+                                    ),
+                                ),
                             )
+
+                            specialist = str(
+                                event_row.get("specialist")
+                                or "kinematic_unknown_v154"
+                            )
+                            direction = str(
+                                event_row.get("direction")
+                                or ""
+                            ).lower()
+                            regime = str(
+                                event_row.get("regime")
+                                or "micro_unknown"
+                            )
+
+                            event_key = (
+                                f"{symbol}|"
+                                f"{specialist}|"
+                                f"{direction}"
+                            )
+
+                            last_registered = float(
+                                self._kinematic_slow_last_registered.get(
+                                    event_key,
+                                    0.0,
+                                )
+                            )
+
+                            cooldown_elapsed = (
+                                features.timestamp
+                                - last_registered
+                                >= self.KINEMATIC_SLOW_COOLDOWN_SECONDS
+                            )
+
+                            if cooldown_elapsed:
+                                base_specialist = (
+                                    specialist.removesuffix(
+                                        "_v154"
+                                    )
+                                )
+
+                                slow_rows = [
+                                    {
+                                        "horizon_seconds": horizon,
+                                        "direction": direction,
+                                        "confidence": float(
+                                            event_row.get(
+                                                "confidence"
+                                            )
+                                            or 0.0
+                                        ),
+                                        "pressure_score": float(
+                                            event_row.get(
+                                                "pressure_score"
+                                            )
+                                            or 0.0
+                                        ),
+
+                                        # Do not transplant the short-horizon
+                                        # heuristic edge into the slow study.
+                                        # Actual prospective outcome evidence
+                                        # is authoritative.
+                                        "expected_edge_bps": 0.0,
+
+                                        "modeled_round_trip_cost_bps": max(
+                                            30.0,
+                                            float(
+                                                event_row.get(
+                                                    "modeled_round_trip_cost_bps"
+                                                )
+                                                or 30.0
+                                            ),
+                                        ),
+
+                                        "independently_qualified": False,
+
+                                        "reason": (
+                                            "kinematic_event_"
+                                            "followthrough_research"
+                                        ),
+
+                                        "specialist": (
+                                            f"{base_specialist}"
+                                            "_followthrough_v155"
+                                        ),
+
+                                        "regime": regime,
+
+                                        "automatic_promotion": False,
+                                        "execution_authority": False,
+                                        "testnet_authority": False,
+                                        "live_authority": False,
+                                    }
+                                    for horizon in (
+                                        self.KINEMATIC_SLOW_HORIZONS
+                                    )
+                                ]
+
+                                slow_added = (
+                                    self.slow_calibration_journal.register(
+                                        symbol=symbol,
+                                        midpoint=features.midpoint,
+                                        assessments=slow_rows,
+                                        observed_at=features.timestamp,
+                                    )
+                                )
+
+                                if slow_added:
+                                    self._kinematic_slow_last_registered[
+                                        event_key
+                                    ] = features.timestamp
+
+                                    self.kinematic_slow_event_triggers_registered += 1
+                                    self.kinematic_slow_labels_registered += (
+                                        slow_added
+                                    )
+
+                            else:
+                                self.kinematic_slow_labels_suppressed_by_cooldown += (
+                                    len(
+                                        self.KINEMATIC_SLOW_HORIZONS
+                                    )
+                                )
 
                 output[symbol] = {
                     "features": features.as_dict(),
@@ -1430,6 +1589,28 @@ class ReadOnlySwarmService:
                         self.calibration_labels_resolved
                     ),
                     "cadence_seconds": 1.0,
+
+                    "kinematic_event_followthrough": True,
+                    "kinematic_horizons_seconds": list(
+                        self.KINEMATIC_SLOW_HORIZONS
+                    ),
+                    "kinematic_event_cooldown_seconds": (
+                        self.KINEMATIC_SLOW_COOLDOWN_SECONDS
+                    ),
+                    "kinematic_event_triggers_registered": (
+                        self.kinematic_slow_event_triggers_registered
+                    ),
+                    "kinematic_labels_registered": (
+                        self.kinematic_slow_labels_registered
+                    ),
+                    "kinematic_labels_suppressed_by_cooldown": (
+                        self.kinematic_slow_labels_suppressed_by_cooldown
+                    ),
+
+                    "automatic_promotion": False,
+                    "execution_authority": False,
+                    "testnet_authority": False,
+                    "live_authority": False,
                 },
                 "opportunity_qualification_rate": (
                     self.qualified_opportunities_total / self.ranked_opportunities_total
