@@ -24,7 +24,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.53.0"
+    VERSION = "1.54.0"
     ROLE_BY_TIMEFRAME = {
         "1m": AgentRole.SCALP,
         "5m": AgentRole.MOMENTUM,
@@ -107,6 +107,8 @@ class ReadOnlySwarmService:
         self.microstream_sample_failures = 0
         self.microstream_trade_context_failures = 0
         self.microstream_warmup_labels_skipped = 0
+        self.microstream_non_event_labels_skipped = 0
+        self.microstream_kinematic_labels_registered = 0
         self.microstream_last_loop_seconds = 0.0
         self.microstream_labels_resolved = 0
         self.microstream_observations = 0
@@ -639,15 +641,32 @@ class ReadOnlySwarmService:
                         is not None
                     ):
                         if temporal_ready_for_label:
-                            self.micro_calibration_journal.register(
-                                symbol=symbol,
-                                midpoint=features.midpoint,
-                                assessments=[
-                                    row.as_dict()
-                                    for row in assessments
-                                ],
-                                observed_at=features.timestamp,
-                            )
+                            kinematic_rows = [
+                                row.as_dict()
+                                for row in assessments
+                                if str(
+                                    row.specialist
+                                ).startswith(
+                                    "kinematic_"
+                                )
+                            ]
+
+                            if kinematic_rows:
+                                added = (
+                                    self.micro_calibration_journal.register(
+                                        symbol=symbol,
+                                        midpoint=features.midpoint,
+                                        assessments=kinematic_rows,
+                                        observed_at=features.timestamp,
+                                    )
+                                )
+                                self.microstream_kinematic_labels_registered += (
+                                    added
+                                )
+                            else:
+                                self.microstream_non_event_labels_skipped += (
+                                    len(assessments)
+                                )
                         else:
                             self.microstream_warmup_labels_skipped += (
                                 len(assessments)
@@ -1376,6 +1395,13 @@ class ReadOnlySwarmService:
                         "microstream_warmup_labels_skipped": (
                             self.microstream_warmup_labels_skipped
                         ),
+                        "microstream_non_event_labels_skipped": (
+                            self.microstream_non_event_labels_skipped
+                        ),
+                        "microstream_kinematic_labels_registered": (
+                            self.microstream_kinematic_labels_registered
+                        ),
+                        "kinematic_event_only_prospective_labels": True,
                         "sticky_microstream_watchlist": True,
                         "order_book_only_precision_lane": True,
                         "trade_context_blocks_precision_lane": False,

@@ -50,6 +50,11 @@ class MicrostructureFeatures:
     trade_imbalance_velocity: float
     pressure_persistence: float
     temporal_samples: int
+    midpoint_velocity_bps_per_second: float = 0.0
+    midpoint_acceleration_bps_per_second2: float = 0.0
+    total_depth_change_fraction_per_second: float = 0.0
+    recent_midpoint_range_bps_5s: float = 0.0
+    recent_midpoint_trend_bps_5s: float = 0.0
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -82,7 +87,7 @@ class MicroPathAssessment:
 
 
 class UltraMicrostructureSniper:
-    VERSION = "1.53.0"
+    VERSION = "1.54.0"
     HORIZONS = (5, 15, 30, 60)
 
     def __init__(
@@ -169,20 +174,33 @@ class UltraMicrostructureSniper:
         timestamp: float,
         midpoint: float,
         spread_bps: float,
+        total_depth_usd: float,
         depth_imbalance: float,
         microprice_shift_bps: float,
         trade_imbalance: float,
         trade_observed: bool = True,
-    ) -> tuple[float, float, float, float, float, int]:
+    ) -> tuple[
+        float,
+        float,
+        float,
+        float,
+        float,
+        int,
+        float,
+        float,
+        float,
+        float,
+        float,
+    ]:
         key = str(symbol).upper()
 
         with self._history_lock:
             history = self._history[key]
 
-            # Sub-minute state must not inherit stale pressure from a symbol
-            # that has not been sampled recently.
             while history:
-                oldest = float(history[0].get("timestamp") or 0.0)
+                oldest = float(
+                    history[0].get("timestamp") or 0.0
+                )
                 if timestamp - oldest <= 90.0:
                     break
                 history.popleft()
@@ -192,11 +210,16 @@ class UltraMicrostructureSniper:
             spread_velocity = 0.0
             trade_velocity = 0.0
 
+            midpoint_velocity = 0.0
+            midpoint_acceleration = 0.0
+            depth_change_fraction = 0.0
+
             if history:
                 previous = history[-1]
                 dt = max(
                     0.25,
-                    timestamp - float(previous["timestamp"]),
+                    timestamp
+                    - float(previous["timestamp"]),
                 )
 
                 depth_velocity = (
@@ -206,7 +229,11 @@ class UltraMicrostructureSniper:
 
                 micro_velocity = (
                     microprice_shift_bps
-                    - float(previous["microprice_shift_bps"])
+                    - float(
+                        previous[
+                            "microprice_shift_bps"
+                        ]
+                    )
                 ) / dt
 
                 spread_velocity = (
@@ -214,7 +241,55 @@ class UltraMicrostructureSniper:
                     - float(previous["spread_bps"])
                 ) / dt
 
-            effective_trade_imbalance = trade_imbalance
+                previous_midpoint = float(
+                    previous.get("midpoint") or 0.0
+                )
+
+                if previous_midpoint > 0:
+                    midpoint_return_bps = (
+                        midpoint
+                        / previous_midpoint
+                        - 1.0
+                    ) * 10_000.0
+
+                    midpoint_velocity = (
+                        midpoint_return_bps / dt
+                    )
+
+                previous_velocity = float(
+                    previous.get(
+                        "midpoint_velocity_bps_per_second",
+                        0.0,
+                    )
+                    or 0.0
+                )
+
+                midpoint_acceleration = (
+                    midpoint_velocity
+                    - previous_velocity
+                ) / dt
+
+                previous_depth = float(
+                    previous.get(
+                        "total_depth_usd",
+                        0.0,
+                    )
+                    or 0.0
+                )
+
+                if previous_depth > 0:
+                    depth_change_fraction = (
+                        (
+                            total_depth_usd
+                            - previous_depth
+                        )
+                        / previous_depth
+                        / dt
+                    )
+
+            effective_trade_imbalance = (
+                trade_imbalance
+            )
 
             if not trade_observed and history:
                 effective_trade_imbalance = float(
@@ -242,7 +317,9 @@ class UltraMicrostructureSniper:
                         0.25,
                         timestamp
                         - float(
-                            previous_trade["timestamp"]
+                            previous_trade[
+                                "timestamp"
+                            ]
                         ),
                     )
 
@@ -257,8 +334,10 @@ class UltraMicrostructureSniper:
 
             current_pressure = _signed(
                 0.45 * depth_imbalance
-                + 0.35 * effective_trade_imbalance
-                + 0.20 * _signed(
+                + 0.35
+                * effective_trade_imbalance
+                + 0.20
+                * _signed(
                     microprice_shift_bps / 8.0
                 )
             )
@@ -276,24 +355,85 @@ class UltraMicrostructureSniper:
                     for value in recent_pressures
                     if abs(value) > 1e-9
                 ]
+
                 persistence = (
-                    sum(same_sign) / len(same_sign)
-                    if same_sign else 0.0
+                    sum(same_sign)
+                    / len(same_sign)
+                    if same_sign
+                    else 0.0
                 )
             else:
                 persistence = 0.0
+
+            recent_rows = [
+                row
+                for row in history
+                if (
+                    timestamp
+                    - float(
+                        row.get("timestamp")
+                        or 0.0
+                    )
+                    <= 5.0
+                )
+            ]
+
+            recent_midpoints = [
+                float(row.get("midpoint") or 0.0)
+                for row in recent_rows
+                if float(
+                    row.get("midpoint") or 0.0
+                ) > 0
+            ]
+            recent_midpoints.append(midpoint)
+
+            recent_range_bps = 0.0
+            recent_trend_bps = 0.0
+
+            if len(recent_midpoints) >= 2:
+                recent_range_bps = (
+                    (
+                        max(recent_midpoints)
+                        - min(recent_midpoints)
+                    )
+                    / midpoint
+                    * 10_000.0
+                )
+
+                first_midpoint = (
+                    recent_midpoints[0]
+                )
+
+                if first_midpoint > 0:
+                    recent_trend_bps = (
+                        midpoint
+                        / first_midpoint
+                        - 1.0
+                    ) * 10_000.0
 
             history.append(
                 {
                     "timestamp": timestamp,
                     "midpoint": midpoint,
                     "spread_bps": spread_bps,
-                    "depth_imbalance": depth_imbalance,
-                    "microprice_shift_bps": microprice_shift_bps,
+                    "total_depth_usd": (
+                        total_depth_usd
+                    ),
+                    "depth_imbalance": (
+                        depth_imbalance
+                    ),
+                    "microprice_shift_bps": (
+                        microprice_shift_bps
+                    ),
+                    "midpoint_velocity_bps_per_second": (
+                        midpoint_velocity
+                    ),
                     "trade_imbalance": (
                         effective_trade_imbalance
                     ),
-                    "trade_observed": trade_observed,
+                    "trade_observed": (
+                        trade_observed
+                    ),
                     "pressure": current_pressure,
                 }
             )
@@ -305,6 +445,11 @@ class UltraMicrostructureSniper:
                 trade_velocity,
                 persistence,
                 len(history),
+                midpoint_velocity,
+                midpoint_acceleration,
+                depth_change_fraction,
+                recent_range_bps,
+                recent_trend_bps,
             )
 
     def observe_snapshot(
@@ -406,11 +551,17 @@ class UltraMicrostructureSniper:
             trade_velocity,
             persistence,
             temporal_samples,
+            midpoint_velocity,
+            midpoint_acceleration,
+            depth_change_fraction,
+            recent_range_bps,
+            recent_trend_bps,
         ) = self._temporal_features(
             symbol=str(symbol).upper(),
             timestamp=now,
             midpoint=midpoint,
             spread_bps=spread_bps,
+            total_depth_usd=total_depth,
             depth_imbalance=depth_imbalance,
             microprice_shift_bps=micro_shift,
             trade_imbalance=trade_imbalance,
@@ -444,6 +595,21 @@ class UltraMicrostructureSniper:
             "trade_imbalance_velocity": trade_velocity,
             "pressure_persistence": persistence,
             "temporal_samples": temporal_samples,
+            "midpoint_velocity_bps_per_second": (
+                midpoint_velocity
+            ),
+            "midpoint_acceleration_bps_per_second2": (
+                midpoint_acceleration
+            ),
+            "total_depth_change_fraction_per_second": (
+                depth_change_fraction
+            ),
+            "recent_midpoint_range_bps_5s": (
+                recent_range_bps
+            ),
+            "recent_midpoint_trend_bps_5s": (
+                recent_trend_bps
+            ),
             "research_only": True,
             "automatic_promotion": False,
             "execution_authority": False,
@@ -519,11 +685,17 @@ class UltraMicrostructureSniper:
             trade_velocity,
             persistence,
             temporal_samples,
+            midpoint_velocity,
+            midpoint_acceleration,
+            depth_change_fraction,
+            recent_range_bps,
+            recent_trend_bps,
         ) = self._temporal_features(
             symbol=str(symbol).upper(),
             timestamp=now,
             midpoint=midpoint,
             spread_bps=spread,
+            total_depth_usd=total_depth,
             depth_imbalance=depth_imbalance,
             microprice_shift_bps=micro_shift,
             trade_imbalance=trade_imbalance,
@@ -552,6 +724,21 @@ class UltraMicrostructureSniper:
             trade_imbalance_velocity=trade_velocity,
             pressure_persistence=persistence,
             temporal_samples=temporal_samples,
+            midpoint_velocity_bps_per_second=(
+                midpoint_velocity
+            ),
+            midpoint_acceleration_bps_per_second2=(
+                midpoint_acceleration
+            ),
+            total_depth_change_fraction_per_second=(
+                depth_change_fraction
+            ),
+            recent_midpoint_range_bps_5s=(
+                recent_range_bps
+            ),
+            recent_midpoint_trend_bps_5s=(
+                recent_trend_bps
+            ),
         )
 
     @staticmethod
@@ -597,7 +784,7 @@ class UltraMicrostructureSniper:
             0.50 + 0.50 * features.pressure_persistence
         )
 
-        pressure = _signed(
+        base_pressure = _signed(
             (
                 0.58 * snapshot_pressure
                 + 0.42 * temporal_pressure
@@ -624,6 +811,78 @@ class UltraMicrostructureSniper:
             + 0.15 * features.liquidity_vacuum_score
         )
 
+        midpoint_velocity_signal = _signed(
+            features.midpoint_velocity_bps_per_second
+            / 2.0
+        )
+        midpoint_acceleration_signal = _signed(
+            features.midpoint_acceleration_bps_per_second2
+            / 2.0
+        )
+        midpoint_trend_signal = _signed(
+            features.recent_midpoint_trend_bps_5s
+            / 6.0
+        )
+        depth_velocity_signal = _signed(
+            features.depth_imbalance_velocity
+            / 0.08
+        )
+
+        kinematic_direction = _signed(
+            0.42 * midpoint_velocity_signal
+            + 0.28 * midpoint_trend_signal
+            + 0.16 * midpoint_acceleration_signal
+            + 0.14 * depth_velocity_signal
+        )
+
+        pressure = _signed(
+            0.55 * base_pressure
+            + 0.45
+            * kinematic_direction
+            * (
+                0.50
+                + 0.50 * features.pressure_persistence
+            )
+        )
+
+        velocity_score = _unit(
+            abs(
+                features.midpoint_velocity_bps_per_second
+            ) / 2.0
+        )
+        acceleration_score = _unit(
+            abs(
+                features.midpoint_acceleration_bps_per_second2
+            ) / 2.0
+        )
+        range_score = _unit(
+            features.recent_midpoint_range_bps_5s
+            / max(
+                4.0,
+                features.spread_bps * 2.0,
+            )
+        )
+        trend_score = _unit(
+            abs(
+                features.recent_midpoint_trend_bps_5s
+            ) / 6.0
+        )
+        depletion_score = _unit(
+            max(
+                0.0,
+                -features.total_depth_change_fraction_per_second,
+            ) / 0.12
+        )
+
+        kinematic_event_score = _unit(
+            0.26 * velocity_score
+            + 0.18 * acceleration_score
+            + 0.24 * range_score
+            + 0.14 * trend_score
+            + 0.10 * depletion_score
+            + 0.08 * features.pressure_persistence
+        )
+
         rows = []
         for horizon in self.HORIZONS:
             scale = math.sqrt(horizon / 60.0)
@@ -646,21 +905,64 @@ class UltraMicrostructureSniper:
                 1.0 + 2.5 * dynamics
             )
 
+            kinematic_motion_budget = max(
+                features.recent_midpoint_range_bps_5s
+                * 1.50,
+                abs(
+                    features.recent_midpoint_trend_bps_5s
+                )
+                * 1.35,
+                abs(
+                    features.midpoint_velocity_bps_per_second
+                )
+                * min(float(horizon), 8.0)
+                * 0.80,
+            )
+
+            event_motion_floor_bps = max(
+                4.0,
+                min(
+                    8.0,
+                    cost * 0.20,
+                ),
+            )
+
+            kinematic_event_detected = bool(
+                temporal_ready
+                and kinematic_event_score >= 0.60
+                and kinematic_motion_budget
+                >= event_motion_floor_bps
+                and abs(kinematic_direction) >= 0.20
+            )
+
             predicted_magnitude_bps = max(
                 abs(features.microprice_shift_bps) * 2.0,
                 velocity_budget,
                 volatility_budget * burst_multiplier,
+                (
+                    kinematic_motion_budget
+                    if kinematic_event_detected
+                    else 0.0
+                ),
             )
 
-            # Bound pathological extrapolation while allowing genuinely
-            # exceptional microstructure episodes to stand out.
+            # Kinematic events may legitimately exceed the historical
+            # one-minute range, but only by an amount already supported
+            # by observed sub-second/5-second motion.
+            path_ceiling = max(
+                10.0,
+                q90 * 8.0,
+                vol * 8.0,
+                (
+                    kinematic_motion_budget * 1.25
+                    if kinematic_event_detected
+                    else 0.0
+                ),
+            )
+
             path_budget = min(
                 predicted_magnitude_bps,
-                max(
-                    10.0,
-                    q90 * 8.0,
-                    vol * 8.0,
-                ),
+                path_ceiling,
             )
 
             favorable = max(
@@ -695,7 +997,36 @@ class UltraMicrostructureSniper:
             direction = "long" if pressure > 0 else ("short" if pressure < 0 else "flat")
 
             specialist = "temporal_orderflow"
-            if (
+
+            if kinematic_event_detected:
+                velocity_acceleration_reversal = bool(
+                    midpoint_velocity_signal
+                    * midpoint_acceleration_signal
+                    < -0.10
+                )
+
+                if (
+                    depletion_score >= 0.50
+                    and kinematic_direction
+                    * base_pressure > 0.05
+                ):
+                    specialist = (
+                        "kinematic_liquidity_sweep_v154"
+                    )
+                elif (
+                    acceleration_score >= 0.55
+                    and velocity_acceleration_reversal
+                    and range_score >= 0.50
+                ):
+                    specialist = (
+                        "kinematic_exhaustion_reversal_v154"
+                    )
+                else:
+                    specialist = (
+                        "kinematic_momentum_burst_v154"
+                    )
+
+            elif (
                 temporal_ready
                 and dynamics >= 0.72
                 and features.pressure_persistence >= 0.60
@@ -707,21 +1038,39 @@ class UltraMicrostructureSniper:
                 and snapshot_pressure * temporal_pressure < -0.15
             ):
                 specialist = "micro_exhaustion_reversal"
-            elif features.liquidity_vacuum_score >= 0.65 and strength >= 0.35:
+            elif (
+                features.liquidity_vacuum_score >= 0.65
+                and strength >= 0.35
+            ):
                 specialist = "liquidity_vacuum_sniper"
-            elif features.trade_intensity_per_second >= 1.5 and strength >= 0.45:
+            elif (
+                features.trade_intensity_per_second >= 1.5
+                and strength >= 0.45
+            ):
                 specialist = "micro_burst_hunter"
-            elif momentum * pressure < -0.12 and strength >= 0.35:
+            elif (
+                momentum * pressure < -0.12
+                and strength >= 0.35
+            ):
                 specialist = "reversal_snapper"
             elif abs(features.cross_venue_pressure) >= 0.35:
                 specialist = "cross_venue_leadlag"
 
             regime = "micro_trend" if momentum * pressure > 0.10 else "micro_reversal" if momentum * pressure < -0.10 else "micro_balanced"
 
-            rare_event_score = _unit(
+            legacy_rare_event_score = _unit(
                 0.45 * dynamics
                 + 0.30 * strength
                 + 0.25 * features.pressure_persistence
+            )
+
+            rare_event_score = max(
+                legacy_rare_event_score,
+                (
+                    kinematic_event_score
+                    if kinematic_event_detected
+                    else 0.0
+                ),
             )
 
             qualified = True
@@ -798,6 +1147,15 @@ class UltraMicrostructureSniper:
             "public_trade_pressure": True,
             "cross_venue_reference": True,
             "dedicated_microstream_ready": True,
+            "kinematic_rare_event_model": True,
+            "midpoint_velocity_model": True,
+            "midpoint_acceleration_model": True,
+            "five_second_range_model": True,
+            "depth_depletion_model": True,
+            "kinematic_event_score_threshold": 0.60,
+            "prospective_kinematic_specialist_prefix": (
+                "kinematic_"
+            ),
             "temporal_history_symbols": len(self._history),
             "temporal_history_max_samples_per_symbol": 64,
             "temporal_history_max_age_seconds": 90.0,

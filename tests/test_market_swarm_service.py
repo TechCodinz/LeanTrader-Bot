@@ -275,3 +275,174 @@ def test_v153_precision_lane_never_calls_public_trades():
         service.microstream_trade_context_failures
         == 0
     )
+
+def test_v154_journal_accepts_only_kinematic_event_rows(tmp_path):
+    from types import SimpleNamespace
+
+    from leantrader.agents.micro_calibration import (
+        MicroCalibrationJournal,
+    )
+    from leantrader.agents.microstructure_sniper import (
+        MicroPathAssessment,
+        MicrostructureFeatures,
+    )
+
+    class MicroFeed(FakeReadOnlyFeed):
+        def order_book(
+            self,
+            symbol: str,
+            limit: int = 10,
+        ):
+            return {
+                "bids": [[100.00, 1_000.0]],
+                "asks": [[100.02, 1_000.0]],
+            }
+
+        def public_trades(
+            self,
+            symbol: str,
+            limit: int = 80,
+        ):
+            return []
+
+    features = MicrostructureFeatures(
+        symbol="AAA/USDT",
+        timestamp=1000.0,
+        midpoint=100.01,
+        spread_bps=2.0,
+        bid_depth_usd=100_000.0,
+        ask_depth_usd=100_000.0,
+        depth_imbalance=0.0,
+        microprice_shift_bps=0.0,
+        trade_imbalance=0.0,
+        trade_intensity_per_second=0.0,
+        short_momentum_bps=0.0,
+        realized_volatility_bps_1m=1.0,
+        q90_abs_move_bps=1.0,
+        cross_venue_basis_bps=0.0,
+        cross_venue_pressure=0.0,
+        liquidity_vacuum_score=0.0,
+        depth_imbalance_velocity=0.0,
+        microprice_velocity_bps_per_second=0.0,
+        spread_velocity_bps_per_second=0.0,
+        trade_imbalance_velocity=0.0,
+        pressure_persistence=0.5,
+        temporal_samples=20,
+        midpoint_velocity_bps_per_second=0.0,
+        midpoint_acceleration_bps_per_second2=0.0,
+        total_depth_change_fraction_per_second=0.0,
+        recent_midpoint_range_bps_5s=0.5,
+        recent_midpoint_trend_bps_5s=0.1,
+    )
+
+    noise = MicroPathAssessment(
+        symbol="AAA/USDT",
+        horizon_seconds=5,
+        direction="long",
+        specialist="temporal_orderflow",
+        probability_favorable_first=0.51,
+        probability_adverse_first=0.49,
+        confidence=0.1,
+        path_budget_bps=2.0,
+        expected_edge_bps=0.5,
+        modeled_round_trip_cost_bps=30.0,
+        independently_qualified=False,
+        reason="micro_not_rare_enough",
+        pressure_score=0.1,
+        regime="micro_balanced",
+    )
+
+    event = MicroPathAssessment(
+        symbol="AAA/USDT",
+        horizon_seconds=5,
+        direction="long",
+        specialist="kinematic_momentum_burst_v154",
+        probability_favorable_first=0.60,
+        probability_adverse_first=0.40,
+        confidence=0.3,
+        path_budget_bps=12.0,
+        expected_edge_bps=5.0,
+        modeled_round_trip_cost_bps=30.0,
+        independently_qualified=False,
+        reason="micro_predicted_magnitude_below_cost",
+        pressure_score=0.4,
+        regime="micro_trend",
+    )
+
+    class StubSniper:
+        maximum_spread_bps = 25.0
+        minimum_depth_usd = 10_000.0
+
+        def __init__(self):
+            self.rows = [noise]
+
+        def extract(self, **kwargs):
+            return features
+
+        def assess(self, *args, **kwargs):
+            return list(self.rows)
+
+    sniper = StubSniper()
+    journal = MicroCalibrationJournal(
+        tmp_path / "v154_micro.json",
+        accepted_horizons=(5, 15, 30, 60),
+    )
+
+    service = ReadOnlySwarmService(
+        feed=MicroFeed(),
+        runtime=FastSwarmRuntime(),
+        market_quote="USDT",
+        min_quote_volume_usd=250_000.0,
+        max_spread_bps=75.0,
+        scan_batch_size=1,
+        candle_limit=48,
+        cadence_seconds=1.0,
+        discovery_refresh_seconds=60.0,
+        microstructure_sniper=sniper,
+        micro_agent_foundry=SimpleNamespace(
+            propose=lambda assessments, evidence_rankings: []
+        ),
+        micro_calibration_journal=journal,
+    )
+
+    ranked = [{
+        "symbol": "AAA/USDT",
+        "score": 1.0,
+        "modeled_round_trip_cost_bps": 30.0,
+    }]
+    frames = {
+        "AAA/USDT": _frame(100.0),
+    }
+
+    # Ordinary micro noise remains observable but creates no
+    # prospective calibration label.
+    service._microstructure_assess(
+        ranked=ranked,
+        frames=frames,
+        profiles={},
+    )
+
+    assert journal.health()["pending_labels"] == 0
+    assert service.microstream_non_event_labels_skipped == 1
+    assert service.microstream_kinematic_labels_registered == 0
+
+    # A fresh v1.54 kinematic identity enters the clean journal,
+    # even when it remains safely below execution qualification.
+    sniper.rows = [event]
+
+    service._microstructure_assess(
+        ranked=ranked,
+        frames=frames,
+        profiles={},
+    )
+
+    assert journal.health()["pending_labels"] == 1
+    assert service.microstream_kinematic_labels_registered == 1
+
+    pending = journal.state["pending"]
+    assert pending[-1]["specialist"] == (
+        "kinematic_momentum_burst_v154"
+    )
+    assert pending[-1]["execution_authority"] is False
+    assert pending[-1]["testnet_authority"] is False
+    assert pending[-1]["live_authority"] is False

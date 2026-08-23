@@ -518,3 +518,163 @@ def test_v153_book_only_stream_does_not_fabricate_trade_velocity():
     assert abs(
         third["trade_imbalance_velocity"] + 1.0
     ) < 1e-9
+
+def test_v154_midpoint_kinematics_measure_actual_price_motion():
+    sniper = UltraMicrostructureSniper(
+        minimum_confidence=0.0,
+        minimum_depth_usd=1.0,
+    )
+
+    first_book = {
+        "bids": [[99.99, 300.0]],
+        "asks": [[100.01, 300.0]],
+    }
+
+    second_book = {
+        "bids": [[100.09, 150.0]],
+        "asks": [[100.11, 150.0]],
+    }
+
+    sniper.observe_snapshot(
+        symbol="MOVE/USDT",
+        order_book=first_book,
+        trades=None,
+        now=1000.0,
+    )
+
+    second = sniper.observe_snapshot(
+        symbol="MOVE/USDT",
+        order_book=second_book,
+        trades=None,
+        now=1001.0,
+    )
+
+    assert second[
+        "midpoint_velocity_bps_per_second"
+    ] > 9.0
+
+    assert second[
+        "recent_midpoint_range_bps_5s"
+    ] > 9.0
+
+    assert second[
+        "recent_midpoint_trend_bps_5s"
+    ] > 9.0
+
+    assert second[
+        "total_depth_change_fraction_per_second"
+    ] < 0.0
+
+
+def test_v154_ordinary_noise_does_not_become_kinematic_event():
+    from leantrader.agents.microstructure_sniper import (
+        MicrostructureFeatures,
+    )
+
+    sniper = UltraMicrostructureSniper(
+        minimum_confidence=0.0,
+        minimum_depth_usd=1.0,
+    )
+
+    features = MicrostructureFeatures(
+        symbol="QUIET/USDT",
+        timestamp=1000.0,
+        midpoint=100.0,
+        spread_bps=1.0,
+        bid_depth_usd=50_000.0,
+        ask_depth_usd=50_000.0,
+        depth_imbalance=0.05,
+        microprice_shift_bps=0.1,
+        trade_imbalance=0.05,
+        trade_intensity_per_second=0.2,
+        short_momentum_bps=0.2,
+        realized_volatility_bps_1m=1.0,
+        q90_abs_move_bps=1.5,
+        cross_venue_basis_bps=0.0,
+        cross_venue_pressure=0.0,
+        liquidity_vacuum_score=0.1,
+        depth_imbalance_velocity=0.005,
+        microprice_velocity_bps_per_second=0.05,
+        spread_velocity_bps_per_second=0.0,
+        trade_imbalance_velocity=0.0,
+        pressure_persistence=0.3,
+        temporal_samples=20,
+        midpoint_velocity_bps_per_second=0.10,
+        midpoint_acceleration_bps_per_second2=0.05,
+        total_depth_change_fraction_per_second=-0.005,
+        recent_midpoint_range_bps_5s=0.8,
+        recent_midpoint_trend_bps_5s=0.3,
+    )
+
+    rows = sniper.assess(
+        features,
+        modeled_round_trip_cost_bps=30.0,
+    )
+
+    assert all(
+        not row.specialist.startswith("kinematic_")
+        for row in rows
+    )
+
+
+def test_v154_large_kinematic_event_gets_fresh_specialist_identity():
+    from leantrader.agents.microstructure_sniper import (
+        MicrostructureFeatures,
+    )
+
+    sniper = UltraMicrostructureSniper(
+        minimum_confidence=0.0,
+        minimum_depth_usd=1.0,
+    )
+
+    features = MicrostructureFeatures(
+        symbol="BURST/USDT",
+        timestamp=1000.0,
+        midpoint=100.0,
+        spread_bps=1.0,
+        bid_depth_usd=80_000.0,
+        ask_depth_usd=15_000.0,
+        depth_imbalance=0.70,
+        microprice_shift_bps=3.0,
+        trade_imbalance=0.75,
+        trade_intensity_per_second=3.0,
+        short_momentum_bps=8.0,
+        realized_volatility_bps_1m=6.0,
+        q90_abs_move_bps=8.0,
+        cross_venue_basis_bps=0.0,
+        cross_venue_pressure=0.30,
+        liquidity_vacuum_score=0.70,
+        depth_imbalance_velocity=0.12,
+        microprice_velocity_bps_per_second=1.5,
+        spread_velocity_bps_per_second=-0.2,
+        trade_imbalance_velocity=0.10,
+        pressure_persistence=0.90,
+        temporal_samples=20,
+        midpoint_velocity_bps_per_second=4.0,
+        midpoint_acceleration_bps_per_second2=2.0,
+        total_depth_change_fraction_per_second=-0.20,
+        recent_midpoint_range_bps_5s=12.0,
+        recent_midpoint_trend_bps_5s=10.0,
+    )
+
+    rows = sniper.assess(
+        features,
+        modeled_round_trip_cost_bps=30.0,
+    )
+
+    kinematic = [
+        row for row in rows
+        if row.specialist.startswith("kinematic_")
+    ]
+
+    assert kinematic
+    assert all(
+        row.modeled_round_trip_cost_bps >= 30.0
+        for row in kinematic
+    )
+    assert all(
+        row.execution_authority is False
+        and row.testnet_authority is False
+        and row.live_authority is False
+        for row in kinematic
+    )
