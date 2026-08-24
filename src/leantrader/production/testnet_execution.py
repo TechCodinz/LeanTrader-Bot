@@ -23,7 +23,7 @@ class BybitTestnetExecutionEngine:
     exchange test funds only. It never accepts production credentials or URLs.
     """
 
-    VERSION = "2.3"
+    VERSION = "2.4"
     TESTNET_CONFIRMATION = "I_UNDERSTAND_TESTNET_ONLY"
 
     def __init__(
@@ -346,6 +346,7 @@ class BybitTestnetExecutionEngine:
             "reference_price": price,
             "reason": str(event.get("reason", "paper_event")),
             "paper_event_timestamp": str(event.get("timestamp", "")),
+            "submitted_at": dt.datetime.now(dt.UTC).isoformat(),
             "status": "submitting",
             "order_id": None,
             "filled": 0.0,
@@ -438,6 +439,19 @@ class BybitTestnetExecutionEngine:
         if observed is not None:
             return observed
 
+        # CCXT collection helpers can miss an order whose network
+        # acknowledgement was lost before an exchange order id was saved.
+        # Query Bybit V5 directly by orderLinkId before declaring the
+        # exchange state ambiguous.
+        observed = self._recover_native_bybit_client_order(
+            record,
+            symbol,
+            client_id,
+        )
+
+        if observed is not None:
+            return observed
+
         # Compatibility only. Modern Bybit spot should normally have
         # resolved through one of the targeted paths above.
         if order_id:
@@ -490,6 +504,371 @@ class BybitTestnetExecutionEngine:
                 if observed_client_id == client_id:
                     return candidate
         return None
+
+    def _recover_native_bybit_client_order(
+        self,
+        record: dict[str, Any],
+        symbol: str,
+        client_id: str,
+    ) -> dict[str, Any] | None:
+        """Use authoritative Bybit V5 orderLinkId lookups.
+
+        A positive native response recovers the order. An old ambiguous
+        submission is classified as rejected only when realtime order,
+        order history and execution history all respond successfully and
+        all three contain no matching exchange record.
+        """
+        try:
+            market = self.exchange.market(symbol)
+        except Exception:
+            market = {}
+
+        market_id = str(
+            (market or {}).get("id")
+            or symbol.replace("/", "")
+        ).upper()
+
+        params = {
+            "category": "spot",
+            "symbol": market_id,
+            "orderLinkId": client_id,
+        }
+
+        successful_negative_queries = 0
+
+        for names in (
+            (
+                "private_get_v5_order_realtime",
+                "privateGetV5OrderRealtime",
+            ),
+            (
+                "private_get_v5_order_history",
+                "privateGetV5OrderHistory",
+            ),
+        ):
+            response = self._call_native_bybit(names, params)
+
+            if response is None:
+                continue
+
+            if not self._native_bybit_response_ok(response):
+                continue
+
+            successful_negative_queries += 1
+
+            for raw in self._native_bybit_rows(response):
+                observed_link_id = str(
+                    raw.get("orderLinkId")
+                    or raw.get("clientOrderId")
+                    or ""
+                )
+
+                if observed_link_id != client_id:
+                    continue
+
+                parsed = self._parse_native_bybit_order(
+                    raw,
+                    symbol,
+                    client_id,
+                )
+
+                if parsed is not None:
+                    record["reconciliation_resolution"] = (
+                        "native_bybit_order_link_id"
+                    )
+                    return parsed
+
+        execution = self._call_native_bybit(
+            (
+                "private_get_v5_execution_list",
+                "privateGetV5ExecutionList",
+            ),
+            params,
+        )
+
+        if (
+            execution is not None
+            and self._native_bybit_response_ok(execution)
+        ):
+            successful_negative_queries += 1
+
+            executions = [
+                row
+                for row in self._native_bybit_rows(execution)
+                if str(
+                    row.get("orderLinkId")
+                    or ""
+                ) == client_id
+            ]
+
+            if executions:
+                quantity = sum(
+                    float(row.get("execQty") or 0.0)
+                    for row in executions
+                )
+                cost = sum(
+                    float(row.get("execValue") or 0.0)
+                    for row in executions
+                )
+
+                order_id = next(
+                    (
+                        str(row.get("orderId"))
+                        for row in executions
+                        if row.get("orderId")
+                    ),
+                    "",
+                )
+
+                average = (
+                    cost / quantity
+                    if quantity > 0 and cost > 0
+                    else float(
+                        executions[-1].get("execPrice")
+                        or record.get("reference_price")
+                        or 0.0
+                    )
+                )
+
+                record["reconciliation_resolution"] = (
+                    "native_bybit_execution_link_id"
+                )
+
+                return {
+                    "id": order_id or None,
+                    "clientOrderId": client_id,
+                    "symbol": symbol,
+                    "side": record.get("side"),
+                    # Execution proves acceptance/fill but does not by
+                    # itself prove there is no remaining quantity.
+                    "status": "open",
+                    "filled": quantity,
+                    "average": average,
+                    "cost": cost,
+                    "info": {
+                        "orderLinkId": client_id,
+                    },
+                }
+
+        # Fail closed unless every authoritative lookup succeeded.
+        if successful_negative_queries != 3:
+            return None
+
+        if not self._ambiguity_old_enough(record):
+            return None
+
+        # Realtime + order history + execution history all succeeded and
+        # found nothing after the settlement grace period. Do not
+        # resubmit the same orderLinkId. Resolve it as never accepted.
+        record["reconciliation_resolution"] = (
+            "native_bybit_authoritative_absence"
+        )
+
+        return {
+            "id": None,
+            "clientOrderId": client_id,
+            "symbol": symbol,
+            "side": record.get("side"),
+            "status": "rejected",
+            "filled": 0.0,
+            "cost": 0.0,
+            "info": {
+                "orderLinkId": client_id,
+                "reconciliation": (
+                    "authoritative_exchange_absence"
+                ),
+            },
+        }
+
+    def _call_native_bybit(
+        self,
+        method_names: tuple[str, ...],
+        params: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        for method_name in method_names:
+            method = getattr(
+                self.exchange,
+                method_name,
+                None,
+            )
+
+            if not callable(method):
+                continue
+
+            try:
+                response = method(dict(params))
+            except Exception:
+                continue
+
+            if isinstance(response, dict):
+                return response
+
+        return None
+
+    @staticmethod
+    def _native_bybit_response_ok(
+        response: dict[str, Any],
+    ) -> bool:
+        code = response.get("retCode", 0)
+
+        try:
+            return int(code) == 0
+        except (TypeError, ValueError):
+            return False
+
+    @staticmethod
+    def _native_bybit_rows(
+        response: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        result = response.get("result") or {}
+        rows = result.get("list") or []
+
+        return [
+            dict(row)
+            for row in rows
+            if isinstance(row, dict)
+        ]
+
+    def _parse_native_bybit_order(
+        self,
+        raw: dict[str, Any],
+        symbol: str,
+        client_id: str,
+    ) -> dict[str, Any] | None:
+        parser = getattr(
+            self.exchange,
+            "parse_order",
+            None,
+        )
+
+        if callable(parser):
+            try:
+                market = self.exchange.market(symbol)
+                parsed = parser(
+                    raw,
+                    market,
+                )
+
+                if isinstance(parsed, dict):
+                    return parsed
+
+            except Exception:
+                pass
+
+        status_raw = str(
+            raw.get("orderStatus")
+            or raw.get("status")
+            or ""
+        ).lower()
+
+        status_map = {
+            "new": "open",
+            "created": "open",
+            "partiallyfilled": "open",
+            "pendingcancel": "open",
+            "filled": "closed",
+            "cancelled": "canceled",
+            "canceled": "canceled",
+            "rejected": "rejected",
+            "deactivated": "rejected",
+        }
+
+        status = status_map.get(
+            status_raw.replace("_", ""),
+            status_raw or "open",
+        )
+
+        filled = float(
+            raw.get("cumExecQty")
+            or raw.get("filled")
+            or 0.0
+        )
+
+        cost = float(
+            raw.get("cumExecValue")
+            or raw.get("cost")
+            or 0.0
+        )
+
+        average_raw = (
+            raw.get("avgPrice")
+            or raw.get("average")
+            or 0.0
+        )
+
+        return {
+            "id": raw.get("orderId") or raw.get("id"),
+            "clientOrderId": client_id,
+            "symbol": symbol,
+            "side": str(
+                raw.get("side")
+                or ""
+            ).lower(),
+            "status": status,
+            "filled": filled,
+            "average": (
+                float(average_raw)
+                if average_raw not in {None, ""}
+                else None
+            ),
+            "cost": cost,
+            "info": {
+                **raw,
+                "orderLinkId": client_id,
+            },
+        }
+
+    @staticmethod
+    def _ambiguity_old_enough(
+        record: dict[str, Any],
+        minimum_age_seconds: float = 300.0,
+    ) -> bool:
+        raw = (
+            record.get("submitted_at")
+            or record.get("paper_event_timestamp")
+        )
+
+        if raw in {None, ""}:
+            return False
+
+        timestamp: float | None = None
+
+        try:
+            timestamp = float(raw)
+
+            if timestamp > 10_000_000_000:
+                timestamp /= 1000.0
+
+        except (TypeError, ValueError):
+            try:
+                value = str(raw).replace(
+                    "Z",
+                    "+00:00",
+                )
+
+                parsed = dt.datetime.fromisoformat(
+                    value
+                )
+
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(
+                        tzinfo=dt.UTC
+                    )
+
+                timestamp = parsed.timestamp()
+
+            except (TypeError, ValueError):
+                return False
+
+        now = dt.datetime.now(
+            dt.UTC
+        ).timestamp()
+
+        return (
+            timestamp is not None
+            and now - timestamp
+            >= minimum_age_seconds
+        )
 
     def _pending_buy_notional(self, symbol: str, price: float) -> float:
         reserved = 0.0

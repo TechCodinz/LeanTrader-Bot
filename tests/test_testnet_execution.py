@@ -559,3 +559,173 @@ def test_bybit_spot_reconciliation_avoids_generic_fetch_order_limit(
         instance.health()["positions"]["BTC/USDT"]
         == pytest.approx(0.05)
     )
+
+
+
+class NativeRecoveryBybit(FakeBybit):
+    def __init__(
+        self,
+        *,
+        native_order=None,
+        native_empty=False,
+    ):
+        super().__init__()
+        self.native_order = native_order
+        self.native_empty = native_empty
+
+    def market(self, symbol):
+        row = super().market(symbol)
+        return {
+            **row,
+            "id": symbol.replace("/", ""),
+        }
+
+    def _native_rows(self):
+        if self.native_order is None:
+            return []
+        return [dict(self.native_order)]
+
+    def private_get_v5_order_realtime(self, params):
+        return {
+            "retCode": 0,
+            "result": {
+                "list": self._native_rows(),
+            },
+        }
+
+    def private_get_v5_order_history(self, params):
+        return {
+            "retCode": 0,
+            "result": {
+                "list": self._native_rows(),
+            },
+        }
+
+    def private_get_v5_execution_list(self, params):
+        return {
+            "retCode": 0,
+            "result": {
+                "list": [],
+            },
+        }
+
+
+def _ambiguous_without_exchange_id(
+    instance,
+    event,
+):
+    client_id = instance._client_order_id(event)
+
+    instance.state["orders"][client_id] = {
+        "client_order_id": client_id,
+        "symbol": "BTC/USDT",
+        "side": "buy",
+        "quantity": 0.05,
+        "submitted_usd": 5.0,
+        "reference_price": 100.0,
+        "reason": "paper_entry",
+        "paper_event_timestamp": (
+            "2026-08-14T12:00:00+00:00"
+        ),
+        "status": "submitting",
+        "order_id": None,
+        "filled": 0.0,
+        "applied_filled": 0.0,
+        "filled_cost": 0.0,
+        "applied_fill_cost": 0.0,
+        "average": None,
+        "fee": 0.0,
+        "fee_currency": None,
+        "applied_fee": 0.0,
+        "fill_counted": False,
+    }
+
+    instance._save_state()
+
+    return client_id
+
+
+def test_native_bybit_order_link_id_recovers_without_order_id(
+    tmp_path,
+):
+    event = buy_event()
+
+    temporary, _ = engine(tmp_path)
+    client_id = temporary._client_order_id(event)
+
+    native = {
+        "orderId": "native-order-1",
+        "orderLinkId": client_id,
+        "symbol": "BTCUSDT",
+        "side": "Buy",
+        "orderStatus": "Filled",
+        "cumExecQty": "0.05",
+        "cumExecValue": "5.0",
+        "avgPrice": "100",
+    }
+
+    fake = NativeRecoveryBybit(
+        native_order=native,
+    )
+
+    instance, _ = engine(
+        tmp_path,
+        fake,
+    )
+
+    instance.start()
+
+    client_id = _ambiguous_without_exchange_id(
+        instance,
+        event,
+    )
+
+    result = instance.reconcile_required()
+
+    assert result["reconciled"] is True
+    assert result["errors"] == []
+
+    record = instance.state["orders"][client_id]
+
+    assert record["order_id"] == "native-order-1"
+    assert record["status"] == "closed"
+    assert record["filled"] == pytest.approx(0.05)
+    assert (
+        record["reconciliation_resolution"]
+        == "native_bybit_order_link_id"
+    )
+
+
+def test_native_bybit_authoritative_absence_resolves_old_ambiguity(
+    tmp_path,
+):
+    fake = NativeRecoveryBybit(
+        native_order=None,
+        native_empty=True,
+    )
+
+    instance, _ = engine(
+        tmp_path,
+        fake,
+    )
+
+    instance.start()
+
+    client_id = _ambiguous_without_exchange_id(
+        instance,
+        buy_event(),
+    )
+
+    result = instance.reconcile_required()
+
+    assert result["reconciled"] is True
+    assert result["errors"] == []
+
+    record = instance.state["orders"][client_id]
+
+    assert record["status"] == "rejected"
+    assert record["filled"] == 0.0
+    assert (
+        record["reconciliation_resolution"]
+        == "native_bybit_authoritative_absence"
+    )
