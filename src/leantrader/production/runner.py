@@ -36,7 +36,7 @@ class MicrostructureMarketFeed(MarketFeed):
 class PaperRunner(_V142PaperRunner):
     """v1.43: v1.42 supervision plus parallel costed market-swarm shadow evidence."""
 
-    VERSION = "1.60.5"
+    VERSION = "1.60.6"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _runner_v142.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
@@ -1204,7 +1204,7 @@ class PaperRunner(_V142PaperRunner):
                 {},
             )
 
-            fabric["version"] = "1.60.5"
+            fabric["version"] = "1.60.6"
             fabric[
                 "fast_testnet_exploration_lane"
             ] = True
@@ -1261,6 +1261,15 @@ class PaperRunner(_V142PaperRunner):
             ] = True
             fabric[
                 "direct_testnet_health_refresh"
+            ] = True
+            fabric[
+                "freshness_budgeted_micro_cohort"
+            ] = True
+            fabric[
+                "execution_position_data_pinning"
+            ] = True
+            fabric[
+                "fresh_sample_only_fast_routing"
             ] = True
             fabric[
                 "wide_candidate_router"
@@ -1392,7 +1401,7 @@ def main() -> None:
             "live_authority": False,
         }
         payload["collective_profit_fabric"] = {
-            "version": "1.60.5",
+            "version": "1.60.6",
             "canonical_pretrade_integration": True,
             "sources": [
                 "adaptive_intelligence",
@@ -1429,6 +1438,9 @@ def main() -> None:
             "fast_lane_reconciliation_watchdog": settings.testnet_enabled,
             "stale_testnet_supervisor_recovery": settings.testnet_enabled,
             "direct_testnet_health_refresh": settings.testnet_enabled,
+            "freshness_budgeted_micro_cohort": settings.testnet_enabled,
+            "execution_position_data_pinning": settings.testnet_enabled,
+            "fresh_sample_only_fast_routing": settings.testnet_enabled,
             "wide_candidate_router": settings.testnet_enabled,
             "sub_dollar_mover_coverage": settings.testnet_enabled,
             "principal_protected_profit_compounding": settings.testnet_enabled,

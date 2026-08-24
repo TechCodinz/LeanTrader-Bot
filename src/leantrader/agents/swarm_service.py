@@ -25,7 +25,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.60.4"
+    VERSION = "1.60.6"
     KINEMATIC_SLOW_HORIZONS = (120, 300, 900)
     KINEMATIC_SLOW_COOLDOWN_SECONDS = 900.0
     ROLE_BY_TIMEFRAME = {
@@ -178,6 +178,13 @@ class ReadOnlySwarmService:
         self.precision_explorer_hold_seconds = 3.0
         self.precision_hot_promotions = 0
         self.precision_explorer_rotations = 0
+
+        # v1.60.6: execution freshness is a resource budget rather
+        # than a fixed symbol count.
+        self.microstream_target_loop_seconds = 1.50
+        self.microstream_freshness_seconds = 2.0
+        self.microstream_per_symbol_latency_seconds = 0.25
+        self._execution_precision_pins: dict[str, float] = {}
 
         self._microstream_thread: threading.Thread | None = None
         self._calibration_thread: threading.Thread | None = None
@@ -1988,6 +1995,50 @@ class ReadOnlySwarmService:
             },
         )
 
+    def pin_execution_symbols(
+        self,
+        symbols: list[str] | tuple[str, ...] | set[str],
+        *,
+        ttl_seconds: float = 10.0,
+    ) -> None:
+        """Keep currently managed Testnet positions in deep market sampling."""
+
+        now = time.time()
+        expires = (
+            now
+            + max(
+                3.0,
+                float(ttl_seconds),
+            )
+        )
+
+        normalized = self._unique_symbols(
+            [
+                str(symbol)
+                for symbol in symbols
+            ]
+        )
+
+        with self._lock:
+            stale = [
+                symbol
+                for symbol, until in (
+                    self._execution_precision_pins.items()
+                )
+                if float(until) <= now
+            ]
+
+            for symbol in stale:
+                self._execution_precision_pins.pop(
+                    symbol,
+                    None,
+                )
+
+            for symbol in normalized:
+                self._execution_precision_pins[
+                    symbol
+                ] = expires
+
     @classmethod
     def _build_sticky_precision_queue(
         cls,
@@ -2049,9 +2100,12 @@ class ReadOnlySwarmService:
         )
 
         # At most one bounded research label-resolution slot.
+        # Research must never consume half of a latency-constrained
+        # execution cohort. It receives a slot only when at least four
+        # simultaneous deep samples fit inside the freshness budget.
         due_slots = (
             1
-            if due and cap >= 2
+            if due and cap >= 4
             else 0
         )
 
@@ -2291,19 +2345,25 @@ class ReadOnlySwarmService:
         *,
         scout_count: int,
     ) -> int:
-        """Expand deep polling when cheap and contract when pressure rises."""
+        """Adapt deep sampling while keeping the queue inside freshness SLA."""
 
         maximum = max(
             1,
             min(
                 12,
-                self.max_micro_symbols,
+                int(
+                    getattr(
+                        self,
+                        "max_micro_symbols",
+                        6,
+                    )
+                ),
             ),
         )
 
         minimum = min(
             maximum,
-            4,
+            2,
         )
 
         current = max(
@@ -2320,6 +2380,105 @@ class ReadOnlySwarmService:
             ),
         )
 
+        loop_seconds = max(
+            0.0,
+            float(
+                getattr(
+                    self,
+                    "microstream_last_loop_seconds",
+                    0.0,
+                )
+                or 0.0
+            ),
+        )
+
+        previous_queue = (
+            getattr(
+                self,
+                "precision_micro_last_queue",
+                [],
+            )
+            or []
+        )
+
+        # Older fixtures do not create the queue. Using current capacity
+        # gives the correct per-symbol estimate rather than pretending
+        # the entire loop belonged to one symbol.
+        previous_queue_size = max(
+            1,
+            len(previous_queue)
+            or current,
+        )
+
+        previous_estimate = max(
+            0.02,
+            float(
+                getattr(
+                    self,
+                    "microstream_per_symbol_latency_seconds",
+                    0.25,
+                )
+            ),
+        )
+
+        if loop_seconds > 0.0:
+            observed_per_symbol = (
+                loop_seconds
+                / previous_queue_size
+            )
+
+            estimate = (
+                0.75 * previous_estimate
+                + 0.25 * observed_per_symbol
+            )
+        else:
+            estimate = previous_estimate
+
+        estimate = max(
+            0.02,
+            estimate,
+        )
+
+        self.microstream_per_symbol_latency_seconds = (
+            estimate
+        )
+
+        target_loop = max(
+            0.75,
+            min(
+                1.50,
+                float(
+                    getattr(
+                        self,
+                        "microstream_target_loop_seconds",
+                        1.50,
+                    )
+                ),
+            ),
+        )
+
+        freshness_seconds = max(
+            target_loop,
+            float(
+                getattr(
+                    self,
+                    "microstream_freshness_seconds",
+                    2.0,
+                )
+            ),
+        )
+
+        latency_capacity = max(
+            minimum,
+            min(
+                maximum,
+                int(
+                    target_loop
+                    // estimate
+                ),
+            ),
+        )
+
         previous_failures = int(
             getattr(
                 self,
@@ -2329,7 +2488,11 @@ class ReadOnlySwarmService:
         )
 
         current_failures = int(
-            self.microstream_sample_failures
+            getattr(
+                self,
+                "microstream_sample_failures",
+                0,
+            )
         )
 
         new_failures = max(
@@ -2342,38 +2505,55 @@ class ReadOnlySwarmService:
             current_failures
         )
 
-        latency = max(
-            0.0,
-            float(
-                self.microstream_last_loop_seconds
-                or 0.0
-            ),
+        scout_count = max(
+            0,
+            int(scout_count),
         )
 
-        # API pressure, failures or a slow loop contract capacity.
-        if (
-            new_failures > 0
-            or latency > 0.80
-        ):
-            current = max(
+        desired = current
+
+        if new_failures > 0:
+            # Provider/API pressure wins immediately.
+            desired = max(
                 minimum,
                 current - 1,
             )
 
-        # A comfortably sub-cadence loop can add one more deep market.
         elif (
-            latency > 0.0
-            and latency < 0.35
-            and scout_count > current
+            loop_seconds > freshness_seconds
         ):
-            current = min(
-                maximum,
-                current + 1,
+            # A queue that already violates the execution freshness SLA
+            # contracts immediately, possibly by more than one slot.
+            desired = min(
+                max(
+                    minimum,
+                    current - 1,
+                ),
+                latency_capacity,
             )
 
-        # Initial startup gets a useful precision baseline.
-        elif latency <= 0.0:
-            current = min(
+        elif (
+            loop_seconds > 0.0
+            and loop_seconds < target_loop
+            and scout_count > current
+            and latency_capacity > current
+        ):
+            # Preserve the proven adaptive behavior: grow one deep market
+            # per healthy loop rather than jumping immediately to the max.
+            desired = min(
+                maximum,
+                current + 1,
+                latency_capacity,
+            )
+
+        elif latency_capacity < current:
+            desired = max(
+                minimum,
+                latency_capacity,
+            )
+
+        elif loop_seconds <= 0.0:
+            desired = min(
                 maximum,
                 max(
                     minimum,
@@ -2387,8 +2567,11 @@ class ReadOnlySwarmService:
                 ),
             )
 
-        self._precision_micro_capacity = current
-        return current
+        self._precision_micro_capacity = (
+            desired
+        )
+
+        return desired
 
     def _run_microstream(self) -> None:
         """Continuously sample bounded micro markets with no trade authority."""
@@ -2430,12 +2613,42 @@ class ReadOnlySwarmService:
                 ]
 
                 with self._lock:
-                    scout_symbols = list(
-                        self._precision_scout_symbols
+                    expired_pins = [
+                        symbol
+                        for symbol, until in (
+                            self._execution_precision_pins.items()
+                        )
+                        if float(until) <= now
+                    ]
+
+                    for symbol in expired_pins:
+                        self._execution_precision_pins.pop(
+                            symbol,
+                            None,
+                        )
+
+                    execution_pins = list(
+                        self._execution_precision_pins
                     )
-                    sticky_symbols = list(
-                        self._microstream_symbols
+
+                    scout_symbols = (
+                        self._unique_symbols(
+                            [
+                                *execution_pins,
+                                *self._precision_scout_symbols,
+                            ]
+                        )
                     )
+
+                    sticky_symbols = (
+                        self._unique_symbols(
+                            [
+                                *execution_pins,
+                                *self._microstream_symbols,
+                            ]
+                        )
+                    )
+
                     cursor = int(
                         self._precision_micro_cursor
                     )
@@ -2920,78 +3133,190 @@ class ReadOnlySwarmService:
         self,
         limit: int = 8,
     ) -> list[str]:
-        """Velocity-first symbols for fast collective evaluation."""
+        """Return execution-ready markets before slower fallback candidates."""
+
         bounded = max(
             1,
-            min(48, int(limit)),
+            min(
+                48,
+                int(limit),
+            ),
+        )
+
+        now = time.time()
+
+        freshness_seconds = max(
+            0.50,
+            float(
+                getattr(
+                    self,
+                    "microstream_freshness_seconds",
+                    2.0,
+                )
+            ),
         )
 
         velocity_rows = (
             self.micro_velocity_candidates(
                 bounded,
-                max_age_seconds=2.0,
+                max_age_seconds=(
+                    freshness_seconds
+                ),
             )
         )
 
         with self._lock:
+            snapshots = copy.deepcopy(
+                getattr(
+                    self,
+                    "_microstream_snapshots",
+                    {},
+                )
+            )
+
+            hot = list(
+                getattr(
+                    self,
+                    "_precision_hot_symbols",
+                    [],
+                )
+            )
+
+            explorer = str(
+                getattr(
+                    self,
+                    "_precision_explorer_symbol",
+                    "",
+                )
+                or ""
+            ).upper()
+
             ranked = list(
-                self.last_step.get("ranked")
+                self.last_step.get(
+                    "ranked"
+                )
                 or []
             )
-            scout_symbols = list(
-                getattr(
-                    self,
-                    "_precision_scout_symbols",
-                    [],
+
+        fresh_rows: list[
+            tuple[
+                str,
+                float,
+                float,
+                int,
+            ]
+        ] = []
+
+        for symbol, snapshot in (
+            snapshots.items()
+        ):
+            timestamp = float(
+                snapshot.get(
+                    "timestamp"
+                )
+                or 0.0
+            )
+
+            if timestamp <= 0.0:
+                continue
+
+            age = max(
+                0.0,
+                now - timestamp,
+            )
+
+            if (
+                age
+                > freshness_seconds
+            ):
+                continue
+
+            fresh_rows.append(
+                (
+                    str(symbol).upper(),
+                    age,
+                    self._micro_velocity_score(
+                        snapshot
+                    ),
+                    int(
+                        float(
+                            snapshot.get(
+                                "temporal_samples"
+                            )
+                            or 0
+                        )
+                    ),
                 )
             )
-            micro_symbols = list(
-                getattr(
-                    self,
-                    "_microstream_symbols",
-                    [],
-                )
-            )
+
+        fresh_rows.sort(
+            key=lambda item: (
+                item[2],
+                item[3],
+                -item[1],
+            ),
+            reverse=True,
+        )
+
+        fresh_symbols = {
+            row[0]
+            for row in fresh_rows
+        }
 
         symbols: list[str] = []
 
-        # Fresh sub-second observations have first priority.
-        for row in velocity_rows:
-            symbol = str(
-                row.get("symbol")
-                or ""
+        def add(symbol: str) -> None:
+            normalized = str(
+                symbol or ""
             ).upper()
 
-            if symbol and symbol not in symbols:
-                symbols.append(symbol)
+            if (
+                normalized
+                and normalized not in symbols
+                and len(symbols) < bounded
+            ):
+                symbols.append(
+                    normalized
+                )
 
-        # Dedicated always-on scout follows fresh market movement even
-        # while the full market-swarm cycle is still working.
-        for symbol in scout_symbols:
-            symbol = str(symbol).upper()
+        # Positive measured velocity has first execution priority.
+        for row in velocity_rows:
+            add(
+                str(
+                    row.get("symbol")
+                    or ""
+                )
+            )
 
-            if symbol and symbol not in symbols:
-                symbols.append(symbol)
+        # Continuity-managed hot/explorer markets follow, but only
+        # while their actual book snapshot is still fresh.
+        for symbol in hot:
+            if str(symbol).upper() in fresh_symbols:
+                add(symbol)
 
-        # Then retain the slower sticky deep-micro universe.
-        for symbol in micro_symbols:
-            symbol = str(symbol).upper()
+        if explorer in fresh_symbols:
+            add(explorer)
 
-            if symbol and symbol not in symbols:
-                symbols.append(symbol)
+        # Any other currently fresh deep observation remains eligible.
+        for symbol, _age, _score, _samples in fresh_rows:
+            add(symbol)
 
-        # General movement radar is the broad fallback.
+        # Broad full-swarm evidence remains available as the slower
+        # fallback. Unsampled scout symbols are deliberately NOT injected
+        # directly into the sub-second execution router.
         for row in ranked:
-            if not isinstance(row, dict):
+            if not isinstance(
+                row,
+                dict,
+            ):
                 continue
 
-            symbol = str(
-                row.get("symbol")
-                or ""
-            ).upper()
-
-            if symbol and symbol not in symbols:
-                symbols.append(symbol)
+            add(
+                str(
+                    row.get("symbol")
+                    or ""
+                )
+            )
 
         return symbols[:bounded]
 
@@ -3577,6 +3902,35 @@ class ReadOnlySwarmService:
                         ),
                         "continuity_preserving": True,
                         "broad_scout_remains_wide": True,
+                        "freshness_budgeted_capacity": True,
+                        "target_loop_seconds": (
+                            getattr(
+                                self,
+                                "microstream_target_loop_seconds",
+                                1.50,
+                            )
+                        ),
+                        "execution_freshness_seconds": (
+                            getattr(
+                                self,
+                                "microstream_freshness_seconds",
+                                2.0,
+                            )
+                        ),
+                        "estimated_per_symbol_latency_seconds": (
+                            getattr(
+                                self,
+                                "microstream_per_symbol_latency_seconds",
+                                0.25,
+                            )
+                        ),
+                        "execution_pins": sorted(
+                            getattr(
+                                self,
+                                "_execution_precision_pins",
+                                {},
+                            )
+                        ),
                         "live_scout_slots": (
                             self.precision_micro_live_slots
                         ),

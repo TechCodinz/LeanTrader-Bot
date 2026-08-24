@@ -12,7 +12,7 @@ from .fast_collective_testnet import FastCollectiveTestnetLane
 class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
     """Multi-position fast Testnet router with one sentinel per position."""
 
-    VERSION = "1.60.5"
+    VERSION = "1.60.6"
 
     def __init__(
         self,
@@ -783,6 +783,26 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             return self._decision("waiting_for_fast_swarm")
 
         self._refresh_day(now)
+
+        # Any fast position receives continuous market-data priority
+        # until its sentinel has finished managing the exit.
+        execution_pinner = getattr(
+            service,
+            "pin_execution_symbols",
+            None,
+        )
+
+        if callable(execution_pinner):
+            execution_pinner(
+                set(
+                    self._active_snapshot()
+                ),
+                ttl_seconds=max(
+                    10.0,
+                    self.maximum_hold_seconds
+                    + 5.0,
+                ),
+            )
 
         # Reconciliation recovery happens before pending orders, exits,
         # supervisor gating, or new entries. No order can be submitted

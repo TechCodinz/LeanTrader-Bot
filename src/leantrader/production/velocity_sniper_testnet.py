@@ -12,7 +12,7 @@ class VelocitySniperTestnetLane(
 ):
     """Fresh sub-second velocity exploration for Bybit Testnet only."""
 
-    VERSION = "1.60.5"
+    VERSION = "1.60.6"
 
     @classmethod
     def _velocity_state(
