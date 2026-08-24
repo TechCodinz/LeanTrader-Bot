@@ -90,6 +90,15 @@ class PaperLedger:
     def risk_check(self, prices: dict[str, float], daily_limit: float, drawdown_limit: float) -> str | None:
         equity = self.equity(prices)
         self.refresh_day(equity)
+
+        # capital_preservation is an externally-computed canonical
+        # supervisory state, not a hard ledger loss latch. Re-evaluate it
+        # every cycle. If the capital-preservation engine still requires a
+        # halt, the runner reapplies it immediately after this risk check.
+        # True daily-loss/drawdown ledger halts remain latched.
+        if self.halt_reason == "capital_preservation":
+            self.halt_reason = None
+
         daily_loss = (self.day_start_equity - equity) / max(self.day_start_equity, 1e-9)
         drawdown = (self.peak_equity - equity) / max(self.peak_equity, 1e-9)
         if daily_loss >= daily_limit:
