@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,7 @@ class BybitTestnetExecutionEngine:
     exchange test funds only. It never accepts production credentials or URLs.
     """
 
-    VERSION = "2.4"
+    VERSION = "2.5"
     TESTNET_CONFIRMATION = "I_UNDERSTAND_TESTNET_ONLY"
 
     def __init__(
@@ -67,6 +68,8 @@ class BybitTestnetExecutionEngine:
         self.exchange_capabilities: dict[str, Any] = {}
         self.state: dict[str, Any] = self._load_state()
         self._io_lock = threading.RLock()
+        self.reconciliation_retry_attempts = 0
+        self.reconciliation_retry_successes = 0
 
     def start(self) -> None:
         api_key = self._read_secret(self.api_key_path, "API key")
@@ -159,9 +162,11 @@ class BybitTestnetExecutionEngine:
             if record.get("status") in {"closed", "canceled", "rejected", "skipped"}:
                 continue
             try:
-                observed = self._recover_order(
-                    record,
-                    client_id,
+                observed = (
+                    self._recover_order_with_bounded_retry(
+                        record,
+                        client_id,
+                    )
                 )
 
                 if observed is None:
@@ -249,6 +254,15 @@ class BybitTestnetExecutionEngine:
             "daily_order_count": int(self.state["daily_order_count"]),
             "last_reconciliation": self.state.get("last_reconciliation"),
             "last_reconciliation_errors": list(self.state.get("last_reconciliation_errors", [])),
+            "automatic_reconciliation_recovery": {
+                "enabled": True,
+                "old_ambiguity_only": True,
+                "maximum_retries": 2,
+                "resubmission_allowed": False,
+                "retry_attempts": self.reconciliation_retry_attempts,
+                "retry_successes": self.reconciliation_retry_successes,
+                "fail_closed": True,
+            },
             "protection_contract": {
                 "market_precision_and_limits": True,
                 "fee_and_slippage_model": True,
@@ -378,6 +392,50 @@ class BybitTestnetExecutionEngine:
         self._merge_observed(record, observed)
         self._save_state()
         return {"client_order_id": client_id, "idempotent": False, **self._public_record(record)}
+
+    def _recover_order_with_bounded_retry(
+        self,
+        record: dict[str, Any],
+        client_id: str,
+    ) -> dict[str, Any] | None:
+        """Recover transient ambiguity without ever resubmitting an order."""
+
+        observed = self._recover_order(
+            record,
+            client_id,
+        )
+
+        if observed is not None:
+            return observed
+
+        # Recent submissions remain fail-closed and untouched.
+        # Only an already-old ambiguous record receives bounded
+        # authoritative lookup retries.
+        if not self._ambiguity_old_enough(record):
+            return None
+
+        for retry in range(1, 3):
+            self.reconciliation_retry_attempts += 1
+
+            time.sleep(
+                0.15 * retry
+            )
+
+            self._verify_testnet_urls()
+
+            observed = self._recover_order(
+                record,
+                client_id,
+            )
+
+            if observed is not None:
+                self.reconciliation_retry_successes += 1
+                record[
+                    "automatic_reconciliation_retries"
+                ] = retry
+                return observed
+
+        return None
 
     def _recover_order(
         self,

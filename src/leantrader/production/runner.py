@@ -36,7 +36,7 @@ class MicrostructureMarketFeed(MarketFeed):
 class PaperRunner(_V142PaperRunner):
     """v1.43: v1.42 supervision plus parallel costed market-swarm shadow evidence."""
 
-    VERSION = "1.60.2"
+    VERSION = "1.60.3"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _runner_v142.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
@@ -501,14 +501,162 @@ class PaperRunner(_V142PaperRunner):
             "live_authority": False,
         }
 
+    def _swarm_health_contract(
+        self,
+        swarm: dict[str, Any],
+        *,
+        now: float | None = None,
+    ) -> dict[str, Any]:
+        """Keep fast execution alive when only the slow research sweep is busy."""
+
+        now = (
+            time.time()
+            if now is None
+            else float(now)
+        )
+
+        slow_worker_healthy = bool(
+            swarm.get("running") is True
+            and swarm.get("healthy") is True
+            and swarm.get("stale") is not True
+        )
+
+        precision = (
+            swarm.get("precision_scout")
+            or {}
+        )
+
+        micro = (
+            swarm.get("micro_calibration")
+            or {}
+        )
+
+        try:
+            started_at = float(
+                swarm.get("started_at")
+                or 0.0
+            )
+        except (TypeError, ValueError):
+            started_at = 0.0
+
+        startup_age = (
+            max(0.0, now - started_at)
+            if started_at > 0.0
+            else 1_000_000.0
+        )
+
+        try:
+            refresh_seconds = max(
+                10.0,
+                float(
+                    precision.get(
+                        "refresh_seconds"
+                    )
+                    or 20.0
+                ),
+            )
+        except (TypeError, ValueError):
+            refresh_seconds = 20.0
+
+        try:
+            scout_last = float(
+                precision.get(
+                    "last_refresh_at"
+                )
+                or 0.0
+            )
+        except (TypeError, ValueError):
+            scout_last = 0.0
+
+        try:
+            micro_last = float(
+                micro.get(
+                    "microstream_last_observation_at"
+                )
+                or 0.0
+            )
+        except (TypeError, ValueError):
+            micro_last = 0.0
+
+        scout_fresh = bool(
+            precision.get("running") is True
+            and (
+                (
+                    scout_last > 0.0
+                    and now - scout_last
+                    <= max(
+                        90.0,
+                        refresh_seconds * 4.0,
+                    )
+                )
+                or (
+                    scout_last <= 0.0
+                    and startup_age <= 90.0
+                )
+            )
+        )
+
+        micro_fresh = bool(
+            micro.get(
+                "microstream_running"
+            ) is True
+            and (
+                (
+                    micro_last > 0.0
+                    and now - micro_last <= 15.0
+                )
+                or (
+                    micro_last <= 0.0
+                    and startup_age <= 30.0
+                )
+            )
+        )
+
+        fast_precision_path_operational = bool(
+            getattr(
+                self,
+                "testnet",
+                None,
+            )
+            is not None
+            and scout_fresh
+            and micro_fresh
+        )
+
+        return {
+            "slow_worker_healthy": slow_worker_healthy,
+            "precision_scout_fresh": scout_fresh,
+            "microstream_fresh": micro_fresh,
+            "fast_precision_path_operational": (
+                fast_precision_path_operational
+            ),
+            "health_contract_healthy": bool(
+                slow_worker_healthy
+                or fast_precision_path_operational
+            ),
+            "slow_research_failure_blocks_fast_testnet": False,
+            "live_authority": False,
+        }
+
     def _write_health_state(self, status: dict[str, Any]) -> None:
         swarm = status.get("market_swarm") or {}
         swarm_required = self.fast_swarm_service is not None
+        contract = (
+            self._swarm_health_contract(
+                swarm
+            )
+            if isinstance(swarm, dict)
+            else {
+                "health_contract_healthy": False,
+                "slow_worker_healthy": False,
+                "fast_precision_path_operational": False,
+            }
+        )
+
         swarm_ok = bool(
-            isinstance(swarm, dict)
-            and swarm.get("running") is True
-            and swarm.get("healthy") is True
-            and swarm.get("stale") is not True
+            contract.get(
+                "health_contract_healthy"
+            )
         )
         payload = {
             "timestamp": status.get("timestamp"),
@@ -528,7 +676,28 @@ class PaperRunner(_V142PaperRunner):
             "market_swarm": {
                 "required": swarm_required,
                 "running": swarm.get("running") is True,
-                "healthy": swarm.get("healthy") is True,
+                "healthy": swarm_ok,
+                "health_contract_healthy": swarm_ok,
+                "slow_worker_healthy": bool(
+                    contract.get(
+                        "slow_worker_healthy"
+                    )
+                ),
+                "fast_precision_path_operational": bool(
+                    contract.get(
+                        "fast_precision_path_operational"
+                    )
+                ),
+                "precision_scout_fresh": bool(
+                    contract.get(
+                        "precision_scout_fresh"
+                    )
+                ),
+                "microstream_fresh": bool(
+                    contract.get(
+                        "microstream_fresh"
+                    )
+                ),
                 "stale": swarm.get("stale") is True,
                 "cycles": int(swarm.get("cycles") or 0),
                 "consecutive_failures": int(swarm.get("consecutive_failures") or 0),
@@ -563,11 +732,23 @@ class PaperRunner(_V142PaperRunner):
             else self._inactive_swarm_status()
         )
 
+        swarm_contract = (
+            self._swarm_health_contract(
+                swarm_health,
+                now=now,
+            )
+        )
+
+        swarm_health = {
+            **swarm_health,
+            **swarm_contract,
+        }
+
         swarm_ok = bool(
             service is not None
-            and swarm_health.get("running") is True
-            and swarm_health.get("healthy") is True
-            and swarm_health.get("stale") is not True
+            and swarm_contract.get(
+                "health_contract_healthy"
+            )
         )
 
         engines = self.engines.snapshot()
@@ -737,11 +918,23 @@ class PaperRunner(_V142PaperRunner):
             else self._inactive_swarm_status()
         )
 
+        swarm_contract = (
+            self._swarm_health_contract(
+                swarm_health,
+                now=now,
+            )
+        )
+
+        swarm_health = {
+            **swarm_health,
+            **swarm_contract,
+        }
+
         swarm_operational = bool(
             service is not None
-            and swarm_health.get("running") is True
-            and swarm_health.get("healthy") is True
-            and swarm_health.get("stale") is not True
+            and swarm_contract.get(
+                "health_contract_healthy"
+            )
         )
 
         engines = dict(
@@ -867,6 +1060,21 @@ class PaperRunner(_V142PaperRunner):
         else:
             swarm_health = service.health(equity=float(status.get("equity") or self.settings.starting_cash))
             swarm_health["configured"] = True
+        swarm_contract = (
+            self._swarm_health_contract(
+                swarm_health,
+                now=float(
+                    status.get("timestamp")
+                    or time.time()
+                ),
+            )
+        )
+
+        swarm_health = {
+            **swarm_health,
+            **swarm_contract,
+        }
+
         status["market_swarm"] = swarm_health
         status["market_swarm"]["swarm_evidence_ingest"] = swarm_evidence
         status["market_swarm"]["slow_control_plane_blocking_fast_scout"] = False
@@ -880,9 +1088,10 @@ class PaperRunner(_V142PaperRunner):
         engines = status.setdefault("engines", {})
         if isinstance(engines, dict) and service is not None:
             swarm_operational = bool(
-                status["market_swarm"].get("running") is True
-                and status["market_swarm"].get("healthy") is True
-                and status["market_swarm"].get("stale") is not True
+                status["market_swarm"].get(
+                    "health_contract_healthy"
+                )
+                is True
             )
             engines["market_swarm"] = {
                 "required": True,
@@ -925,7 +1134,7 @@ class PaperRunner(_V142PaperRunner):
                 {},
             )
 
-            fabric["version"] = "1.60.2"
+            fabric["version"] = "1.60.3"
             fabric[
                 "fast_testnet_exploration_lane"
             ] = True
@@ -955,6 +1164,12 @@ class PaperRunner(_V142PaperRunner):
             ] = True
             fabric[
                 "adaptive_opportunity_capacity"
+            ] = True
+            fabric[
+                "split_slow_swarm_fast_path_health"
+            ] = True
+            fabric[
+                "autonomous_testnet_reconciliation_recovery"
             ] = True
             fabric[
                 "dynamic_position_concurrency"
@@ -1089,7 +1304,7 @@ def main() -> None:
             "live_authority": False,
         }
         payload["collective_profit_fabric"] = {
-            "version": "1.60.2",
+            "version": "1.60.3",
             "canonical_pretrade_integration": True,
             "sources": [
                 "adaptive_intelligence",
@@ -1117,6 +1332,8 @@ def main() -> None:
             "dedicated_precision_mtf_cache": settings.testnet_enabled,
             "precision_micro_priority_scheduler": settings.testnet_enabled,
             "adaptive_opportunity_capacity": settings.testnet_enabled,
+            "split_slow_swarm_fast_path_health": settings.testnet_enabled,
+            "autonomous_testnet_reconciliation_recovery": settings.testnet_enabled,
             "dynamic_position_concurrency": settings.testnet_enabled,
             "latency_adaptive_micro_depth": settings.testnet_enabled,
             "sub_dollar_mover_coverage": settings.testnet_enabled,

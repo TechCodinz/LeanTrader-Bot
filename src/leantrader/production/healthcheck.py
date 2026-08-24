@@ -40,11 +40,21 @@ def main() -> None:
         raise SystemExit(1)
     swarm = payload.get("market_swarm") or {}
     if isinstance(swarm, dict) and swarm.get("required") is True:
-        swarm_ok = (
-            swarm.get("running") is True
-            and swarm.get("healthy") is True
-            and swarm.get("stale") is not True
+        contract = swarm.get(
+            "health_contract_healthy"
         )
+
+        if contract is None:
+            swarm_ok = (
+                swarm.get("running") is True
+                and swarm.get("healthy") is True
+                and swarm.get("stale") is not True
+            )
+        else:
+            swarm_ok = (
+                swarm.get("running") is True
+                and contract is True
+            )
         if not swarm_ok:
             print(
                 "unhealthy: required market swarm degraded: "

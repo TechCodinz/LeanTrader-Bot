@@ -729,3 +729,67 @@ def test_native_bybit_authoritative_absence_resolves_old_ambiguity(
         record["reconciliation_resolution"]
         == "native_bybit_authoritative_absence"
     )
+
+
+class TransientNativeAbsenceBybit(
+    NativeRecoveryBybit
+):
+    def __init__(self):
+        super().__init__(
+            native_order=None,
+            native_empty=True,
+        )
+        self.realtime_calls = 0
+
+    def private_get_v5_order_realtime(
+        self,
+        params,
+    ):
+        self.realtime_calls += 1
+
+        if self.realtime_calls == 1:
+            raise RuntimeError(
+                "temporary testnet endpoint failure"
+            )
+
+        return super().private_get_v5_order_realtime(
+            params
+        )
+
+
+def test_v1603_old_ambiguity_recovers_without_restart(
+    tmp_path,
+):
+    fake = TransientNativeAbsenceBybit()
+
+    instance, _ = engine(
+        tmp_path,
+        fake,
+    )
+
+    instance.start()
+
+    client_id = _ambiguous_without_exchange_id(
+        instance,
+        buy_event(),
+    )
+
+    result = instance.reconcile_required()
+
+    assert result["reconciled"] is True
+    assert result["errors"] == []
+    assert fake.realtime_calls >= 2
+
+    record = instance.state["orders"][
+        client_id
+    ]
+
+    assert record["status"] == "rejected"
+
+    recovery = instance.health()[
+        "automatic_reconciliation_recovery"
+    ]
+
+    assert recovery["enabled"] is True
+    assert recovery["resubmission_allowed"] is False
+    assert recovery["retry_successes"] >= 1
