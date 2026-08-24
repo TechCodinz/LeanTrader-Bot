@@ -25,7 +25,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.60.1"
+    VERSION = "1.60.2"
     KINEMATIC_SLOW_HORIZONS = (120, 300, 900)
     KINEMATIC_SLOW_COOLDOWN_SECONDS = 900.0
     ROLE_BY_TIMEFRAME = {
@@ -149,14 +149,21 @@ class ReadOnlySwarmService:
         self.precision_scout_candidates = 0
         self.precision_scout_sub_dollar = 0
 
-        # v1.60.1: current execution scouting must not be starved by
-        # prospective-label resolution. Five of six bounded precision
-        # slots are reserved for live scout rotation when research work
-        # is simultaneously due.
+        # v1.60.2: precision capacity is adaptive. The scout universe may
+        # be wider than the instantaneous deep-poll budget; symbols rotate
+        # through the deep lane instead of being permanently excluded.
         self._precision_micro_cursor = 0
         self.precision_micro_last_queue: list[str] = []
         self.precision_micro_live_slots = 0
         self.precision_micro_due_slots = 0
+        self._precision_micro_capacity = max(
+            1,
+            min(
+                6,
+                self.max_micro_symbols,
+            ),
+        )
+        self._precision_micro_last_failure_count = 0
 
         self._microstream_thread: threading.Thread | None = None
         self._calibration_thread: threading.Thread | None = None
@@ -330,9 +337,11 @@ class ReadOnlySwarmService:
         liquidity and spread determine ordering.
         """
 
+        # Operationally bounded, but not fixed at six. The caller decides
+        # the active scout width from market/runtime capacity.
         bounded = max(
             1,
-            min(6, int(capacity)),
+            min(24, int(capacity)),
         )
 
         clean = [
@@ -1965,6 +1974,110 @@ class ReadOnlySwarmService:
             },
         )
 
+    def _adaptive_microstream_capacity(
+        self,
+        *,
+        scout_count: int,
+    ) -> int:
+        """Expand deep polling when cheap and contract when pressure rises."""
+
+        maximum = max(
+            1,
+            min(
+                12,
+                self.max_micro_symbols,
+            ),
+        )
+
+        minimum = min(
+            maximum,
+            4,
+        )
+
+        current = max(
+            minimum,
+            min(
+                maximum,
+                int(
+                    getattr(
+                        self,
+                        "_precision_micro_capacity",
+                        min(6, maximum),
+                    )
+                ),
+            ),
+        )
+
+        previous_failures = int(
+            getattr(
+                self,
+                "_precision_micro_last_failure_count",
+                0,
+            )
+        )
+
+        current_failures = int(
+            self.microstream_sample_failures
+        )
+
+        new_failures = max(
+            0,
+            current_failures
+            - previous_failures,
+        )
+
+        self._precision_micro_last_failure_count = (
+            current_failures
+        )
+
+        latency = max(
+            0.0,
+            float(
+                self.microstream_last_loop_seconds
+                or 0.0
+            ),
+        )
+
+        # API pressure, failures or a slow loop contract capacity.
+        if (
+            new_failures > 0
+            or latency > 0.80
+        ):
+            current = max(
+                minimum,
+                current - 1,
+            )
+
+        # A comfortably sub-cadence loop can add one more deep market.
+        elif (
+            latency > 0.0
+            and latency < 0.35
+            and scout_count > current
+        ):
+            current = min(
+                maximum,
+                current + 1,
+            )
+
+        # Initial startup gets a useful precision baseline.
+        elif latency <= 0.0:
+            current = min(
+                maximum,
+                max(
+                    minimum,
+                    min(
+                        6,
+                        max(
+                            1,
+                            scout_count,
+                        ),
+                    ),
+                ),
+            )
+
+        self._precision_micro_capacity = current
+        return current
+
     def _run_microstream(self) -> None:
         """Continuously sample bounded micro markets with no trade authority."""
 
@@ -2005,12 +2118,12 @@ class ReadOnlySwarmService:
                         ),
                     )
 
-                capacity = max(
-                    1,
-                    min(
-                        6,
-                        self.max_micro_symbols,
-                    ),
+                capacity = (
+                    self._adaptive_microstream_capacity(
+                        scout_count=len(
+                            scout_symbols
+                        ),
+                    )
                 )
 
                 (
@@ -3003,10 +3116,21 @@ class ReadOnlySwarmService:
                         "maximum_slots": max(
                             1,
                             min(
-                                6,
+                                12,
                                 self.max_micro_symbols,
                             ),
                         ),
+                        "effective_slots": int(
+                            getattr(
+                                self,
+                                "_precision_micro_capacity",
+                                min(
+                                    6,
+                                    self.max_micro_symbols,
+                                ),
+                            )
+                        ),
+                        "capacity_is_adaptive": True,
                         "last_queue": list(
                             self.precision_micro_last_queue
                         ),
@@ -3069,9 +3193,22 @@ class ReadOnlySwarmService:
                         "sticky_microstream_watchlist": True,
                         "order_book_only_precision_lane": True,
                         "trade_context_blocks_precision_lane": False,
-                        "microstream_symbol_capacity": max(
+                        "microstream_symbol_capacity": int(
+                            getattr(
+                                self,
+                                "_precision_micro_capacity",
+                                min(
+                                    6,
+                                    self.max_micro_symbols,
+                                ),
+                            )
+                        ),
+                        "microstream_maximum_symbol_capacity": max(
                             1,
-                            min(6, self.max_micro_symbols),
+                            min(
+                                12,
+                                self.max_micro_symbols,
+                            ),
                         ),
                         "microstream_symbols": list(
                             self._microstream_symbols

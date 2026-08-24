@@ -36,7 +36,7 @@ class MicrostructureMarketFeed(MarketFeed):
 class PaperRunner(_V142PaperRunner):
     """v1.43: v1.42 supervision plus parallel costed market-swarm shadow evidence."""
 
-    VERSION = "1.60.1"
+    VERSION = "1.60.2"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _runner_v142.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
@@ -75,8 +75,42 @@ class PaperRunner(_V142PaperRunner):
                 stop_loss_bps=30.0,
                 maximum_entries_per_day=45,
                 bootstrap_after_seconds=5.0,
+                # Six is now only the starting baseline. Actual concurrency
+                # expands/contracts from capital, market opportunities,
+                # daily executor room and current risk.
                 maximum_concurrent_positions=6,
+                maximum_adaptive_positions=max(
+                    6,
+                    min(
+                        24,
+                        self.settings.market_scan_batch_size,
+                        max(
+                            6,
+                            self.settings.testnet_max_orders_per_day
+                            // 4,
+                        ),
+                    ),
+                ),
                 maximum_entries_per_cycle=3,
+                maximum_adaptive_entries_per_cycle=max(
+                    3,
+                    min(
+                        8,
+                        max(
+                            3,
+                            self.settings.market_scan_batch_size
+                            // 3,
+                        ),
+                    ),
+                ),
+                candidate_scan_limit=max(
+                    24,
+                    min(
+                        48,
+                        self.settings.market_scan_batch_size
+                        * 2,
+                    ),
+                ),
                 reentry_cooldown_seconds=2.0,
                 starting_equity=(
                     self.settings.starting_cash
@@ -375,10 +409,13 @@ class PaperRunner(_V142PaperRunner):
             ),
             micro_agent_foundry=MicroAgentFoundry(maximum_candidates_per_symbol=2),
             reference_feed=reference_feed,
+            # Deep micro polling is latency-adaptive up to 12 symbols.
+            # The ranked market universe keeps rotating, so excess
+            # opportunities are not permanently excluded.
             max_micro_symbols=max(
-                4,
+                6,
                 min(
-                    6,
+                    12,
                     self.settings.market_scan_batch_size,
                 ),
             ),
@@ -888,7 +925,7 @@ class PaperRunner(_V142PaperRunner):
                 {},
             )
 
-            fabric["version"] = "1.60.1"
+            fabric["version"] = "1.60.2"
             fabric[
                 "fast_testnet_exploration_lane"
             ] = True
@@ -915,6 +952,15 @@ class PaperRunner(_V142PaperRunner):
             ] = True
             fabric[
                 "precision_micro_priority_scheduler"
+            ] = True
+            fabric[
+                "adaptive_opportunity_capacity"
+            ] = True
+            fabric[
+                "dynamic_position_concurrency"
+            ] = True
+            fabric[
+                "latency_adaptive_micro_depth"
             ] = True
             fabric[
                 "sub_dollar_mover_coverage"
@@ -1043,7 +1089,7 @@ def main() -> None:
             "live_authority": False,
         }
         payload["collective_profit_fabric"] = {
-            "version": "1.60.1",
+            "version": "1.60.2",
             "canonical_pretrade_integration": True,
             "sources": [
                 "adaptive_intelligence",
@@ -1070,6 +1116,9 @@ def main() -> None:
             "always_on_precision_scout": settings.testnet_enabled,
             "dedicated_precision_mtf_cache": settings.testnet_enabled,
             "precision_micro_priority_scheduler": settings.testnet_enabled,
+            "adaptive_opportunity_capacity": settings.testnet_enabled,
+            "dynamic_position_concurrency": settings.testnet_enabled,
+            "latency_adaptive_micro_depth": settings.testnet_enabled,
             "sub_dollar_mover_coverage": settings.testnet_enabled,
             "principal_protected_profit_compounding": settings.testnet_enabled,
             "profit_flow_telemetry": settings.testnet_enabled,

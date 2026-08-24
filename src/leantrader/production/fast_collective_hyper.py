@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import time
 from typing import Any
 
@@ -11,13 +12,16 @@ from .fast_collective_testnet import FastCollectiveTestnetLane
 class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
     """Multi-position fast Testnet router with one sentinel per position."""
 
-    VERSION = "1.59.1"
+    VERSION = "1.60.2"
 
     def __init__(
         self,
         *args: Any,
         maximum_concurrent_positions: int = 6,
+        maximum_adaptive_positions: int = 24,
         maximum_entries_per_cycle: int = 3,
+        maximum_adaptive_entries_per_cycle: int = 8,
+        candidate_scan_limit: int = 24,
         reentry_cooldown_seconds: float = 20.0,
         starting_equity: float = 50.0,
         maximum_order_usd: float = 5.0,
@@ -36,15 +40,47 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             self.order_usd,
             float(maximum_order_usd),
         )
+        # Compatibility baseline only. It is no longer a permanent
+        # simultaneous-position ceiling.
         self.maximum_concurrent_positions = max(
             2,
-            min(10, int(maximum_concurrent_positions)),
+            min(
+                12,
+                int(maximum_concurrent_positions),
+            ),
         )
+
+        self.maximum_adaptive_positions = max(
+            self.maximum_concurrent_positions,
+            min(
+                24,
+                int(maximum_adaptive_positions),
+            ),
+        )
+
         self.maximum_entries_per_cycle = max(
             1,
             min(
-                self.maximum_concurrent_positions,
+                self.maximum_adaptive_positions,
                 int(maximum_entries_per_cycle),
+            ),
+        )
+
+        self.maximum_adaptive_entries_per_cycle = max(
+            self.maximum_entries_per_cycle,
+            min(
+                8,
+                int(
+                    maximum_adaptive_entries_per_cycle
+                ),
+            ),
+        )
+
+        self.candidate_scan_limit = max(
+            self.maximum_concurrent_positions,
+            min(
+                64,
+                int(candidate_scan_limit),
             ),
         )
         self.reentry_cooldown_seconds = max(
@@ -87,6 +123,295 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             )
 
         return max(0.0, total)
+
+    def _adaptive_position_capacity(
+        self,
+        supervisor: dict[str, Any],
+        snapshot: dict[str, Any],
+        *,
+        candidate_count: int,
+        entries_today: int,
+    ) -> dict[str, Any]:
+        """Derive concurrency from capital, opportunity and executor room."""
+
+        positions = {
+            str(symbol).upper()
+            for symbol, quantity in (
+                snapshot.get("positions")
+                or {}
+            ).items()
+            if self._number(quantity) > 0.0
+        }
+
+        existing = len(positions)
+
+        growth = (
+            supervisor.get("capital_growth")
+            or {}
+        )
+
+        if (
+            not isinstance(growth, dict)
+            or not growth
+        ):
+            fallback_target = min(
+                self.maximum_adaptive_positions,
+                max(
+                    existing,
+                    min(
+                        self.maximum_concurrent_positions,
+                        existing
+                        + max(
+                            0,
+                            int(candidate_count),
+                        ),
+                    ),
+                ),
+            )
+
+            return {
+                "target_positions": fallback_target,
+                "available_slots": max(
+                    0,
+                    fallback_target
+                    - existing,
+                ),
+                "existing_positions": existing,
+                "reason": (
+                    "baseline_until_capital_snapshot"
+                ),
+                "adaptive": True,
+                "live_authority": False,
+            }
+
+        risk_multiplier = max(
+            0.0,
+            min(
+                1.0,
+                self._number(
+                    growth.get(
+                        "risk_multiplier"
+                    ),
+                    1.0,
+                ),
+            ),
+        )
+
+        remaining = max(
+            0.0,
+            self._number(
+                growth.get(
+                    "remaining_deployable_notional"
+                )
+            ),
+        )
+
+        fast_open = (
+            self._fast_open_notional()
+        )
+
+        available = max(
+            0.0,
+            remaining - fast_open,
+        )
+
+        # Do not fragment capital into unusably tiny positions merely to
+        # increase the count. $2 is a planning floor; the executor still
+        # applies actual exchange minimums and its own caps.
+        minimum_viable_notional = min(
+            self.maximum_order_usd,
+            max(
+                2.0,
+                self.order_usd,
+            ),
+        )
+
+        if minimum_viable_notional <= 0.0:
+            minimum_viable_notional = 0.50
+
+        capital_slots = int(
+            available
+            // minimum_viable_notional
+        )
+
+        daily_entry_room = max(
+            0,
+            self.maximum_entries_per_day
+            - int(entries_today),
+        )
+
+        risk_limits = (
+            snapshot.get("risk_limits")
+            or {}
+        )
+
+        maximum_orders = int(
+            self._number(
+                risk_limits.get(
+                    "max_orders_per_day"
+                ),
+                self.maximum_entries_per_day,
+            )
+        )
+
+        orders_used = int(
+            self._number(
+                snapshot.get(
+                    "daily_order_count"
+                )
+            )
+        )
+
+        order_room = max(
+            0,
+            maximum_orders
+            - orders_used,
+        )
+
+        maximum_daily_notional = (
+            self._number(
+                risk_limits.get(
+                    "max_daily_submitted_usd"
+                )
+            )
+        )
+
+        submitted_today = self._number(
+            snapshot.get(
+                "daily_submitted_usd"
+            )
+        )
+
+        if maximum_daily_notional > 0.0:
+            notional_room = max(
+                0.0,
+                maximum_daily_notional
+                - submitted_today,
+            )
+
+            daily_notional_slots = int(
+                notional_room
+                // minimum_viable_notional
+            )
+        else:
+            daily_notional_slots = (
+                self.maximum_adaptive_positions
+            )
+
+        raw_new_slots = min(
+            max(
+                0,
+                int(candidate_count),
+            ),
+            capital_slots,
+            daily_entry_room,
+            order_room,
+            daily_notional_slots,
+        )
+
+        risk_adjusted_slots = int(
+            math.floor(
+                raw_new_slots
+                * risk_multiplier
+            )
+        )
+
+        if (
+            risk_multiplier > 0.0
+            and raw_new_slots > 0
+            and risk_adjusted_slots == 0
+        ):
+            risk_adjusted_slots = 1
+
+        target = min(
+            self.maximum_adaptive_positions,
+            existing
+            + risk_adjusted_slots,
+        )
+
+        target = max(
+            existing,
+            target,
+        )
+
+        return {
+            "target_positions": target,
+            "available_slots": max(
+                0,
+                target - existing,
+            ),
+            "existing_positions": existing,
+            "candidate_count": max(
+                0,
+                int(candidate_count),
+            ),
+            "capital_slots": capital_slots,
+            "daily_entry_room": daily_entry_room,
+            "order_room": order_room,
+            "daily_notional_slots": (
+                daily_notional_slots
+            ),
+            "risk_multiplier": risk_multiplier,
+            "available_deployable_usd": available,
+            "minimum_viable_notional_usd": (
+                minimum_viable_notional
+            ),
+            "baseline_positions": (
+                self.maximum_concurrent_positions
+            ),
+            "maximum_adaptive_positions": (
+                self.maximum_adaptive_positions
+            ),
+            "reason": (
+                "capital_opportunity_executor_adaptive"
+            ),
+            "adaptive": True,
+            "martingale": False,
+            "live_authority": False,
+        }
+
+    def _adaptive_entry_batch(
+        self,
+        *,
+        slots: int,
+        candidate_count: int,
+        risk_multiplier: float,
+    ) -> int:
+        if (
+            slots <= 0
+            or candidate_count <= 0
+            or risk_multiplier <= 0.0
+        ):
+            return 0
+
+        desired = max(
+            self.maximum_entries_per_cycle,
+            min(
+                self.maximum_adaptive_entries_per_cycle,
+                int(
+                    math.ceil(
+                        slots / 3.0
+                    )
+                ),
+            ),
+        )
+
+        desired = max(
+            1,
+            int(
+                math.floor(
+                    desired
+                    * risk_multiplier
+                )
+            ),
+        )
+
+        return min(
+            slots,
+            candidate_count,
+            self.maximum_adaptive_entries_per_cycle,
+            desired,
+        )
 
     def _compound_order_notional(
         self,
@@ -296,23 +621,64 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             for symbol, quantity in (snapshot.get("positions") or {}).items()
             if self._number(quantity) > 0.0
         }
-        slots = max(
-            0,
-            self.maximum_concurrent_positions - len(positions),
+
+        candidates = service.collective_candidates(
+            limit=self.candidate_scan_limit
         )
+
         with self._lock:
-            entries_today = int(self.state.get("entries_today") or 0)
-            last_exit = dict(
-                self.state.get("last_exit_by_symbol") or {}
+            entries_today = int(
+                self.state.get(
+                    "entries_today"
+                )
+                or 0
             )
+            last_exit = dict(
+                self.state.get(
+                    "last_exit_by_symbol"
+                )
+                or {}
+            )
+
+        adaptive_capacity = (
+            self._adaptive_position_capacity(
+                supervisor,
+                snapshot,
+                candidate_count=len(
+                    candidates
+                ),
+                entries_today=entries_today,
+            )
+        )
+
+        slots = int(
+            adaptive_capacity.get(
+                "available_slots"
+            )
+            or 0
+        )
+
         daily_slots = max(
             0,
-            self.maximum_entries_per_day - entries_today,
+            self.maximum_entries_per_day
+            - entries_today,
         )
+
         entry_limit = min(
             slots,
             daily_slots,
-            self.maximum_entries_per_cycle,
+            self._adaptive_entry_batch(
+                slots=slots,
+                candidate_count=len(
+                    candidates
+                ),
+                risk_multiplier=self._number(
+                    adaptive_capacity.get(
+                        "risk_multiplier"
+                    ),
+                    1.0,
+                ),
+            ),
         )
         if entry_limit <= 0:
             return self._decision(
@@ -321,6 +687,9 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                     "positions": sorted(positions),
                     "slots": slots,
                     "daily_slots": daily_slots,
+                    "adaptive_capacity": (
+                        adaptive_capacity
+                    ),
                     "exit_actions": exit_actions,
                 },
             )
@@ -329,6 +698,15 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             supervisor,
             slots=slots,
         )
+
+        sizing = {
+            **sizing,
+            "adaptive_capacity": (
+                copy.deepcopy(
+                    adaptive_capacity
+                )
+            ),
+        }
 
         with self._lock:
             self.state["last_sizing"] = (
@@ -361,7 +739,6 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 or []
             )
         }
-        candidates = service.collective_candidates(limit=24)
         relaxed = bool(
             self.started_at > 0.0
             and now - self.started_at >= self.bootstrap_after_seconds
@@ -500,6 +877,9 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 "opened": opened,
                 "exit_actions": exit_actions,
                 "entry_limit": entry_limit,
+                "adaptive_capacity": (
+                    adaptive_capacity
+                ),
                 "positions_after": sorted(
                     symbol
                     for symbol, quantity in (
@@ -1175,11 +1555,21 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         payload.update(
             {
                 "version": self.VERSION,
-                "maximum_concurrent_positions": (
+                "baseline_concurrent_positions": (
                     self.maximum_concurrent_positions
                 ),
+                "maximum_concurrent_positions": (
+                    self.maximum_adaptive_positions
+                ),
+                "adaptive_position_concurrency": True,
                 "maximum_entries_per_cycle": (
                     self.maximum_entries_per_cycle
+                ),
+                "maximum_adaptive_entries_per_cycle": (
+                    self.maximum_adaptive_entries_per_cycle
+                ),
+                "candidate_scan_limit": (
+                    self.candidate_scan_limit
                 ),
                 "reentry_cooldown_seconds": (
                     self.reentry_cooldown_seconds
