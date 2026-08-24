@@ -202,7 +202,10 @@ def test_v1607_recent_ambiguity_resolves_after_three_negative_rounds(
         "fast_absence_quorum_consecutive_rounds"
     ] == 3
     assert record["reconciliation_resolution"] == (
-        "native_bybit_fast_authoritative_absence_quorum"
+        "native_bybit_authoritative_absence"
+    )
+    assert record["fast_absence_quorum_resolution"] == (
+        "authoritative_exchange_absence"
     )
 
 
@@ -228,11 +231,11 @@ def test_v1607_endpoint_failure_resets_quorum_and_stays_fail_closed(
     )
 
     assert observed is None
-    assert fake.round == 3
+    assert fake.round == 4
     assert record["status"] == "submitting"
     assert record[
         "fast_absence_quorum_consecutive_rounds"
-    ] == 1
+    ] == 2
     assert "endpoint_failure" in str(
         record["fast_absence_quorum_last_reset_reason"]
     )
@@ -287,6 +290,7 @@ def test_v1607_health_exposes_fast_fail_closed_contract(
     assert recovery["fail_closed"] is True
     assert fast["enabled"] is True
     assert fast["required_consecutive_rounds"] == 3
+    assert fast["maximum_rounds"] == 4
     assert fast["authoritative_sources"] == [
         "realtime_order",
         "order_history",
