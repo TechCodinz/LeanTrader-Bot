@@ -36,7 +36,7 @@ class MicrostructureMarketFeed(MarketFeed):
 class PaperRunner(_V142PaperRunner):
     """v1.43: v1.42 supervision plus parallel costed market-swarm shadow evidence."""
 
-    VERSION = "1.58.1"
+    VERSION = "1.59.0"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _runner_v142.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
@@ -78,6 +78,16 @@ class PaperRunner(_V142PaperRunner):
                 maximum_concurrent_positions=6,
                 maximum_entries_per_cycle=3,
                 reentry_cooldown_seconds=2.0,
+                starting_equity=(
+                    self.settings.starting_cash
+                ),
+                maximum_order_usd=min(
+                    self.settings.testnet_max_order_usd,
+                    max(
+                        2.0,
+                        self.settings.order_usd,
+                    ),
+                ),
             )
             if self.testnet is not None
             else None
@@ -152,6 +162,22 @@ class PaperRunner(_V142PaperRunner):
             ),
             "halt_reason": (
                 status.get("halt_reason")
+            ),
+            "equity": float(
+                status.get("equity")
+                or 0.0
+            ),
+            "realized_pnl": float(
+                status.get(
+                    "realized_pnl"
+                )
+                or 0.0
+            ),
+            "capital_growth": copy.deepcopy(
+                status.get(
+                    "capital_growth"
+                )
+                or {}
             ),
             "required_failures": (
                 required_failures
@@ -613,6 +639,47 @@ class PaperRunner(_V142PaperRunner):
                 * float(position.entry_price)
             )
 
+        startup_open_notional = sum(
+            float(position.quantity)
+            * float(position.entry_price)
+            for position in (
+                self.ledger.positions.values()
+            )
+        )
+
+        startup_realized_pnl = float(
+            getattr(
+                self.ledger,
+                "realized_pnl",
+                0.0,
+            )
+        )
+
+        capital_growth = getattr(
+            self,
+            "capital_growth",
+            None,
+        )
+
+        # Production runners always initialize CapitalGrowthGovernor.
+        # Legacy unit fixtures intentionally bypass __init__ via
+        # object.__new__, so they receive an empty, non-authoritative
+        # startup snapshot rather than crashing.
+        if capital_growth is None:
+            startup_growth_state = {}
+        else:
+            startup_growth_state = (
+                capital_growth.evaluate(
+                    equity=startup_equity,
+                    realized_pnl=(
+                        startup_realized_pnl
+                    ),
+                    open_notional=(
+                        startup_open_notional
+                    ),
+                )
+            )
+
         swarm_health = (
             service.health(
                 equity=startup_equity
@@ -696,6 +763,12 @@ class PaperRunner(_V142PaperRunner):
             ),
             "open_positions": list(
                 self.ledger.positions
+            ),
+            "realized_pnl": (
+                startup_realized_pnl
+            ),
+            "capital_growth": (
+                startup_growth_state
             ),
             "events": [],
             "engines": engines,
@@ -803,7 +876,7 @@ class PaperRunner(_V142PaperRunner):
                 {},
             )
 
-            fabric["version"] = "1.58.1"
+            fabric["version"] = "1.59.0"
             fabric[
                 "fast_testnet_exploration_lane"
             ] = True
@@ -818,6 +891,15 @@ class PaperRunner(_V142PaperRunner):
             ] = True
             fabric[
                 "microstream_priority"
+            ] = True
+            fabric[
+                "precision_mtf_context"
+            ] = True
+            fabric[
+                "principal_protected_profit_compounding"
+            ] = True
+            fabric[
+                "profit_flow_telemetry"
             ] = True
             fabric[
                 "bounded_testnet_exploration_authority"
@@ -854,7 +936,17 @@ class PaperRunner(_V142PaperRunner):
             return
 
         self.start_fast_swarm()
-        self._write_startup_heartbeat()
+
+        startup_status = (
+            self._write_startup_heartbeat()
+        )
+
+        # v1.59: do not leave the 0.5-second lane using yesterday/previous
+        # cycle's supervisor cache while the first large canonical cycle
+        # is still running.
+        self._update_fast_supervisory(
+            startup_status
+        )
 
         if self.fast_collective_testnet is not None:
             self.fast_collective_testnet.start()
@@ -927,7 +1019,7 @@ def main() -> None:
             "live_authority": False,
         }
         payload["collective_profit_fabric"] = {
-            "version": "1.58.1",
+            "version": "1.59.0",
             "canonical_pretrade_integration": True,
             "sources": [
                 "adaptive_intelligence",
@@ -950,6 +1042,9 @@ def main() -> None:
             "subsecond_velocity_detection": settings.testnet_enabled,
             "velocity_sniper_testnet_lane": settings.testnet_enabled,
             "microstream_priority": settings.testnet_enabled,
+            "precision_mtf_context": settings.testnet_enabled,
+            "principal_protected_profit_compounding": settings.testnet_enabled,
+            "profit_flow_telemetry": settings.testnet_enabled,
             "bounded_testnet_exploration_authority": settings.testnet_enabled,
             "multi_position_hyper_router": settings.testnet_enabled,
             "per_position_hyper_speed_sentinel": settings.testnet_enabled,

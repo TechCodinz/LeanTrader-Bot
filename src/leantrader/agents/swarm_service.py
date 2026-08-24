@@ -25,7 +25,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.58.0"
+    VERSION = "1.59.0"
     KINEMATIC_SLOW_HORIZONS = (120, 300, 900)
     KINEMATIC_SLOW_COOLDOWN_SECONDS = 900.0
     ROLE_BY_TIMEFRAME = {
@@ -284,6 +284,24 @@ class ReadOnlySwarmService:
             if symbol:
                 dedup[symbol] = dict(row)
         return list(dedup.values())
+
+    def precision_context_symbols(
+        self,
+    ) -> set[str]:
+        """Symbols receiving both 0.5s micro and slower MTF context."""
+        with self._lock:
+            return {
+                str(symbol).upper()
+                for symbol in (
+                    getattr(
+                        self,
+                        "_microstream_symbols",
+                        [],
+                    )
+                    or []
+                )
+                if str(symbol or "").strip()
+            }
 
     @staticmethod
     def _closed_candles(frame: pd.DataFrame) -> pd.DataFrame:
@@ -1123,7 +1141,23 @@ class ReadOnlySwarmService:
         result["micro_agent_foundry_proposals"] = micro_proposals
         result["microstructure_marks"] = micro_marks
         result["microstructure_is_trade_authority"] = False
-        required_symbols = self.shadow_portfolio.open_symbols() if self.shadow_portfolio is not None else set()
+        required_symbols = set(
+            self.shadow_portfolio.open_symbols()
+            if self.shadow_portfolio is not None
+            else set()
+        )
+
+        # v1.59: the same bounded six-symbol precision universe sampled
+        # every 0.5s must also receive slower MTF confirmation. Previously
+        # MTF context was mostly reserved for already-qualified slow-radar
+        # symbols, leaving velocity-first candidates with mtf_confidence=0.
+        precision_context_symbols = (
+            self.precision_context_symbols()
+        )
+        required_symbols.update(
+            precision_context_symbols
+        )
+
         assessments, extension_candidates, context_errors = self._assess_context(
             ranked=list(result.get("ranked") or []),
             one_minute_frames=frames,
@@ -1255,6 +1289,17 @@ class ReadOnlySwarmService:
             else {}
         )
         result["timeframe_assessments"] = assessments
+        result["precision_context_symbols"] = sorted(
+            precision_context_symbols
+        )
+        result["precision_context_mtf_ready"] = sum(
+            1
+            for symbol in precision_context_symbols
+            if bool(
+                assessments.get(symbol)
+            )
+        )
+        result["precision_context_is_execution_authority"] = False
         result["shared_position_extension_candidates"] = extension_candidates
         result["extension_candidates_are_trade_authority"] = False
         result["shadow_open_events"] = shadow_open_events

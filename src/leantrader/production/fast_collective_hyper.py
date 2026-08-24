@@ -11,7 +11,7 @@ from .fast_collective_testnet import FastCollectiveTestnetLane
 class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
     """Multi-position fast Testnet router with one sentinel per position."""
 
-    VERSION = "1.58.0"
+    VERSION = "1.59.0"
 
     def __init__(
         self,
@@ -19,9 +19,23 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         maximum_concurrent_positions: int = 6,
         maximum_entries_per_cycle: int = 3,
         reentry_cooldown_seconds: float = 20.0,
+        starting_equity: float = 50.0,
+        maximum_order_usd: float = 5.0,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
+
+        self.starting_equity = max(
+            0.01,
+            float(starting_equity),
+        )
+
+        # This is only an additional local ceiling. The Bybit Testnet
+        # executor still enforces its own stricter order/position/daily caps.
+        self.maximum_order_usd = max(
+            self.order_usd,
+            float(maximum_order_usd),
+        )
         self.maximum_concurrent_positions = max(
             2,
             min(10, int(maximum_concurrent_positions)),
@@ -42,7 +56,174 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 "last_exit_by_symbol",
                 {},
             )
+            self.state.setdefault(
+                "last_sizing",
+                {},
+            )
             self._save_locked()
+
+    def _fast_open_notional(
+        self,
+    ) -> float:
+        with self._lock:
+            active = copy.deepcopy(
+                self.state.get("active")
+                or {}
+            )
+
+        total = 0.0
+
+        for record in active.values():
+            if not isinstance(record, dict):
+                continue
+
+            total += (
+                self._number(
+                    record.get("quantity")
+                )
+                * self._number(
+                    record.get("entry_price")
+                )
+            )
+
+        return max(0.0, total)
+
+    def _compound_order_notional(
+        self,
+        supervisor: dict[str, Any],
+        *,
+        slots: int,
+    ) -> dict[str, Any]:
+        """Allocate only from canonical principal-protected deployable capital."""
+
+        growth = (
+            supervisor.get("capital_growth")
+            or {}
+        )
+
+        # Before the first capital snapshot exists, remain bounded at the
+        # original fixed exploration amount instead of inventing capital.
+        if not isinstance(growth, dict) or not growth:
+            return {
+                "allowed": True,
+                "reason": "fixed_fallback_before_capital_snapshot",
+                "order_notional_usd": min(
+                    self.maximum_order_usd,
+                    self.order_usd,
+                ),
+                "compounding": False,
+                "live_authority": False,
+            }
+
+        if (
+            growth.get(
+                "new_entries_allowed"
+            )
+            is False
+        ):
+            return {
+                "allowed": False,
+                "reason": "capital_growth_new_entries_blocked",
+                "capital_state": growth.get("state"),
+                "live_authority": False,
+            }
+
+        risk_multiplier = max(
+            0.0,
+            min(
+                1.0,
+                self._number(
+                    growth.get(
+                        "risk_multiplier"
+                    ),
+                    1.0,
+                ),
+            ),
+        )
+
+        remaining = max(
+            0.0,
+            self._number(
+                growth.get(
+                    "remaining_deployable_notional"
+                )
+            ),
+        )
+
+        fast_open = (
+            self._fast_open_notional()
+        )
+
+        available_pool = max(
+            0.0,
+            remaining - fast_open,
+        )
+
+        slot_count = max(
+            1,
+            int(slots),
+        )
+
+        slot_budget = (
+            available_pool
+            / slot_count
+        )
+
+        order_notional = min(
+            self.maximum_order_usd,
+            slot_budget
+            * risk_multiplier,
+        )
+
+        if (
+            risk_multiplier <= 0.0
+            or order_notional < 0.50
+        ):
+            return {
+                "allowed": False,
+                "reason": "capital_growth_insufficient_deployable_budget",
+                "capital_state": growth.get("state"),
+                "remaining_deployable_notional": remaining,
+                "fast_open_notional": fast_open,
+                "available_pool": available_pool,
+                "slot_budget": slot_budget,
+                "risk_multiplier": risk_multiplier,
+                "live_authority": False,
+            }
+
+        return {
+            "allowed": True,
+            "reason": "principal_protected_compound_budget",
+            "order_notional_usd": order_notional,
+            "compounding": True,
+            "capital_state": growth.get("state"),
+            "equity": self._number(
+                growth.get("equity")
+            ),
+            "peak_equity": self._number(
+                growth.get("peak_equity")
+            ),
+            "protected_principal": self._number(
+                growth.get(
+                    "protected_principal"
+                )
+            ),
+            "locked_profit": self._number(
+                growth.get("locked_profit")
+            ),
+            "reinvestable_realized_profit": self._number(
+                growth.get(
+                    "reinvestable_realized_profit"
+                )
+            ),
+            "remaining_deployable_notional": remaining,
+            "fast_open_notional": fast_open,
+            "available_pool": available_pool,
+            "slot_budget": slot_budget,
+            "risk_multiplier": risk_multiplier,
+            "martingale": False,
+            "live_authority": False,
+        }
 
     def step(
         self,
@@ -143,6 +324,35 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                     "exit_actions": exit_actions,
                 },
             )
+
+        sizing = self._compound_order_notional(
+            supervisor,
+            slots=slots,
+        )
+
+        with self._lock:
+            self.state["last_sizing"] = (
+                copy.deepcopy(sizing)
+            )
+            self._save_locked()
+
+        if sizing.get("allowed") is not True:
+            return self._decision(
+                str(
+                    sizing.get("reason")
+                    or "capital_growth_blocked"
+                ),
+                details={
+                    "sizing": sizing,
+                    "exit_actions": exit_actions,
+                },
+            )
+
+        order_notional_usd = self._number(
+            sizing.get(
+                "order_notional_usd"
+            )
+        )
 
         canonical_open = {
             str(symbol).upper()
@@ -251,11 +461,15 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             assessment = {
                 **assessment,
                 "target_hold_seconds": self._target_hold_seconds(assessment),
+                "order_notional_usd": order_notional_usd,
+                "capital_growth_sizing": copy.deepcopy(
+                    sizing
+                ),
             }
             event = self._new_event(
                 symbol=symbol,
                 side="buy",
-                quantity=self.order_usd / max(price, 1e-12),
+                quantity=order_notional_usd / max(price, 1e-12),
                 price=price,
                 reason=(
                     "fast_collective_testnet_entry:"
@@ -672,6 +886,12 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                         "quantity": filled,
                         "initial_quantity": filled,
                         "entry_price": entry_price,
+                        "entry_notional_usd": self._number(
+                            assessment.get(
+                                "order_notional_usd"
+                            ),
+                            filled * entry_price,
+                        ),
                         "peak_price": entry_price,
                         "entered_at": now,
                         "entry_event_id": event.get("event_id"),
@@ -726,6 +946,25 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                             else 0.0
                         )
                         net_bps = gross_bps - self.round_trip_cost_bps
+
+                        entry_notional_usd = self._number(
+                            record.get(
+                                "entry_notional_usd"
+                            ),
+                            self._number(
+                                record.get(
+                                    "initial_quantity"
+                                )
+                            )
+                            * entry_price,
+                        )
+
+                        modeled_net_pnl_usd = (
+                            entry_notional_usd
+                            * net_bps
+                            / 10_000.0
+                        )
+
                         closed = {
                             "symbol": symbol,
                             "quantity": record.get("initial_quantity"),
@@ -733,6 +972,8 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                             "exit_price": exit_price,
                             "gross_bps": gross_bps,
                             "net_bps_after_model": net_bps,
+                            "entry_notional_usd": entry_notional_usd,
+                            "modeled_net_pnl_usd": modeled_net_pnl_usd,
                             "modeled_round_trip_cost_bps": (
                                 self.round_trip_cost_bps
                             ),
@@ -792,6 +1033,71 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
 
     def health(self) -> dict[str, Any]:
         payload = super().health()
+
+        with self._lock:
+            closed = copy.deepcopy(
+                self.state.get("closed")
+                or []
+            )
+            last_sizing = copy.deepcopy(
+                self.state.get(
+                    "last_sizing"
+                )
+                or {}
+            )
+
+        net_rows = [
+            self._number(
+                row.get(
+                    "net_bps_after_model"
+                )
+            )
+            for row in closed
+            if isinstance(row, dict)
+        ]
+
+        positive_bps = sum(
+            value
+            for value in net_rows
+            if value > 0.0
+        )
+
+        negative_bps = abs(
+            sum(
+                value
+                for value in net_rows
+                if value < 0.0
+            )
+        )
+
+        wins = sum(
+            1
+            for value in net_rows
+            if value > 0.0
+        )
+
+        now = time.time()
+
+        completed_last_hour = sum(
+            1
+            for row in closed
+            if isinstance(row, dict)
+            and self._number(
+                row.get("exited_at")
+            )
+            >= now - 3_600.0
+        )
+
+        modeled_net_pnl_usd = sum(
+            self._number(
+                row.get(
+                    "modeled_net_pnl_usd"
+                )
+            )
+            for row in closed
+            if isinstance(row, dict)
+        )
+
         payload.update(
             {
                 "version": self.VERSION,
@@ -809,6 +1115,36 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 "independent_position_exit": True,
                 "immediate_slot_reuse": True,
                 "single_position_restriction": False,
+                "principal_protected_compounding": True,
+                "martingale": False,
+                "maximum_compound_order_usd": (
+                    self.maximum_order_usd
+                ),
+                "last_sizing": last_sizing,
+                "closed_count": len(net_rows),
+                "win_rate": (
+                    wins / len(net_rows)
+                    if net_rows
+                    else None
+                ),
+                "average_net_bps": (
+                    sum(net_rows)
+                    / len(net_rows)
+                    if net_rows
+                    else None
+                ),
+                "profit_factor": (
+                    positive_bps
+                    / negative_bps
+                    if negative_bps > 0.0
+                    else None
+                ),
+                "modeled_net_pnl_usd": (
+                    modeled_net_pnl_usd
+                ),
+                "completed_trades_last_hour": (
+                    completed_last_hour
+                ),
                 "live_authority": False,
             }
         )
