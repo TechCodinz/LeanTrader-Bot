@@ -25,7 +25,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.60.2"
+    VERSION = "1.60.4"
     KINEMATIC_SLOW_HORIZONS = (120, 300, 900)
     KINEMATIC_SLOW_COOLDOWN_SECONDS = 900.0
     ROLE_BY_TIMEFRAME = {
@@ -164,6 +164,20 @@ class ReadOnlySwarmService:
             ),
         )
         self._precision_micro_last_failure_count = 0
+
+        # v1.60.4 continuity-preserving precision scheduler.
+        #
+        # The broad scout remains wide, but a bounded hot cohort stays
+        # continuously sampled long enough to build genuine 5-second
+        # temporal microstructure evidence.
+        self._precision_hot_symbols: list[str] = []
+        self._precision_hot_until = 0.0
+        self._precision_explorer_symbol: str | None = None
+        self._precision_explorer_until = 0.0
+        self.precision_hot_hold_seconds = 4.0
+        self.precision_explorer_hold_seconds = 3.0
+        self.precision_hot_promotions = 0
+        self.precision_explorer_rotations = 0
 
         self._microstream_thread: threading.Thread | None = None
         self._calibration_thread: threading.Thread | None = None
@@ -1974,6 +1988,304 @@ class ReadOnlySwarmService:
             },
         )
 
+    @classmethod
+    def _build_sticky_precision_queue(
+        cls,
+        *,
+        scout_symbols: list[str],
+        sticky_symbols: list[str],
+        due_symbols: list[str],
+        velocity_symbols: list[str],
+        capacity: int,
+        cursor: int,
+        now: float,
+        current_hot: list[str],
+        hot_until: float,
+        current_explorer: str | None,
+        explorer_until: float,
+        hot_hold_seconds: float = 4.0,
+        explorer_hold_seconds: float = 3.0,
+    ) -> tuple[
+        list[str],
+        int,
+        dict[str, object],
+    ]:
+        """Build one continuity-preserving deep-micro schedule."""
+
+        cap = max(
+            1,
+            min(
+                12,
+                int(capacity),
+            ),
+        )
+
+        scouts = cls._unique_symbols(
+            scout_symbols
+        )
+
+        sticky = cls._unique_symbols(
+            sticky_symbols
+        )
+
+        due = cls._unique_symbols(
+            due_symbols
+        )
+
+        velocity = cls._unique_symbols(
+            velocity_symbols
+        )
+
+        previous_hot = cls._unique_symbols(
+            current_hot
+        )
+
+        valid_live = cls._unique_symbols(
+            [
+                *velocity,
+                *scouts,
+                *sticky,
+            ]
+        )
+
+        # At most one bounded research label-resolution slot.
+        due_slots = (
+            1
+            if due and cap >= 2
+            else 0
+        )
+
+        # Preserve one exploration slot when possible. Unlike the old
+        # rotation, the explorer remains for several seconds so it can
+        # accumulate temporal evidence rather than receiving one sample.
+        explorer_slots = (
+            1
+            if (
+                len(scouts) > 1
+                and cap - due_slots >= 2
+            )
+            else 0
+        )
+
+        hot_slots = max(
+            1,
+            cap
+            - due_slots
+            - explorer_slots,
+        )
+
+        hold_active = bool(
+            previous_hot
+            and now < float(
+                hot_until or 0.0
+            )
+        )
+
+        if hold_active:
+            priority = cls._unique_symbols(
+                [
+                    # A genuinely moving sampled market may immediately
+                    # promote into the cohort.
+                    *velocity,
+                    *[
+                        symbol
+                        for symbol in previous_hot
+                        if symbol in valid_live
+                    ],
+                    *scouts,
+                    *sticky,
+                ]
+            )
+        else:
+            priority = cls._unique_symbols(
+                [
+                    *velocity,
+                    *scouts,
+                    *sticky,
+                    *previous_hot,
+                ]
+            )
+
+        hot: list[str] = []
+
+        for symbol in priority:
+            if len(hot) >= hot_slots:
+                break
+
+            if symbol not in hot:
+                hot.append(symbol)
+
+        if not hot and due:
+            hot.append(due[0])
+
+        normalized_previous_hot = [
+            symbol
+            for symbol in previous_hot
+            if symbol in valid_live
+        ][:hot_slots]
+
+        hot_changed = (
+            hot != normalized_previous_hot
+        )
+
+        next_hot_until = (
+            float(hot_until or 0.0)
+            if (
+                hold_active
+                and not hot_changed
+            )
+            else now
+            + max(
+                2.0,
+                float(hot_hold_seconds),
+            )
+        )
+
+        explorer: str | None = None
+        next_explorer_until = float(
+            explorer_until or 0.0
+        )
+        next_cursor = int(cursor)
+
+        exploration_pool = [
+            symbol
+            for symbol in scouts
+            if symbol not in hot
+        ]
+
+        current_explorer_normalized = (
+            str(
+                current_explorer
+                or ""
+            ).upper()
+        )
+
+        explorer_rotated = False
+
+        if (
+            explorer_slots
+            and exploration_pool
+        ):
+            if (
+                current_explorer_normalized
+                in exploration_pool
+                and now
+                < next_explorer_until
+            ):
+                explorer = (
+                    current_explorer_normalized
+                )
+
+            else:
+                index = (
+                    int(cursor)
+                    % len(
+                        exploration_pool
+                    )
+                )
+
+                explorer = (
+                    exploration_pool[index]
+                )
+
+                next_cursor = (
+                    index + 1
+                ) % len(
+                    exploration_pool
+                )
+
+                next_explorer_until = (
+                    now
+                    + max(
+                        2.0,
+                        float(
+                            explorer_hold_seconds
+                        ),
+                    )
+                )
+
+                explorer_rotated = True
+
+        queue: list[str] = []
+
+        for symbol in hot:
+            if (
+                symbol
+                and symbol not in queue
+                and len(queue) < cap
+            ):
+                queue.append(symbol)
+
+        if (
+            explorer
+            and explorer not in queue
+            and len(queue) < cap
+        ):
+            queue.append(explorer)
+
+        due_inserted = 0
+
+        for symbol in due:
+            if len(queue) >= cap:
+                break
+
+            if symbol not in queue:
+                queue.append(symbol)
+                due_inserted = 1
+                break
+
+        # Fill only when normal slot categories did not consume capacity.
+        for symbol in [
+            *sticky,
+            *scouts,
+        ]:
+            if len(queue) >= cap:
+                break
+
+            if symbol not in queue:
+                queue.append(symbol)
+
+        promoted = [
+            symbol
+            for symbol in velocity
+            if (
+                symbol in hot
+                and symbol
+                not in normalized_previous_hot
+            )
+        ]
+
+        return (
+            queue[:cap],
+            next_cursor,
+            {
+                "hot_symbols": list(hot),
+                "hot_until": (
+                    next_hot_until
+                ),
+                "explorer_symbol": (
+                    explorer
+                ),
+                "explorer_until": (
+                    next_explorer_until
+                ),
+                "hot_slots": len(hot),
+                "explorer_slots": (
+                    1 if explorer else 0
+                ),
+                "due_slots": due_inserted,
+                "scout_slots": sum(
+                    1
+                    for symbol in queue[:cap]
+                    if symbol in scouts
+                ),
+                "promoted_symbols": promoted,
+                "explorer_rotated": (
+                    explorer_rotated
+                ),
+            },
+        )
+
     def _adaptive_microstream_capacity(
         self,
         *,
@@ -2095,6 +2407,28 @@ class ReadOnlySwarmService:
                         observed_at=now
                     )
 
+                velocity_rows = (
+                    self.micro_velocity_candidates(
+                        limit=max(
+                            4,
+                            self.max_micro_symbols,
+                        ),
+                        max_age_seconds=3.0,
+                    )
+                )
+
+                velocity_symbols = [
+                    str(
+                        row.get("symbol")
+                        or ""
+                    ).upper()
+                    for row in velocity_rows
+                    if str(
+                        row.get("symbol")
+                        or ""
+                    ).strip()
+                ]
+
                 with self._lock:
                     scout_symbols = list(
                         self._precision_scout_symbols
@@ -2104,6 +2438,20 @@ class ReadOnlySwarmService:
                     )
                     cursor = int(
                         self._precision_micro_cursor
+                    )
+                    current_hot = list(
+                        self._precision_hot_symbols
+                    )
+                    hot_until = float(
+                        self._precision_hot_until
+                        or 0.0
+                    )
+                    current_explorer = (
+                        self._precision_explorer_symbol
+                    )
+                    explorer_until = float(
+                        self._precision_explorer_until
+                        or 0.0
                     )
 
                 due: list[str] = []
@@ -2130,12 +2478,38 @@ class ReadOnlySwarmService:
                     queue,
                     next_cursor,
                     schedule,
-                ) = self._build_microstream_queue(
-                    scout_symbols=scout_symbols,
-                    sticky_symbols=sticky_symbols,
-                    due_symbols=due,
-                    capacity=capacity,
-                    cursor=cursor,
+                ) = (
+                    self._build_sticky_precision_queue(
+                        scout_symbols=(
+                            scout_symbols
+                        ),
+                        sticky_symbols=(
+                            sticky_symbols
+                        ),
+                        due_symbols=due,
+                        velocity_symbols=(
+                            velocity_symbols
+                        ),
+                        capacity=capacity,
+                        cursor=cursor,
+                        now=now,
+                        current_hot=(
+                            current_hot
+                        ),
+                        hot_until=hot_until,
+                        current_explorer=(
+                            current_explorer
+                        ),
+                        explorer_until=(
+                            explorer_until
+                        ),
+                        hot_hold_seconds=(
+                            self.precision_hot_hold_seconds
+                        ),
+                        explorer_hold_seconds=(
+                            self.precision_explorer_hold_seconds
+                        ),
+                    )
                 )
 
                 with self._lock:
@@ -2161,6 +2535,49 @@ class ReadOnlySwarmService:
                             or 0
                         )
                     )
+
+                    self._precision_hot_symbols = list(
+                        schedule.get(
+                            "hot_symbols"
+                        )
+                        or []
+                    )
+
+                    self._precision_hot_until = float(
+                        schedule.get(
+                            "hot_until"
+                        )
+                        or 0.0
+                    )
+
+                    self._precision_explorer_symbol = (
+                        str(
+                            schedule.get(
+                                "explorer_symbol"
+                            )
+                            or ""
+                        ).upper()
+                        or None
+                    )
+
+                    self._precision_explorer_until = float(
+                        schedule.get(
+                            "explorer_until"
+                        )
+                        or 0.0
+                    )
+
+                    self.precision_hot_promotions += len(
+                        schedule.get(
+                            "promoted_symbols"
+                        )
+                        or []
+                    )
+
+                    if schedule.get(
+                        "explorer_rotated"
+                    ) is True:
+                        self.precision_explorer_rotations += 1
 
                 for symbol in queue:
                     if self._stop.is_set():
@@ -2506,7 +2923,7 @@ class ReadOnlySwarmService:
         """Velocity-first symbols for fast collective evaluation."""
         bounded = max(
             1,
-            min(24, int(limit)),
+            min(48, int(limit)),
         )
 
         velocity_rows = (
@@ -3134,6 +3551,32 @@ class ReadOnlySwarmService:
                         "last_queue": list(
                             self.precision_micro_last_queue
                         ),
+                        "sticky_hot_cohort": list(
+                            self._precision_hot_symbols
+                        ),
+                        "hot_cohort_until": (
+                            self._precision_hot_until
+                        ),
+                        "hot_hold_seconds": (
+                            self.precision_hot_hold_seconds
+                        ),
+                        "explorer_symbol": (
+                            self._precision_explorer_symbol
+                        ),
+                        "explorer_until": (
+                            self._precision_explorer_until
+                        ),
+                        "explorer_hold_seconds": (
+                            self.precision_explorer_hold_seconds
+                        ),
+                        "hot_promotions": (
+                            self.precision_hot_promotions
+                        ),
+                        "explorer_rotations": (
+                            self.precision_explorer_rotations
+                        ),
+                        "continuity_preserving": True,
+                        "broad_scout_remains_wide": True,
                         "live_scout_slots": (
                             self.precision_micro_live_slots
                         ),

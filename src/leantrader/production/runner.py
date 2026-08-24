@@ -36,7 +36,7 @@ class MicrostructureMarketFeed(MarketFeed):
 class PaperRunner(_V142PaperRunner):
     """v1.43: v1.42 supervision plus parallel costed market-swarm shadow evidence."""
 
-    VERSION = "1.60.3"
+    VERSION = "1.60.4"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _runner_v142.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
@@ -1134,7 +1134,7 @@ class PaperRunner(_V142PaperRunner):
                 {},
             )
 
-            fabric["version"] = "1.60.3"
+            fabric["version"] = "1.60.4"
             fabric[
                 "fast_testnet_exploration_lane"
             ] = True
@@ -1176,6 +1176,15 @@ class PaperRunner(_V142PaperRunner):
             ] = True
             fabric[
                 "latency_adaptive_micro_depth"
+            ] = True
+            fabric[
+                "sticky_hot_micro_cohort"
+            ] = True
+            fabric[
+                "continuity_preserving_exploration"
+            ] = True
+            fabric[
+                "wide_candidate_router"
             ] = True
             fabric[
                 "sub_dollar_mover_coverage"
@@ -1304,7 +1313,7 @@ def main() -> None:
             "live_authority": False,
         }
         payload["collective_profit_fabric"] = {
-            "version": "1.60.3",
+            "version": "1.60.4",
             "canonical_pretrade_integration": True,
             "sources": [
                 "adaptive_intelligence",
@@ -1336,6 +1345,9 @@ def main() -> None:
             "autonomous_testnet_reconciliation_recovery": settings.testnet_enabled,
             "dynamic_position_concurrency": settings.testnet_enabled,
             "latency_adaptive_micro_depth": settings.testnet_enabled,
+            "sticky_hot_micro_cohort": settings.testnet_enabled,
+            "continuity_preserving_exploration": settings.testnet_enabled,
+            "wide_candidate_router": settings.testnet_enabled,
             "sub_dollar_mover_coverage": settings.testnet_enabled,
             "principal_protected_profit_compounding": settings.testnet_enabled,
             "profit_flow_telemetry": settings.testnet_enabled,
