@@ -36,7 +36,7 @@ class MicrostructureMarketFeed(MarketFeed):
 class PaperRunner(_V142PaperRunner):
     """v1.43: v1.42 supervision plus parallel costed market-swarm shadow evidence."""
 
-    VERSION = "1.59.0"
+    VERSION = "1.59.1"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _runner_v142.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
@@ -81,12 +81,14 @@ class PaperRunner(_V142PaperRunner):
                 starting_equity=(
                     self.settings.starting_cash
                 ),
+                # v1.59.1: the CapitalGrowthGovernor determines the
+                # dynamic amount. This local ceiling must not artificially
+                # pin profitable growth at $2. The Testnet executor still
+                # independently enforces order, position, daily-notional
+                # and daily-order hard limits.
                 maximum_order_usd=min(
                     self.settings.testnet_max_order_usd,
-                    max(
-                        2.0,
-                        self.settings.order_usd,
-                    ),
+                    self.settings.testnet_max_position_usd,
                 ),
             )
             if self.testnet is not None
@@ -876,7 +878,7 @@ class PaperRunner(_V142PaperRunner):
                 {},
             )
 
-            fabric["version"] = "1.59.0"
+            fabric["version"] = "1.59.1"
             fabric[
                 "fast_testnet_exploration_lane"
             ] = True
@@ -1019,7 +1021,7 @@ def main() -> None:
             "live_authority": False,
         }
         payload["collective_profit_fabric"] = {
-            "version": "1.59.0",
+            "version": "1.59.1",
             "canonical_pretrade_integration": True,
             "sources": [
                 "adaptive_intelligence",

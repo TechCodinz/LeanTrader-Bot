@@ -11,7 +11,7 @@ from .fast_collective_testnet import FastCollectiveTestnetLane
 class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
     """Multi-position fast Testnet router with one sentinel per position."""
 
-    VERSION = "1.59.0"
+    VERSION = "1.59.1"
 
     def __init__(
         self,
@@ -950,14 +950,18 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                         entry_notional_usd = self._number(
                             record.get(
                                 "entry_notional_usd"
-                            ),
-                            self._number(
-                                record.get(
-                                    "initial_quantity"
-                                )
                             )
-                            * entry_price,
                         )
+
+                        if entry_notional_usd <= 0.0:
+                            entry_notional_usd = (
+                                self._number(
+                                    record.get(
+                                        "initial_quantity"
+                                    )
+                                )
+                                * entry_price
+                            )
 
                         modeled_net_pnl_usd = (
                             entry_notional_usd
@@ -1009,6 +1013,8 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                             "timestamp": now,
                             "gross_bps": gross_bps,
                             "net_bps_after_model": net_bps,
+                            "modeled_net_pnl_usd": modeled_net_pnl_usd,
+                            "entry_notional_usd": entry_notional_usd,
                             "exit_reason": closed.get("exit_reason"),
                         }
                         self.state["pending_event"] = None
@@ -1029,6 +1035,43 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 "filled": filled,
                 "current_total_quantity": current_total,
             },
+        )
+
+    def _closed_entry_notional_usd(
+        self,
+        row: dict[str, Any],
+    ) -> float:
+        explicit = self._number(
+            row.get("entry_notional_usd")
+        )
+
+        if explicit > 0.0:
+            return explicit
+
+        return max(
+            0.0,
+            self._number(row.get("quantity"))
+            * self._number(row.get("entry_price")),
+        )
+
+    def _closed_modeled_net_pnl_usd(
+        self,
+        row: dict[str, Any],
+    ) -> float:
+        # v1.59+ rows persist this directly. Older rows are reconstructed
+        # from their actual Testnet quantity/entry and the same >=30 bps
+        # modeled net result; no historical profitability is fabricated.
+        if row.get("modeled_net_pnl_usd") is not None:
+            return self._number(
+                row.get("modeled_net_pnl_usd")
+            )
+
+        return (
+            self._closed_entry_notional_usd(row)
+            * self._number(
+                row.get("net_bps_after_model")
+            )
+            / 10_000.0
         )
 
     def health(self) -> dict[str, Any]:
@@ -1089,13 +1132,44 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         )
 
         modeled_net_pnl_usd = sum(
-            self._number(
-                row.get(
-                    "modeled_net_pnl_usd"
-                )
+            self._closed_modeled_net_pnl_usd(
+                row
             )
             for row in closed
             if isinstance(row, dict)
+        )
+
+        closed_last_hour = [
+            row
+            for row in closed
+            if (
+                isinstance(row, dict)
+                and self._number(
+                    row.get("exited_at")
+                )
+                >= now - 3_600.0
+            )
+        ]
+
+        modeled_net_pnl_last_hour = sum(
+            self._closed_modeled_net_pnl_usd(
+                row
+            )
+            for row in closed_last_hour
+        )
+
+        capital_turnover_last_hour = sum(
+            self._closed_entry_notional_usd(
+                row
+            )
+            for row in closed_last_hour
+        )
+
+        hourly_return_fraction = (
+            modeled_net_pnl_last_hour
+            / self.starting_equity
+            if self.starting_equity > 0.0
+            else 0.0
         )
 
         payload.update(
@@ -1141,6 +1215,15 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 ),
                 "modeled_net_pnl_usd": (
                     modeled_net_pnl_usd
+                ),
+                "modeled_net_pnl_last_hour_usd": (
+                    modeled_net_pnl_last_hour
+                ),
+                "capital_turnover_last_hour_usd": (
+                    capital_turnover_last_hour
+                ),
+                "modeled_return_per_hour_fraction": (
+                    hourly_return_fraction
                 ),
                 "completed_trades_last_hour": (
                     completed_last_hour
