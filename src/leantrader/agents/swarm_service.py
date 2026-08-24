@@ -25,7 +25,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.57.0"
+    VERSION = "1.58.0"
     KINEMATIC_SLOW_HORIZONS = (120, 300, 900)
     KINEMATIC_SLOW_COOLDOWN_SECONDS = 900.0
     ROLE_BY_TIMEFRAME = {
@@ -123,6 +123,10 @@ class ReadOnlySwarmService:
         self.microstream_observations = 0
         self.microstream_last_observation_at = 0.0
         self._microstream_symbols: list[str] = []
+        self._microstream_snapshots: dict[
+            str,
+            dict[str, Any],
+        ] = {}
 
         self.calibration_sample_attempts = 0
         self.calibration_sample_failures = 0
@@ -554,10 +558,10 @@ class ReadOnlySwarmService:
 
             return (
                 sticky,
+                movement_score,
                 fill,
                 liquidity,
                 -spread,
-                movement_score,
             )
 
         # Examine a bounded pool rather than allowing the first two
@@ -1338,7 +1342,7 @@ class ReadOnlySwarmService:
 
                 capacity = max(
                     1,
-                    min(2, self.max_micro_symbols),
+                    min(6, self.max_micro_symbols),
                 )
                 queue = queue[:capacity]
 
@@ -1390,6 +1394,36 @@ class ReadOnlySwarmService:
                                 now=observed_at,
                             )
                         )
+
+                        # v1.58: expose the exact fresh precision observation
+                        # to the Testnet velocity router. This is data only;
+                        # the microstream itself still has no execution
+                        # authority.
+                        with self._lock:
+                            self._microstream_snapshots[
+                                symbol
+                            ] = dict(observation)
+
+                            cutoff = (
+                                observed_at - 10.0
+                            )
+
+                            stale = [
+                                key
+                                for key, row in (
+                                    self._microstream_snapshots.items()
+                                )
+                                if float(
+                                    row.get("timestamp")
+                                    or 0.0
+                                ) < cutoff
+                            ]
+
+                            for key in stale:
+                                self._microstream_snapshots.pop(
+                                    key,
+                                    None,
+                                )
 
                         self.microstream_observations += 1
                         self.microstream_last_observation_at = (
@@ -1480,14 +1514,190 @@ class ReadOnlySwarmService:
                 )
             )
 
+    @staticmethod
+    def _micro_velocity_score(
+        snapshot: dict[str, Any],
+    ) -> float:
+        def number(
+            key: str,
+            default: float = 0.0,
+        ) -> float:
+            try:
+                value = float(
+                    snapshot.get(key, default)
+                )
+            except (TypeError, ValueError):
+                return default
+            return value
+
+        spread = number(
+            "spread_bps",
+            1_000_000.0,
+        )
+        depth = (
+            number("bid_depth_usd")
+            + number("ask_depth_usd")
+        )
+        samples = int(
+            number("temporal_samples")
+        )
+
+        if (
+            spread > 25.0
+            or depth < 10_000.0
+            or samples < 2
+        ):
+            return 0.0
+
+        trend = max(
+            0.0,
+            number(
+                "recent_midpoint_trend_bps_5s"
+            ),
+        )
+        velocity = max(
+            0.0,
+            number(
+                "midpoint_velocity_bps_per_second"
+            ),
+        )
+        acceleration = max(
+            0.0,
+            number(
+                "midpoint_acceleration_bps_per_second2"
+            ),
+        )
+        movement_range = max(
+            0.0,
+            number(
+                "recent_midpoint_range_bps_5s"
+            ),
+        )
+        imbalance = max(
+            0.0,
+            number("depth_imbalance"),
+        )
+        microprice = max(
+            0.0,
+            number("microprice_shift_bps"),
+        )
+        persistence = max(
+            0.0,
+            min(
+                1.0,
+                number("pressure_persistence"),
+            ),
+        )
+
+        return (
+            trend
+            + min(30.0, velocity * 5.0)
+            + min(20.0, acceleration * 3.0)
+            + min(10.0, movement_range * 0.20)
+            + 8.0 * imbalance
+            + min(6.0, microprice)
+            + 6.0 * persistence
+        )
+
+    def micro_velocity_candidates(
+        self,
+        limit: int = 8,
+        *,
+        max_age_seconds: float = 2.0,
+    ) -> list[dict[str, Any]]:
+        bounded = max(
+            1,
+            min(24, int(limit)),
+        )
+        now = time.time()
+
+        with self._lock:
+            snapshots = copy.deepcopy(
+                getattr(
+                    self,
+                    "_microstream_snapshots",
+                    {},
+                )
+            )
+
+        rows: list[dict[str, Any]] = []
+
+        for symbol, snapshot in snapshots.items():
+            timestamp = float(
+                snapshot.get("timestamp")
+                or 0.0
+            )
+
+            if timestamp <= 0.0:
+                continue
+
+            age = max(
+                0.0,
+                now - timestamp,
+            )
+
+            if age > max_age_seconds:
+                continue
+
+            score = self._micro_velocity_score(
+                snapshot
+            )
+
+            if score <= 0.0:
+                continue
+
+            rows.append(
+                {
+                    **snapshot,
+                    "symbol": str(
+                        symbol
+                    ).upper(),
+                    "age_seconds": age,
+                    "fresh": True,
+                    "velocity_score": score,
+                    "testnet_authority": False,
+                    "live_authority": False,
+                }
+            )
+
+        return sorted(
+            rows,
+            key=lambda row: (
+                float(
+                    row.get("velocity_score")
+                    or 0.0
+                ),
+                float(
+                    row.get(
+                        "recent_midpoint_trend_bps_5s"
+                    )
+                    or 0.0
+                ),
+                float(
+                    row.get(
+                        "midpoint_velocity_bps_per_second"
+                    )
+                    or 0.0
+                ),
+            ),
+            reverse=True,
+        )[:bounded]
+
     def collective_candidates(
         self,
         limit: int = 8,
     ) -> list[str]:
-        """Return the current ranked symbols for fast collective evaluation."""
+        """Velocity-first symbols for fast collective evaluation."""
         bounded = max(
             1,
             min(24, int(limit)),
+        )
+
+        velocity_rows = (
+            self.micro_velocity_candidates(
+                bounded,
+                max_age_seconds=2.0,
+            )
         )
 
         with self._lock:
@@ -1495,60 +1705,80 @@ class ReadOnlySwarmService:
                 self.last_step.get("ranked")
                 or []
             )
-
             micro_symbols = list(
-                self._microstream_symbols
+                getattr(
+                    self,
+                    "_microstream_symbols",
+                    [],
+                )
             )
 
         symbols: list[str] = []
 
+        # Fresh sub-second observations have first priority.
+        for row in velocity_rows:
+            symbol = str(
+                row.get("symbol")
+                or ""
+            ).upper()
+
+            if symbol and symbol not in symbols:
+                symbols.append(symbol)
+
+        # Then retain the sticky deep-micro universe.
+        for symbol in micro_symbols:
+            symbol = str(symbol).upper()
+
+            if symbol and symbol not in symbols:
+                symbols.append(symbol)
+
+        # General movement radar is the broad fallback.
         for row in ranked:
             if not isinstance(row, dict):
                 continue
 
             symbol = str(
-                row.get("symbol") or ""
+                row.get("symbol")
+                or ""
             ).upper()
 
-            if (
-                symbol
-                and symbol not in symbols
-            ):
-                symbols.append(symbol)
-
-        for symbol in micro_symbols:
-            symbol = str(symbol).upper()
-
-            if (
-                symbol
-                and symbol not in symbols
-            ):
+            if symbol and symbol not in symbols:
                 symbols.append(symbol)
 
         return symbols[:bounded]
 
-    def collective_signal(self, symbol: str) -> dict[str, Any]:
-        """Return a bounded thread-safe signal snapshot for the canonical router.
-
-        This method does not place an order itself. It exposes the already-running
-        fast swarm, independently-qualified timeframe minds and evidence-qualified
-        micro specialists to the canonical paper/Testnet decision boundary.
-        """
-        normalized = str(symbol or "").upper()
+    def collective_signal(
+        self,
+        symbol: str,
+    ) -> dict[str, Any]:
+        """Return slower collective context plus the freshest precision mark."""
+        normalized = str(
+            symbol or ""
+        ).upper()
 
         with self._lock:
             ranked = {}
-            for row in list(self.last_step.get("ranked") or []):
+
+            for row in list(
+                self.last_step.get("ranked")
+                or []
+            ):
                 if (
                     isinstance(row, dict)
-                    and str(row.get("symbol") or "").upper() == normalized
+                    and str(
+                        row.get("symbol")
+                        or ""
+                    ).upper()
+                    == normalized
                 ):
                     ranked = dict(row)
                     break
 
             assessments = copy.deepcopy(
                 (
-                    self.last_step.get("timeframe_assessments")
+                    self.last_step.get(
+                        "timeframe_assessments"
+                    )
                     or {}
                 ).get(normalized)
                 or {}
@@ -1564,50 +1794,170 @@ class ReadOnlySwarmService:
                 )
                 if (
                     isinstance(row, dict)
-                    and str(row.get("symbol") or "").upper()
+                    and str(
+                        row.get("symbol")
+                        or ""
+                    ).upper()
                     == normalized
                 )
             ]
 
             microstructure = copy.deepcopy(
                 (
-                    self.last_step.get("microstructure")
+                    self.last_step.get(
+                        "microstructure"
+                    )
                     or {}
                 ).get(normalized)
                 or {}
             )
 
+            micro_snapshot = copy.deepcopy(
+                getattr(
+                    self,
+                    "_microstream_snapshots",
+                    {},
+                ).get(
+                    normalized
+                )
+                or {}
+            )
+
             last_success = float(
-                self.last_success_at or 0.0
+                self.last_success_at
+                or 0.0
             )
             cycles = int(self.cycles)
 
         now = time.time()
+
         stale_after = max(
             60.0,
             self.cadence_seconds * 6.0,
         )
-        age = (
-            max(0.0, now - last_success)
-            if last_success > 0
+
+        slow_age = (
+            max(
+                0.0,
+                now - last_success,
+            )
+            if last_success > 0.0
             else None
         )
+
+        micro_timestamp = float(
+            micro_snapshot.get("timestamp")
+            or 0.0
+        )
+
+        micro_age = (
+            max(
+                0.0,
+                now - micro_timestamp,
+            )
+            if micro_timestamp > 0.0
+            else None
+        )
+
+        micro_fresh = bool(
+            micro_age is not None
+            and micro_age <= 2.0
+        )
+
+        slow_fresh = bool(
+            last_success > 0.0
+            and slow_age is not None
+            and slow_age <= stale_after
+        )
+
+        if micro_snapshot:
+            features = dict(
+                microstructure.get("features")
+                or {}
+            )
+
+            for key in (
+                "timestamp",
+                "midpoint",
+                "spread_bps",
+                "bid_depth_usd",
+                "ask_depth_usd",
+                "depth_imbalance",
+                "microprice_shift_bps",
+                "depth_imbalance_velocity",
+                "microprice_velocity_bps_per_second",
+                "spread_velocity_bps_per_second",
+                "pressure_persistence",
+                "temporal_samples",
+                "midpoint_velocity_bps_per_second",
+                "midpoint_acceleration_bps_per_second2",
+                "total_depth_change_fraction_per_second",
+                "recent_midpoint_range_bps_5s",
+                "recent_midpoint_trend_bps_5s",
+            ):
+                if key in micro_snapshot:
+                    features[key] = (
+                        micro_snapshot[key]
+                    )
+
+            microstructure = {
+                **microstructure,
+                "features": features,
+                "microstream_tracked": True,
+                "precision_snapshot_fresh": (
+                    micro_fresh
+                ),
+            }
+
+        velocity_score = (
+            self._micro_velocity_score(
+                micro_snapshot
+            )
+            if micro_snapshot
+            else 0.0
+        )
+
+        ages = [
+            value
+            for value in (
+                slow_age,
+                micro_age,
+            )
+            if value is not None
+        ]
 
         return {
             "symbol": normalized,
             "version": self.VERSION,
-            "available": bool(last_success > 0),
-            "fresh": bool(
-                last_success > 0
-                and age is not None
-                and age <= stale_after
+            "available": bool(
+                last_success > 0.0
+                or micro_snapshot
             ),
-            "age_seconds": age,
+            "fresh": bool(
+                slow_fresh
+                or micro_fresh
+            ),
+            "age_seconds": (
+                min(ages)
+                if ages
+                else None
+            ),
             "cycles": cycles,
             "ranked_opportunity": ranked,
-            "timeframe_assessments": assessments,
+            "timeframe_assessments": (
+                assessments
+            ),
             "micro_proposals": micro_proposals,
             "microstructure": microstructure,
+            "micro_velocity": {
+                **micro_snapshot,
+                "fresh": micro_fresh,
+                "age_seconds": micro_age,
+                "velocity_score": velocity_score,
+                "execution_authority": False,
+                "testnet_authority": False,
+                "live_authority": False,
+            },
             "qualified_timeframe_paths": sum(
                 1
                 for row in assessments.values()
@@ -1623,7 +1973,9 @@ class ReadOnlySwarmService:
                 1
                 for row in micro_proposals
                 if (
-                    row.get("evidence_qualified")
+                    row.get(
+                        "evidence_qualified"
+                    )
                     is True
                     and row.get(
                         "independently_qualified"

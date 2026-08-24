@@ -12,7 +12,7 @@ from . import runner_v142 as _runner_v142
 from .runner_v142 import *  # noqa: F401,F403
 from .runner_v142 import MarketFeed, PaperRunner as _V142PaperRunner, configure_logging, preflight
 from .settings import Settings
-from .fast_collective_hyper import HyperSpeedCollectiveTestnetLane as FastCollectiveTestnetLane
+from .velocity_sniper_testnet import VelocitySniperTestnetLane as FastCollectiveTestnetLane
 from ..agents.capital_allocator import SwarmCapitalAllocator
 from ..agents.fast_path import FastSwarmRuntime
 from ..agents.micro_calibration import MicroCalibrationJournal
@@ -36,7 +36,7 @@ class MicrostructureMarketFeed(MarketFeed):
 class PaperRunner(_V142PaperRunner):
     """v1.43: v1.42 supervision plus parallel costed market-swarm shadow evidence."""
 
-    VERSION = "1.57.2"
+    VERSION = "1.58.0"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _runner_v142.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
@@ -69,15 +69,15 @@ class PaperRunner(_V142PaperRunner):
                     min(1.0, self.settings.order_usd),
                 ),
                 round_trip_cost_bps=self._swarm_round_trip_cost_bps(),
-                cadence_seconds=5.0,
-                maximum_hold_seconds=240.0,
-                take_profit_bps=60.0,
-                stop_loss_bps=40.0,
-                maximum_entries_per_day=24,
-                bootstrap_after_seconds=20.0,
+                cadence_seconds=0.5,
+                maximum_hold_seconds=30.0,
+                take_profit_bps=50.0,
+                stop_loss_bps=30.0,
+                maximum_entries_per_day=45,
+                bootstrap_after_seconds=5.0,
                 maximum_concurrent_positions=6,
                 maximum_entries_per_cycle=3,
-                reentry_cooldown_seconds=20.0,
+                reentry_cooldown_seconds=2.0,
             )
             if self.testnet is not None
             else None
@@ -312,7 +312,16 @@ class PaperRunner(_V142PaperRunner):
             principal_floor_fraction=self.settings.capital_principal_floor_fraction,
             profit_reinvest_fraction=self.settings.capital_profit_reinvest_fraction,
         )
-        cadence = max(5.0, min(15.0, float(self.settings.poll_seconds) / 4.0))
+        cadence = max(
+            3.0,
+            min(
+                8.0,
+                float(
+                    self.settings.poll_seconds
+                )
+                / 8.0,
+            ),
+        )
         return ReadOnlySwarmService(
             feed=dedicated_feed,
             runtime=runtime,
@@ -325,6 +334,7 @@ class PaperRunner(_V142PaperRunner):
             discovery_refresh_seconds=max(60.0, min(300.0, float(self.settings.market_refresh_seconds))),
             timeframe="1m",
             timeframe_seconds=60.0,
+            max_context_symbols=4,
             shadow_portfolio=shadow_portfolio,
             outcome_journal=self.swarm_outcome_journal,
             base_order_usd=self.settings.order_usd,
@@ -335,10 +345,10 @@ class PaperRunner(_V142PaperRunner):
             micro_agent_foundry=MicroAgentFoundry(maximum_candidates_per_symbol=2),
             reference_feed=reference_feed,
             max_micro_symbols=max(
-                1,
+                4,
                 min(
-                    2,
-                    self.settings.max_open_positions,
+                    6,
+                    self.settings.market_scan_batch_size,
                 ),
             ),
             micro_calibration_journal=MicroCalibrationJournal(
@@ -793,12 +803,21 @@ class PaperRunner(_V142PaperRunner):
                 {},
             )
 
-            fabric["version"] = "1.57.2"
+            fabric["version"] = "1.58.0"
             fabric[
                 "fast_testnet_exploration_lane"
             ] = True
             fabric[
                 "seconds_scale_micro_mtf_execution"
+            ] = True
+            fabric[
+                "subsecond_velocity_detection"
+            ] = True
+            fabric[
+                "velocity_sniper_testnet_lane"
+            ] = True
+            fabric[
+                "microstream_priority"
             ] = True
             fabric[
                 "bounded_testnet_exploration_authority"
@@ -908,13 +927,14 @@ def main() -> None:
             "live_authority": False,
         }
         payload["collective_profit_fabric"] = {
-            "version": "1.57.2",
+            "version": "1.58.0",
             "canonical_pretrade_integration": True,
             "sources": [
                 "adaptive_intelligence",
                 "advanced_ultra_suite",
                 "fast_market_swarm",
                 "microstructure_sniper",
+                "subsecond_velocity_sniper",
                 "multi_timeframe_minds",
                 "continuous_evolution",
                 "market_sensor_fabric",
@@ -927,6 +947,9 @@ def main() -> None:
             "testnet_mirror_enabled": settings.testnet_enabled,
             "fast_testnet_exploration_lane": settings.testnet_enabled,
             "seconds_scale_micro_mtf_execution": settings.testnet_enabled,
+            "subsecond_velocity_detection": settings.testnet_enabled,
+            "velocity_sniper_testnet_lane": settings.testnet_enabled,
+            "microstream_priority": settings.testnet_enabled,
             "bounded_testnet_exploration_authority": settings.testnet_enabled,
             "multi_position_hyper_router": settings.testnet_enabled,
             "per_position_hyper_speed_sentinel": settings.testnet_enabled,

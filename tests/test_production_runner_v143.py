@@ -78,7 +78,7 @@ def test_v143_fast_service_uses_dedicated_feed_and_round_trip_costs(monkeypatch,
     assert service.runtime.fee_bps == 20.0
     assert service.runtime.slippage_bps == 10.0
     assert service.runtime.swarm.radar.minimum_modeled_round_trip_cost_bps >= 30.0
-    assert service.cadence_seconds == 15.0
+    assert service.cadence_seconds == 7.5
     assert service.timeframe == "1m"
     assert service.shadow_portfolio is not None
     assert service.outcome_journal is runner.swarm_outcome_journal

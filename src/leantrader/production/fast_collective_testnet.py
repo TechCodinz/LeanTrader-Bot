@@ -21,7 +21,7 @@ class FastCollectiveTestnetLane:
     permanently absent.
     """
 
-    VERSION = "1.57.0"
+    VERSION = "1.58.0"
 
     SAFETY_REASON_PREFIXES = (
         "high_impact_news_blackout",
@@ -73,12 +73,12 @@ class FastCollectiveTestnetLane:
         )
 
         self.cadence_seconds = max(
-            5.0,
+            0.25,
             min(15.0, float(cadence_seconds)),
         )
 
         self.maximum_hold_seconds = max(
-            60.0,
+            5.0,
             min(300.0, float(maximum_hold_seconds)),
         )
 
@@ -94,11 +94,11 @@ class FastCollectiveTestnetLane:
 
         self.maximum_entries_per_day = max(
             1,
-            min(8, int(maximum_entries_per_day)),
+            min(100, int(maximum_entries_per_day)),
         )
 
         self.bootstrap_after_seconds = max(
-            30.0,
+            5.0,
             float(bootstrap_after_seconds),
         )
 

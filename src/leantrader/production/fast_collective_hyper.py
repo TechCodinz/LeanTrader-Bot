@@ -11,7 +11,7 @@ from .fast_collective_testnet import FastCollectiveTestnetLane
 class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
     """Multi-position fast Testnet router with one sentinel per position."""
 
-    VERSION = "1.57.1"
+    VERSION = "1.58.0"
 
     def __init__(
         self,
@@ -34,7 +34,7 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             ),
         )
         self.reentry_cooldown_seconds = max(
-            5.0,
+            1.0,
             float(reentry_cooldown_seconds),
         )
         with self._lock:
@@ -151,7 +151,7 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 or []
             )
         }
-        candidates = service.collective_candidates(limit=18)
+        candidates = service.collective_candidates(limit=24)
         relaxed = bool(
             self.started_at > 0.0
             and now - self.started_at >= self.bootstrap_after_seconds
@@ -223,9 +223,24 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         selected = sorted(
             allowed,
             key=lambda item: (
-                bool(item[1].get("cost_qualified")),
-                self._number(item[1].get("decision_score")),
-                self._number(item[1].get("quality")),
+                bool(
+                    item[1].get(
+                        "velocity_sniper"
+                    )
+                ),
+                self._number(
+                    item[1].get(
+                        "decision_score"
+                    )
+                ),
+                bool(
+                    item[1].get(
+                        "cost_qualified"
+                    )
+                ),
+                self._number(
+                    item[1].get("quality")
+                ),
             ),
             reverse=True,
         )[:entry_limit]
@@ -348,25 +363,123 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             features.get("spread_bps"),
             1_000_000.0,
         )
+
+        velocity_bps_s = self._number(
+            features.get(
+                "midpoint_velocity_bps_per_second"
+            )
+        )
+        acceleration_bps_s2 = self._number(
+            features.get(
+                "midpoint_acceleration_bps_per_second2"
+            )
+        )
+        trend_5s_bps = self._number(
+            features.get(
+                "recent_midpoint_trend_bps_5s"
+            )
+        )
+        range_5s_bps = max(
+            0.0,
+            self._number(
+                features.get(
+                    "recent_midpoint_range_bps_5s"
+                )
+            ),
+        )
+        depth_imbalance = self._number(
+            features.get("depth_imbalance")
+        )
+        microprice_shift_bps = self._number(
+            features.get(
+                "microprice_shift_bps"
+            )
+        )
+
         target_hold = max(
-            45.0,
+            5.0,
             min(
                 self.maximum_hold_seconds,
-                self._number(record.get("target_hold_seconds"), 90.0),
+                self._number(
+                    record.get(
+                        "target_hold_seconds"
+                    ),
+                    12.0,
+                ),
+            ),
+        )
+
+        dynamic_take_profit_bps = max(
+            self.round_trip_cost_bps + 10.0,
+            min(
+                self.take_profit_bps,
+                self.round_trip_cost_bps
+                + max(
+                    10.0,
+                    min(
+                        30.0,
+                        range_5s_bps * 0.75,
+                    ),
+                ),
+            ),
+        )
+
+        dynamic_stop_loss_bps = max(
+            20.0,
+            min(
+                self.stop_loss_bps,
+                max(
+                    20.0,
+                    range_5s_bps * 0.50,
+                ),
             ),
         )
 
         reason = None
-        if gross_bps >= self.take_profit_bps:
-            reason = "take_profit"
-        elif gross_bps <= -self.stop_loss_bps:
-            reason = "stop_loss"
-        elif peak_gain_bps >= 45.0 and retrace_bps <= -20.0:
-            reason = "sentinel_trailing_profit"
+
+        if gross_bps >= dynamic_take_profit_bps:
+            reason = "velocity_take_profit"
+
+        elif gross_bps <= -dynamic_stop_loss_bps:
+            reason = "velocity_stop_loss"
+
+        elif (
+            peak_gain_bps
+            >= self.round_trip_cost_bps + 10.0
+            and retrace_bps <= -10.0
+        ):
+            reason = "velocity_trailing_profit"
+
         elif self.strong_short_reversal(signal):
             reason = "micro_mtf_reversal"
-        elif spread_bps > 30.0:
+
+        elif (
+            age_seconds >= 1.5
+            and velocity_bps_s <= -0.75
+            and trend_5s_bps <= -2.0
+        ):
+            reason = "velocity_reversal"
+
+        elif spread_bps > 25.0:
             reason = "liquidity_spread_deterioration"
+
+        elif (
+            age_seconds >= 3.0
+            and gross_bps
+            >= self.round_trip_cost_bps + 5.0
+            and velocity_bps_s <= 0.20
+            and trend_5s_bps <= 2.0
+        ):
+            reason = "velocity_profit_decay"
+
+        elif (
+            age_seconds >= 6.0
+            and velocity_bps_s <= 0.15
+            and acceleration_bps_s2 <= 0.0
+            and trend_5s_bps < 2.0
+        ):
+            reason = "velocity_decay"
+
         elif age_seconds >= target_hold:
             reason = "dynamic_time_exit"
 
@@ -380,6 +493,28 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             "peak_gain_bps": peak_gain_bps,
             "retrace_from_peak_bps": retrace_bps,
             "spread_bps": spread_bps,
+            "midpoint_velocity_bps_per_second": (
+                velocity_bps_s
+            ),
+            "midpoint_acceleration_bps_per_second2": (
+                acceleration_bps_s2
+            ),
+            "recent_midpoint_trend_bps_5s": (
+                trend_5s_bps
+            ),
+            "recent_midpoint_range_bps_5s": (
+                range_5s_bps
+            ),
+            "depth_imbalance": depth_imbalance,
+            "microprice_shift_bps": (
+                microprice_shift_bps
+            ),
+            "dynamic_take_profit_bps": (
+                dynamic_take_profit_bps
+            ),
+            "dynamic_stop_loss_bps": (
+                dynamic_stop_loss_bps
+            ),
             "reason": reason or "sentinel_hold",
         }
         with self._lock:
@@ -423,31 +558,78 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         assessment: dict[str, Any],
     ) -> float:
         horizons = [
-            self._number(row.get("horizon_seconds"))
+            self._number(
+                row.get("horizon_seconds")
+            )
             for row in (
                 assessment.get("micro_support")
                 or []
             )
-            if isinstance(row, dict)
-            and self._number(row.get("horizon_seconds")) > 0.0
+            if (
+                isinstance(row, dict)
+                and self._number(
+                    row.get("horizon_seconds")
+                ) > 0.0
+            )
         ]
-        base = max(horizons) if horizons else 30.0
-        multiplier = (
-            4.0
-            if assessment.get("cost_qualified") is True
-            else 3.0
+
+        velocity = bool(
+            assessment.get("velocity_sniper")
         )
+
+        if velocity:
+            base = (
+                min(horizons)
+                if horizons
+                else 5.0
+            )
+
+            if (
+                assessment.get(
+                    "cost_qualified"
+                )
+                is True
+            ):
+                return max(
+                    8.0,
+                    min(
+                        self.maximum_hold_seconds,
+                        30.0,
+                        base * 2.0,
+                    ),
+                )
+
+            return max(
+                5.0,
+                min(
+                    self.maximum_hold_seconds,
+                    15.0,
+                    base * 1.25,
+                ),
+            )
+
+        base = (
+            min(horizons)
+            if horizons
+            else 15.0
+        )
+
         lower = (
-            90.0
-            if assessment.get("cost_qualified") is True
-            else 60.0
+            20.0
+            if assessment.get(
+                "cost_qualified"
+            )
+            is True
+            else 12.0
         )
-        upper = (
-            self.maximum_hold_seconds
-            if assessment.get("cost_qualified") is True
-            else min(180.0, self.maximum_hold_seconds)
+
+        return max(
+            lower,
+            min(
+                self.maximum_hold_seconds,
+                base * 2.0,
+            ),
         )
-        return max(lower, min(upper, base * multiplier))
 
     def _submit_pending(
         self,
