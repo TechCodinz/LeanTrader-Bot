@@ -190,7 +190,12 @@ class ExchangeProtectionOrchestrator:
                 side.lower() == "sell" or execution.get("kill_switch_active") is not True
             ),
             "required_runtime_engines_healthy": self._engines_healthy(
-                engine_health, self.SPOT_EXECUTION_ENGINES
+                engine_health,
+                tuple(
+                    name
+                    for name in self.SPOT_EXECUTION_ENGINES
+                    if name != "bybit_testnet_execution"
+                ),
             ),
         }
         protection_contract = dict(execution.get("protection_contract") or {})
