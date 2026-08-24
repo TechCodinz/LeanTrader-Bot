@@ -5,7 +5,8 @@ import time
 from typing import Any
 
 
-FAST_ABSENCE_QUORUM_ROUNDS = 3
+FAST_ABSENCE_QUORUM_REQUIRED_NEGATIVE_ROUNDS = 3
+FAST_ABSENCE_QUORUM_MAX_ROUNDS = 4
 FAST_ABSENCE_QUORUM_DELAY_SECONDS = 0.5
 FAST_ABSENCE_QUORUM_SOURCES = (
     "realtime_order",
@@ -37,7 +38,7 @@ def _recover_order_with_fast_absence_quorum(
     to wait five minutes before authoritative absence can be established.
     """
 
-    for round_number in range(1, FAST_ABSENCE_QUORUM_ROUNDS + 1):
+    for round_number in range(1, FAST_ABSENCE_QUORUM_MAX_ROUNDS + 1):
         if round_number > 1:
             self.reconciliation_retry_attempts += 1
             time.sleep(
@@ -249,7 +250,10 @@ def _recover_native_bybit_client_order_quorum(
 
     record["fast_absence_quorum_consecutive_rounds"] = streak
     record["fast_absence_quorum_required_rounds"] = (
-        FAST_ABSENCE_QUORUM_ROUNDS
+        FAST_ABSENCE_QUORUM_REQUIRED_NEGATIVE_ROUNDS
+    )
+    record["fast_absence_quorum_max_rounds"] = (
+        FAST_ABSENCE_QUORUM_MAX_ROUNDS
     )
     record["fast_absence_quorum_sources"] = list(
         FAST_ABSENCE_QUORUM_SOURCES
@@ -258,11 +262,16 @@ def _recover_native_bybit_client_order_quorum(
         dt.datetime.now(dt.UTC).isoformat()
     )
 
-    if streak < FAST_ABSENCE_QUORUM_ROUNDS:
+    if streak < FAST_ABSENCE_QUORUM_REQUIRED_NEGATIVE_ROUNDS:
         return None
 
+    # Preserve the established resolution label for downstream consumers
+    # while recording that v1.60.7 reached it through the fast quorum path.
     record["reconciliation_resolution"] = (
-        "native_bybit_fast_authoritative_absence_quorum"
+        "native_bybit_authoritative_absence"
+    )
+    record["fast_absence_quorum_resolution"] = (
+        "authoritative_exchange_absence"
     )
 
     return {
@@ -311,18 +320,24 @@ def install_fast_testnet_absence_quorum() -> None:
             {
                 "old_ambiguity_only": False,
                 "maximum_retries": (
-                    FAST_ABSENCE_QUORUM_ROUNDS - 1
+                    FAST_ABSENCE_QUORUM_MAX_ROUNDS - 1
                 ),
                 "resubmission_allowed": False,
                 "fail_closed": True,
                 "fast_absence_quorum": {
                     "enabled": True,
                     "required_consecutive_rounds": (
-                        FAST_ABSENCE_QUORUM_ROUNDS
+                        FAST_ABSENCE_QUORUM_REQUIRED_NEGATIVE_ROUNDS
+                    ),
+                    "maximum_rounds": (
+                        FAST_ABSENCE_QUORUM_MAX_ROUNDS
                     ),
                     "retry_delays_seconds": [
-                        FAST_ABSENCE_QUORUM_DELAY_SECONDS,
-                        FAST_ABSENCE_QUORUM_DELAY_SECONDS * 2,
+                        FAST_ABSENCE_QUORUM_DELAY_SECONDS * retry
+                        for retry in range(
+                            1,
+                            FAST_ABSENCE_QUORUM_MAX_ROUNDS,
+                        )
                     ],
                     "authoritative_sources": list(
                         FAST_ABSENCE_QUORUM_SOURCES
