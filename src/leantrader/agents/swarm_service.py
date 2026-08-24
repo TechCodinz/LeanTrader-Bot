@@ -25,7 +25,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.59.0"
+    VERSION = "1.60.0"
     KINEMATIC_SLOW_HORIZONS = (120, 300, 900)
     KINEMATIC_SLOW_COOLDOWN_SECONDS = 900.0
     ROLE_BY_TIMEFRAME = {
@@ -64,6 +64,9 @@ class ReadOnlySwarmService:
         micro_calibration_feed: Any | None = None,
         microstream_feed: Any | None = None,
         slow_calibration_journal: MicroCalibrationJournal | None = None,
+        precision_scout_feed: Any | None = None,
+        precision_scout_refresh_seconds: float = 20.0,
+        precision_round_trip_cost_bps: float = 30.0,
     ) -> None:
         if scan_batch_size < 1:
             raise ValueError("scan_batch_size must be positive")
@@ -102,6 +105,49 @@ class ReadOnlySwarmService:
         self.micro_calibration_feed = micro_calibration_feed
         self.microstream_feed = microstream_feed
         self.slow_calibration_journal = slow_calibration_journal
+
+        self.precision_scout_feed = precision_scout_feed
+        self.precision_scout_refresh_seconds = max(
+            10.0,
+            min(
+                60.0,
+                float(
+                    precision_scout_refresh_seconds
+                ),
+            ),
+        )
+        self.precision_round_trip_cost_bps = max(
+            30.0,
+            float(
+                precision_round_trip_cost_bps
+            ),
+        )
+
+        self.precision_timeframe_mind = (
+            MultiTimeframeMind(
+                minimum_modeled_round_trip_cost_bps=(
+                    self.precision_round_trip_cost_bps
+                )
+            )
+        )
+
+        self._precision_scout_thread: (
+            threading.Thread | None
+        ) = None
+        self._precision_scout_symbols: list[str] = []
+        self._precision_context_cache: dict[
+            str,
+            dict[str, Any],
+        ] = {}
+
+        self.precision_scout_refreshes = 0
+        self.precision_scout_failures = 0
+        self.precision_context_updates = 0
+        self.precision_context_failures = 0
+        self.precision_scout_last_refresh_at = 0.0
+        self.precision_context_last_update_at = 0.0
+        self.precision_scout_candidates = 0
+        self.precision_scout_sub_dollar = 0
 
         self._microstream_thread: threading.Thread | None = None
         self._calibration_thread: threading.Thread | None = None
@@ -167,6 +213,19 @@ class ReadOnlySwarmService:
         self._stop.clear()
         self.started_at = time.time()
 
+        if self.precision_scout_feed is not None:
+            self._precision_scout_thread = (
+                threading.Thread(
+                    target=self._run_precision_scout,
+                    name=(
+                        "leantrader-always-on-"
+                        "precision-scout"
+                    ),
+                    daemon=True,
+                )
+            )
+            self._precision_scout_thread.start()
+
         self._thread = threading.Thread(
             target=self._run,
             name="leantrader-market-swarm",
@@ -208,6 +267,16 @@ class ReadOnlySwarmService:
                 )
             )
 
+        precision_thread = (
+            self._precision_scout_thread
+        )
+
+        if (
+            precision_thread is not None
+            and precision_thread.is_alive()
+        ):
+            precision_thread.join(timeout=8.0)
+
         microstream_thread = self._microstream_thread
         if (
             microstream_thread is not None
@@ -221,6 +290,370 @@ class ReadOnlySwarmService:
             and calibration_thread.is_alive()
         ):
             calibration_thread.join(timeout=4.0)
+
+    @staticmethod
+    def _precision_number(
+        value: Any,
+        default: float = 0.0,
+    ) -> float:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return default
+
+        return (
+            number
+            if number == number
+            and abs(number) != float("inf")
+            else default
+        )
+
+    @classmethod
+    def _select_precision_scout(
+        cls,
+        candidates: list[dict[str, Any]],
+        *,
+        capacity: int,
+    ) -> list[dict[str, Any]]:
+        """Reserve coverage for executable sub-$1 movers.
+
+        Nominal price is a coverage bucket only. Movement,
+        liquidity and spread determine ordering.
+        """
+
+        bounded = max(
+            1,
+            min(6, int(capacity)),
+        )
+
+        clean = [
+            dict(row)
+            for row in candidates
+            if (
+                isinstance(row, dict)
+                and str(
+                    row.get("symbol") or ""
+                ).strip()
+                and cls._precision_number(
+                    row.get("last")
+                ) > 0.0
+            )
+        ]
+
+        def key(
+            row: dict[str, Any],
+        ) -> tuple[float, float, float]:
+            movement = abs(
+                cls._precision_number(
+                    row.get(
+                        "percentage_24h"
+                    )
+                )
+            )
+
+            volume = max(
+                0.0,
+                cls._precision_number(
+                    row.get(
+                        "quote_volume_usd"
+                    )
+                ),
+            )
+
+            spread = max(
+                0.0,
+                cls._precision_number(
+                    row.get("spread_bps")
+                ),
+            )
+
+            return (
+                movement,
+                volume,
+                -spread,
+            )
+
+        ranked = sorted(
+            clean,
+            key=key,
+            reverse=True,
+        )
+
+        sub_dollar = [
+            row
+            for row in ranked
+            if (
+                cls._precision_number(
+                    row.get("last")
+                )
+                < 1.0
+            )
+        ]
+
+        sub_slots = min(
+            len(sub_dollar),
+            max(1, bounded // 2),
+        )
+
+        selected = list(
+            sub_dollar[:sub_slots]
+        )
+
+        seen = {
+            str(
+                row.get("symbol") or ""
+            ).upper()
+            for row in selected
+        }
+
+        for row in ranked:
+            symbol = str(
+                row.get("symbol") or ""
+            ).upper()
+
+            if (
+                not symbol
+                or symbol in seen
+            ):
+                continue
+
+            selected.append(row)
+            seen.add(symbol)
+
+            if len(selected) >= bounded:
+                break
+
+        return selected[:bounded]
+
+    def _refresh_precision_scout_once(
+        self,
+    ) -> dict[str, Any]:
+        feed = self.precision_scout_feed
+
+        if feed is None:
+            return {
+                "available": False,
+                "reason": (
+                    "precision_scout_feed_unavailable"
+                ),
+            }
+
+        payload = feed.discover_markets(
+            quote=self.market_quote,
+            min_quote_volume_usd=(
+                self.min_quote_volume_usd
+            ),
+            max_spread_bps=(
+                self.max_spread_bps
+            ),
+        )
+
+        candidates = [
+            dict(row)
+            for row in (
+                payload.get("candidates")
+                or []
+            )
+            if isinstance(row, dict)
+        ]
+
+        selected_rows = (
+            self._select_precision_scout(
+                candidates,
+                capacity=self.max_micro_symbols,
+            )
+        )
+
+        selected = [
+            str(
+                row.get("symbol") or ""
+            ).upper()
+            for row in selected_rows
+            if str(
+                row.get("symbol") or ""
+            ).strip()
+        ]
+
+        now = time.time()
+
+        with self._lock:
+            self._precision_scout_symbols = (
+                selected
+            )
+            self.precision_scout_refreshes += 1
+            self.precision_scout_last_refresh_at = (
+                now
+            )
+            self.precision_scout_candidates = len(
+                candidates
+            )
+            self.precision_scout_sub_dollar = sum(
+                1
+                for row in selected_rows
+                if (
+                    self._precision_number(
+                        row.get("last")
+                    )
+                    < 1.0
+                )
+            )
+
+        context_updates = 0
+        context_failures = 0
+
+        for symbol in selected:
+            if self._stop.is_set():
+                break
+
+            frames: dict[
+                str,
+                pd.DataFrame,
+            ] = {}
+
+            for timeframe in (
+                "1m",
+                "5m",
+                "15m",
+            ):
+                try:
+                    frames[timeframe] = (
+                        self._closed_candles(
+                            feed.candles(
+                                symbol,
+                                timeframe,
+                                self.candle_limit,
+                            )
+                        )
+                    )
+                except Exception:
+                    context_failures += 1
+
+            if not frames:
+                continue
+
+            try:
+                rows = (
+                    self.precision_timeframe_mind.assess_many(
+                        symbol=symbol,
+                        frames=frames,
+                        modeled_round_trip_cost_bps=(
+                            self.precision_round_trip_cost_bps
+                        ),
+                    )
+                )
+            except Exception:
+                context_failures += 1
+                continue
+
+            if not rows:
+                continue
+
+            observed_at = time.time()
+
+            with self._lock:
+                self._precision_context_cache[
+                    symbol
+                ] = {
+                    "timestamp": observed_at,
+                    "assessments": {
+                        timeframe: row.as_dict()
+                        for timeframe, row in (
+                            rows.items()
+                        )
+                    },
+                    "execution_authority": False,
+                    "testnet_authority": False,
+                    "live_authority": False,
+                }
+
+                self.precision_context_last_update_at = (
+                    observed_at
+                )
+
+            context_updates += 1
+
+        cutoff = (
+            time.time()
+            - max(
+                180.0,
+                self.precision_scout_refresh_seconds
+                * 6.0,
+            )
+        )
+
+        with self._lock:
+            stale = [
+                symbol
+                for symbol, row in (
+                    self._precision_context_cache.items()
+                )
+                if self._precision_number(
+                    row.get("timestamp")
+                ) < cutoff
+            ]
+
+            for symbol in stale:
+                self._precision_context_cache.pop(
+                    symbol,
+                    None,
+                )
+
+            self.precision_context_updates += (
+                context_updates
+            )
+            self.precision_context_failures += (
+                context_failures
+            )
+
+        return {
+            "available": True,
+            "selected_symbols": selected,
+            "eligible_candidates": len(
+                candidates
+            ),
+            "sub_dollar_selected": sum(
+                1
+                for row in selected_rows
+                if (
+                    self._precision_number(
+                        row.get("last")
+                    )
+                    < 1.0
+                )
+            ),
+            "context_updates": context_updates,
+            "context_failures": context_failures,
+            "nominal_price_is_profit_score": False,
+            "sub_dollar_is_coverage_bucket": True,
+            "execution_authority": False,
+            "testnet_authority": False,
+            "live_authority": False,
+        }
+
+    def _run_precision_scout(
+        self,
+    ) -> None:
+        while not self._stop.is_set():
+            started = time.monotonic()
+
+            try:
+                self._refresh_precision_scout_once()
+            except Exception:
+                with self._lock:
+                    self.precision_scout_failures += 1
+
+            elapsed = (
+                time.monotonic()
+                - started
+            )
+
+            self._stop.wait(
+                max(
+                    0.0,
+                    self.precision_scout_refresh_seconds
+                    - elapsed,
+                )
+            )
 
     def _refresh_discovery(self, *, force: bool = False) -> None:
         now = time.time()
@@ -270,7 +703,12 @@ class ReadOnlySwarmService:
                     mandatory.append({"symbol": symbol, "_risk_only": True})
         with self._lock:
             sticky_micro_symbols = list(
-                self._microstream_symbols
+                dict.fromkeys(
+                    [
+                        *self._precision_scout_symbols,
+                        *self._microstream_symbols,
+                    ]
+                )
             )
 
         for symbol in sticky_micro_symbols:
@@ -290,18 +728,30 @@ class ReadOnlySwarmService:
     ) -> set[str]:
         """Symbols receiving both 0.5s micro and slower MTF context."""
         with self._lock:
-            return {
-                str(symbol).upper()
-                for symbol in (
+            symbols = [
+                *(
+                    getattr(
+                        self,
+                        "_precision_scout_symbols",
+                        [],
+                    )
+                    or []
+                ),
+                *(
                     getattr(
                         self,
                         "_microstream_symbols",
                         [],
                     )
                     or []
-                )
-                if str(symbol or "").strip()
-            }
+                ),
+            ]
+
+        return {
+            str(symbol).upper()
+            for symbol in symbols
+            if str(symbol or "").strip()
+        }
 
     @staticmethod
     def _closed_candles(frame: pd.DataFrame) -> pd.DataFrame:
@@ -1361,7 +1811,12 @@ class ReadOnlySwarmService:
 
                 with self._lock:
                     active = list(
-                        self._microstream_symbols
+                        dict.fromkeys(
+                            [
+                                *self._precision_scout_symbols,
+                                *self._microstream_symbols,
+                            ]
+                        )
                     )
 
                 due: list[str] = []
@@ -1750,6 +2205,13 @@ class ReadOnlySwarmService:
                 self.last_step.get("ranked")
                 or []
             )
+            scout_symbols = list(
+                getattr(
+                    self,
+                    "_precision_scout_symbols",
+                    [],
+                )
+            )
             micro_symbols = list(
                 getattr(
                     self,
@@ -1770,7 +2232,15 @@ class ReadOnlySwarmService:
             if symbol and symbol not in symbols:
                 symbols.append(symbol)
 
-        # Then retain the sticky deep-micro universe.
+        # Dedicated always-on scout follows fresh market movement even
+        # while the full market-swarm cycle is still working.
+        for symbol in scout_symbols:
+            symbol = str(symbol).upper()
+
+            if symbol and symbol not in symbols:
+                symbols.append(symbol)
+
+        # Then retain the slower sticky deep-micro universe.
         for symbol in micro_symbols:
             symbol = str(symbol).upper()
 
@@ -1868,6 +2338,17 @@ class ReadOnlySwarmService:
                 or {}
             )
 
+            precision_context = copy.deepcopy(
+                getattr(
+                    self,
+                    "_precision_context_cache",
+                    {},
+                ).get(
+                    normalized
+                )
+                or {}
+            )
+
             last_success = float(
                 self.last_success_at
                 or 0.0
@@ -1908,6 +2389,51 @@ class ReadOnlySwarmService:
             micro_age is not None
             and micro_age <= 2.0
         )
+
+        precision_timestamp = float(
+            precision_context.get(
+                "timestamp"
+            )
+            or 0.0
+        )
+
+        precision_age = (
+            max(
+                0.0,
+                now - precision_timestamp,
+            )
+            if precision_timestamp > 0.0
+            else None
+        )
+
+        precision_fresh = bool(
+            precision_age is not None
+            and precision_age
+            <= max(
+                120.0,
+                self.precision_scout_refresh_seconds
+                * 6.0,
+            )
+        )
+
+        if precision_fresh:
+            precision_rows = (
+                precision_context.get(
+                    "assessments"
+                )
+                or {}
+            )
+
+            if isinstance(
+                precision_rows,
+                dict,
+            ):
+                assessments = {
+                    **assessments,
+                    **copy.deepcopy(
+                        precision_rows
+                    ),
+                }
 
         slow_fresh = bool(
             last_success > 0.0
@@ -1967,6 +2493,7 @@ class ReadOnlySwarmService:
             for value in (
                 slow_age,
                 micro_age,
+                precision_age,
             )
             if value is not None
         ]
@@ -1994,6 +2521,18 @@ class ReadOnlySwarmService:
             ),
             "micro_proposals": micro_proposals,
             "microstructure": microstructure,
+            "precision_context": {
+                "fresh": precision_fresh,
+                "age_seconds": (
+                    precision_age
+                ),
+                "timeframes": sorted(
+                    assessments
+                ),
+                "execution_authority": False,
+                "testnet_authority": False,
+                "live_authority": False,
+            },
             "micro_velocity": {
                 **micro_snapshot,
                 "fresh": micro_fresh,
@@ -2210,6 +2749,58 @@ class ReadOnlySwarmService:
                 "micro_fetch_failures": self.micro_fetch_failures,
                 "microstructure_sniper": self.microstructure_sniper.health(),
                 "micro_agent_foundry": self.micro_agent_foundry.health(),
+                "precision_scout": {
+                    "configured": (
+                        self.precision_scout_feed
+                        is not None
+                    ),
+                    "running": bool(
+                        self._precision_scout_thread
+                        is not None
+                        and self._precision_scout_thread.is_alive()
+                        and not self._stop.is_set()
+                    ),
+                    "refresh_seconds": (
+                        self.precision_scout_refresh_seconds
+                    ),
+                    "refreshes": (
+                        self.precision_scout_refreshes
+                    ),
+                    "failures": (
+                        self.precision_scout_failures
+                    ),
+                    "eligible_candidates": (
+                        self.precision_scout_candidates
+                    ),
+                    "symbols": list(
+                        self._precision_scout_symbols
+                    ),
+                    "sub_dollar_selected": (
+                        self.precision_scout_sub_dollar
+                    ),
+                    "last_refresh_at": (
+                        self.precision_scout_last_refresh_at
+                    ),
+                    "context_updates": (
+                        self.precision_context_updates
+                    ),
+                    "context_failures": (
+                        self.precision_context_failures
+                    ),
+                    "context_last_update_at": (
+                        self.precision_context_last_update_at
+                    ),
+                    "context_timeframes": [
+                        "1m",
+                        "5m",
+                        "15m",
+                    ],
+                    "sub_dollar_is_coverage_bucket": True,
+                    "nominal_price_is_profit_score": False,
+                    "execution_authority": False,
+                    "testnet_authority": False,
+                    "live_authority": False,
+                },
                 "micro_calibration": (
                     {
                         **self.micro_calibration_journal.health(),
@@ -2255,7 +2846,7 @@ class ReadOnlySwarmService:
                         "trade_context_blocks_precision_lane": False,
                         "microstream_symbol_capacity": max(
                             1,
-                            min(2, self.max_micro_symbols),
+                            min(6, self.max_micro_symbols),
                         ),
                         "microstream_symbols": list(
                             self._microstream_symbols

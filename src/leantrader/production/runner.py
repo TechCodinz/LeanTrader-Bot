@@ -36,7 +36,7 @@ class MicrostructureMarketFeed(MarketFeed):
 class PaperRunner(_V142PaperRunner):
     """v1.43: v1.42 supervision plus parallel costed market-swarm shadow evidence."""
 
-    VERSION = "1.59.1"
+    VERSION = "1.60.0"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _runner_v142.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
@@ -298,6 +298,9 @@ class PaperRunner(_V142PaperRunner):
         microstream_feed = MicrostructureMarketFeed(
             self.settings.exchange
         )
+        precision_scout_feed = MarketFeed(
+            self.settings.exchange
+        )
         reference_feed = None
         if (
             str(self.settings.exchange).lower() != "okx"
@@ -388,6 +391,13 @@ class PaperRunner(_V142PaperRunner):
                 base.with_name("vps_slow_calibration.json"),
                 accepted_horizons=(120, 300, 900),
                 max_resolution_delay_seconds=5.0,
+            ),
+            precision_scout_feed=(
+                precision_scout_feed
+            ),
+            precision_scout_refresh_seconds=20.0,
+            precision_round_trip_cost_bps=(
+                self._swarm_round_trip_cost_bps()
             ),
         )
 
@@ -878,7 +888,7 @@ class PaperRunner(_V142PaperRunner):
                 {},
             )
 
-            fabric["version"] = "1.59.1"
+            fabric["version"] = "1.60.0"
             fabric[
                 "fast_testnet_exploration_lane"
             ] = True
@@ -896,6 +906,15 @@ class PaperRunner(_V142PaperRunner):
             ] = True
             fabric[
                 "precision_mtf_context"
+            ] = True
+            fabric[
+                "always_on_precision_scout"
+            ] = True
+            fabric[
+                "dedicated_precision_mtf_cache"
+            ] = True
+            fabric[
+                "sub_dollar_mover_coverage"
             ] = True
             fabric[
                 "principal_protected_profit_compounding"
@@ -1021,7 +1040,7 @@ def main() -> None:
             "live_authority": False,
         }
         payload["collective_profit_fabric"] = {
-            "version": "1.59.1",
+            "version": "1.60.0",
             "canonical_pretrade_integration": True,
             "sources": [
                 "adaptive_intelligence",
@@ -1045,6 +1064,9 @@ def main() -> None:
             "velocity_sniper_testnet_lane": settings.testnet_enabled,
             "microstream_priority": settings.testnet_enabled,
             "precision_mtf_context": settings.testnet_enabled,
+            "always_on_precision_scout": settings.testnet_enabled,
+            "dedicated_precision_mtf_cache": settings.testnet_enabled,
+            "sub_dollar_mover_coverage": settings.testnet_enabled,
             "principal_protected_profit_compounding": settings.testnet_enabled,
             "profit_flow_telemetry": settings.testnet_enabled,
             "bounded_testnet_exploration_authority": settings.testnet_enabled,

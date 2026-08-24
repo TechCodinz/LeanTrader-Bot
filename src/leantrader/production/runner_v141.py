@@ -267,6 +267,30 @@ class MarketFeed:
             if last <= 0 or quote_volume < min_quote_volume_usd:
                 reject("insufficient_volume")
                 continue
+
+            try:
+                percentage_24h = float(
+                    ticker.get("percentage")
+                )
+            except (TypeError, ValueError):
+                percentage_24h = 0.0
+
+            if not math.isfinite(percentage_24h):
+                percentage_24h = 0.0
+
+            if percentage_24h == 0.0:
+                try:
+                    open_price = float(
+                        ticker.get("open") or 0.0
+                    )
+                except (TypeError, ValueError):
+                    open_price = 0.0
+
+                if open_price > 0.0:
+                    percentage_24h = (
+                        last / open_price - 1.0
+                    ) * 100.0
+
             bid = float(ticker.get("bid") or 0.0)
             ask = float(ticker.get("ask") or 0.0)
             if bid <= 0 or ask <= 0 or ask < bid:
@@ -282,6 +306,12 @@ class MarketFeed:
                     "quote_volume_usd": quote_volume,
                     "spread_bps": spread_bps,
                     "last": last,
+                    "percentage_24h": (
+                        percentage_24h
+                    ),
+                    "absolute_percentage_24h": abs(
+                        percentage_24h
+                    ),
                 }
             )
         accepted.sort(key=lambda item: (-float(item["quote_volume_usd"]), str(item["symbol"])))
