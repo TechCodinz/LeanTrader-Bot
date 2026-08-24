@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import signal
 import threading
@@ -11,6 +12,7 @@ from . import runner_v142 as _runner_v142
 from .runner_v142 import *  # noqa: F401,F403
 from .runner_v142 import MarketFeed, PaperRunner as _V142PaperRunner, configure_logging, preflight
 from .settings import Settings
+from .fast_collective_hyper import HyperSpeedCollectiveTestnetLane as FastCollectiveTestnetLane
 from ..agents.capital_allocator import SwarmCapitalAllocator
 from ..agents.fast_path import FastSwarmRuntime
 from ..agents.micro_calibration import MicroCalibrationJournal
@@ -34,7 +36,7 @@ class MicrostructureMarketFeed(MarketFeed):
 class PaperRunner(_V142PaperRunner):
     """v1.43: v1.42 supervision plus parallel costed market-swarm shadow evidence."""
 
-    VERSION = "1.56.3"
+    VERSION = "1.57.1"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _runner_v142.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
@@ -51,6 +53,187 @@ class PaperRunner(_V142PaperRunner):
         self._full_market_cycle_completed = False
         self._health_refresh_stop = threading.Event()
         self._health_refresh_thread: threading.Thread | None = None
+        self._fast_supervisory_lock = threading.RLock()
+        self._fast_supervisory = self._load_fast_supervisory()
+
+        self.fast_collective_testnet = (
+            FastCollectiveTestnetLane(
+                service_provider=lambda: self.fast_swarm_service,
+                testnet=self.testnet,
+                state_path=self.settings.testnet_state_path.with_name(
+                    "vps_fast_collective_testnet.json"
+                ),
+                supervisory_provider=self._fast_supervisory_snapshot,
+                order_usd=max(
+                    0.50,
+                    min(1.0, self.settings.order_usd),
+                ),
+                round_trip_cost_bps=self._swarm_round_trip_cost_bps(),
+                cadence_seconds=5.0,
+                maximum_hold_seconds=240.0,
+                take_profit_bps=60.0,
+                stop_loss_bps=40.0,
+                maximum_entries_per_day=24,
+                bootstrap_after_seconds=20.0,
+                maximum_concurrent_positions=6,
+                maximum_entries_per_cycle=3,
+                reentry_cooldown_seconds=20.0,
+            )
+            if self.testnet is not None
+            else None
+        )
+
+    @staticmethod
+    def _extract_fast_supervisory(
+        status: dict[str, Any],
+    ) -> dict[str, Any]:
+        engines = (
+            status.get("engines")
+            or {}
+        )
+
+        required_failures = [
+            name
+            for name, row in engines.items()
+            if (
+                isinstance(row, dict)
+                and row.get("required") is True
+                and row.get("healthy") is not True
+            )
+        ]
+
+        decisions = (
+            status.get("decisions")
+            or {}
+        )
+
+        collective_symbols = (
+            (
+                status.get(
+                    "collective_profit_fabric"
+                )
+                or {}
+            ).get("symbols")
+            or {}
+        )
+
+        symbols: dict[str, Any] = {}
+
+        for symbol in (
+            set(decisions)
+            | set(collective_symbols)
+        ):
+            decision = (
+                decisions.get(symbol)
+                or {}
+            )
+
+            symbols[str(symbol)] = {
+                "route": copy.deepcopy(
+                    decision.get("route")
+                    or {}
+                ),
+                "collective": copy.deepcopy(
+                    collective_symbols.get(
+                        symbol,
+                        {},
+                    )
+                ),
+            }
+
+        return {
+            "timestamp": float(
+                status.get("timestamp")
+                or 0.0
+            ),
+            "healthy": bool(
+                status.get("healthy") is True
+                and not required_failures
+            ),
+            "halt_reason": (
+                status.get("halt_reason")
+            ),
+            "required_failures": (
+                required_failures
+            ),
+            "symbols": symbols,
+            "canonical_open_positions": list(
+                status.get("open_positions")
+                or []
+            ),
+            "live_authority": False,
+        }
+
+    def _load_fast_supervisory(
+        self,
+    ) -> dict[str, Any]:
+        path = self.settings.heartbeat_path
+
+        if not path.is_file():
+            return {}
+
+        try:
+            payload = json.loads(
+                path.read_text(
+                    encoding="utf-8"
+                )
+            )
+
+            return (
+                self._extract_fast_supervisory(
+                    payload
+                )
+            )
+
+        except Exception:
+            return {}
+
+    def _fast_supervisory_snapshot(
+        self,
+    ) -> dict[str, Any]:
+        lock = getattr(
+            self,
+            "_fast_supervisory_lock",
+            None,
+        )
+
+        if lock is None:
+            lock = threading.RLock()
+            self._fast_supervisory_lock = lock
+
+        with lock:
+            return copy.deepcopy(
+                getattr(
+                    self,
+                    "_fast_supervisory",
+                    {},
+                )
+            )
+
+    def _update_fast_supervisory(
+        self,
+        status: dict[str, Any],
+    ) -> None:
+        snapshot = (
+            self._extract_fast_supervisory(
+                status
+            )
+        )
+
+        lock = getattr(
+            self,
+            "_fast_supervisory_lock",
+            None,
+        )
+
+        if lock is None:
+            lock = threading.RLock()
+            self._fast_supervisory_lock = lock
+
+        with lock:
+            self._fast_supervisory = (
+                snapshot
+            )
 
     def _swarm_round_trip_cost_bps(self) -> float:
         return max(30.0, 2.0 * (self.settings.fee_bps + self.settings.slippage_bps))
@@ -590,22 +773,115 @@ class PaperRunner(_V142PaperRunner):
                 "failures": 0 if isinstance(journal, dict) else 1,
             }
 
-        self._write_json_atomic(self.settings.heartbeat_path, status)
+        self._update_fast_supervisory(
+            status
+        )
+
+        fast_testnet_lane = getattr(
+            self,
+            "fast_collective_testnet",
+            None,
+        )
+
+        if fast_testnet_lane is not None:
+            status["fast_collective_testnet"] = (
+                fast_testnet_lane.health()
+            )
+
+            fabric = status.setdefault(
+                "collective_profit_fabric",
+                {},
+            )
+
+            fabric["version"] = "1.57.1"
+            fabric[
+                "fast_testnet_exploration_lane"
+            ] = True
+            fabric[
+                "seconds_scale_micro_mtf_execution"
+            ] = True
+            fabric[
+                "bounded_testnet_exploration_authority"
+            ] = True
+            fabric[
+                "multi_position_hyper_router"
+            ] = True
+            fabric[
+                "per_position_hyper_speed_sentinel"
+            ] = True
+            fabric[
+                "immediate_slot_reuse"
+            ] = True
+            fabric[
+                "real_money_authority"
+            ] = False
+            fabric[
+                "live_authority"
+            ] = False
+
+        self._write_json_atomic(
+            self.settings.heartbeat_path,
+            status,
+        )
         self._write_health_state(status)
         return status
 
     def run(self, once: bool = False) -> None:
-        if not once:
-            self.start_fast_swarm()
-            self._write_startup_heartbeat()
-            self._start_health_state_refresher()
+        if once:
+            try:
+                super().run(once=True)
+            finally:
+                self.stop_fast_swarm()
+            return
+
+        self.start_fast_swarm()
+        self._write_startup_heartbeat()
+
+        if self.fast_collective_testnet is not None:
+            self.fast_collective_testnet.start()
+
+        self._start_health_state_refresher()
 
         try:
-            super().run(once=once)
+            while not self.stop_requested:
+                started = time.monotonic()
+
+                try:
+                    status = self.cycle()
+
+                    LOGGER.info(
+                        "cycle equity=%.2f cash=%.2f "
+                        "positions=%s events=%d errors=%d",
+                        status["equity"],
+                        status["cash"],
+                        status["open_positions"],
+                        len(status["events"]),
+                        len(status["errors"]),
+                    )
+
+                except Exception:
+                    LOGGER.exception(
+                        "paper cycle failed"
+                    )
+
+                remaining = max(
+                    1.0,
+                    self.settings.poll_seconds
+                    - (
+                        time.monotonic()
+                        - started
+                    ),
+                )
+
+                time.sleep(remaining)
+
         finally:
-            if not once:
-                self._stop_health_state_refresher()
+            if self.fast_collective_testnet is not None:
+                self.fast_collective_testnet.stop()
+
+            self._stop_health_state_refresher()
             self.stop_fast_swarm()
+            self.engines.stop_all()
 
 
 def main() -> None:
@@ -632,7 +908,7 @@ def main() -> None:
             "live_authority": False,
         }
         payload["collective_profit_fabric"] = {
-            "version": "1.56.0",
+            "version": "1.57.1",
             "canonical_pretrade_integration": True,
             "sources": [
                 "adaptive_intelligence",
@@ -649,6 +925,13 @@ def main() -> None:
             "sensor_only_origin_allowed": False,
             "paper_authority": True,
             "testnet_mirror_enabled": settings.testnet_enabled,
+            "fast_testnet_exploration_lane": settings.testnet_enabled,
+            "seconds_scale_micro_mtf_execution": settings.testnet_enabled,
+            "bounded_testnet_exploration_authority": settings.testnet_enabled,
+            "multi_position_hyper_router": settings.testnet_enabled,
+            "per_position_hyper_speed_sentinel": settings.testnet_enabled,
+            "immediate_slot_reuse": settings.testnet_enabled,
+            "real_money_authority": False,
             "live_authority": False,
         }
         print(json.dumps(payload, indent=2))

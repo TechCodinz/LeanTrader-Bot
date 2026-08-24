@@ -25,7 +25,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.56.1"
+    VERSION = "1.57.0"
     KINEMATIC_SLOW_HORIZONS = (120, 300, 900)
     KINEMATIC_SLOW_COOLDOWN_SECONDS = 900.0
     ROLE_BY_TIMEFRAME = {
@@ -1479,6 +1479,53 @@ class ReadOnlySwarmService:
                     cadence_seconds - elapsed,
                 )
             )
+
+    def collective_candidates(
+        self,
+        limit: int = 8,
+    ) -> list[str]:
+        """Return the current ranked symbols for fast collective evaluation."""
+        bounded = max(
+            1,
+            min(24, int(limit)),
+        )
+
+        with self._lock:
+            ranked = list(
+                self.last_step.get("ranked")
+                or []
+            )
+
+            micro_symbols = list(
+                self._microstream_symbols
+            )
+
+        symbols: list[str] = []
+
+        for row in ranked:
+            if not isinstance(row, dict):
+                continue
+
+            symbol = str(
+                row.get("symbol") or ""
+            ).upper()
+
+            if (
+                symbol
+                and symbol not in symbols
+            ):
+                symbols.append(symbol)
+
+        for symbol in micro_symbols:
+            symbol = str(symbol).upper()
+
+            if (
+                symbol
+                and symbol not in symbols
+            ):
+                symbols.append(symbol)
+
+        return symbols[:bounded]
 
     def collective_signal(self, symbol: str) -> dict[str, Any]:
         """Return a bounded thread-safe signal snapshot for the canonical router.

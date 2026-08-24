@@ -632,3 +632,20 @@ def test_v155_kinematic_event_registers_deduplicated_slow_followthrough(
         and row["live_authority"] is False
         for row in pending
     )
+
+
+
+def test_collective_candidates_are_thread_safe_ranked_symbols():
+    feed = FakeReadOnlyFeed()
+    service = _service(feed, batch=2)
+
+    service.step()
+
+    symbols = service.collective_candidates(
+        limit=2
+    )
+
+    assert symbols == [
+        "AAA/USDT",
+        "BBB/USDT",
+    ]

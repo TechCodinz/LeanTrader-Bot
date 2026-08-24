@@ -4,6 +4,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -22,7 +23,7 @@ class BybitTestnetExecutionEngine:
     exchange test funds only. It never accepts production credentials or URLs.
     """
 
-    VERSION = "2.2"
+    VERSION = "2.3"
     TESTNET_CONFIRMATION = "I_UNDERSTAND_TESTNET_ONLY"
 
     def __init__(
@@ -65,6 +66,7 @@ class BybitTestnetExecutionEngine:
         self.api_attestation: dict[str, Any] = {"verified": False}
         self.exchange_capabilities: dict[str, Any] = {}
         self.state: dict[str, Any] = self._load_state()
+        self._io_lock = threading.RLock()
 
     def start(self) -> None:
         api_key = self._read_secret(self.api_key_path, "API key")
@@ -116,19 +118,32 @@ class BybitTestnetExecutionEngine:
             close()
 
     def mirror_events(self, events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        self._require_started()
-        reconciliation = self.reconcile()
-        if not reconciliation["reconciled"]:
-            raise RuntimeError("testnet order reconciliation is unresolved; new mirrors are paused")
-        results: list[dict[str, Any]] = []
-        for event in events:
-            if event.get("side") not in {"buy", "sell"}:
-                continue
-            try:
-                results.append(self._mirror_event(event))
-            except Exception as exc:
-                raise RuntimeError(self._redact(str(exc))) from exc
-        return results
+        with self._io_lock:
+            self._require_started()
+            reconciliation = self.reconcile()
+
+            if not reconciliation["reconciled"]:
+                raise RuntimeError(
+                    "testnet order reconciliation is unresolved; "
+                    "new mirrors are paused"
+                )
+
+            results: list[dict[str, Any]] = []
+
+            for event in events:
+                if event.get("side") not in {"buy", "sell"}:
+                    continue
+
+                try:
+                    results.append(
+                        self._mirror_event(event)
+                    )
+                except Exception as exc:
+                    raise RuntimeError(
+                        self._redact(str(exc))
+                    ) from exc
+
+            return results
 
     def eligible_symbols(self, quote: str = "USDT") -> set[str]:
         self._require_started()
@@ -182,16 +197,17 @@ class BybitTestnetExecutionEngine:
 
     def reconcile_required(self) -> dict[str, Any]:
         """Require a clean Testnet reconciliation before new mirrors."""
-        result = self.reconcile()
+        with self._io_lock:
+            result = self.reconcile()
 
-        if result.get("reconciled") is not True:
-            issues = len(result.get("errors") or [])
-            raise RuntimeError(
-                "testnet reconciliation is unresolved "
-                f"({issues} issue(s))"
-            )
+            if result.get("reconciled") is not True:
+                issues = len(result.get("errors") or [])
+                raise RuntimeError(
+                    "testnet reconciliation is unresolved "
+                    f"({issues} issue(s))"
+                )
 
-        return result
+            return result
 
     def health(self) -> dict[str, Any]:
         orders = list(self.state["orders"].values())
@@ -260,6 +276,11 @@ class BybitTestnetExecutionEngine:
             },
             "kill_switch_active": (self.state_path.parent / "TESTNET_HALT").exists(),
         }
+
+    def safe_snapshot(self) -> dict[str, Any]:
+        """Return one serialized executor snapshot for the fast Testnet lane."""
+        with self._io_lock:
+            return self.health()
 
     def _mirror_event(self, event: dict[str, Any]) -> dict[str, Any]:
         symbol = str(event["symbol"]).upper()
