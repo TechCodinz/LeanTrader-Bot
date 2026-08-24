@@ -36,7 +36,7 @@ class MicrostructureMarketFeed(MarketFeed):
 class PaperRunner(_V142PaperRunner):
     """v1.43: v1.42 supervision plus parallel costed market-swarm shadow evidence."""
 
-    VERSION = "1.60.0"
+    VERSION = "1.60.1"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _runner_v142.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
@@ -888,7 +888,7 @@ class PaperRunner(_V142PaperRunner):
                 {},
             )
 
-            fabric["version"] = "1.60.0"
+            fabric["version"] = "1.60.1"
             fabric[
                 "fast_testnet_exploration_lane"
             ] = True
@@ -912,6 +912,9 @@ class PaperRunner(_V142PaperRunner):
             ] = True
             fabric[
                 "dedicated_precision_mtf_cache"
+            ] = True
+            fabric[
+                "precision_micro_priority_scheduler"
             ] = True
             fabric[
                 "sub_dollar_mover_coverage"
@@ -1040,7 +1043,7 @@ def main() -> None:
             "live_authority": False,
         }
         payload["collective_profit_fabric"] = {
-            "version": "1.60.0",
+            "version": "1.60.1",
             "canonical_pretrade_integration": True,
             "sources": [
                 "adaptive_intelligence",
@@ -1066,6 +1069,7 @@ def main() -> None:
             "precision_mtf_context": settings.testnet_enabled,
             "always_on_precision_scout": settings.testnet_enabled,
             "dedicated_precision_mtf_cache": settings.testnet_enabled,
+            "precision_micro_priority_scheduler": settings.testnet_enabled,
             "sub_dollar_mover_coverage": settings.testnet_enabled,
             "principal_protected_profit_compounding": settings.testnet_enabled,
             "profit_flow_telemetry": settings.testnet_enabled,

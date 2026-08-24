@@ -766,12 +766,31 @@ class FastCollectiveTestnetLane:
         ):
             thread.join(timeout=10.0)
 
+    def _clear_transient_error_after_success(
+        self,
+    ) -> None:
+        with self._lock:
+            if (
+                self.state.get("last_error")
+                is None
+                and self.state.get(
+                    "last_error_at"
+                )
+                is None
+            ):
+                return
+
+            self.state["last_error"] = None
+            self.state["last_error_at"] = None
+            self._save_locked()
+
     def _run(self) -> None:
         while not self._stop.is_set():
             started = time.monotonic()
 
             try:
                 self.step()
+                self._clear_transient_error_after_success()
             except Exception as exc:
                 with self._lock:
                     self.state["last_error"] = (

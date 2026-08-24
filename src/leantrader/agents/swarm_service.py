@@ -25,7 +25,7 @@ class ReadOnlySwarmService:
     completed net-of-cost outcomes are journaled for later v1.42 evidence intake.
     """
 
-    VERSION = "1.60.0"
+    VERSION = "1.60.1"
     KINEMATIC_SLOW_HORIZONS = (120, 300, 900)
     KINEMATIC_SLOW_COOLDOWN_SECONDS = 900.0
     ROLE_BY_TIMEFRAME = {
@@ -148,6 +148,15 @@ class ReadOnlySwarmService:
         self.precision_context_last_update_at = 0.0
         self.precision_scout_candidates = 0
         self.precision_scout_sub_dollar = 0
+
+        # v1.60.1: current execution scouting must not be starved by
+        # prospective-label resolution. Five of six bounded precision
+        # slots are reserved for live scout rotation when research work
+        # is simultaneously due.
+        self._precision_micro_cursor = 0
+        self.precision_micro_last_queue: list[str] = []
+        self.precision_micro_live_slots = 0
+        self.precision_micro_due_slots = 0
 
         self._microstream_thread: threading.Thread | None = None
         self._calibration_thread: threading.Thread | None = None
@@ -1792,6 +1801,170 @@ class ReadOnlySwarmService:
             return 0.0
         return (bid + ask) / 2.0
 
+    @staticmethod
+    def _unique_symbols(
+        values: list[str],
+    ) -> list[str]:
+        result: list[str] = []
+
+        for value in values:
+            symbol = str(
+                value or ""
+            ).upper()
+
+            if (
+                symbol
+                and symbol not in result
+            ):
+                result.append(symbol)
+
+        return result
+
+    @classmethod
+    def _build_microstream_queue(
+        cls,
+        *,
+        scout_symbols: list[str],
+        sticky_symbols: list[str],
+        due_symbols: list[str],
+        capacity: int,
+        cursor: int,
+    ) -> tuple[
+        list[str],
+        int,
+        dict[str, int],
+    ]:
+        """Bound execution scouting and research without priority inversion."""
+
+        cap = max(
+            1,
+            min(6, int(capacity)),
+        )
+
+        scouts = cls._unique_symbols(
+            scout_symbols
+        )
+        sticky = cls._unique_symbols(
+            sticky_symbols
+        )
+        due = cls._unique_symbols(
+            due_symbols
+        )
+
+        if not scouts:
+            queue: list[str] = []
+
+            for symbol in [
+                *due,
+                *sticky,
+            ]:
+                if (
+                    symbol not in queue
+                    and len(queue) < cap
+                ):
+                    queue.append(symbol)
+
+            return (
+                queue,
+                int(cursor),
+                {
+                    "scout_slots": 0,
+                    "due_slots": sum(
+                        1
+                        for symbol in queue
+                        if symbol in due
+                    ),
+                },
+            )
+
+        offset = (
+            int(cursor)
+            % len(scouts)
+        )
+
+        rotated = (
+            scouts[offset:]
+            + scouts[:offset]
+        )
+
+        # When research labels are due, preserve exactly one bounded
+        # opportunity for them while keeping five of six deep slots
+        # available to current market movers.
+        scout_reserve = (
+            cap
+            if not due
+            else max(
+                1,
+                cap - 1,
+            )
+        )
+
+        scout_take = min(
+            len(rotated),
+            scout_reserve,
+        )
+
+        queue = list(
+            rotated[:scout_take]
+        )
+
+        due_inserted = 0
+
+        for symbol in due:
+            if len(queue) >= cap:
+                break
+
+            if symbol not in queue:
+                queue.append(symbol)
+                due_inserted += 1
+                break
+
+        # If fewer than the reserved execution symbols exist, fill the
+        # remainder with sticky micro markets. Then allow the remaining
+        # scout rotation back in before any second research symbol.
+        for symbol in [
+            *sticky,
+            *rotated[scout_take:],
+        ]:
+            if len(queue) >= cap:
+                break
+
+            if symbol not in queue:
+                queue.append(symbol)
+
+        if len(queue) < cap:
+            for symbol in due:
+                if len(queue) >= cap:
+                    break
+
+                if symbol not in queue:
+                    queue.append(symbol)
+                    due_inserted += 1
+
+        next_cursor = (
+            (
+                offset
+                + max(
+                    1,
+                    scout_take,
+                )
+            )
+            % len(scouts)
+        )
+
+        return (
+            queue[:cap],
+            next_cursor,
+            {
+                "scout_slots": sum(
+                    1
+                    for symbol in queue[:cap]
+                    if symbol in scouts
+                ),
+                "due_slots": due_inserted,
+            },
+        )
+
     def _run_microstream(self) -> None:
         """Continuously sample bounded micro markets with no trade authority."""
 
@@ -1810,13 +1983,14 @@ class ReadOnlySwarmService:
                     )
 
                 with self._lock:
-                    active = list(
-                        dict.fromkeys(
-                            [
-                                *self._precision_scout_symbols,
-                                *self._microstream_symbols,
-                            ]
-                        )
+                    scout_symbols = list(
+                        self._precision_scout_symbols
+                    )
+                    sticky_symbols = list(
+                        self._microstream_symbols
+                    )
+                    cursor = int(
+                        self._precision_micro_cursor
                     )
 
                 due: list[str] = []
@@ -1831,20 +2005,49 @@ class ReadOnlySwarmService:
                         ),
                     )
 
-                # Due outcomes receive first priority; currently tracked
-                # micro markets consume remaining bounded capacity.
-                queue: list[str] = []
-
-                for symbol in due + active:
-                    symbol = str(symbol).upper()
-                    if symbol and symbol not in queue:
-                        queue.append(symbol)
-
                 capacity = max(
                     1,
-                    min(6, self.max_micro_symbols),
+                    min(
+                        6,
+                        self.max_micro_symbols,
+                    ),
                 )
-                queue = queue[:capacity]
+
+                (
+                    queue,
+                    next_cursor,
+                    schedule,
+                ) = self._build_microstream_queue(
+                    scout_symbols=scout_symbols,
+                    sticky_symbols=sticky_symbols,
+                    due_symbols=due,
+                    capacity=capacity,
+                    cursor=cursor,
+                )
+
+                with self._lock:
+                    self._precision_micro_cursor = (
+                        next_cursor
+                    )
+                    self.precision_micro_last_queue = (
+                        list(queue)
+                    )
+                    self.precision_micro_live_slots = (
+                        int(
+                            schedule.get(
+                                "scout_slots"
+                            )
+                            or 0
+                        )
+                    )
+                    self.precision_micro_due_slots = (
+                        int(
+                            schedule.get(
+                                "due_slots"
+                            )
+                            or 0
+                        )
+                    )
 
                 for symbol in queue:
                     if self._stop.is_set():
@@ -2795,6 +2998,28 @@ class ReadOnlySwarmService:
                         "5m",
                         "15m",
                     ],
+                    "micro_priority_scheduler": {
+                        "execution_scout_priority": True,
+                        "maximum_slots": max(
+                            1,
+                            min(
+                                6,
+                                self.max_micro_symbols,
+                            ),
+                        ),
+                        "last_queue": list(
+                            self.precision_micro_last_queue
+                        ),
+                        "live_scout_slots": (
+                            self.precision_micro_live_slots
+                        ),
+                        "research_due_slots": (
+                            self.precision_micro_due_slots
+                        ),
+                        "rotating_scout_cursor": (
+                            self._precision_micro_cursor
+                        ),
+                    },
                     "sub_dollar_is_coverage_bucket": True,
                     "nominal_price_is_profit_score": False,
                     "execution_authority": False,
