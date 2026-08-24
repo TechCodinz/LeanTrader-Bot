@@ -12,7 +12,7 @@ from .fast_collective_testnet import FastCollectiveTestnetLane
 class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
     """Multi-position fast Testnet router with one sentinel per position."""
 
-    VERSION = "1.60.2"
+    VERSION = "1.60.5"
 
     def __init__(
         self,
@@ -87,6 +87,16 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             1.0,
             float(reentry_cooldown_seconds),
         )
+
+        # v1.60.5: the fast lane owns bounded reconciliation recovery.
+        # A slow canonical cycle is no longer required to unpause Testnet.
+        self.fast_reconciliation_retry_seconds = 3.0
+        self._last_fast_reconciliation_attempt_at = 0.0
+        self.fast_reconciliation_attempts = 0
+        self.fast_reconciliation_successes = 0
+        self.fast_reconciliation_failures = 0
+        self.last_fast_reconciliation_error = None
+
         with self._lock:
             self.state.setdefault(
                 "last_exit_by_symbol",
@@ -97,6 +107,218 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 {},
             )
             self._save_locked()
+
+    def _fast_reconciliation_gate(
+        self,
+        snapshot: dict[str, Any],
+        *,
+        now: float,
+    ) -> dict[str, Any]:
+        """Recover Testnet ambiguity directly from the fast execution loop."""
+
+        errors = list(
+            snapshot.get(
+                "last_reconciliation_errors"
+            )
+            or []
+        )
+
+        if not errors:
+            return {
+                "clear": True,
+                "attempted": False,
+                "snapshot": snapshot,
+                "reason": (
+                    "reconciliation_already_clear"
+                ),
+            }
+
+        last_attempt = float(
+            getattr(
+                self,
+                "_last_fast_reconciliation_attempt_at",
+                0.0,
+            )
+            or 0.0
+        )
+
+        retry_seconds = max(
+            1.0,
+            float(
+                getattr(
+                    self,
+                    "fast_reconciliation_retry_seconds",
+                    3.0,
+                )
+            ),
+        )
+
+        age = max(
+            0.0,
+            now - last_attempt,
+        )
+
+        if (
+            last_attempt > 0.0
+            and age < retry_seconds
+        ):
+            return {
+                "clear": False,
+                "attempted": False,
+                "snapshot": snapshot,
+                "reason": (
+                    "fast_reconciliation_retry_wait"
+                ),
+                "retry_in_seconds": max(
+                    0.0,
+                    retry_seconds - age,
+                ),
+            }
+
+        self._last_fast_reconciliation_attempt_at = (
+            now
+        )
+        self.fast_reconciliation_attempts += 1
+
+        reconcile = getattr(
+            self.testnet,
+            "reconcile_required",
+            None,
+        )
+
+        if not callable(reconcile):
+            self.fast_reconciliation_failures += 1
+            self.last_fast_reconciliation_error = (
+                "reconcile_required_unavailable"
+            )
+
+            return {
+                "clear": False,
+                "attempted": True,
+                "snapshot": snapshot,
+                "reason": (
+                    "testnet_reconciliation_api_unavailable"
+                ),
+            }
+
+        try:
+            reconcile()
+
+        except Exception as exc:
+            self.fast_reconciliation_failures += 1
+            self.last_fast_reconciliation_error = (
+                type(exc).__name__
+            )
+
+            refreshed = (
+                self.testnet.safe_snapshot()
+            )
+
+            return {
+                "clear": False,
+                "attempted": True,
+                "snapshot": refreshed,
+                "reason": (
+                    "testnet_reconciliation_still_unresolved"
+                ),
+                "error_type": (
+                    type(exc).__name__
+                ),
+            }
+
+        refreshed = (
+            self.testnet.safe_snapshot()
+        )
+
+        clear = not bool(
+            refreshed.get(
+                "last_reconciliation_errors"
+            )
+            or []
+        )
+
+        if clear:
+            self.fast_reconciliation_successes += 1
+            self.last_fast_reconciliation_error = None
+        else:
+            self.fast_reconciliation_failures += 1
+            self.last_fast_reconciliation_error = (
+                "reconciliation_returned_errors"
+            )
+
+        return {
+            "clear": clear,
+            "attempted": True,
+            "snapshot": refreshed,
+            "reason": (
+                "fast_reconciliation_recovered"
+                if clear
+                else "testnet_reconciliation_still_unresolved"
+            ),
+        }
+
+    @staticmethod
+    def _reconciled_supervisor_snapshot(
+        supervisor: dict[str, Any],
+        snapshot: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Clear only a stale Testnet-only supervisor failure."""
+
+        if not isinstance(
+            supervisor,
+            dict,
+        ):
+            return {}
+
+        result = copy.deepcopy(
+            supervisor
+        )
+
+        required = {
+            str(name)
+            for name in (
+                result.get(
+                    "required_failures"
+                )
+                or []
+            )
+        }
+
+        testnet_clear = bool(
+            snapshot.get(
+                "authenticated"
+            )
+            is True
+            and snapshot.get(
+                "sandbox_endpoint_verified"
+            )
+            is True
+            and not (
+                snapshot.get(
+                    "last_reconciliation_errors"
+                )
+                or []
+            )
+        )
+
+        if (
+            result.get("healthy") is not True
+            and required
+            == {"bybit_testnet_execution"}
+            and testnet_clear
+        ):
+            result["healthy"] = True
+            result["required_failures"] = []
+            result[
+                "fast_testnet_health_reconciled"
+            ] = True
+            result[
+                "fast_testnet_health_override_scope"
+            ] = (
+                "stale_bybit_testnet_failure_only"
+            )
+
+        return result
 
     def _fast_open_notional(
         self,
@@ -562,6 +784,36 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
 
         self._refresh_day(now)
 
+        # Reconciliation recovery happens before pending orders, exits,
+        # supervisor gating, or new entries. No order can be submitted
+        # while exchange state remains uncertain.
+        snapshot = self.testnet.safe_snapshot()
+
+        reconciliation = (
+            self._fast_reconciliation_gate(
+                snapshot,
+                now=now,
+            )
+        )
+
+        snapshot = (
+            reconciliation["snapshot"]
+        )
+
+        if reconciliation[
+            "clear"
+        ] is not True:
+            return self._decision(
+                "testnet_reconciliation_recovering",
+                details={
+                    key: value
+                    for key, value in (
+                        reconciliation.items()
+                    )
+                    if key != "snapshot"
+                },
+            )
+
         pending = self._pending()
         if pending is not None:
             self._submit_pending(pending, now=now)
@@ -595,7 +847,19 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 )
 
         snapshot = self.testnet.safe_snapshot()
-        supervisor = self.supervisory_provider() or {}
+
+        supervisor = (
+            self.supervisory_provider()
+            or {}
+        )
+
+        supervisor = (
+            self._reconciled_supervisor_snapshot(
+                supervisor,
+                snapshot,
+            )
+        )
+
         gate = self._supervisor_allows_entries(
             supervisor,
             now=now,
@@ -610,12 +874,8 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 "testnet_kill_switch",
                 details={"exit_actions": exit_actions},
             )
-        if snapshot.get("last_reconciliation_errors") or []:
-            return self._decision(
-                "testnet_reconciliation_not_clear",
-                details={"exit_actions": exit_actions},
-            )
-
+        # Reconciliation has already been checked and, if necessary,
+        # recovered at the beginning of this exact fast step.
         positions = {
             str(symbol).upper(): self._number(quantity)
             for symbol, quantity in (snapshot.get("positions") or {}).items()
@@ -1574,6 +1834,26 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 "reentry_cooldown_seconds": (
                     self.reentry_cooldown_seconds
                 ),
+                "fast_reconciliation_watchdog": {
+                    "enabled": True,
+                    "retry_seconds": (
+                        self.fast_reconciliation_retry_seconds
+                    ),
+                    "attempts": (
+                        self.fast_reconciliation_attempts
+                    ),
+                    "successes": (
+                        self.fast_reconciliation_successes
+                    ),
+                    "failures": (
+                        self.fast_reconciliation_failures
+                    ),
+                    "last_error_type": (
+                        self.last_fast_reconciliation_error
+                    ),
+                    "fail_closed": True,
+                    "resubmission_allowed": False,
+                },
                 "multi_position_router": True,
                 "per_position_hyper_speed_sentinel": True,
                 "independent_position_exit": True,

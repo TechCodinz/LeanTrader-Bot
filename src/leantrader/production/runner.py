@@ -36,7 +36,7 @@ class MicrostructureMarketFeed(MarketFeed):
 class PaperRunner(_V142PaperRunner):
     """v1.43: v1.42 supervision plus parallel costed market-swarm shadow evidence."""
 
-    VERSION = "1.60.4"
+    VERSION = "1.60.5"
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         _runner_v142.BybitTestnetExecutionEngine = BybitTestnetExecutionEngine
@@ -638,6 +638,70 @@ class PaperRunner(_V142PaperRunner):
             "live_authority": False,
         }
 
+    def _direct_testnet_health_overlay(
+        self,
+        engines: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Refresh stale engine-manager Testnet health from the executor."""
+
+        result = copy.deepcopy(
+            engines
+        )
+
+        testnet = getattr(
+            self,
+            "testnet",
+            None,
+        )
+
+        if testnet is None:
+            return result
+
+        try:
+            snapshot = (
+                testnet.safe_snapshot()
+            )
+        except Exception:
+            return result
+
+        direct_healthy = bool(
+            snapshot.get(
+                "authenticated"
+            )
+            is True
+            and snapshot.get(
+                "sandbox_endpoint_verified"
+            )
+            is True
+            and not (
+                snapshot.get(
+                    "last_reconciliation_errors"
+                )
+                or []
+            )
+        )
+
+        row = result.get(
+            "bybit_testnet_execution"
+        )
+
+        if (
+            direct_healthy
+            and isinstance(row, dict)
+            and row.get("required") is True
+        ):
+            result[
+                "bybit_testnet_execution"
+            ] = {
+                **row,
+                "healthy": True,
+                "state": "running",
+                "failures": 0,
+                "direct_executor_reconciled": True,
+            }
+
+        return result
+
     def _write_health_state(self, status: dict[str, Any]) -> None:
         swarm = status.get("market_swarm") or {}
         swarm_required = self.fast_swarm_service is not None
@@ -751,7 +815,13 @@ class PaperRunner(_V142PaperRunner):
             )
         )
 
-        engines = self.engines.snapshot()
+        engines = (
+            self._direct_testnet_health_overlay(
+                dict(
+                    self.engines.snapshot()
+                )
+            )
+        )
 
         required_failures = [
             name
@@ -805,7 +875,7 @@ class PaperRunner(_V142PaperRunner):
         return status
 
     def _run_health_state_refresher(self) -> None:
-        interval_seconds = 60.0
+        interval_seconds = 10.0
 
         while not self._health_refresh_stop.wait(
             interval_seconds
@@ -1134,7 +1204,7 @@ class PaperRunner(_V142PaperRunner):
                 {},
             )
 
-            fabric["version"] = "1.60.4"
+            fabric["version"] = "1.60.5"
             fabric[
                 "fast_testnet_exploration_lane"
             ] = True
@@ -1182,6 +1252,15 @@ class PaperRunner(_V142PaperRunner):
             ] = True
             fabric[
                 "continuity_preserving_exploration"
+            ] = True
+            fabric[
+                "fast_lane_reconciliation_watchdog"
+            ] = True
+            fabric[
+                "stale_testnet_supervisor_recovery"
+            ] = True
+            fabric[
+                "direct_testnet_health_refresh"
             ] = True
             fabric[
                 "wide_candidate_router"
@@ -1313,7 +1392,7 @@ def main() -> None:
             "live_authority": False,
         }
         payload["collective_profit_fabric"] = {
-            "version": "1.60.4",
+            "version": "1.60.5",
             "canonical_pretrade_integration": True,
             "sources": [
                 "adaptive_intelligence",
@@ -1347,6 +1426,9 @@ def main() -> None:
             "latency_adaptive_micro_depth": settings.testnet_enabled,
             "sticky_hot_micro_cohort": settings.testnet_enabled,
             "continuity_preserving_exploration": settings.testnet_enabled,
+            "fast_lane_reconciliation_watchdog": settings.testnet_enabled,
+            "stale_testnet_supervisor_recovery": settings.testnet_enabled,
+            "direct_testnet_health_refresh": settings.testnet_enabled,
             "wide_candidate_router": settings.testnet_enabled,
             "sub_dollar_mover_coverage": settings.testnet_enabled,
             "principal_protected_profit_compounding": settings.testnet_enabled,
