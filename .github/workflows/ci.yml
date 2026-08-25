@@ -38,6 +38,15 @@ jobs:
             exit 1
           fi
 
+      - name: Run v1.60.8 focused Testnet exit recycle regressions
+        env:
+          ENABLE_LIVE: 'false'
+          ALLOW_LIVE: 'false'
+          LIVE_CONFIRM: 'NO'
+          TRADING_MODE: 'paper'
+          PYTHONPATH: src
+        run: python -m pytest -q tests/test_production_testnet_exit_recycle_v1608.py
+
       - name: Run supported release tests
         env:
           ENABLE_LIVE: 'false'
