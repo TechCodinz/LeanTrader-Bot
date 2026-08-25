@@ -68,7 +68,12 @@ def test_large_persisted_exit_recovery_isolated_without_new_order(
 
     health = lane.health()
 
-    assert health["version"] == "1.60.9"
+    # This is a behavioral regression, not a permanent
+    # assertion about the latest aggregate health version.
+    assert (
+        health["exit_recovery_isolation"]["enabled"]
+        is True
+    )
     assert (
         health[
             "deferred_exit_recovery_count"

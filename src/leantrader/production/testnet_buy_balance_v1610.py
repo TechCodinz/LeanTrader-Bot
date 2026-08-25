@@ -289,6 +289,11 @@ def install_testnet_buy_balance_v1610() -> None:
         .health
     )
 
+    original_hyper_submit = (
+        HyperSpeedCollectiveTestnetLane
+        ._submit_pending
+    )
+
     def mirror_event(
         self: Any,
         event: dict[str, Any],
@@ -477,6 +482,82 @@ def install_testnet_buy_balance_v1610() -> None:
                 )
             )
 
+    def resolve_definitive_insufficient_balance(
+        self: Any,
+        event: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Resolve only a proven pre-v1.60.10 Bybit balance rejection.
+
+        This migration is deliberately narrower than generic
+        reconciliation. It never terminalizes an accepted exchange
+        order, a partial fill, a sell, or an ambiguous network failure.
+        """
+
+        with self._io_lock:
+            client_id = self._client_order_id(
+                event
+            )
+
+            record = (
+                self.state.get("orders")
+                or {}
+            ).get(client_id)
+
+            if not isinstance(
+                record,
+                dict,
+            ):
+                return None
+
+            if (
+                str(
+                    record.get("side")
+                    or ""
+                ).lower()
+                != "buy"
+            ):
+                return None
+
+            # Only the exact state produced before create_order
+            # returned its response is eligible for this migration.
+            if (
+                str(
+                    record.get("status")
+                    or ""
+                ).lower()
+                != "submitting"
+            ):
+                return None
+
+            # Any observed fill must remain under canonical
+            # reconciliation and must never be rolled back.
+            if (
+                _number(
+                    record.get("filled")
+                )
+                > 0.0
+            ):
+                return None
+
+            # An exchange order id is proof the exchange accepted
+            # something. Keep it fail-closed under reconciliation.
+            if record.get("order_id"):
+                return None
+
+            record[
+                "v1610_migration_source"
+            ] = (
+                "fast_lane_definitive_"
+                "insufficient_balance_error"
+            )
+
+            return (
+                _rollback_definitive_rejection(
+                    self,
+                    client_id=client_id,
+                )
+            )
+
     def engine_health(
         self: Any,
     ) -> dict[str, Any]:
@@ -541,6 +622,68 @@ def install_testnet_buy_balance_v1610() -> None:
 
         return payload
 
+    def hyper_submit(
+        self: Any,
+        pending: dict[str, Any],
+        now: float,
+    ) -> dict[str, Any]:
+        """Migrate one persisted deterministic balance rejection.
+
+        A v1.60.9 entry may have been persisted as `submitting`
+        before Bybit synchronously returned retCode 170131. The
+        fast lane persisted that exact deterministic error.
+
+        The migration only acts when both the pending event and
+        deterministic error are still present. Otherwise canonical
+        reconciliation remains authoritative.
+        """
+
+        if (
+            str(
+                pending.get("kind")
+                or ""
+            )
+            == "entry"
+        ):
+            event = (
+                pending.get("event")
+                or {}
+            )
+
+            with self._lock:
+                last_error = str(
+                    self.state.get(
+                        "last_error"
+                    )
+                    or ""
+                )
+
+            if (
+                last_error
+                and _definitive_insufficient_balance(
+                    RuntimeError(
+                        last_error
+                    )
+                )
+            ):
+                resolver = getattr(
+                    self.testnet,
+                    "resolve_definitive_insufficient_balance",
+                    None,
+                )
+
+                if callable(resolver):
+                    resolver(event)
+
+        # After migration the existing executor record is terminal.
+        # The normal v1.60.9 submit path sees `rejected`, clears the
+        # global pending entry, and performs no new create_order call.
+        return original_hyper_submit(
+            self,
+            pending,
+            now,
+        )
+
     def hyper_health(
         self: Any,
     ) -> dict[str, Any]:
@@ -579,8 +722,14 @@ def install_testnet_buy_balance_v1610() -> None:
     BybitTestnetExecutionEngine.health = (
         engine_health
     )
+    BybitTestnetExecutionEngine.resolve_definitive_insufficient_balance = (
+        resolve_definitive_insufficient_balance
+    )
     BybitTestnetExecutionEngine.VERSION = "2.7"
 
+    HyperSpeedCollectiveTestnetLane._submit_pending = (
+        hyper_submit
+    )
     HyperSpeedCollectiveTestnetLane.health = (
         hyper_health
     )
