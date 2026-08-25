@@ -333,23 +333,62 @@ def test_zero_fill_canceled_exit_reconciles_and_cools_down_before_new_order(tmp_
     pending = {"kind": "exit", "event": event, "assessment": {"exit_reason": "time"}, "created_at": 1_000.0}
     lane._set_pending(pending)
     first = lane._submit_pending(pending, now=1_000.0)
-    assert first["reason"] == "zero_fill_exit_reconciled_for_corrected_retry"
+    assert first["reason"] == "exit_recovery_deferred_nonblocking"
     assert len(testnet.created_event_ids) == 1
-    recovery = lane._pending()
-    assert recovery["kind"] == "exit_recovery"
-    assert recovery["source_event"]["event_id"] == event["event_id"]
-    early = lane._submit_pending(recovery, now=1_005.0)
-    assert early["reason"] == "exit_recycle_cooldown"
+
+    # v1.60.9: a terminal zero-fill exit remains active risk but no
+    # longer monopolizes the global 0.5-second submission slot.
+    assert lane._pending() is None
+
+    health = lane.health()
+    assert health["deferred_exit_recovery_count"] == 1
+    deferred = health["deferred_exit_recoveries"][0]
+
+    assert deferred["symbol"] == "AAA/USDT"
+    assert deferred["recovery_attempt"] == 1
+    assert (
+        health["exit_recovery_isolation"]
+        ["global_pending_slot_released_after_terminal_failure"]
+        is True
+    )
+    assert (
+        health["exit_recovery_isolation"]
+        ["ambiguous_order_resubmission_allowed"]
+        is False
+    )
+
+    # Before the bounded retry time, no second exchange order is created.
+    early = lane._manage_active(
+        _service,
+        testnet.safe_snapshot(),
+        "AAA/USDT",
+        lane._active_snapshot()["AAA/USDT"],
+        now=1_005.0,
+    )
+    assert early["reason"] == "exit_recovery_deferred_nonblocking"
     assert len(testnet.created_event_ids) == 1
-    retry_at = float(recovery["retry_not_before"]) + 0.01
-    corrected = lane._submit_pending(lane._pending(), now=retry_at)
+    assert lane._pending() is None
+
+    # At the bounded retry time, fresh balance/reconciliation sizing
+    # creates exactly one corrected exit with a new deterministic event id.
+    retry_at = float(deferred["next_retry_at"]) + 0.01
+    corrected = lane._manage_active(
+        _service,
+        testnet.safe_snapshot(),
+        "AAA/USDT",
+        lane._active_snapshot()["AAA/USDT"],
+        now=retry_at,
+    )
+
     assert corrected["reason"] == "testnet_event_processed"
     assert len(testnet.created_event_ids) == 2
     assert testnet.created_event_ids[0] != testnet.created_event_ids[1]
     assert lane._pending() is None
     assert lane._active_snapshot() == {}
     assert len(testnet.preparations) >= 3
+
     health = lane.health()
+    assert health["deferred_exit_recovery_count"] == 0
     assert health["zero_fill_terminal_exit_recycle"]["ambiguous_order_resubmission_allowed"] is False
     assert health["live_authority"] is False
 
