@@ -16,6 +16,9 @@ from .testnet_micro_throughput_v1609 import (
 from .testnet_buy_balance_v1610 import (
     install_testnet_buy_balance_v1610 as _install_testnet_buy_balance_v1610,
 )
+from .testnet_exit_price_guard_v1611 import (
+    install_testnet_exit_price_guard_v1611 as _install_testnet_exit_price_guard_v1611,
+)
 
 _install_public_spot_defaults()
 del _install_public_spot_defaults
@@ -29,6 +32,8 @@ _install_testnet_micro_throughput_v1609()
 del _install_testnet_micro_throughput_v1609
 _install_testnet_buy_balance_v1610()
 del _install_testnet_buy_balance_v1610
+_install_testnet_exit_price_guard_v1611()
+del _install_testnet_exit_price_guard_v1611
 
 __all__ = [
     "arbitrage_monitor",
@@ -58,4 +63,5 @@ __all__ = [
     "testnet_exit_recycle_compat",
     "testnet_micro_throughput_v1609",
     "testnet_buy_balance_v1610",
+    "testnet_exit_price_guard_v1611",
 ]
