@@ -88,14 +88,9 @@ def _current_day_execution_quality(state: dict[str, Any]) -> dict[str, Any]:
         "submitted_notional_usd": sum(
             max(0.0, _number(row.get("submitted_usd"))) for row in submitted
         ),
-        "filled_orders": sum(
-            1 for row in rows if _number(row.get("filled")) > 0.0
-        ),
+        "filled_orders": sum(1 for row in rows if _number(row.get("filled")) > 0.0),
         "status_counts": status_counts,
-        "historical_rows_excluded": max(
-            0,
-            len(state.get("orders") or {}) - len(rows),
-        ),
+        "historical_rows_excluded": max(0, len(state.get("orders") or {}) - len(rows)),
     }
 
 
@@ -124,7 +119,9 @@ def _refresh_day_v1608(original: Any, self: Any) -> None:
 
 def _update_balance_snapshot_v1608(self: Any, balance: dict[str, Any]) -> None:
     totals = balance.get("total") or {}
-    free = balance.get("free") or {}
+    free = balance.get("free")
+    free_is_distinct = isinstance(free, dict)
+    free = free if free_is_distinct else totals
     watched_assets = {"USDT"}
     for symbol in self.state.get("positions", {}):
         watched_assets.update(str(symbol).split("/", 1))
@@ -142,6 +139,8 @@ def _update_balance_snapshot_v1608(self: Any, balance: dict[str, Any]) -> None:
                 total_value = nested.get("total")
             if free_value is None:
                 free_value = nested.get("free")
+                if free_value is None and not free_is_distinct:
+                    free_value = nested.get("total")
         if total_value is not None:
             assets[asset] = float(total_value)
         if free_value is not None:
@@ -151,6 +150,7 @@ def _update_balance_snapshot_v1608(self: Any, balance: dict[str, Any]) -> None:
         "timestamp": dt.datetime.now(dt.UTC).isoformat(),
         "assets": assets,
         "free": free_assets,
+        "free_balance_source": "exchange_free" if free_is_distinct else "exchange_total_fallback",
     }
 
 
@@ -177,12 +177,7 @@ def _record_non_tradeable_dust(
     current = max(0.0, _number((self.state.get("positions") or {}).get(symbol)))
     current_cost = max(0.0, _number((self.state.get("position_cost_usd") or {}).get(symbol)))
     if current <= 0.0:
-        return {
-            "status": "absent",
-            "symbol": symbol,
-            "reason": "no_testnet_position",
-            "live_authority": False,
-        }
+        return {"status": "absent", "symbol": symbol, "reason": "no_testnet_position", "live_authority": False}
 
     dust = {
         "symbol": symbol,
@@ -197,20 +192,16 @@ def _record_non_tradeable_dust(
         "recorded_at": dt.datetime.now(dt.UTC).isoformat(),
         "tradeable": False,
         "removed_from_active_risk_capacity": True,
+        "counted_as_executed_close": False,
         "testnet_only": True,
         "live_authority": False,
     }
     self.state.setdefault("non_tradeable_dust", {})[symbol] = dust
-    self.state["dust_cost_basis_usd_total"] = (
-        _number(self.state.get("dust_cost_basis_usd_total")) + current_cost
-    )
+    self.state["dust_cost_basis_usd_total"] = _number(self.state.get("dust_cost_basis_usd_total")) + current_cost
     self.state["dust_positions_closed"] = int(self.state.get("dust_positions_closed") or 0) + 1
     self.state.get("positions", {}).pop(symbol, None)
     self.state.get("position_cost_usd", {}).pop(symbol, None)
-    cycle_pnl = _number(self.state.get("position_cycle_pnl_usd", {}).pop(symbol, 0.0))
-    self.state["closed_positions"] = int(self.state.get("closed_positions") or 0) + 1
-    if cycle_pnl - current_cost > 0.0:
-        self.state["winning_positions"] = int(self.state.get("winning_positions") or 0) + 1
+    self.state.get("position_cycle_pnl_usd", {}).pop(symbol, None)
     self._save_state()
     return {
         "status": "dust",
@@ -221,38 +212,24 @@ def _record_non_tradeable_dust(
         "minimum_amount": max(0.0, minimum_amount),
         "minimum_cost_usd": max(0.0, minimum_cost),
         "reason": reason,
+        "counted_as_executed_close": False,
         "live_authority": False,
     }
 
 
-def _prepare_sell_v1608(
-    self: Any,
-    symbol: str,
-    requested_quantity: float,
-    reference_price: float,
-) -> dict[str, Any]:
+def _prepare_sell_v1608(self: Any, symbol: str, requested_quantity: float, reference_price: float) -> dict[str, Any]:
     with self._io_lock:
         self._require_started()
         symbol = str(symbol or "").upper()
         requested_quantity = max(0.0, _number(requested_quantity))
         reference_price = max(0.0, _number(reference_price))
         if not symbol or requested_quantity <= 0.0 or reference_price <= 0.0:
-            return {
-                "status": "blocked",
-                "reason": "invalid_sell_preparation_input",
-                "symbol": symbol,
-                "live_authority": False,
-            }
+            return {"status": "blocked", "reason": "invalid_sell_preparation_input", "symbol": symbol, "live_authority": False}
 
         self.reconcile_required()
         current = max(0.0, _number((self.state.get("positions") or {}).get(symbol)))
         if current <= 0.0:
-            return {
-                "status": "absent",
-                "reason": "no_testnet_position",
-                "symbol": symbol,
-                "live_authority": False,
-            }
+            return {"status": "absent", "reason": "no_testnet_position", "symbol": symbol, "live_authority": False}
 
         unresolved = [
             record
@@ -262,39 +239,27 @@ def _prepare_sell_v1608(
             and str(record.get("status") or "").lower() in {"open", "submitting"}
         ]
         if unresolved:
-            return {
-                "status": "blocked",
-                "reason": "symbol_has_unresolved_order",
-                "symbol": symbol,
-                "live_authority": False,
-            }
+            return {"status": "blocked", "reason": "symbol_has_unresolved_order", "symbol": symbol, "live_authority": False}
 
         base_asset = symbol.split("/", 1)[0]
-        free_assets = (self.state.get("account_balance") or {}).get("free") or {}
+        balance_snapshot = self.state.get("account_balance") or {}
+        free_assets = balance_snapshot.get("free") or {}
         if base_asset not in free_assets:
             return {
                 "status": "blocked",
                 "reason": "free_base_balance_unavailable",
                 "symbol": symbol,
                 "position_quantity": current,
+                "balance_source": balance_snapshot.get("free_balance_source"),
                 "live_authority": False,
             }
         free_quantity = max(0.0, _number(free_assets.get(base_asset)))
 
         market = self.exchange.market(symbol)
-        minimum_cost = max(
-            0.0,
-            _number(((market.get("limits") or {}).get("cost") or {}).get("min")),
-        )
-        minimum_amount = max(
-            0.0,
-            _number(((market.get("limits") or {}).get("amount") or {}).get("min")),
-        )
+        minimum_cost = max(0.0, _number(((market.get("limits") or {}).get("cost") or {}).get("min")))
+        minimum_amount = max(0.0, _number(((market.get("limits") or {}).get("amount") or {}).get("min")))
 
-        position_precise = max(
-            0.0,
-            _number(self.exchange.amount_to_precision(symbol, current)),
-        )
+        position_precise = max(0.0, _number(self.exchange.amount_to_precision(symbol, current)))
         position_value = position_precise * reference_price
         position_is_dust = bool(
             position_precise <= 0.0
@@ -314,10 +279,7 @@ def _prepare_sell_v1608(
             )
 
         available = min(current, free_quantity)
-        available_precise = max(
-            0.0,
-            _number(self.exchange.amount_to_precision(symbol, available)),
-        )
+        available_precise = max(0.0, _number(self.exchange.amount_to_precision(symbol, available)))
         if (
             available_precise <= 0.0
             or (minimum_amount > 0.0 and available_precise < minimum_amount)
@@ -335,10 +297,7 @@ def _prepare_sell_v1608(
             }
 
         quantity = min(requested_quantity, available_precise)
-        quantity = max(
-            0.0,
-            _number(self.exchange.amount_to_precision(symbol, quantity)),
-        )
+        quantity = max(0.0, _number(self.exchange.amount_to_precision(symbol, quantity)))
         if (
             quantity <= 0.0
             or (minimum_amount > 0.0 and quantity < minimum_amount)
@@ -368,7 +327,8 @@ def _prepare_sell_v1608(
             "minimum_amount": minimum_amount,
             "minimum_cost_usd": minimum_cost,
             "reconciled_at": self.state.get("last_reconciliation"),
-            "balance_timestamp": (self.state.get("account_balance") or {}).get("timestamp"),
+            "balance_timestamp": balance_snapshot.get("timestamp"),
+            "balance_source": balance_snapshot.get("free_balance_source"),
             "testnet_only": True,
             "live_authority": False,
         }
@@ -420,12 +380,7 @@ def _mirror_event_v1608(self: Any, event: dict[str, Any]) -> dict[str, Any]:
         if prep_status == "absent":
             return self._skip(client_id, symbol, side, "no_testnet_position")
         if prep_status != "executable":
-            return self._skip(
-                client_id,
-                symbol,
-                side,
-                "sell_preparation:" + str(sell_preparation.get("reason") or "blocked"),
-            )
+            return self._skip(client_id, symbol, side, "sell_preparation:" + str(sell_preparation.get("reason") or "blocked"))
         quantity = _number(sell_preparation.get("executable_quantity"))
         submitted_usd = quantity * price
 
@@ -469,21 +424,12 @@ def _mirror_event_v1608(self: Any, event: dict[str, Any]) -> dict[str, Any]:
     self.state["daily_submitted_usd"] = _number(self.state.get("daily_submitted_usd")) + submitted_usd
     self.state["daily_order_count"] = int(self.state.get("daily_order_count") or 0) + 1
     if side == "buy":
-        self.state["daily_entry_submitted_usd"] = (
-            _number(self.state.get("daily_entry_submitted_usd")) + submitted_usd
-        )
+        self.state["daily_entry_submitted_usd"] = _number(self.state.get("daily_entry_submitted_usd")) + submitted_usd
         self.state["daily_entry_order_count"] = int(self.state.get("daily_entry_order_count") or 0) + 1
     self._save_state()
 
     self._verify_testnet_urls()
-    observed = self.exchange.create_order(
-        symbol,
-        "market",
-        side,
-        quantity,
-        None,
-        {"orderLinkId": client_id},
-    )
+    observed = self.exchange.create_order(symbol, "market", side, quantity, None, {"orderLinkId": client_id})
     self._merge_observed(record, observed)
     self._save_state()
     return {"client_order_id": client_id, "idempotent": False, **self._public_record(record)}
@@ -524,320 +470,209 @@ class _EligibleCandidateService:
         return getattr(self._service, name)
 
     def collective_candidates(self, limit: int = 8) -> list[str]:
-        public = list(self._service.collective_candidates(limit=limit) or [])
-        eligible_method = getattr(self._lane.testnet, "eligible_symbols", None)
-        eligible: set[str] = set()
-        error_type: str | None = None
-        if callable(eligible_method):
-            try:
-                eligible = {str(symbol).upper() for symbol in eligible_method("USDT")}
-            except Exception as exc:
-                error_type = type(exc).__name__
-        filtered = [
-            str(symbol).upper()
-            for symbol in public
-            if str(symbol).upper() in eligible
-        ]
+        public = [str(item).upper() for item in self._service.collective_candidates(limit=limit)]
+        try:
+            eligible = {str(item).upper() for item in self._lane.testnet.eligible_symbols("USDT")}
+            error = None
+        except Exception as exc:
+            eligible = set()
+            error = f"{type(exc).__name__}: {exc}"
+        filtered = [symbol for symbol in public if symbol in eligible]
         with self._lane._lock:
             self._lane.state["last_testnet_market_filter"] = {
+                "observed_at": time.time(),
                 "public_candidate_count": len(public),
                 "eligible_candidate_count": len(filtered),
                 "filtered_out_count": max(0, len(public) - len(filtered)),
                 "eligible_market_count": len(eligible),
-                "error_type": error_type,
-                "fail_closed": True,
-                "timestamp": time.time(),
+                "error": error,
+                "live_authority": False,
             }
             self._lane._save_locked()
-        return filtered[:limit]
+        return filtered
 
 
-def _hyper_step_v1608(original: Any, self: Any, *, now: float | None = None) -> dict[str, Any]:
+def _hyper_step_v1608(original: Any, self: Any, now: float | None = None) -> dict[str, Any]:
     original_provider = self.service_provider
 
-    def provider() -> Any:
-        service = original_provider()
-        if service is None:
-            return None
-        return _EligibleCandidateService(service, self)
+    def filtered_provider() -> Any:
+        return _EligibleCandidateService(original_provider(), self)
 
-    self.service_provider = provider
+    self.service_provider = filtered_provider
     try:
         return original(self, now=now)
     finally:
         self.service_provider = original_provider
 
 
-def _adaptive_position_capacity_v1608(
-    original: Any,
-    self: Any,
-    supervisor: dict[str, Any],
-    snapshot: dict[str, Any],
-    *,
-    candidate_count: int,
-    entries_today: int,
-) -> dict[str, Any]:
-    entry_snapshot = copy.deepcopy(snapshot)
-    entry_snapshot["daily_order_count"] = int(snapshot.get("daily_entry_order_count") or 0)
-    entry_snapshot["daily_submitted_usd"] = _number(snapshot.get("daily_entry_submitted_usd"))
-    result = original(
-        self,
-        supervisor,
-        entry_snapshot,
-        candidate_count=candidate_count,
-        entries_today=entries_today,
-    )
-    result["entry_budget_order_count"] = entry_snapshot["daily_order_count"]
-    result["entry_budget_submitted_usd"] = entry_snapshot["daily_submitted_usd"]
-    result["protective_exits_excluded_from_entry_budget"] = True
-    return result
+def _adaptive_position_capacity_v1608(original: Any, self: Any, snapshot: dict[str, Any]) -> dict[str, Any]:
+    adjusted = copy.deepcopy(snapshot)
+    adjusted["daily_order_count"] = int(snapshot.get("daily_entry_order_count") or 0)
+    adjusted["daily_submitted_usd"] = _number(snapshot.get("daily_entry_submitted_usd"))
+    return original(self, adjusted)
 
 
-def _compound_order_notional_v1608(
-    original: Any,
-    self: Any,
-    supervisor: dict[str, Any],
-    *,
-    slots: int,
-) -> dict[str, Any]:
-    canonical = original(self, supervisor, slots=slots)
-    if canonical.get("allowed") is not True:
+def _compound_order_notional_v1608(original: Any, self: Any, supervisory: dict[str, Any], *, slots: int) -> dict[str, Any]:
+    canonical = original(self, supervisory, slots=slots)
+    if not canonical.get("allowed"):
         return canonical
 
-    snapshot = self.testnet.safe_snapshot()
+    snapshot_method = getattr(self.testnet, "safe_snapshot", None)
+    snapshot = snapshot_method() if callable(snapshot_method) else {}
     performance = snapshot.get("performance") or {}
     actual_realized = _number(performance.get("realized_pnl_usd"))
     dust_cost = max(0.0, _number(performance.get("non_tradeable_dust_cost_basis_usd")))
     with self._lock:
-        closed = [
-            copy.deepcopy(row)
-            for row in (self.state.get("closed") or [])
+        completed_entry_notional = sum(
+            max(0.0, _number(row.get("entry_notional_usd"), _number(row.get("entry_price")) * _number(row.get("quantity"))))
+            for row in self.state.get("closed", [])
             if isinstance(row, dict)
-        ]
-    completed_entry_notional = sum(
-        max(
-            0.0,
-            _number(row.get("entry_notional_usd"))
-            or (_number(row.get("quantity")) * _number(row.get("entry_price"))),
         )
-        for row in closed
-    )
     modeled_floor_bps = max(MODELED_ROUND_TRIP_COST_FLOOR_BPS, _number(self.round_trip_cost_bps))
     modeled_cost_reserve = completed_entry_notional * modeled_floor_bps / 10_000.0
     actual_after_model = actual_realized - dust_cost - modeled_cost_reserve
 
-    growth = supervisor.get("capital_growth") or {}
-    risk_multiplier = max(0.0, min(1.0, _number(growth.get("risk_multiplier"), 1.0)))
+    risk_multiplier = min(1.0, max(0.0, _number(canonical.get("risk_multiplier"), 1.0)))
     base_notional = min(self.maximum_order_usd, self.order_usd) * risk_multiplier
-    if risk_multiplier <= 0.0 or base_notional < 0.50:
-        return {
-            **canonical,
-            "allowed": False,
-            "reason": "testnet_base_exploration_budget_blocked",
-            "actual_testnet_realized_pnl_usd": actual_realized,
-            "actual_testnet_net_after_modeled_cost_usd": actual_after_model,
-            "actual_testnet_profit_compounding_eligible": False,
-            "compounding": False,
-            "live_authority": False,
-        }
-
-    canonical_notional = max(0.0, _number(canonical.get("order_notional_usd")))
-    if actual_after_model <= 0.0:
-        return {
-            **canonical,
-            "reason": "bounded_base_until_positive_testnet_realized_net_pnl",
-            "order_notional_usd": base_notional,
-            "compounding": False,
+    result = dict(canonical)
+    result.update(
+        {
+            "canonical_paper_order_notional_usd": _number(canonical.get("order_notional_usd")),
             "canonical_paper_compounding_available": bool(canonical.get("compounding")),
-            "canonical_paper_order_notional_usd": canonical_notional,
             "actual_testnet_realized_pnl_usd": actual_realized,
-            "testnet_non_tradeable_dust_cost_basis_usd": dust_cost,
-            "testnet_modeled_cost_reserve_usd": modeled_cost_reserve,
+            "actual_testnet_dust_cost_basis_usd": dust_cost,
+            "actual_testnet_modeled_cost_reserve_usd": modeled_cost_reserve,
             "actual_testnet_net_after_modeled_cost_usd": actual_after_model,
-            "actual_testnet_profit_compounding_eligible": False,
             "modeled_round_trip_cost_floor_bps": modeled_floor_bps,
             "live_authority": False,
         }
+    )
+    if actual_after_model <= 0.0:
+        result["order_notional_usd"] = base_notional
+        result["compounding"] = False
+        result["actual_testnet_profit_compounding_eligible"] = False
+        return result
 
-    incremental_per_slot = actual_after_model / max(1, int(slots))
-    actual_profit_cap = min(self.maximum_order_usd, base_notional + incremental_per_slot)
-    order_notional = min(canonical_notional, actual_profit_cap)
-    return {
-        **canonical,
-        "reason": "actual_testnet_profit_gated_compound_budget",
-        "order_notional_usd": order_notional,
-        "compounding": order_notional > base_notional + 1e-12,
-        "canonical_paper_compounding_available": bool(canonical.get("compounding")),
-        "canonical_paper_order_notional_usd": canonical_notional,
-        "actual_testnet_realized_pnl_usd": actual_realized,
-        "testnet_non_tradeable_dust_cost_basis_usd": dust_cost,
-        "testnet_modeled_cost_reserve_usd": modeled_cost_reserve,
-        "actual_testnet_net_after_modeled_cost_usd": actual_after_model,
-        "actual_testnet_profit_compounding_eligible": True,
-        "actual_testnet_profit_increment_cap_usd": actual_profit_cap,
-        "modeled_round_trip_cost_floor_bps": modeled_floor_bps,
-        "live_authority": False,
-    }
+    incremental_profit_cap = max(0.0, actual_after_model * 0.5)
+    result["order_notional_usd"] = min(
+        _number(canonical.get("order_notional_usd")),
+        base_notional + incremental_profit_cap,
+    )
+    result["compounding"] = result["order_notional_usd"] > base_notional + 1e-12
+    result["actual_testnet_profit_compounding_eligible"] = True
+    return result
 
 
 def _exit_recycle_cooldown(self: Any) -> float:
-    return max(
-        EXIT_RECYCLE_MIN_COOLDOWN_SECONDS,
-        max(1.0, _number(getattr(self, "cadence_seconds", 5.0))) * 3.0,
-    )
+    return max(EXIT_RECYCLE_MIN_COOLDOWN_SECONDS, _number(self.cadence_seconds) * 3.0)
 
 
 def _close_dust_slot(self: Any, pending: dict[str, Any], preparation: dict[str, Any], now: float) -> dict[str, Any]:
-    source_event = pending.get("event") or pending.get("source_event") or {}
-    symbol = str(source_event.get("symbol") or preparation.get("symbol") or "").upper()
+    event = pending.get("event") or pending.get("source_event") or {}
+    symbol = str(event.get("symbol") or preparation.get("symbol") or "").upper()
     with self._lock:
-        record = (self.state.get("active") or {}).pop(symbol, None)
-        dust_history = list(self.state.get("dust_recycles") or [])
-        dust_history.append(
+        self.state.setdefault("active", {}).pop(symbol, None)
+        self.state.setdefault("dust_recycles", []).append(
             {
                 "symbol": symbol,
-                "quantity": preparation.get("quantity"),
-                "cost_basis_usd": preparation.get("cost_basis_usd"),
-                "reason": preparation.get("reason"),
-                "entry_event_id": (record or {}).get("entry_event_id"),
-                "exit_reason": (pending.get("assessment") or {}).get("exit_reason"),
-                "recycled_at": now,
-                "testnet_only": True,
+                "quantity": _number(preparation.get("quantity")),
+                "cost_basis_usd": _number(preparation.get("cost_basis_usd")),
+                "reason": str(preparation.get("reason") or "non_tradeable_dust"),
+                "recorded_at": now,
                 "live_authority": False,
             }
         )
-        self.state["dust_recycles"] = dust_history[-250:]
-        self.state["pending_event"] = None
-        self.state.setdefault("last_exit_by_symbol", {})[symbol] = now
-        self.state["last_action"] = {
-            "action": "dust_slot_recycle",
-            "symbol": symbol,
-            "timestamp": now,
-            "quantity": preparation.get("quantity"),
-            "live_authority": False,
-        }
+        self.state["dust_recycles"] = self.state["dust_recycles"][-100:]
+        self.state["pending_submission"] = None
+        self.state.setdefault("last_exit", {})[symbol] = now
         self._save_locked()
     return self._decision(
         "non_tradeable_dust_slot_recycled",
-        details={
-            "kind": "exit",
-            "symbol": symbol,
-            "status": "dust",
-            "preparation": copy.deepcopy(preparation),
-        },
+        details={"kind": "exit", "symbol": symbol, "preparation": preparation},
     )
 
 
-def _submit_pending_v1608(
-    original: Any,
-    self: Any,
-    pending: dict[str, Any],
-    *,
-    now: float,
-) -> dict[str, Any]:
+def _submit_pending_v1608(original: Any, self: Any, pending: dict[str, Any], now: float) -> dict[str, Any]:
     kind = str(pending.get("kind") or "")
     if kind not in {"exit", "exit_recovery"}:
         return original(self, pending, now=now)
 
     retry_not_before = _number(pending.get("retry_not_before"))
     if retry_not_before > now:
+        self._set_pending(pending)
         return self._decision(
             "exit_recycle_cooldown",
             details={
                 "kind": "exit",
-                "symbol": str(
-                    ((pending.get("event") or pending.get("source_event") or {}).get("symbol") or "")
-                ).upper(),
-                "retry_in_seconds": max(0.0, retry_not_before - now),
-                "recovery_attempt": int(pending.get("recovery_attempt") or 0),
+                "retry_not_before": retry_not_before,
+                "remaining_seconds": max(0.0, retry_not_before - now),
+                "ambiguous_order_resubmission_allowed": False,
             },
         )
 
     if kind == "exit_recovery":
-        source = copy.deepcopy(pending.get("source_event") or {})
-        preparation = self.testnet.prepare_sell(
-            str(source.get("symbol") or ""),
-            _number(source.get("quantity")),
-            _number(source.get("price")),
-        )
+        source_event = copy.deepcopy(pending.get("source_event") or {})
+        symbol = str(source_event.get("symbol") or "").upper()
+        active = self._active_snapshot().get(symbol)
+        if not isinstance(active, dict):
+            self._clear_pending_if_event(source_event.get("event_id"))
+            return self._decision("exit_recovery_position_absent", details={"kind": "exit", "symbol": symbol})
+        reference_price = _number(source_event.get("price"), _number(active.get("entry_price")))
+        requested_quantity = max(_number(active.get("quantity")), _number(source_event.get("quantity")))
+        preparation = self.testnet.prepare_sell(symbol, requested_quantity, reference_price)
         if preparation.get("status") == "dust":
             return _close_dust_slot(self, pending, preparation, now)
         if preparation.get("status") != "executable":
-            pending = copy.deepcopy(pending)
             pending["retry_not_before"] = now + _exit_recycle_cooldown(self)
             pending["last_sell_preparation"] = copy.deepcopy(preparation)
             self._set_pending(pending)
             return self._decision(
-                "exit_reconciliation_waiting_for_executable_balance",
-                details={
-                    "kind": "exit",
-                    "symbol": str(source.get("symbol") or "").upper(),
-                    "preparation": preparation,
-                },
+                "exit_recovery_waiting_for_executable_balance",
+                details={"kind": "exit", "symbol": symbol, "preparation": preparation},
             )
-        new_event = self._new_event(
-            symbol=str(source.get("symbol") or "").upper(),
+        corrected_quantity = _number(preparation.get("executable_quantity"))
+        corrected_event = self._new_event(
+            symbol=symbol,
             side="sell",
-            quantity=_number(preparation.get("executable_quantity")),
-            price=_number(source.get("price")),
-            reason=str(source.get("reason") or "fast_collective_testnet_exit") + ":corrected_recycle",
+            quantity=corrected_quantity,
+            price=reference_price,
+            reason=str(source_event.get("reason") or "fast_collective_testnet_exit") + ":corrected_recycle",
             now=now,
-            remaining_quantity=max(
-                0.0,
-                _number(preparation.get("position_quantity"))
-                - _number(preparation.get("executable_quantity")),
-            ),
+            remaining_quantity=max(0.0, _number(active.get("quantity")) - corrected_quantity),
         )
+        corrected_event["recovery_of_event_id"] = str(source_event.get("event_id") or "")
         pending = {
             "kind": "exit",
-            "event": new_event,
+            "event": corrected_event,
             "assessment": copy.deepcopy(pending.get("assessment") or {}),
             "created_at": now,
             "recovery_attempt": int(pending.get("recovery_attempt") or 0),
-            "recovery_of_event_id": source.get("event_id"),
-            "sell_preparation": copy.deepcopy(preparation),
+            "recovery_of_event_id": str(source_event.get("event_id") or ""),
             "submitted_once": False,
         }
         self._set_pending(pending)
 
+    event = copy.deepcopy(pending.get("event") or {})
     if not pending.get("submitted_once"):
-        event = copy.deepcopy(pending.get("event") or {})
-        preparation = self.testnet.prepare_sell(
-            str(event.get("symbol") or ""),
-            _number(event.get("quantity")),
-            _number(event.get("price")),
-        )
+        symbol = str(event.get("symbol") or "").upper()
+        preparation = self.testnet.prepare_sell(symbol, _number(event.get("quantity")), _number(event.get("price")))
         if preparation.get("status") == "dust":
             return _close_dust_slot(self, pending, preparation, now)
         if preparation.get("status") != "executable":
-            hold = {
-                "kind": "exit_recovery",
-                "source_event": event,
-                "assessment": copy.deepcopy(pending.get("assessment") or {}),
-                "created_at": pending.get("created_at", now),
-                "retry_not_before": now + _exit_recycle_cooldown(self),
-                "recovery_attempt": int(pending.get("recovery_attempt") or 0),
-                "last_sell_preparation": copy.deepcopy(preparation),
-            }
-            self._set_pending(hold)
+            pending["retry_not_before"] = now + _exit_recycle_cooldown(self)
+            pending["last_sell_preparation"] = copy.deepcopy(preparation)
+            self._set_pending(pending)
             return self._decision(
-                "exit_reconciliation_waiting_for_executable_balance",
-                details={
-                    "kind": "exit",
-                    "symbol": str(event.get("symbol") or "").upper(),
-                    "preparation": preparation,
-                },
+                "exit_waiting_for_executable_balance",
+                details={"kind": "exit", "symbol": symbol, "preparation": preparation},
             )
-        event["quantity"] = _number(preparation.get("executable_quantity"))
-        event["remaining_quantity"] = max(
-            0.0,
-            _number(preparation.get("position_quantity")) - event["quantity"],
-        )
-        pending = copy.deepcopy(pending)
-        pending["event"] = event
-        pending["sell_preparation"] = copy.deepcopy(preparation)
-        pending["submitted_once"] = True
-        self._set_pending(pending)
+        executable_quantity = _number(preparation.get("executable_quantity"))
+        if executable_quantity != _number(event.get("quantity")):
+            event["quantity"] = executable_quantity
+            active = self._active_snapshot().get(symbol) or {}
+            event["remaining_quantity"] = max(0.0, _number(active.get("quantity")) - executable_quantity)
+            pending["event"] = event
+            self._set_pending(pending)
 
     result = original(self, pending, now=now)
     details = result.get("details") or {}
@@ -883,9 +718,29 @@ def _submit_pending_v1608(
     )
 
 
+def _testnet_snapshot_for_health(testnet: Any) -> dict[str, Any]:
+    snapshot_method = getattr(testnet, "safe_snapshot", None)
+    if callable(snapshot_method):
+        try:
+            snapshot = snapshot_method()
+            if isinstance(snapshot, dict):
+                return snapshot
+        except Exception:
+            pass
+    health_method = getattr(testnet, "health", None)
+    if callable(health_method):
+        try:
+            snapshot = health_method()
+            if isinstance(snapshot, dict):
+                return snapshot
+        except Exception:
+            pass
+    return {}
+
+
 def _hyper_health_v1608(original: Any, self: Any) -> dict[str, Any]:
     payload = original(self)
-    snapshot = self.testnet.safe_snapshot()
+    snapshot = _testnet_snapshot_for_health(self.testnet)
     performance = snapshot.get("performance") or {}
     with self._lock:
         last_filter = copy.deepcopy(self.state.get("last_testnet_market_filter") or {})
@@ -906,22 +761,14 @@ def _hyper_health_v1608(original: Any, self: Any) -> dict[str, Any]:
             },
             "dust_recycles": dust_recycles[-10:],
             "dust_recycle_count": len(dust_recycles),
-            "canonical_paper_growth": copy.deepcopy(
-                (self.supervisory_provider() or {}).get("capital_growth") or {}
-            ),
+            "canonical_paper_growth": copy.deepcopy((self.supervisory_provider() or {}).get("capital_growth") or {}),
             "actual_testnet_realized_pnl_usd": _number(performance.get("realized_pnl_usd")),
             "actual_testnet_realized_net_after_dust_usd": _number(
-                performance.get("realized_net_after_dust_usd"),
-                _number(performance.get("realized_pnl_usd")),
+                performance.get("realized_net_after_dust_usd"), _number(performance.get("realized_pnl_usd"))
             ),
-            "actual_testnet_profit_compounding_eligible": bool(
-                last_sizing.get("actual_testnet_profit_compounding_eligible")
-            ),
+            "actual_testnet_profit_compounding_eligible": bool(last_sizing.get("actual_testnet_profit_compounding_eligible")),
             "principal_protected_compounding": bool(last_sizing.get("compounding")),
-            "modeled_round_trip_cost_floor_bps": max(
-                MODELED_ROUND_TRIP_COST_FLOOR_BPS,
-                _number(self.round_trip_cost_bps),
-            ),
+            "modeled_round_trip_cost_floor_bps": max(MODELED_ROUND_TRIP_COST_FLOOR_BPS, _number(self.round_trip_cost_bps)),
             "automatic_promotion": False,
             "live_authority": False,
         }
@@ -930,19 +777,22 @@ def _hyper_health_v1608(original: Any, self: Any) -> dict[str, Any]:
 
 
 def install_testnet_exit_recycle_v1608() -> None:
-    """Install the v1.60.8 Testnet exit/recycle correction idempotently."""
-
     from .fast_collective_hyper import HyperSpeedCollectiveTestnetLane
     from .testnet_execution import BybitTestnetExecutionEngine
     from .velocity_sniper_testnet import VelocitySniperTestnetLane
 
-    if getattr(BybitTestnetExecutionEngine, "_testnet_exit_recycle_v1608_installed", False):
+    if getattr(BybitTestnetExecutionEngine, "_v1608_exit_recycle_installed", False):
         return
 
     original_load_state = BybitTestnetExecutionEngine._load_state
     original_refresh_day = BybitTestnetExecutionEngine._refresh_day
     original_skip = BybitTestnetExecutionEngine._skip
-    original_engine_health = BybitTestnetExecutionEngine.health
+    original_health = BybitTestnetExecutionEngine.health
+    original_hyper_step = HyperSpeedCollectiveTestnetLane.step
+    original_hyper_capacity = HyperSpeedCollectiveTestnetLane._adaptive_position_capacity
+    original_hyper_compound = HyperSpeedCollectiveTestnetLane._compound_order_notional
+    original_hyper_submit = HyperSpeedCollectiveTestnetLane._submit_pending
+    original_hyper_health = HyperSpeedCollectiveTestnetLane.health
 
     BybitTestnetExecutionEngine.VERSION = "2.6"
     BybitTestnetExecutionEngine._load_state = lambda self: _load_state_v1608(original_load_state, self)
@@ -953,42 +803,20 @@ def install_testnet_exit_recycle_v1608() -> None:
     )
     BybitTestnetExecutionEngine.prepare_sell = _prepare_sell_v1608
     BybitTestnetExecutionEngine._mirror_event = _mirror_event_v1608
-    BybitTestnetExecutionEngine.health = lambda self: _engine_health_v1608(original_engine_health, self)
-    BybitTestnetExecutionEngine._testnet_exit_recycle_v1608_installed = True
-
-    original_hyper_step = HyperSpeedCollectiveTestnetLane.step
-    original_capacity = HyperSpeedCollectiveTestnetLane._adaptive_position_capacity
-    original_compound = HyperSpeedCollectiveTestnetLane._compound_order_notional
-    original_submit = HyperSpeedCollectiveTestnetLane._submit_pending
-    original_hyper_health = HyperSpeedCollectiveTestnetLane.health
+    BybitTestnetExecutionEngine.health = lambda self: _engine_health_v1608(original_health, self)
+    BybitTestnetExecutionEngine._v1608_exit_recycle_installed = True
 
     HyperSpeedCollectiveTestnetLane.VERSION = "1.60.8"
-    HyperSpeedCollectiveTestnetLane.step = lambda self, *, now=None: _hyper_step_v1608(
-        original_hyper_step, self, now=now
+    HyperSpeedCollectiveTestnetLane.step = lambda self, now=None: _hyper_step_v1608(original_hyper_step, self, now=now)
+    HyperSpeedCollectiveTestnetLane._adaptive_position_capacity = lambda self, snapshot: _adaptive_position_capacity_v1608(
+        original_hyper_capacity, self, snapshot
     )
-    HyperSpeedCollectiveTestnetLane._adaptive_position_capacity = (
-        lambda self, supervisor, snapshot, *, candidate_count, entries_today: _adaptive_position_capacity_v1608(
-            original_capacity,
-            self,
-            supervisor,
-            snapshot,
-            candidate_count=candidate_count,
-            entries_today=entries_today,
-        )
+    HyperSpeedCollectiveTestnetLane._compound_order_notional = lambda self, supervisory, *, slots: _compound_order_notional_v1608(
+        original_hyper_compound, self, supervisory, slots=slots
     )
-    HyperSpeedCollectiveTestnetLane._compound_order_notional = (
-        lambda self, supervisor, *, slots: _compound_order_notional_v1608(
-            original_compound, self, supervisor, slots=slots
-        )
+    HyperSpeedCollectiveTestnetLane._submit_pending = lambda self, pending, now: _submit_pending_v1608(
+        original_hyper_submit, self, pending, now
     )
-    HyperSpeedCollectiveTestnetLane._submit_pending = (
-        lambda self, pending, *, now: _submit_pending_v1608(
-            original_submit, self, pending, now=now
-        )
-    )
-    HyperSpeedCollectiveTestnetLane.health = lambda self: _hyper_health_v1608(
-        original_hyper_health, self
-    )
-    HyperSpeedCollectiveTestnetLane._testnet_exit_recycle_v1608_installed = True
+    HyperSpeedCollectiveTestnetLane.health = lambda self: _hyper_health_v1608(original_hyper_health, self)
 
     VelocitySniperTestnetLane.VERSION = "1.60.8"
