@@ -7,6 +7,9 @@ from .fast_testnet_absence_quorum import (
 from .testnet_exit_recycle import (
     install_testnet_exit_recycle_v1608 as _install_testnet_exit_recycle_v1608,
 )
+from .testnet_exit_recycle_compat import (
+    install_testnet_exit_recycle_compat_v1608 as _install_testnet_exit_recycle_compat_v1608,
+)
 
 _install_public_spot_defaults()
 del _install_public_spot_defaults
@@ -14,6 +17,8 @@ _install_fast_testnet_absence_quorum()
 del _install_fast_testnet_absence_quorum
 _install_testnet_exit_recycle_v1608()
 del _install_testnet_exit_recycle_v1608
+_install_testnet_exit_recycle_compat_v1608()
+del _install_testnet_exit_recycle_compat_v1608
 
 __all__ = [
     "arbitrage_monitor",
@@ -40,4 +45,5 @@ __all__ = [
     "temporal_guard",
     "testnet_execution",
     "testnet_exit_recycle",
+    "testnet_exit_recycle_compat",
 ]
