@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import signal
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -3148,10 +3149,54 @@ class PaperRunner:
 
     @staticmethod
     def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-        os.replace(temporary, path)
+        """Atomically replace one JSON state file without shared temp-name races."""
+
+        path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        temporary: Path | None = None
+
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=path.parent,
+                prefix=f".{path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as handle:
+                temporary = Path(
+                    handle.name
+                )
+
+                json.dump(
+                    payload,
+                    handle,
+                    indent=2,
+                    sort_keys=True,
+                )
+
+                handle.flush()
+                os.fsync(
+                    handle.fileno()
+                )
+
+            # os.replace remains atomic because
+            # the temporary file lives in the
+            # same directory/filesystem.
+            os.replace(
+                temporary,
+                path,
+            )
+
+        finally:
+            if temporary is not None:
+                try:
+                    temporary.unlink()
+                except FileNotFoundError:
+                    pass
 
 
 def configure_logging() -> None:
