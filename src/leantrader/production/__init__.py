@@ -37,6 +37,9 @@ from .testnet_stale_profit_exit_revalidation_v1617 import (
 from .testnet_authoritative_exit_mark_v1618 import (
     install_testnet_authoritative_exit_mark_v1618 as _install_testnet_authoritative_exit_mark_v1618,
 )
+from .testnet_execution_first_candidates_v1619 import (
+    install_testnet_execution_first_candidates_v1619 as _install_testnet_execution_first_candidates_v1619,
+)
 
 _install_public_spot_defaults()
 del _install_public_spot_defaults
@@ -64,6 +67,8 @@ _install_testnet_stale_profit_exit_revalidation_v1617()
 del _install_testnet_stale_profit_exit_revalidation_v1617
 _install_testnet_authoritative_exit_mark_v1618()
 del _install_testnet_authoritative_exit_mark_v1618
+_install_testnet_execution_first_candidates_v1619()
+del _install_testnet_execution_first_candidates_v1619
 
 __all__ = [
     "arbitrage_monitor",
@@ -100,4 +105,5 @@ __all__ = [
     "testnet_roundtrip_candidate_router_v1616",
     "testnet_stale_profit_exit_revalidation_v1617",
     "testnet_authoritative_exit_mark_v1618",
+    "testnet_execution_first_candidates_v1619",
 ]
