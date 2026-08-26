@@ -31,6 +31,9 @@ from .testnet_price_limit_edge_exit_v1615 import (
 from .testnet_roundtrip_candidate_router_v1616 import (
     install_testnet_roundtrip_candidate_router_v1616 as _install_testnet_roundtrip_candidate_router_v1616,
 )
+from .testnet_stale_profit_exit_revalidation_v1617 import (
+    install_testnet_stale_profit_exit_revalidation_v1617 as _install_testnet_stale_profit_exit_revalidation_v1617,
+)
 
 _install_public_spot_defaults()
 del _install_public_spot_defaults
@@ -54,6 +57,8 @@ _install_testnet_price_limit_edge_exit_v1615()
 del _install_testnet_price_limit_edge_exit_v1615
 _install_testnet_roundtrip_candidate_router_v1616()
 del _install_testnet_roundtrip_candidate_router_v1616
+_install_testnet_stale_profit_exit_revalidation_v1617()
+del _install_testnet_stale_profit_exit_revalidation_v1617
 
 __all__ = [
     "arbitrage_monitor",
@@ -88,4 +93,5 @@ __all__ = [
     "testnet_capital_recovery_v1614",
     "testnet_price_limit_edge_exit_v1615",
     "testnet_roundtrip_candidate_router_v1616",
+    "testnet_stale_profit_exit_revalidation_v1617",
 ]
