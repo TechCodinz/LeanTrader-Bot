@@ -158,3 +158,49 @@ def test_startup_sweep_recycles_persisted_fresh_bid_dust(tmp_path):
     assert health["exit_price_guard"]["startup_fresh_bid_dust_sweep"]["recycled"] == ["BTC/USDT"]
     assert health["performance"]["closed_positions"] == 0
     assert health["live_authority"] is False
+
+
+def test_startup_sweep_handles_raw_subminimum_before_precision(tmp_path):
+    class StrictMinimumBybit(PriceGuardBybit):
+        def amount_to_precision(self, symbol, amount):
+            minimum = float(
+                (
+                    (
+                        self.market(symbol).get("limits")
+                        or {}
+                    ).get("amount")
+                    or {}
+                ).get("min")
+                or 0.0
+            )
+            if minimum > 0.0 and float(amount) < minimum:
+                raise AssertionError(
+                    "precision must not be called for raw subminimum dust"
+                )
+            return super().amount_to_precision(symbol, amount)
+
+    fake = StrictMinimumBybit()
+    instance, _ = engine(tmp_path, fake)
+
+    instance.state["positions"]["BTC/USDT"] = 0.0005
+    instance.state["position_cost_usd"]["BTC/USDT"] = 0.05
+    fake.balance_total["BTC"] = 0.0005
+    fake.balance_free["BTC"] = 0.0005
+    fake.bid = 100.0
+    fake.ask = 101.0
+
+    instance._save_state()
+    instance.start()
+
+    health = instance.health()
+
+    assert "BTC/USDT" not in health["positions"]
+    assert "BTC/USDT" in health["non_tradeable_dust"]
+    assert (
+        health["exit_price_guard"]
+        ["startup_fresh_bid_dust_sweep"]
+        ["errors"]
+        == []
+    )
+    assert health["performance"]["closed_positions"] == 0
+    assert health["live_authority"] is False

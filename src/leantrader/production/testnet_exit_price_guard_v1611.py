@@ -165,10 +165,38 @@ def _startup_dust_sweep(self: Any) -> dict[str, Any]:
             limits = market.get("limits") or {}
             min_amount = max(0.0, _n((limits.get("amount") or {}).get("min")))
             min_cost = max(0.0, _n((limits.get("cost") or {}).get("min")))
-            qty = max(0.0, _n(self.exchange.amount_to_precision(symbol, min(current, free_qty))))
+            available_raw = min(current, free_qty)
             bid, _ = _fresh_bid(self, symbol)
             if bid <= 0.0:
                 continue
+            if (
+                available_raw <= 0.0
+                or (
+                    min_amount > 0.0
+                    and available_raw < min_amount
+                )
+            ):
+                _record_non_tradeable_dust(
+                    self,
+                    symbol=symbol,
+                    quantity=current,
+                    reference_price=bid,
+                    minimum_amount=min_amount,
+                    minimum_cost=min_cost,
+                    free_quantity=free_qty,
+                    reason="startup_fresh_bid_below_exchange_executable_threshold",
+                )
+                recycled.append(symbol)
+                continue
+            qty = max(
+                0.0,
+                _n(
+                    self.exchange.amount_to_precision(
+                        symbol,
+                        available_raw,
+                    )
+                ),
+            )
             if qty <= 0.0 or (min_amount > 0.0 and qty < min_amount) or (min_cost > 0.0 and qty * bid < min_cost):
                 _record_non_tradeable_dust(
                     self,
