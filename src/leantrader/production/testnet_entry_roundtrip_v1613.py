@@ -24,7 +24,9 @@ def _n(value: Any, default: float = 0.0) -> float:
 
 
 def _supported(engine: Any) -> bool:
-    exchange = engine.exchange
+    exchange = getattr(engine, "exchange", None)
+    if exchange is None:
+        return False
     return bool(
         callable(getattr(exchange, "fetch_ticker", None))
         and callable(getattr(exchange, "fetch_order_book", None))

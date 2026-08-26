@@ -383,3 +383,22 @@ def test_late_authoritative_zero_fill_resolution_also_quarantines(
         > 0.0
     )
     assert instance.health()["live_authority"] is False
+
+
+def test_non_exchange_testnet_adapter_preserves_legacy_lane_path(
+    tmp_path,
+):
+    from tests.test_production_testnet_exit_recycle_v1608 import (
+        hyper_lane,
+    )
+
+    lane, service, testnet = hyper_lane(tmp_path)
+
+    assert not hasattr(testnet, "exchange")
+
+    result = lane.step(now=1_000.0)
+
+    assert result["reason"] == "fast_multi_route_cycle"
+    assert service.assessed_symbols == ["AAA/USDT"]
+    assert "AAA/USDT" in testnet.positions
+    assert lane.health()["live_authority"] is False
