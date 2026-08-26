@@ -19,6 +19,9 @@ from .testnet_buy_balance_v1610 import (
 from .testnet_exit_price_guard_v1611 import (
     install_testnet_exit_price_guard_v1611 as _install_testnet_exit_price_guard_v1611,
 )
+from .testnet_entry_roundtrip_v1613 import (
+    install_testnet_entry_roundtrip_v1613 as _install_testnet_entry_roundtrip_v1613,
+)
 
 _install_public_spot_defaults()
 del _install_public_spot_defaults
@@ -34,6 +37,8 @@ _install_testnet_buy_balance_v1610()
 del _install_testnet_buy_balance_v1610
 _install_testnet_exit_price_guard_v1611()
 del _install_testnet_exit_price_guard_v1611
+_install_testnet_entry_roundtrip_v1613()
+del _install_testnet_entry_roundtrip_v1613
 
 __all__ = [
     "arbitrage_monitor",
@@ -64,4 +69,5 @@ __all__ = [
     "testnet_micro_throughput_v1609",
     "testnet_buy_balance_v1610",
     "testnet_exit_price_guard_v1611",
+    "testnet_entry_roundtrip_v1613",
 ]
