@@ -362,3 +362,127 @@ def test_execution_first_pass_cache_reuses_success_for_two_minutes(
         health["live_authority"]
         is False
     )
+
+
+class SignalRefreshService(RankedService):
+    def __init__(self):
+        self.fresh = False
+        self.pins = []
+
+    def collective_signal(self, symbol):
+        return {
+            "symbol": symbol,
+            "fresh": self.fresh,
+            "age_seconds": (
+                0.2 if self.fresh else 4.0
+            ),
+        }
+
+    def pin_execution_symbols(
+        self,
+        symbols,
+        *,
+        ttl_seconds=10.0,
+    ):
+        self.pins.append(
+            {
+                "symbols": set(symbols),
+                "ttl_seconds": ttl_seconds,
+            }
+        )
+
+
+def test_execution_qualified_stale_signal_is_pinned_then_reused_when_fresh(
+    tmp_path,
+):
+    lane, instance, fake = _runtime(
+        tmp_path
+    )
+
+    service = SignalRefreshService()
+    now = time.time()
+
+    first = _ExecutionFirstCandidateProxy(
+        service,
+        lane,
+        now,
+    ).collective_candidates(
+        limit=8
+    )
+
+    # GOOD passes the exchange probe but a stale
+    # strategy signal must never be returned.
+    assert first == []
+
+    assert service.pins
+    assert (
+        "GOOD/USDT"
+        in service.pins[-1]["symbols"]
+    )
+    assert (
+        service.pins[-1]["ttl_seconds"]
+        == 6.0
+    )
+
+    refresh = lane.state[
+        "v1625_last_signal_refresh"
+    ]
+
+    assert refresh["symbol"] == "GOOD/USDT"
+    assert refresh["reason"] == "fast_signal_not_fresh"
+    assert refresh["microstream_pinned"] is True
+    assert refresh["candidate_returned"] is False
+    assert (
+        refresh["execution_preflight_bypassed"]
+        is False
+    )
+    assert refresh["live_authority"] is False
+
+    price_limit_before = len([
+        row
+        for row in fake.calls
+        if (
+            row[0] == "price_limit"
+            and str(
+                row[1].get("symbol") or ""
+            ).upper()
+            == "GOODUSDT"
+        )
+    ])
+
+    # Simulate the precision microstream producing
+    # the fresh observation requested by the pin.
+    service.fresh = True
+
+    second = _ExecutionFirstCandidateProxy(
+        service,
+        lane,
+        now + 0.5,
+    ).collective_candidates(
+        limit=8
+    )
+
+    assert second == ["GOOD/USDT"]
+
+    price_limit_after = len([
+        row
+        for row in fake.calls
+        if (
+            row[0] == "price_limit"
+            and str(
+                row[1].get("symbol") or ""
+            ).upper()
+            == "GOODUSDT"
+        )
+    ])
+
+    # The recent successful execution qualification
+    # is reused; actual submission still performs the
+    # existing fresh v1.60.16/v1.60.13 rechecks.
+    assert price_limit_after == price_limit_before
+
+    assert fake.created == []
+    assert (
+        instance.state.get("orders")
+        or {}
+    ) == {}

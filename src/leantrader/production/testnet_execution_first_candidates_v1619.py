@@ -21,6 +21,7 @@ MAX_NETWORK_PROBES_PER_CALL = 2
 FAIL_CACHE_SECONDS = 12.0
 PASS_CACHE_SECONDS = 300.0
 MIN_FREE_QUOTE_RESERVE_USD = 0.01
+SIGNAL_REFRESH_PIN_SECONDS = 6.0
 
 
 def _n(
@@ -347,6 +348,105 @@ class _ExecutionFirstCandidateProxy:
             name,
         )
 
+    def _signal_ready(
+        self,
+        symbol: str,
+    ) -> bool:
+        signal_method = getattr(
+            self._service,
+            "collective_signal",
+            None,
+        )
+
+        # Preserve older/non-swarm fixtures.
+        if not callable(signal_method):
+            return True
+
+        reason = ""
+        age_seconds = None
+
+        try:
+            signal = (
+                signal_method(symbol)
+                or {}
+            )
+
+            age_seconds = signal.get(
+                "age_seconds"
+            )
+
+            if signal.get("fresh") is True:
+                return True
+
+            reason = "fast_signal_not_fresh"
+
+        except Exception as exc:
+            reason = (
+                "fast_signal_refresh_error:"
+                + type(exc).__name__
+            )
+
+        pinned = False
+
+        pinner = getattr(
+            self._service,
+            "pin_execution_symbols",
+            None,
+        )
+
+        if callable(pinner):
+            try:
+                pinner(
+                    {symbol},
+                    ttl_seconds=(
+                        SIGNAL_REFRESH_PIN_SECONDS
+                    ),
+                )
+                pinned = True
+            except Exception:
+                pinned = False
+
+        with self._lane._lock:
+            self._lane.state[
+                "v1625_signal_refresh_deferrals"
+            ] = (
+                int(
+                    self._lane.state.get(
+                        "v1625_signal_refresh_deferrals"
+                    )
+                    or 0
+                )
+                + 1
+            )
+
+            if pinned:
+                self._lane.state[
+                    "v1625_execution_candidate_pins"
+                ] = (
+                    int(
+                        self._lane.state.get(
+                            "v1625_execution_candidate_pins"
+                        )
+                        or 0
+                    )
+                    + 1
+                )
+
+            self._lane.state[
+                "v1625_last_signal_refresh"
+            ] = {
+                "symbol": symbol,
+                "reason": reason,
+                "age_seconds": age_seconds,
+                "microstream_pinned": pinned,
+                "candidate_returned": False,
+                "execution_preflight_bypassed": False,
+                "live_authority": False,
+                "observed_at": self._now,
+            }
+
+        return False
+
     def collective_candidates(
         self,
         limit: int = 8,
@@ -604,15 +704,18 @@ class _ExecutionFirstCandidateProxy:
                     )
                     is True
                 ):
-                    selected.append(
+                    if self._signal_ready(
                         symbol
-                    )
-
-                    if (
-                        len(selected)
-                        >= bounded
                     ):
-                        break
+                        selected.append(
+                            symbol
+                        )
+
+                        if (
+                            len(selected)
+                            >= bounded
+                        ):
+                            break
 
                 continue
 
@@ -649,9 +752,12 @@ class _ExecutionFirstCandidateProxy:
             if allowed:
                 probe_passes += 1
 
-                selected.append(
+                if self._signal_ready(
                     symbol
-                )
+                ):
+                    selected.append(
+                        symbol
+                    )
 
                 ttl = (
                     PASS_CACHE_SECONDS
