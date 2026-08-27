@@ -218,3 +218,67 @@ def test_microstream_watchdog_does_not_flag_idle_or_recent_request():
     )
 
     assert recent["stalled"] is False
+
+
+def test_execution_candidate_has_priority_over_held_hot_symbols():
+    obj = service()
+
+    queue, _cursor, schedule = (
+        obj._build_sticky_precision_queue(
+            scout_symbols=[
+                "CSPR/USDT",
+                "JASMY/USDT",
+                "MNT/USDT",
+            ],
+            sticky_symbols=[
+                "CSPR/USDT",
+                "JASMY/USDT",
+            ],
+            due_symbols=[
+                "LAB/USDT",
+            ],
+            velocity_symbols=[],
+            capacity=2,
+            cursor=0,
+            now=100.0,
+            current_hot=[
+                "CSPR/USDT",
+                "JASMY/USDT",
+            ],
+            hot_until=200.0,
+            current_explorer=None,
+            explorer_until=0.0,
+            priority_symbols=[
+                "MNT/USDT",
+            ],
+        )
+    )
+
+    assert queue[0] == "MNT/USDT"
+    assert "MNT/USDT" in queue
+    assert len(queue) <= 2
+
+
+def test_execution_candidate_pin_is_separate_from_position_pins():
+    obj = service()
+
+    obj._execution_precision_pins = {
+        "CSPR/USDT": 9999999999.0,
+    }
+
+    obj._execution_candidate_pins = {}
+
+    obj.pin_execution_candidate_symbols(
+        {
+            "mnt/usdt",
+        },
+        ttl_seconds=6.0,
+    )
+
+    assert "MNT/USDT" in (
+        obj._execution_candidate_pins
+    )
+
+    assert "MNT/USDT" not in (
+        obj._execution_precision_pins
+    )

@@ -186,6 +186,12 @@ class ReadOnlySwarmService:
         self.microstream_per_symbol_latency_seconds = 0.25
         self._execution_precision_pins: dict[str, float] = {}
 
+        # v1.60.28: entry candidates waiting on a fresh execution
+        # signal must not compete behind long-lived active-position
+        # or research pins. They receive a distinct bounded freshness
+        # priority without gaining any execution authority.
+        self._execution_candidate_pins: dict[str, float] = {}
+
         self._microstream_thread: threading.Thread | None = None
         self._microstream_watchdog_thread: threading.Thread | None = None
         self._retired_microstream_threads: list[threading.Thread] = []
@@ -2320,6 +2326,60 @@ class ReadOnlySwarmService:
                     symbol
                 ] = expires
 
+    def pin_execution_candidate_symbols(
+        self,
+        symbols: list[str] | tuple[str, ...] | set[str],
+        *,
+        ttl_seconds: float = 6.0,
+    ) -> None:
+        """Prioritize entry candidates only until a fresh sample arrives.
+
+        This is read-only market-data scheduling. It cannot submit an
+        order and does not alter the execution freshness threshold.
+        """
+
+        now = time.time()
+        expires = (
+            now
+            + max(
+                2.0,
+                float(ttl_seconds),
+            )
+        )
+
+        normalized = self._unique_symbols(
+            [
+                str(symbol)
+                for symbol in symbols
+            ]
+        )
+
+        with self._lock:
+            stale = [
+                symbol
+                for symbol, until in (
+                    self._execution_candidate_pins.items()
+                )
+                if float(until) <= now
+            ]
+
+            for symbol in stale:
+                self._execution_candidate_pins.pop(
+                    symbol,
+                    None,
+                )
+
+            for symbol in normalized:
+                # Reinsert so the newest execution request has an
+                # unambiguous bounded priority order.
+                self._execution_candidate_pins.pop(
+                    symbol,
+                    None,
+                )
+                self._execution_candidate_pins[
+                    symbol
+                ] = expires
+
     @classmethod
     def _build_sticky_precision_queue(
         cls,
@@ -2337,6 +2397,7 @@ class ReadOnlySwarmService:
         explorer_until: float,
         hot_hold_seconds: float = 4.0,
         explorer_hold_seconds: float = 3.0,
+        priority_symbols: list[str] | None = None,
     ) -> tuple[
         list[str],
         int,
@@ -2360,6 +2421,10 @@ class ReadOnlySwarmService:
             sticky_symbols
         )
 
+        urgent = cls._unique_symbols(
+            priority_symbols or []
+        )
+
         due = cls._unique_symbols(
             due_symbols
         )
@@ -2374,6 +2439,7 @@ class ReadOnlySwarmService:
 
         valid_live = cls._unique_symbols(
             [
+                *urgent,
                 *velocity,
                 *scouts,
                 *sticky,
@@ -2419,6 +2485,10 @@ class ReadOnlySwarmService:
         if hold_active:
             priority = cls._unique_symbols(
                 [
+                    # A symbol actively waiting for a fresh execution
+                    # handoff outranks continuity/research scheduling.
+                    *urgent,
+
                     # A genuinely moving sampled market may immediately
                     # promote into the cohort.
                     *velocity,
@@ -2434,6 +2504,7 @@ class ReadOnlySwarmService:
         else:
             priority = cls._unique_symbols(
                 [
+                    *urgent,
                     *velocity,
                     *scouts,
                     *sticky,
@@ -2940,13 +3011,37 @@ class ReadOnlySwarmService:
                             None,
                         )
 
+                    expired_candidate_pins = [
+                        symbol
+                        for symbol, until in (
+                            self._execution_candidate_pins.items()
+                        )
+                        if float(until) <= now
+                    ]
+
+                    for symbol in expired_candidate_pins:
+                        self._execution_candidate_pins.pop(
+                            symbol,
+                            None,
+                        )
+
                     execution_pins = list(
                         self._execution_precision_pins
+                    )
+
+                    # Newest candidate request goes first.
+                    candidate_pins = list(
+                        reversed(
+                            list(
+                                self._execution_candidate_pins
+                            )
+                        )
                     )
 
                     scout_symbols = (
                         self._unique_symbols(
                             [
+                                *candidate_pins,
                                 *execution_pins,
                                 *self._precision_scout_symbols,
                             ]
@@ -2956,6 +3051,7 @@ class ReadOnlySwarmService:
                     sticky_symbols = (
                         self._unique_symbols(
                             [
+                                *candidate_pins,
                                 *execution_pins,
                                 *self._microstream_symbols,
                             ]
@@ -3034,6 +3130,9 @@ class ReadOnlySwarmService:
                         ),
                         explorer_hold_seconds=(
                             self.precision_explorer_hold_seconds
+                        ),
+                        priority_symbols=(
+                            candidate_pins
                         ),
                     )
                 )

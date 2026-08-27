@@ -390,9 +390,16 @@ class _ExecutionFirstCandidateProxy:
 
         pinner = getattr(
             self._service,
-            "pin_execution_symbols",
+            "pin_execution_candidate_symbols",
             None,
         )
+
+        if not callable(pinner):
+            pinner = getattr(
+                self._service,
+                "pin_execution_symbols",
+                None,
+            )
 
         if callable(pinner):
             try:

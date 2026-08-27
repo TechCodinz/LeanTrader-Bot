@@ -1003,6 +1003,29 @@ def install_testnet_residual_dust_cycle_v1627() -> None:
             or {}
         )
 
+        if dust and cycle:
+            final_reason = (
+                "residual_dust_cycle_finalized"
+            )
+        elif (
+            dust
+            and reason
+            == "active_exit_reclassified_dust_preboundary"
+        ):
+            final_reason = (
+                "active_exit_reclassified_"
+                "dust_preboundary"
+            )
+        elif dust:
+            final_reason = (
+                "non_tradeable_dust_state_retired"
+            )
+        else:
+            final_reason = (
+                "authoritative_executor_"
+                "position_absent_retired"
+            )
+
         with self._lock:
             (
                 self.state.get(
@@ -1365,11 +1388,7 @@ def install_testnet_residual_dust_cycle_v1627() -> None:
             self.state[
                 "last_action"
             ] = {
-                "action": (
-                    "residual_dust_cycle_finalized"
-                    if dust
-                    else "executor_position_absent_reconciled"
-                ),
+                "action": final_reason,
                 "symbol": normalized,
                 "timestamp": now,
                 "order_submitted": False,
@@ -1380,12 +1399,7 @@ def install_testnet_residual_dust_cycle_v1627() -> None:
             self._save_locked()
 
         return self._decision(
-            (
-                "residual_dust_cycle_finalized"
-                if dust
-                else
-                "authoritative_executor_position_absent_retired"
-            ),
+            final_reason,
             details={
                 "kind": "exit",
                 "symbol": normalized,
@@ -1506,6 +1520,113 @@ def install_testnet_residual_dust_cycle_v1627() -> None:
                 record,
                 now=now,
             )
+
+        # v1.60.28: authoritative non-tradeable dust must be
+        # released before the old deferred/price-limit watcher can
+        # occupy an execution slot indefinitely. This does not count
+        # as a completed trade unless v1.60.27 can prove a real filled
+        # buy and real filled sell for the current cycle.
+        exchange = getattr(
+            self.testnet,
+            "exchange",
+            None,
+        )
+
+        if exchange is not None:
+            try:
+                market = exchange.market(
+                    normalized
+                )
+
+                limits = (
+                    market.get("limits")
+                    or {}
+                )
+
+                minimum_amount = max(
+                    0.0,
+                    _n(
+                        (
+                            limits.get("amount")
+                            or {}
+                        ).get("min")
+                    ),
+                )
+
+                minimum_cost = max(
+                    0.0,
+                    _n(
+                        (
+                            limits.get("cost")
+                            or {}
+                        ).get("min")
+                    ),
+                )
+
+                precise = max(
+                    0.0,
+                    _n(
+                        exchange.amount_to_precision(
+                            normalized,
+                            current,
+                        )
+                    ),
+                )
+
+                bid, _ask = _fresh_bid(
+                    self.testnet,
+                    normalized,
+                )
+
+                potential_dust = bool(
+                    bid > 0.0
+                    and (
+                        precise <= 0.0
+                        or (
+                            minimum_amount > 0.0
+                            and precise < minimum_amount
+                        )
+                        or (
+                            minimum_cost > 0.0
+                            and precise * bid + 1e-12
+                            < minimum_cost
+                        )
+                    )
+                )
+
+            except Exception:
+                potential_dust = False
+                bid = 0.0
+
+            if potential_dust:
+                try:
+                    preparation = (
+                        self.testnet.prepare_sell(
+                            normalized,
+                            current,
+                            bid,
+                        )
+                    )
+                except Exception:
+                    preparation = {}
+
+                if (
+                    str(
+                        preparation.get("status")
+                        or ""
+                    )
+                    == "dust"
+                ):
+                    return retire_fast_state(
+                        self,
+                        symbol=normalized,
+                        now=now,
+                        reason=(
+                            "active_exit_reclassified_"
+                            "dust_preboundary"
+                        ),
+                        preparation=preparation,
+                    )
 
         with testnet_lock:
             executed_sell_in_current_cycle = (
