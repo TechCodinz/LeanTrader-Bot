@@ -187,7 +187,23 @@ class ReadOnlySwarmService:
         self._execution_precision_pins: dict[str, float] = {}
 
         self._microstream_thread: threading.Thread | None = None
+        self._microstream_watchdog_thread: threading.Thread | None = None
+        self._retired_microstream_threads: list[threading.Thread] = []
+        self._microstream_generation = 0
         self._calibration_thread: threading.Thread | None = None
+
+        # v1.60.26: a public CCXT order-book read can very rarely
+        # remain blocked beyond the configured request timeout. The
+        # dedicated precision worker therefore has its own liveness
+        # watchdog. Recovery replaces only the read-only feed/worker;
+        # it never grants execution authority or bypasses freshness.
+        self.microstream_stall_seconds = 30.0
+        self.microstream_watchdog_checks = 0
+        self.microstream_stall_recoveries = 0
+        self.microstream_stall_recovery_failures = 0
+        self.microstream_last_recovery_at = 0.0
+        self.microstream_last_attempt_started_at = 0.0
+        self.microstream_last_attempt_symbol: str | None = None
 
         self.microstream_sample_attempts = 0
         self.microstream_sample_failures = 0
@@ -243,6 +259,250 @@ class ReadOnlySwarmService:
         self.ranked_opportunities_total = 0
         self.qualified_opportunities_total = 0
 
+    def _microstream_stall_snapshot(
+        self,
+        *,
+        now: float | None = None,
+    ) -> dict[str, Any]:
+        now = (
+            time.time()
+            if now is None
+            else float(now)
+        )
+
+        with self._lock:
+            thread = self._microstream_thread
+            attempt_started = float(
+                getattr(
+                    self,
+                    "microstream_last_attempt_started_at",
+                    0.0,
+                )
+                or 0.0
+            )
+            attempt_symbol = (
+                getattr(
+                    self,
+                    "microstream_last_attempt_symbol",
+                    None,
+                )
+            )
+            last_observation = float(
+                getattr(
+                    self,
+                    "microstream_last_observation_at",
+                    0.0,
+                )
+                or 0.0
+            )
+            stall_seconds = max(
+                25.0,
+                float(
+                    getattr(
+                        self,
+                        "microstream_stall_seconds",
+                        30.0,
+                    )
+                    or 30.0
+                ),
+            )
+            generation = int(
+                getattr(
+                    self,
+                    "_microstream_generation",
+                    0,
+                )
+            )
+
+        request_age = (
+            max(0.0, now - attempt_started)
+            if attempt_started > 0.0
+            else 0.0
+        )
+
+        alive = bool(
+            thread is not None
+            and thread.is_alive()
+            and not self._stop.is_set()
+        )
+
+        stalled = bool(
+            alive
+            and attempt_started > 0.0
+            and request_age > stall_seconds
+            and last_observation < attempt_started
+        )
+
+        return {
+            "alive": alive,
+            "stalled": stalled,
+            "generation": generation,
+            "attempt_symbol": attempt_symbol,
+            "attempt_started_at": attempt_started,
+            "request_age_seconds": request_age,
+            "last_observation_at": last_observation,
+            "stall_seconds": stall_seconds,
+            "live_authority": False,
+        }
+
+    @staticmethod
+    def _clone_public_microstream_feed(
+        feed: Any,
+    ) -> Any | None:
+        exchange = getattr(
+            feed,
+            "exchange",
+            None,
+        )
+
+        exchange_id = str(
+            getattr(
+                exchange,
+                "id",
+                "",
+            )
+            or ""
+        ).strip()
+
+        if not exchange_id:
+            return None
+
+        try:
+            return type(feed)(
+                exchange_id
+            )
+        except Exception:
+            return None
+
+    def _start_microstream_worker(
+        self,
+        *,
+        feed: Any,
+    ) -> threading.Thread:
+        with self._lock:
+            self._microstream_generation = (
+                int(
+                    getattr(
+                        self,
+                        "_microstream_generation",
+                        0,
+                    )
+                )
+                + 1
+            )
+
+            generation = (
+                self._microstream_generation
+            )
+
+            thread = threading.Thread(
+                target=self._run_microstream,
+                args=(
+                    generation,
+                    feed,
+                ),
+                name=(
+                    "leantrader-dedicated-"
+                    f"microstream-{generation}"
+                ),
+                daemon=True,
+            )
+
+            self._microstream_thread = thread
+            self.microstream_last_attempt_started_at = 0.0
+            self.microstream_last_attempt_symbol = None
+
+        thread.start()
+        return thread
+
+    def _recover_stalled_microstream(
+        self,
+        *,
+        now: float | None = None,
+    ) -> bool:
+        now = (
+            time.time()
+            if now is None
+            else float(now)
+        )
+
+        snapshot = (
+            self._microstream_stall_snapshot(
+                now=now
+            )
+        )
+
+        if snapshot["stalled"] is not True:
+            return False
+
+        with self._lock:
+            retired = [
+                thread
+                for thread in (
+                    getattr(
+                        self,
+                        "_retired_microstream_threads",
+                        [],
+                    )
+                    or []
+                )
+                if thread.is_alive()
+            ]
+
+            self._retired_microstream_threads = (
+                retired
+            )
+
+            # Bound abandoned daemon workers. If the provider
+            # repeatedly wedges, degrade instead of leaking
+            # unlimited threads.
+            if len(retired) >= 2:
+                self.microstream_stall_recovery_failures += 1
+                return False
+
+            current = self._microstream_thread
+            source_feed = self.microstream_feed
+
+        replacement = (
+            self._clone_public_microstream_feed(
+                source_feed
+            )
+        )
+
+        if replacement is None:
+            with self._lock:
+                self.microstream_stall_recovery_failures += 1
+            return False
+
+        with self._lock:
+            if (
+                current is not None
+                and current.is_alive()
+            ):
+                self._retired_microstream_threads.append(
+                    current
+                )
+
+            self.microstream_feed = replacement
+            self.microstream_stall_recoveries += 1
+            self.microstream_last_recovery_at = now
+
+        self._start_microstream_worker(
+            feed=replacement
+        )
+
+        return True
+
+    def _run_microstream_watchdog(
+        self,
+    ) -> None:
+        while not self._stop.wait(2.0):
+            try:
+                self.microstream_watchdog_checks += 1
+                self._recover_stalled_microstream()
+            except Exception:
+                self.microstream_stall_recovery_failures += 1
+
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
             return
@@ -274,12 +534,23 @@ class ReadOnlySwarmService:
             self.micro_calibration_journal is not None
             and self.microstream_feed is not None
         ):
-            self._microstream_thread = threading.Thread(
-                target=self._run_microstream,
-                name="leantrader-dedicated-microstream",
-                daemon=True,
+            self._start_microstream_worker(
+                feed=self.microstream_feed
             )
-            self._microstream_thread.start()
+
+            self._microstream_watchdog_thread = (
+                threading.Thread(
+                    target=(
+                        self._run_microstream_watchdog
+                    ),
+                    name=(
+                        "leantrader-microstream-"
+                        "watchdog"
+                    ),
+                    daemon=True,
+                )
+            )
+            self._microstream_watchdog_thread.start()
 
         if (
             self.slow_calibration_journal is not None
@@ -313,6 +584,16 @@ class ReadOnlySwarmService:
             and precision_thread.is_alive()
         ):
             precision_thread.join(timeout=8.0)
+
+        watchdog_thread = (
+            self._microstream_watchdog_thread
+        )
+
+        if (
+            watchdog_thread is not None
+            and watchdog_thread.is_alive()
+        ):
+            watchdog_thread.join(timeout=3.0)
 
         microstream_thread = self._microstream_thread
         if (
@@ -2573,12 +2854,44 @@ class ReadOnlySwarmService:
 
         return desired
 
-    def _run_microstream(self) -> None:
+    def _run_microstream(
+        self,
+        generation: int | None = None,
+        feed: Any | None = None,
+    ) -> None:
         """Continuously sample bounded micro markets with no trade authority."""
 
         cadence_seconds = 0.5
 
-        while not self._stop.is_set():
+        generation = (
+            int(
+                getattr(
+                    self,
+                    "_microstream_generation",
+                    0,
+                )
+            )
+            if generation is None
+            else int(generation)
+        )
+
+        active_feed = (
+            self.microstream_feed
+            if feed is None
+            else feed
+        )
+
+        while (
+            not self._stop.is_set()
+            and generation
+            == int(
+                getattr(
+                    self,
+                    "_microstream_generation",
+                    generation,
+                )
+            )
+        ):
             started = time.monotonic()
 
             try:
@@ -2808,11 +3121,39 @@ class ReadOnlySwarmService:
                         # Fetch the book last and timestamp it immediately.
                         # This timestamp is the authoritative future midpoint
                         # observation used by the prospective journal.
-                        book = self.microstream_feed.order_book(
+                        with self._lock:
+                            self.microstream_last_attempt_started_at = (
+                                time.time()
+                            )
+                            self.microstream_last_attempt_symbol = (
+                                symbol
+                            )
+
+                        book = active_feed.order_book(
                             symbol,
                             limit=10,
                         )
+
+                        # A retired worker that eventually returns
+                        # after watchdog replacement must never
+                        # overwrite fresher observations.
+                        if (
+                            generation
+                            != int(
+                                getattr(
+                                    self,
+                                    "_microstream_generation",
+                                    generation,
+                                )
+                            )
+                        ):
+                            break
+
                         observed_at = time.time()
+
+                        with self._lock:
+                            self.microstream_last_attempt_started_at = 0.0
+                            self.microstream_last_attempt_symbol = None
 
                         midpoint = self._book_midpoint(book)
 
@@ -2877,9 +3218,29 @@ class ReadOnlySwarmService:
                         )
 
                     except Exception:
+                        if (
+                            generation
+                            != int(
+                                getattr(
+                                    self,
+                                    "_microstream_generation",
+                                    generation,
+                                )
+                            )
+                        ):
+                            break
+
+                        with self._lock:
+                            self.microstream_last_attempt_started_at = 0.0
+                            self.microstream_last_attempt_symbol = None
+
                         self.microstream_sample_failures += 1
 
             except Exception:
+                with self._lock:
+                    self.microstream_last_attempt_started_at = 0.0
+                    self.microstream_last_attempt_symbol = None
+
                 self.microstream_sample_failures += 1
 
             elapsed = time.monotonic() - started
@@ -3977,6 +4338,40 @@ class ReadOnlySwarmService:
                         "microstream_last_loop_seconds": (
                             self.microstream_last_loop_seconds
                         ),
+                        "microstream_liveness": {
+                            **self._microstream_stall_snapshot(
+                                now=now
+                            ),
+                            "watchdog_running": bool(
+                                self._microstream_watchdog_thread
+                                is not None
+                                and self._microstream_watchdog_thread.is_alive()
+                                and not self._stop.is_set()
+                            ),
+                            "watchdog_checks": (
+                                self.microstream_watchdog_checks
+                            ),
+                            "stall_recoveries": (
+                                self.microstream_stall_recoveries
+                            ),
+                            "stall_recovery_failures": (
+                                self.microstream_stall_recovery_failures
+                            ),
+                            "last_recovery_at": (
+                                self.microstream_last_recovery_at
+                            ),
+                            "retired_workers_alive": sum(
+                                1
+                                for thread in (
+                                    self._retired_microstream_threads
+                                )
+                                if thread.is_alive()
+                            ),
+                            "read_only_recovery": True,
+                            "execution_authority": False,
+                            "testnet_authority": False,
+                            "live_authority": False,
+                        },
                         "microstream_warmup_labels_skipped": (
                             self.microstream_warmup_labels_skipped
                         ),

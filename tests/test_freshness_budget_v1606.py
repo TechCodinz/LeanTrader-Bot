@@ -160,3 +160,61 @@ def test_broad_ranked_fallback_remains_available():
 
     assert "SLOW/USDT" in rows
     assert "DISCOVERY/USDT" not in rows
+
+
+class _AliveThread:
+    def is_alive(self):
+        return True
+
+
+def test_microstream_watchdog_detects_stuck_inflight_request():
+    import time
+
+    obj = service()
+
+    obj._stop = threading.Event()
+    obj._microstream_thread = _AliveThread()
+    obj._microstream_generation = 4
+    obj.microstream_stall_seconds = 30.0
+    obj.microstream_last_observation_at = 100.0
+    obj.microstream_last_attempt_started_at = 120.0
+    obj.microstream_last_attempt_symbol = "MNT/USDT"
+
+    row = obj._microstream_stall_snapshot(
+        now=151.0
+    )
+
+    assert row["alive"] is True
+    assert row["stalled"] is True
+    assert row["generation"] == 4
+    assert row["attempt_symbol"] == "MNT/USDT"
+    assert row["request_age_seconds"] == 31.0
+    assert row["live_authority"] is False
+
+
+def test_microstream_watchdog_does_not_flag_idle_or_recent_request():
+    obj = service()
+
+    obj._stop = threading.Event()
+    obj._microstream_thread = _AliveThread()
+    obj._microstream_generation = 2
+    obj.microstream_stall_seconds = 30.0
+    obj.microstream_last_observation_at = 200.0
+
+    obj.microstream_last_attempt_started_at = 0.0
+    obj.microstream_last_attempt_symbol = None
+
+    idle = obj._microstream_stall_snapshot(
+        now=500.0
+    )
+
+    assert idle["stalled"] is False
+
+    obj.microstream_last_attempt_started_at = 490.0
+    obj.microstream_last_attempt_symbol = "XRP/USDT"
+
+    recent = obj._microstream_stall_snapshot(
+        now=500.0
+    )
+
+    assert recent["stalled"] is False
