@@ -12,6 +12,9 @@ from . import runner_v142 as _runner_v142
 from .runner_v142 import *  # noqa: F401,F403
 from .runner_v142 import MarketFeed, PaperRunner as _V142PaperRunner, configure_logging, preflight
 from .settings import Settings
+from .runtime_memory_v1622 import (
+    cgroup_memory_snapshot,
+)
 from .velocity_sniper_testnet import VelocitySniperTestnetLane as FastCollectiveTestnetLane
 from ..agents.capital_allocator import SwarmCapitalAllocator
 from ..agents.fast_path import FastSwarmRuntime
@@ -1105,6 +1108,10 @@ class PaperRunner(_V142PaperRunner):
             "live_authority": False,
         }
 
+        status["runtime_memory"] = (
+            cgroup_memory_snapshot()
+        )
+
         self._write_json_atomic(
             self.settings.heartbeat_path,
             status,
@@ -1301,6 +1308,10 @@ class PaperRunner(_V142PaperRunner):
             fabric[
                 "live_authority"
             ] = False
+
+        status["runtime_memory"] = (
+            cgroup_memory_snapshot()
+        )
 
         self._write_json_atomic(
             self.settings.heartbeat_path,

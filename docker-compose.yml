@@ -157,7 +157,10 @@ services:
       resources:
         limits:
           cpus: "1.00"
-          memory: 1G
+          # v1.60.22: current multi-engine/swarm runtime
+          # requires a realistic memory envelope. The VPS
+          # retains substantial host reserve outside this cap.
+          memory: 4G
     logging:
       driver: json-file
       options:
