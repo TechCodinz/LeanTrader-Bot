@@ -82,6 +82,12 @@ class BybitTestnetExecutionEngine:
             "options": {
                 "defaultType": "spot",
                 "adjustForTimeDifference": True,
+                # This executor has spot-only authority.
+                # Do not make its availability depend on
+                # Bybit linear/inverse/options metadata.
+                "fetchMarkets": {
+                    "types": ["spot"],
+                },
             },
         }
         if self.exchange_factory is None:

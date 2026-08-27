@@ -793,3 +793,64 @@ def test_v1603_old_ambiguity_recovers_without_restart(
     assert recovery["enabled"] is True
     assert recovery["resubmission_allowed"] is False
     assert recovery["retry_successes"] >= 1
+
+
+def test_spot_executor_loads_only_spot_market_metadata(tmp_path):
+    key = tmp_path / "key-v1621"
+    secret = tmp_path / "secret-v1621"
+
+    key.write_text(
+        "testnet-key-v1621",
+        encoding="utf-8",
+    )
+    secret.write_text(
+        "testnet-secret-v1621",
+        encoding="utf-8",
+    )
+
+    fake = FakeBybit()
+    captured = {}
+
+    def factory(config):
+        captured.update(config)
+        return fake
+
+    instance = BybitTestnetExecutionEngine(
+        api_key_path=key,
+        api_secret_path=secret,
+        state_path=tmp_path / "state-v1621.json",
+        confirmation="I_UNDERSTAND_TESTNET_ONLY",
+        exchange_factory=factory,
+    )
+
+    instance.start()
+
+    options = captured["options"]
+
+    assert options["defaultType"] == "spot"
+
+    assert options["fetchMarkets"] == {
+        "types": ["spot"],
+    }
+
+    # Sandbox selection remains first.
+    assert fake.calls[0] == (
+        "sandbox",
+        True,
+    )
+
+    assert fake.calls[1] == (
+        "load_markets",
+    )
+
+    # Execution authority remains spot-only.
+    assert instance.eligible_symbols(
+        "USDT"
+    ) == {
+        "BTC/USDT",
+        "ETH/USDT",
+    }
+
+    assert instance.health()[
+        "live_authority"
+    ] is False
