@@ -43,6 +43,9 @@ from .testnet_execution_first_candidates_v1619 import (
 from .testnet_startup_resilience_v1621 import (
     install_testnet_startup_resilience_v1621 as _install_testnet_startup_resilience_v1621,
 )
+from .testnet_spot_cycle_integrity_v1623 import (
+    install_testnet_spot_cycle_integrity_v1623 as _install_testnet_spot_cycle_integrity_v1623,
+)
 
 _install_public_spot_defaults()
 del _install_public_spot_defaults
@@ -74,6 +77,8 @@ _install_testnet_execution_first_candidates_v1619()
 del _install_testnet_execution_first_candidates_v1619
 _install_testnet_startup_resilience_v1621()
 del _install_testnet_startup_resilience_v1621
+_install_testnet_spot_cycle_integrity_v1623()
+del _install_testnet_spot_cycle_integrity_v1623
 
 __all__ = [
     "arbitrage_monitor",
@@ -112,4 +117,5 @@ __all__ = [
     "testnet_authoritative_exit_mark_v1618",
     "testnet_execution_first_candidates_v1619",
     "testnet_startup_resilience_v1621",
+    "testnet_spot_cycle_integrity_v1623",
 ]
