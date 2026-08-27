@@ -251,7 +251,7 @@ def test_execution_first_proxy_substitutes_deeper_affordable_executable_candidat
     )
 
 
-def test_execution_first_pass_cache_avoids_reprobing_same_candidate_every_half_second(
+def test_execution_first_pass_cache_reuses_success_for_two_minutes(
     tmp_path,
 ):
     (
@@ -282,8 +282,15 @@ def test_execution_first_pass_cache_avoids_reprobing_same_candidate_every_half_s
         [
             row
             for row in fake.calls
-            if row[0]
-            == "price_limit"
+            if (
+                row[0]
+                == "price_limit"
+                and str(
+                    row[1].get("symbol")
+                    or ""
+                ).upper()
+                == "GOODUSDT"
+            )
         ]
     )
 
@@ -291,7 +298,7 @@ def test_execution_first_pass_cache_avoids_reprobing_same_candidate_every_half_s
         _ExecutionFirstCandidateProxy(
             RankedService(),
             lane,
-            now + 0.5,
+            now + 120.0,
         ).collective_candidates(
             limit=8
         )
@@ -305,8 +312,15 @@ def test_execution_first_pass_cache_avoids_reprobing_same_candidate_every_half_s
         [
             row
             for row in fake.calls
-            if row[0]
-            == "price_limit"
+            if (
+                row[0]
+                == "price_limit"
+                and str(
+                    row[1].get("symbol")
+                    or ""
+                ).upper()
+                == "GOODUSDT"
+            )
         ]
     )
 
