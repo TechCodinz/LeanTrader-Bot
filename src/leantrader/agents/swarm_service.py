@@ -213,6 +213,8 @@ class ReadOnlySwarmService:
 
         self.microstream_sample_attempts = 0
         self.microstream_sample_failures = 0
+        # v1.60.29: count of cadence sleeps released early by an execution pin.
+        self.microstream_pin_wakeups = 0
         self.microstream_trade_context_failures = 0
         self.microstream_warmup_labels_skipped = 0
         self.microstream_non_event_labels_skipped = 0
@@ -242,6 +244,11 @@ class ReadOnlySwarmService:
         if (self.shadow_portfolio is None) != (self.outcome_journal is None):
             raise ValueError("shadow portfolio and outcome journal must be configured together")
         self._stop = threading.Event()
+        # v1.60.29: dedicated wake so a newly pinned execution candidate can
+        # interrupt the microstream sleep immediately. This is read-only market
+        # data scheduling only: it grants no execution authority, does not change
+        # the execution freshness threshold, and does not alter priority order.
+        self._execution_pin_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.RLock()
         self._candidates: list[dict[str, Any]] = []
@@ -571,6 +578,8 @@ class ReadOnlySwarmService:
 
     def stop(self) -> None:
         self._stop.set()
+        # v1.60.29: also release any microstream sleep parked on the pin wake.
+        self._execution_pin_event.set()
 
         thread = self._thread
         if thread is not None and thread.is_alive():
@@ -2380,6 +2389,12 @@ class ReadOnlySwarmService:
                     symbol
                 ] = expires
 
+        if normalized:
+            # v1.60.29: wake the sleeping microstream so a pinned candidate can
+            # be sampled without waiting out the remaining cadence. Ordering,
+            # capacity and freshness rules are unchanged.
+            self._execution_pin_event.set()
+
     @classmethod
     def _build_sticky_precision_queue(
         cls,
@@ -3344,12 +3359,21 @@ class ReadOnlySwarmService:
 
             elapsed = time.monotonic() - started
             self.microstream_last_loop_seconds = elapsed
-            self._stop.wait(
+            # v1.60.29: sleep until the cadence expires, a new execution
+            # candidate is pinned, or shutdown is requested. stop() sets the pin
+            # event too, so shutdown stays as responsive as the previous
+            # self._stop.wait(). Cadence, capacity and freshness are unchanged.
+            if self._execution_pin_event.wait(
                 max(
                     0.0,
                     cadence_seconds - elapsed,
                 )
-            )
+            ):
+                self._execution_pin_event.clear()
+                if not self._stop.is_set():
+                    self.microstream_pin_wakeups = (
+                        int(getattr(self, "microstream_pin_wakeups", 0)) + 1
+                    )
 
     def _run_calibration_sampler(self) -> None:
         """Resolve only slower 2m/5m/15m prospective labels."""
