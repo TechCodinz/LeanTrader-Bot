@@ -7,6 +7,9 @@ import time
 import pytest
 
 from leantrader.agents.swarm_service import ReadOnlySwarmService
+from leantrader.production.testnet_residual_dust_cycle_v1627 import (
+    _current_cycle_evidence,
+)
 from leantrader.production.testnet_terminal_pending_recovery_v1629 import (
     below_canonical_minimum,
     canonical_executable_minimums,
@@ -188,7 +191,15 @@ def test_price_limited_but_executable_position_is_not_dust():
 # ---------------------------------------------------------------------------
 
 
-def _xrp_pending_runtime(tmp_path, *, filled=0.6894, status="closed", remaining=0.0):
+def _xrp_pending_runtime(
+    tmp_path,
+    *,
+    filled=0.6894,
+    status="closed",
+    remaining=0.0,
+    seed_matching_buy=False,
+    residual_cost_usd=None,
+):
     """Reproduce the persisted XRP terminal pending-event latch."""
 
     fake = PriceGuardBybit()
@@ -238,9 +249,28 @@ def _xrp_pending_runtime(tmp_path, *, filled=0.6894, status="closed", remaining=
             "average": 1.44897,
             "submitted_at": "2026-08-27T20:00:24+00:00",
         }
+        if seed_matching_buy:
+            # The real filled buy that opened this cycle, so durable evidence
+            # can be reconstructed from orders alone.
+            instance.state["orders"]["cycle-buy-xrp"] = {
+                "client_order_id": "cycle-buy-xrp",
+                "symbol": "XRP/USDT",
+                "side": "buy",
+                "status": "closed",
+                "submitted_at": "2026-08-27T19:59:17+00:00",
+                "filled": 0.7088,
+                "filled_cost": 0.9998538352,
+                "average": 1.410629,
+                "fee": 0.0,
+                "fee_currency": "USDT",
+            }
         if remaining > 0.0:
             instance.state["positions"]["XRP/USDT"] = remaining
-            instance.state["position_cost_usd"]["XRP/USDT"] = remaining * 1.44897
+            instance.state["position_cost_usd"]["XRP/USDT"] = (
+                residual_cost_usd
+                if residual_cost_usd is not None
+                else remaining * 1.44897
+            )
         else:
             instance.state["positions"].pop("XRP/USDT", None)
             instance.state["position_cost_usd"].pop("XRP/USDT", None)
@@ -766,3 +796,338 @@ def test_dust_recorded_at_iso_parsing_is_timezone_safe(tmp_path):
 
     outcome = instance.recover_uncounted_dust_cycles()
     assert outcome["recovered"] == 1
+
+
+# ---------------------------------------------------------------------------
+# v1.60.29 integration corrections
+# ---------------------------------------------------------------------------
+
+
+def test_recovered_row_uses_canonical_v1627_schema_and_health_sees_net(tmp_path):
+    """Correction 1: v1.60.27 consumers must read a real net, not zero."""
+
+    instance, _fake = _dust_cycle_engine(
+        tmp_path,
+        buy_filled=0.11,
+        buy_cost=11.0,
+        sell_filled=0.1,
+        sell_cost=10.005,
+    )
+
+    outcome = instance.recover_uncounted_dust_cycles()
+    assert outcome["recovered"] == 1
+
+    row = instance.state["v1627_completed_executable_cycles"][-1]
+
+    # Canonical v1.60.27 completed-cycle schema.
+    assert row["actual_realized_sell_pnl_usd"] == pytest.approx(0.005)
+    assert row["residual_dust_cost_basis_usd"] == pytest.approx(1.0)
+    assert row["actual_cycle_net_after_dust_usd"] == pytest.approx(-0.995)
+    assert row["winning_after_dust"] is False
+
+    # v1.60.27 engine health sums actual_cycle_net_after_dust_usd.
+    performance = instance.health()["performance"]
+    assert performance["completed_cycle_net_after_dust_usd"] == pytest.approx(-0.995)
+    assert performance["completed_cycle_net_after_dust_usd"] != 0.0
+
+
+def test_v1627_fast_retirement_uses_recovered_cycle_values(tmp_path):
+    """Correction 1: retire_fast_state must derive real actual-return bps."""
+
+    fake = PriceGuardBybit()
+    fake.bid = 100.0
+    fake.ask = 101.0
+    fake.sell_limit = 0.0
+
+    instance, _ = engine(
+        tmp_path,
+        fake,
+        max_order_usd=10.0,
+        max_position_usd=20.0,
+        max_daily_submitted_usd=50.0,
+        max_orders_per_day=20,
+    )
+    instance.start()
+    seed(instance, fake, 0.1, 9.5)
+    instance.reconcile_required()
+
+    # A recovered cycle carrying the canonical fields.
+    with instance._io_lock:
+        instance.state["orders"]["rc-buy"] = {
+            "client_order_id": "rc-buy",
+            "symbol": "BTC/USDT",
+            "side": "buy",
+            "status": "closed",
+            "submitted_at": "2026-08-27T10:00:00+00:00",
+            "filled": 0.11,
+            "filled_cost": 11.0,
+            "average": 100.0,
+        }
+        instance.state["orders"]["rc-sell"] = {
+            "client_order_id": "rc-sell",
+            "symbol": "BTC/USDT",
+            "side": "sell",
+            "status": "closed",
+            "submitted_at": "2026-08-27T10:00:10+00:00",
+            "filled": 0.1,
+            "filled_cost": 10.005,
+            "average": 100.05,
+        }
+        instance.state["non_tradeable_dust"]["BTC/USDT"] = {
+            "symbol": "BTC/USDT",
+            "quantity": 0.01,
+            "cost_basis_usd": 1.0,
+            "recorded_at": "2026-08-27T10:00:11+00:00",
+            "counted_as_executed_close": False,
+            "live_authority": False,
+        }
+        instance.state["position_cycle_pnl_usd"].pop("BTC/USDT", None)
+        instance._save_state()
+
+    assert instance.recover_uncounted_dust_cycles()["recovered"] == 1
+
+    # Leave only a dust-sized residual so v1.60.27's retirement path is the one
+    # that runs (0.01 * 100 = $1.00, below the $5 minimum cost).
+    fake.balance_total["BTC"] = 0.01
+    fake.balance_free["BTC"] = 0.01
+    with instance._io_lock:
+        instance.state["positions"]["BTC/USDT"] = 0.01
+        instance.state["position_cost_usd"]["BTC/USDT"] = 1.0
+        instance._save_state()
+
+    lane, service, _ = hyper_lane(tmp_path, testnet=instance)
+    now = 2_000.0
+    with lane._lock:
+        lane.state["active"]["BTC/USDT"] = {
+            "symbol": "BTC/USDT",
+            "quantity": 0.01,
+            "initial_quantity": 0.11,
+            "entry_price": 100.0,
+            "entry_notional_usd": 11.0,
+            "peak_price": 101.0,
+            "entered_at": 900.0,
+            "target_hold_seconds": 30.0,
+        }
+        lane._save_locked()
+
+    before_created = len(fake.created)
+    lane._manage_active(
+        service,
+        instance.safe_snapshot(),
+        "BTC/USDT",
+        dict(lane.state["active"]["BTC/USDT"]),
+        now=now,
+    )
+
+    closed = lane.state.get("closed") or []
+    assert closed, "v1.60.27 retirement did not record a closed row"
+    row = closed[-1]
+
+    # Values come from the recovered cycle, not zero.
+    assert row["actual_cycle_net_after_dust_usd"] == pytest.approx(-0.995)
+    assert row["actual_realized_sell_pnl_usd"] == pytest.approx(0.005)
+    assert row["residual_dust_cost_basis_usd"] == pytest.approx(1.0)
+    assert row["winning_after_dust"] is False
+    assert row["actual_return_bps_after_dust"] == pytest.approx(
+        -0.995 / 11.0 * 10_000.0
+    )
+    assert len(fake.created) == before_created
+
+
+def test_canonical_key_ledger_blocks_recount_after_row_rolled_out(tmp_path):
+    """Correction 2: the key ledger outlives the bounded row list."""
+
+    instance, _fake = _dust_cycle_engine(tmp_path)
+
+    with instance._io_lock:
+        evidence = _current_cycle_evidence(instance.state, "BTC/USDT")
+        cycle_key = evidence["cycle_key"]
+        # Historical row has rolled out; only the canonical key ledger remains.
+        instance.state["v1627_completed_executable_cycles"] = []
+        instance.state["v1627_completed_cycle_keys"] = [cycle_key]
+        instance._save_state()
+
+    outcome = instance.recover_uncounted_dust_cycles()
+
+    assert outcome["recovered"] == 0
+    assert outcome["rejections"][0]["reason"] == "cycle_key_already_recorded"
+    assert instance.state.get("closed_positions", 0) == 0
+
+
+def test_recovery_appends_to_canonical_key_ledger(tmp_path):
+    instance, _fake = _dust_cycle_engine(tmp_path)
+
+    assert instance.recover_uncounted_dust_cycles()["recovered"] == 1
+
+    keys = instance.state["v1627_completed_cycle_keys"]
+    row = instance.state["v1627_completed_executable_cycles"][-1]
+    assert row["cycle_key"] in keys
+    assert len(keys) == 1
+
+    # Idempotent: a second pass must not duplicate the key.
+    instance.recover_uncounted_dust_cycles()
+    assert instance.state["v1627_completed_cycle_keys"].count(row["cycle_key"]) == 1
+
+
+def test_dust_recorded_slightly_before_sell_is_rejected(tmp_path):
+    """Correction 3: no positive slack may admit pre-sell dust."""
+
+    instance, _fake = _dust_cycle_engine(tmp_path)
+
+    with instance._io_lock:
+        # One second before the sell: previously admitted by a 2.0s slack.
+        instance.state["non_tradeable_dust"]["BTC/USDT"]["recorded_at"] = (
+            "2026-08-27T10:00:09+00:00"
+        )
+        instance._save_state()
+
+    outcome = instance.recover_uncounted_dust_cycles()
+
+    assert outcome["recovered"] == 0
+    assert outcome["rejections"][0]["reason"] == "dust_recorded_before_sell"
+    assert instance.state.get("closed_positions", 0) == 0
+
+
+def test_dust_recorded_exactly_at_sell_is_accepted(tmp_path):
+    instance, _fake = _dust_cycle_engine(tmp_path)
+
+    with instance._io_lock:
+        instance.state["non_tradeable_dust"]["BTC/USDT"]["recorded_at"] = (
+            "2026-08-27T10:00:10+00:00"
+        )
+        instance._save_state()
+
+    assert instance.recover_uncounted_dust_cycles()["recovered"] == 1
+
+
+def test_terminal_retirement_clears_all_symbol_scoped_stale_state(tmp_path):
+    """Correction 4: deferred recovery and price watch must both be released."""
+
+    lane, _service, instance, fake, _client_id, _event = _xrp_pending_runtime(
+        tmp_path,
+        filled=0.708,
+        remaining=0.0008,
+        seed_matching_buy=True,
+        residual_cost_usd=0.9998538352 * (0.0008 / 0.7088),
+    )
+
+    with lane._lock:
+        lane.state.setdefault("deferred_exit_recoveries", {})["XRP/USDT"] = {
+            "symbol": "XRP/USDT",
+            "attempts": 3,
+        }
+        lane.state.setdefault("v1615_price_limit_watch", {})["XRP/USDT"] = {
+            "symbol": "XRP/USDT",
+            "sell_limit": 1.5,
+        }
+        # An unrelated symbol must survive untouched.
+        lane.state["deferred_exit_recoveries"]["CSPR/USDT"] = {"symbol": "CSPR/USDT"}
+        lane.state["v1615_price_limit_watch"]["JASMY/USDT"] = {"symbol": "JASMY/USDT"}
+        lane._save_locked()
+
+    before_created = len(fake.created)
+    result = lane._submit_pending(lane.state["pending_event"], now=2_000.0)
+
+    assert result["details"]["position_retired"] is True
+    assert result["details"]["stale_symbol_state_cleared"] is True
+
+    assert "XRP/USDT" not in lane.state["deferred_exit_recoveries"]
+    assert "XRP/USDT" not in lane.state["v1615_price_limit_watch"]
+    assert "XRP/USDT" not in lane.state["active"]
+    assert lane.state["pending_event"] is None
+    assert lane.state["last_exit_by_symbol"]["XRP/USDT"] == 2_000.0
+
+    # Strictly symbol-scoped: other symbols untouched.
+    assert "CSPR/USDT" in lane.state["deferred_exit_recoveries"]
+    assert "JASMY/USDT" in lane.state["v1615_price_limit_watch"]
+
+    assert len(fake.created) == before_created
+
+
+def test_unresolved_order_does_not_clear_stale_symbol_state(tmp_path):
+    """Correction 4: fail-closed path must not release anything."""
+
+    lane, _service, _instance, fake, _client_id, _event = _xrp_pending_runtime(
+        tmp_path,
+        status="open",
+        filled=0.0,
+    )
+
+    with lane._lock:
+        lane.state.setdefault("deferred_exit_recoveries", {})["XRP/USDT"] = {"a": 1}
+        lane.state.setdefault("v1615_price_limit_watch", {})["XRP/USDT"] = {"b": 2}
+        lane._save_locked()
+
+    before_created = len(fake.created)
+    lane._submit_pending(lane.state["pending_event"], now=2_000.0)
+
+    assert "XRP/USDT" in lane.state["deferred_exit_recoveries"]
+    assert "XRP/USDT" in lane.state["v1615_price_limit_watch"]
+    assert lane.state["pending_event"] is not None
+    assert len(fake.created) == before_created
+
+
+def test_live_xrp_case_finalizes_immediately_without_restart(tmp_path):
+    """Correction 5: the whole live sequence resolves in one running process."""
+
+    lane, _service, instance, fake, _client_id, _event = _xrp_pending_runtime(
+        tmp_path,
+        filled=0.708,
+        remaining=0.0008,
+        seed_matching_buy=True,
+        residual_cost_usd=0.9998538352 * (0.0008 / 0.7088),
+    )
+
+    before_created = len(fake.created)
+    assert instance.state.get("closed_positions", 0) == 0
+
+    result = lane._submit_pending(lane.state["pending_event"], now=2_000.0)
+
+    # Terminal sell reconciled, never resubmitted.
+    assert result["reason"] == "terminal_pending_reconciled"
+    assert result["details"]["order_submitted"] is False
+
+    # Sub-minimum residual became real dust.
+    assert result["details"]["residual_recorded_as_dust"] is True
+    dust = instance.state["non_tradeable_dust"]["XRP/USDT"]
+    assert dust["quantity"] == pytest.approx(0.0008)
+
+    # Pending latch cleared.
+    assert lane.state["pending_event"] is None
+
+    # Cycle counted immediately, in-process, without any restart.
+    assert result["details"]["cycle_counted_immediately"] is True
+    assert instance.state["closed_positions"] == 1
+    assert dust["counted_as_executed_close"] is True
+
+    row = instance.state["v1627_completed_executable_cycles"][-1]
+    assert row["actual_realized_sell_pnl_usd"] == pytest.approx(
+        0.998919918 - 0.9998538352 * (0.708 / 0.7088)
+    )
+    assert row["residual_dust_cost_basis_usd"] == pytest.approx(
+        0.9998538352 * (0.0008 / 0.7088)
+    )
+    assert row["cycle_key"] in instance.state["v1627_completed_cycle_keys"]
+
+    # A second finalization attempt cannot count again.
+    again = instance.finalize_symbol_cycle("XRP/USDT")
+    assert again["eligible"] is False
+    assert instance.state["closed_positions"] == 1
+
+    # And no exchange order was ever submitted.
+    assert len(fake.created) == before_created
+
+
+def test_startup_and_immediate_recovery_share_one_helper(tmp_path):
+    """Correction 5: both paths must be the same code, so they cannot drift."""
+
+    instance, _fake = _dust_cycle_engine(tmp_path)
+
+    direct = instance.finalize_symbol_cycle("BTC/USDT")
+    assert direct["eligible"] is True
+    assert instance.state["closed_positions"] == 1
+
+    # Startup recovery now finds nothing left to do.
+    outcome = instance.recover_uncounted_dust_cycles()
+    assert outcome["recovered"] == 0
+    assert instance.state["closed_positions"] == 1

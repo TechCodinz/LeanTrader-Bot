@@ -52,9 +52,9 @@ COST_BASIS_REL_TOLERANCE = 1e-6
 QUANTITY_TOLERANCE_FRACTION = 1e-2
 QUANTITY_TOLERANCE_FLOOR = 1e-9
 
-# Dust must not be recorded before the sell that produced it. A small clock slack
-# absorbs persistence ordering without admitting an unrelated earlier dust row.
-DUST_RECORDED_AT_SLACK_SECONDS = 2.0
+# Canonical v1.60.27 bounded retention. Rows roll out sooner than keys, which is
+# why the key ledger is authoritative for idempotency.
+MAX_RECORDED_CYCLE_KEYS = 500
 
 
 def canonical_executable_minimums(
@@ -201,15 +201,26 @@ def _has_later_filled_buy(
 
 
 def _recorded_cycle_keys(state: dict[str, Any]) -> set[str]:
-    """Idempotency ledger shared with v1.60.27 so a cycle counts at most once."""
+    """Idempotency ledger shared with v1.60.27 so a cycle counts at most once.
+
+    The canonical ``v1627_completed_cycle_keys`` ledger is authoritative and is
+    retained longer (500) than the completed-cycle rows (250). Consulting only
+    the rows would let a cycle be recounted once its row rolled out of the
+    bounded row list, so both sources are unioned.
+    """
 
     keys: set[str] = set()
 
+    for key in state.get("v1627_completed_cycle_keys") or []:
+        text = str(key or "")
+        if text:
+            keys.add(text)
+
     for row in state.get("v1627_completed_executable_cycles") or []:
         if isinstance(row, dict):
-            key = str(row.get("cycle_key") or "")
-            if key:
-                keys.add(key)
+            text = str(row.get("cycle_key") or "")
+            if text:
+                keys.add(text)
 
     return keys
 
@@ -292,7 +303,10 @@ def evaluate_recoverable_cycle(
     if recorded_at <= 0.0:
         return reject("dust_recorded_at_unavailable")
 
-    if recorded_at + DUST_RECORDED_AT_SLACK_SECONDS < sell_at:
+    # Forensic invariant: dust is a consequence of the sell, so it can never be
+    # recorded before it. Both values are persisted UTC timestamps, so any
+    # ordering that is not strictly non-decreasing fails closed. No slack.
+    if recorded_at < sell_at:
         return reject("dust_recorded_before_sell")
 
     # Residual quantity match, tolerance derived from the canonical minimum.
@@ -347,6 +361,7 @@ def evaluate_recoverable_cycle(
         "residual_dust_cost_basis_usd": dust_cost_basis,
         "net_realized_after_dust_usd": net_after_dust,
         "is_win": bool(net_after_dust > 0.0),
+        "winning_after_dust": bool(net_after_dust > 0.0),
         "residual_quantity": residual_estimate,
         "quantity_tolerance": quantity_tolerance,
         "cost_basis_tolerance": cost_tolerance,
@@ -371,9 +386,151 @@ def install_testnet_terminal_pending_recovery_v1629() -> None:
         return
 
     original_submit_pending = HyperSpeedCollectiveTestnetLane._submit_pending
+    original_prepare_sell = BybitTestnetExecutionEngine.prepare_sell
     original_engine_health = BybitTestnetExecutionEngine.health
     original_engine_start = BybitTestnetExecutionEngine.start
     original_lane_health = HyperSpeedCollectiveTestnetLane.health
+
+    def _has_canonical_cycle(self: Any, symbol: str) -> bool:
+        normalized = str(symbol or "").upper()
+        for row in self.state.get("v1627_completed_executable_cycles") or []:
+            if (
+                isinstance(row, dict)
+                and str(row.get("symbol") or "").upper() == normalized
+            ):
+                return True
+        return False
+
+    def prepare_sell(
+        self: Any,
+        symbol: str,
+        requested_quantity: float,
+        reference_price: float,
+    ) -> dict[str, Any]:
+        """Finalize a durable cycle as soon as dust is persisted.
+
+        v1.60.27 marks ``completed_executable_cycle`` from the ephemeral
+        ``position_cycle_pnl_usd`` key, which ``_record_non_tradeable_dust``
+        destroys. Without this, a genuinely completed cycle proven by durable
+        closed filled orders would never reach v1.60.27's retirement path and it
+        would emit a zeroed closed record. Finalization is idempotent.
+        """
+
+        result = original_prepare_sell(
+            self,
+            symbol,
+            requested_quantity,
+            reference_price,
+        )
+
+        if str((result or {}).get("status") or "") != "dust":
+            return result
+
+        normalized = str(symbol or "").upper()
+
+        # Shared single-symbol finalizer: same evidence gates as startup
+        # recovery, counts at most once, submits nothing.
+        _finalize_symbol_cycle(self, normalized)
+
+        result = dict(result)
+
+        with self._io_lock:
+            durable_cycle = _has_canonical_cycle(self, normalized)
+
+        if durable_cycle:
+            result["completed_executable_cycle"] = True
+            result["completed_cycle_source"] = "durable_closed_filled_orders"
+
+        result["residual_dust_counted_as_sale"] = False
+        result["live_authority"] = False
+        return result
+
+    def _finalize_symbol_cycle(self: Any, symbol: str) -> dict[str, Any]:
+        """Durably finalize one symbol's completed cycle, at most once.
+
+        Shared by bounded startup recovery and P0 immediate finalization so the
+        two paths cannot drift. Writes the canonical v1.60.27 completed-cycle
+        schema, appends to the canonical key ledger, marks the dust row counted,
+        and never mutates global exchange-realized PnL or submits an order.
+        """
+
+        normalized = str(symbol or "").upper()
+
+        with self._io_lock:
+            dust_row = (self.state.get("non_tradeable_dust") or {}).get(normalized)
+            dust = copy.deepcopy(dust_row) if isinstance(dust_row, dict) else {}
+            evidence = _current_cycle_evidence(self.state, normalized)
+
+            assessment = evaluate_recoverable_cycle(
+                exchange=getattr(self, "exchange", None),
+                state=self.state,
+                symbol=normalized,
+                dust=dust,
+                evidence=evidence,
+            )
+
+            if assessment.get("eligible") is not True:
+                return assessment
+
+            realized_sell_pnl = assessment["realized_sell_pnl_usd"]
+            dust_cost_basis = assessment["residual_dust_cost_basis_usd"]
+            actual_net = assessment["net_realized_after_dust_usd"]
+            winning_after_dust = bool(actual_net > 0.0)
+            cycle_key = assessment["cycle_key"]
+
+            cycle = {
+                **copy.deepcopy(evidence),
+                # Canonical v1.60.27 completed-cycle schema. Existing consumers
+                # (engine health aggregation and retire_fast_state) read exactly
+                # these field names.
+                "actual_realized_sell_pnl_usd": realized_sell_pnl,
+                "residual_dust_cost_basis_usd": dust_cost_basis,
+                "actual_cycle_net_after_dust_usd": actual_net,
+                "winning_after_dust": winning_after_dust,
+                "residual_dust_quantity": assessment["residual_quantity"],
+                "completed_executable_cycle": True,
+                "counted_as_executed_close": True,
+                "residual_dust_counted_as_sale": False,
+                "recovered_by": VERSION,
+                "recovery_source": "durable_closed_filled_orders",
+                "global_realized_pnl_mutated": False,
+                "recorded_at": dt.datetime.now(dt.UTC).isoformat(),
+                "testnet_only": True,
+                "live_authority": False,
+            }
+
+            rows = list(self.state.get("v1627_completed_executable_cycles") or [])
+            rows.append(cycle)
+            self.state["v1627_completed_executable_cycles"] = rows[
+                -MAX_RECORDED_CYCLES:
+            ]
+
+            # Canonical key ledger, bounded exactly as v1.60.27 bounds it.
+            keys = list(self.state.get("v1627_completed_cycle_keys") or [])
+            if cycle_key not in keys:
+                keys.append(cycle_key)
+            self.state["v1627_completed_cycle_keys"] = keys[-MAX_RECORDED_CYCLE_KEYS:]
+
+            self.state["closed_positions"] = (
+                int(self.state.get("closed_positions") or 0) + 1
+            )
+            if winning_after_dust:
+                self.state["winning_positions"] = (
+                    int(self.state.get("winning_positions") or 0) + 1
+                )
+
+            self.state["v1629_recovered_cycles"] = (
+                int(self.state.get("v1629_recovered_cycles") or 0) + 1
+            )
+
+            if isinstance(dust_row, dict):
+                dust_row["counted_as_executed_close"] = True
+                dust_row["counted_by"] = VERSION
+                dust_row["actual_cycle_net_after_dust_usd"] = actual_net
+
+            self._save_state()
+
+        return {**assessment, "winning_after_dust": winning_after_dust}
 
     def recover_uncounted_dust_cycles(
         self: Any,
@@ -382,8 +539,8 @@ def install_testnet_terminal_pending_recovery_v1629() -> None:
     ) -> dict[str, Any]:
         """Bounded startup recovery of previously recorded uncounted dust cycles.
 
-        Uses only durable closed filled buy/sell orders. Never mutates
-        ``realized_pnl_usd``. Never submits an exchange order.
+        Delegates every symbol to the shared single-symbol finalizer so startup
+        recovery and P0 immediate finalization enforce identical evidence gates.
         """
 
         recovered: list[dict[str, Any]] = []
@@ -398,76 +555,11 @@ def install_testnet_terminal_pending_recovery_v1629() -> None:
             ][: max(0, int(limit))]
 
         for symbol in dust_symbols:
-            with self._io_lock:
-                dust = copy.deepcopy(
-                    (self.state.get("non_tradeable_dust") or {}).get(symbol) or {}
-                )
-                evidence = _current_cycle_evidence(self.state, symbol)
-
-                assessment = evaluate_recoverable_cycle(
-                    exchange=self.exchange,
-                    state=self.state,
-                    symbol=symbol,
-                    dust=dust,
-                    evidence=evidence,
-                )
-
-                if assessment.get("eligible") is not True:
-                    rejected.append(assessment)
-                    continue
-
-                cycle = {
-                    **copy.deepcopy(evidence),
-                    "actual_realized_pnl_usd": assessment[
-                        "net_realized_after_dust_usd"
-                    ],
-                    "realized_sell_pnl_usd": assessment["realized_sell_pnl_usd"],
-                    "residual_dust_cost_basis_usd": assessment[
-                        "residual_dust_cost_basis_usd"
-                    ],
-                    "residual_dust_quantity": assessment["residual_quantity"],
-                    "recovered_by": VERSION,
-                    "recovery_source": "durable_closed_filled_orders",
-                    "completed_executable_cycle": True,
-                    "counted_as_executed_close": True,
-                    "residual_dust_counted_as_sale": False,
-                    "global_realized_pnl_mutated": False,
-                    "recorded_at": dt.datetime.now(dt.UTC).isoformat(),
-                    "testnet_only": True,
-                    "live_authority": False,
-                }
-
-                rows = list(
-                    self.state.get("v1627_completed_executable_cycles") or []
-                )
-                rows.append(cycle)
-                self.state["v1627_completed_executable_cycles"] = rows[
-                    -MAX_RECORDED_CYCLES:
-                ]
-
-                self.state["closed_positions"] = (
-                    int(self.state.get("closed_positions") or 0) + 1
-                )
-
-                if assessment["is_win"]:
-                    self.state["winning_positions"] = (
-                        int(self.state.get("winning_positions") or 0) + 1
-                    )
-
-                self.state["v1629_recovered_cycles"] = (
-                    int(self.state.get("v1629_recovered_cycles") or 0) + 1
-                )
-
-                dust_row = (self.state.get("non_tradeable_dust") or {}).get(symbol)
-                if isinstance(dust_row, dict):
-                    dust_row["counted_as_executed_close"] = True
-                    dust_row["counted_by"] = VERSION
-                    dust_row["net_realized_after_dust_usd"] = assessment[
-                        "net_realized_after_dust_usd"
-                    ]
-
-                self._save_state()
+            assessment = _finalize_symbol_cycle(self, symbol)
+            if assessment.get("eligible") is True:
                 recovered.append(assessment)
+            else:
+                rejected.append(assessment)
 
         return {
             "version": VERSION,
@@ -655,20 +747,46 @@ def install_testnet_terminal_pending_recovery_v1629() -> None:
             if residual_recorded_as_dust:
                 remaining = 0.0
 
+        # The symbol is fully retired only when nothing tradeable remains.
+        position_retired = bool(remaining <= 0.0)
+
         with self._lock:
             active = self.state.setdefault("active", {})
             record = active.get(symbol)
 
-            if record is not None:
-                if remaining > 0.0:
-                    # Retain the authoritative remaining executor quantity.
-                    record["quantity"] = remaining
-                else:
-                    active.pop(symbol, None)
-                    self.state.setdefault("last_exit_by_symbol", {})[symbol] = now
+            if record is not None and not position_retired:
+                # Retain the authoritative remaining executor quantity.
+                record["quantity"] = remaining
 
-            # Clear the stale global pending latch.
-            self.state["pending_event"] = None
+            if position_retired:
+                # Clear every symbol-scoped stale fast state, matching the
+                # cleanup semantics already proven by v1.60.27
+                # retire_fast_state(). Strictly scoped to this symbol.
+                active.pop(symbol, None)
+
+                (self.state.get("deferred_exit_recoveries") or {}).pop(symbol, None)
+                (self.state.get("v1615_price_limit_watch") or {}).pop(symbol, None)
+
+                self.state.setdefault("last_exit_by_symbol", {})[symbol] = now
+
+            # Clear the stale global pending latch only when it is still this
+            # symbol's event; a concurrently installed latch for another symbol
+            # must survive untouched.
+            pending_latch = self.state.get("pending_event")
+            pending_latch_cleared = False
+
+            if isinstance(pending_latch, dict):
+                latch_event = (
+                    pending_latch.get("event")
+                    or pending_latch.get("source_event")
+                    or {}
+                )
+                if str(latch_event.get("symbol") or "").upper() == symbol:
+                    self.state["pending_event"] = None
+                    pending_latch_cleared = True
+            elif pending_latch is None:
+                pending_latch_cleared = True
+
             self.state["last_error"] = None
 
             reconciliations = list(
@@ -685,9 +803,11 @@ def install_testnet_terminal_pending_recovery_v1629() -> None:
                     "authoritative_remaining_quantity": remaining,
                     "residual_recorded_as_dust": residual_recorded_as_dust,
                     "dust_assessment": copy.deepcopy(dust_assessment),
+                    "position_retired": position_retired,
                     "order_submitted": False,
                     "resubmission_suppressed": True,
-                    "pending_latch_cleared": True,
+                    "pending_latch_cleared": pending_latch_cleared,
+                    "stale_symbol_state_cleared": position_retired,
                     "fabricated_close": False,
                     "global_realized_pnl_mutated": False,
                     "observed_at": now,
@@ -706,11 +826,18 @@ def install_testnet_terminal_pending_recovery_v1629() -> None:
                 "filled": filled,
                 "timestamp": now,
                 "order_submitted": False,
-                "pending_latch_cleared": True,
+                "pending_latch_cleared": pending_latch_cleared,
                 "live_authority": False,
             }
 
             self._save_locked()
+
+        # v1.60.29 P0->P1: finalize the residual-dust cycle now rather than
+        # waiting for the next restart. Same evidence gates as startup recovery,
+        # via the shared single-symbol finalizer. Counts at most once.
+        finalization: dict[str, Any] = {}
+        if residual_recorded_as_dust:
+            finalization = _finalize_symbol_cycle(self.testnet, symbol)
 
         return self._decision(
             "terminal_pending_reconciled",
@@ -723,9 +850,15 @@ def install_testnet_terminal_pending_recovery_v1629() -> None:
                 "authoritative_remaining_quantity": remaining,
                 "residual_recorded_as_dust": residual_recorded_as_dust,
                 "dust_assessment": dust_assessment,
+                "position_retired": position_retired,
+                "stale_symbol_state_cleared": position_retired,
+                "immediate_cycle_finalization": finalization,
+                "cycle_counted_immediately": bool(
+                    finalization.get("eligible") is True
+                ),
                 "order_submitted": False,
                 "resubmission_suppressed": True,
-                "pending_latch_cleared": True,
+                "pending_latch_cleared": pending_latch_cleared,
                 "fabricated_close": False,
                 "residual_dust_counted_as_sale": False,
                 "global_realized_pnl_mutated": False,
@@ -749,6 +882,10 @@ def install_testnet_terminal_pending_recovery_v1629() -> None:
             "requires_residual_cost_basis_match": True,
             "later_buy_invalidates_cycle": True,
             "win_loss_is_net_of_residual_dust": True,
+            "writes_canonical_v1627_cycle_schema": True,
+            "uses_canonical_v1627_key_ledger": True,
+            "dust_must_not_precede_sell": True,
+            "immediate_finalization_without_restart": True,
             "global_realized_pnl_mutated": False,
             "fake_close_allowed": False,
             "testnet_only": True,
@@ -780,6 +917,8 @@ def install_testnet_terminal_pending_recovery_v1629() -> None:
         payload["live_authority"] = False
         return payload
 
+    BybitTestnetExecutionEngine.prepare_sell = prepare_sell
+    BybitTestnetExecutionEngine.finalize_symbol_cycle = _finalize_symbol_cycle
     BybitTestnetExecutionEngine.recover_uncounted_dust_cycles = (
         recover_uncounted_dust_cycles
     )
