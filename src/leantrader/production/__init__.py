@@ -55,6 +55,9 @@ from .testnet_terminal_pending_recovery_v1629 import (
 from .testnet_exit_impaired_quarantine_v1630 import (
     install_testnet_exit_impaired_quarantine_v1630 as _install_testnet_exit_impaired_quarantine_v1630,
 )
+from .testnet_terminal_buy_recovery_v1631 import (
+    install_testnet_terminal_buy_recovery_v1631 as _install_testnet_terminal_buy_recovery_v1631,
+)
 
 _install_public_spot_defaults()
 del _install_public_spot_defaults
@@ -97,6 +100,9 @@ del _install_testnet_terminal_pending_recovery_v1629
 _install_testnet_exit_impaired_quarantine_v1630()
 del _install_testnet_exit_impaired_quarantine_v1630
 
+_install_testnet_terminal_buy_recovery_v1631()
+del _install_testnet_terminal_buy_recovery_v1631
+
 __all__ = [
     "arbitrage_monitor",
     "memory_retention",
@@ -138,4 +144,5 @@ __all__ = [
     "testnet_residual_dust_cycle_v1627",
     "testnet_terminal_pending_recovery_v1629",
     "testnet_exit_impaired_quarantine_v1630",
+    "testnet_terminal_buy_recovery_v1631",
 ]
