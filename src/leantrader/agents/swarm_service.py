@@ -579,7 +579,10 @@ class ReadOnlySwarmService:
     def stop(self) -> None:
         self._stop.set()
         # v1.60.29: also release any microstream sleep parked on the pin wake.
-        self._execution_pin_event.set()
+        # Absent on legacy/lightweight instances, so guard rather than raise.
+        wake_event = getattr(self, "_execution_pin_event", None)
+        if wake_event is not None:
+            wake_event.set()
 
         thread = self._thread
         if thread is not None and thread.is_alive():
@@ -2389,11 +2392,14 @@ class ReadOnlySwarmService:
                     symbol
                 ] = expires
 
-        if normalized:
-            # v1.60.29: wake the sleeping microstream so a pinned candidate can
-            # be sampled without waiting out the remaining cadence. Ordering,
-            # capacity and freshness rules are unchanged.
-            self._execution_pin_event.set()
+        # v1.60.29: wake the sleeping microstream so a pinned candidate can be
+        # sampled without waiting out the remaining cadence. Ordering, capacity
+        # and freshness rules are unchanged. Legacy/lightweight instances built
+        # with object.__new__ never create the event; pinning must still work
+        # for them, so the wake is skipped rather than raising.
+        wake_event = getattr(self, "_execution_pin_event", None)
+        if normalized and wake_event is not None:
+            wake_event.set()
 
     @classmethod
     def _build_sticky_precision_queue(
@@ -3363,13 +3369,22 @@ class ReadOnlySwarmService:
             # candidate is pinned, or shutdown is requested. stop() sets the pin
             # event too, so shutdown stays as responsive as the previous
             # self._stop.wait(). Cadence, capacity and freshness are unchanged.
-            if self._execution_pin_event.wait(
-                max(
-                    0.0,
-                    cadence_seconds - elapsed,
-                )
-            ):
-                self._execution_pin_event.clear()
+            remaining = max(
+                0.0,
+                cadence_seconds - elapsed,
+            )
+
+            wake_event = getattr(
+                self,
+                "_execution_pin_event",
+                None,
+            )
+
+            if wake_event is None:
+                # Legacy/lightweight instances keep the original semantics.
+                self._stop.wait(remaining)
+            elif wake_event.wait(remaining):
+                wake_event.clear()
                 if not self._stop.is_set():
                     self.microstream_pin_wakeups = (
                         int(getattr(self, "microstream_pin_wakeups", 0)) + 1

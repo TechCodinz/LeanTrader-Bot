@@ -1131,3 +1131,60 @@ def test_startup_and_immediate_recovery_share_one_helper(tmp_path):
     outcome = instance.recover_uncounted_dust_cycles()
     assert outcome["recovered"] == 0
     assert instance.state["closed_positions"] == 1
+
+
+def test_legacy_lightweight_service_can_pin_without_wake_event():
+    """A legacy object.__new__ instance has no wake event and must not raise.
+
+    Mirrors tests/test_freshness_budget_v1606.py::service(), which initializes
+    only the fields the tested method needs.
+    """
+
+    obj = object.__new__(ReadOnlySwarmService)
+    obj._lock = threading.RLock()
+    obj._execution_precision_pins = {"CSPR/USDT": 9999999999.0}
+    obj._execution_candidate_pins = {}
+
+    assert not hasattr(obj, "_execution_pin_event")
+
+    obj.pin_execution_candidate_symbols({"mnt/usdt"}, ttl_seconds=6.0)
+
+    # Pinning still works, and candidate pins stay separate from position pins.
+    assert "MNT/USDT" in obj._execution_candidate_pins
+    assert "MNT/USDT" not in obj._execution_precision_pins
+
+    # Still no wake event was fabricated on the legacy instance.
+    assert not hasattr(obj, "_execution_pin_event")
+
+
+def test_stop_is_safe_without_a_wake_event():
+    """stop() must not raise on an instance built before the wake event existed."""
+
+    obj = object.__new__(ReadOnlySwarmService)
+    obj._stop = threading.Event()
+    obj._thread = None
+    obj.cadence_seconds = 1.0
+    obj._precision_scout_thread = None
+    obj._microstream_watchdog_thread = None
+    obj._microstream_thread = None
+    obj._calibration_thread = None
+
+    assert not hasattr(obj, "_execution_pin_event")
+
+    ReadOnlySwarmService.stop(obj)
+
+    assert obj._stop.is_set() is True
+
+
+def test_fully_initialized_service_still_creates_and_uses_wake_event():
+    """Production services must keep waking immediately; no behavior weakened."""
+
+    service = _PinService()
+    assert service._execution_pin_event.is_set() is False
+
+    ReadOnlySwarmService.pin_execution_candidate_symbols(service, ["XRP/USDT"])
+
+    assert service._execution_pin_event.is_set() is True
+    started = time.monotonic()
+    assert service._execution_pin_event.wait(5.0) is True
+    assert time.monotonic() - started < 1.0
