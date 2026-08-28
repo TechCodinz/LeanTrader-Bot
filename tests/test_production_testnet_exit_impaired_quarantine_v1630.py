@@ -5,7 +5,9 @@ import pytest
 from leantrader.production.testnet_exit_impaired_quarantine_v1630 import (
     REASON_FREE_BALANCE,
     REASON_PRICE_LIMIT,
+    STATE_EXECUTABILITY_UNPROVABLE,
     STATE_HEALTHY,
+    STATE_NOT_EXECUTABLE_RESIDUAL,
     STATE_TRUE_DUST,
     STATE_UNRESOLVED_ORDER,
     actual_realized_net_usd,
@@ -185,17 +187,21 @@ def test_free_balance_not_executable_is_quarantined_not_dust():
         account_balance={"free": {"AAA": 0.0005}},
     )
 
+    # 5.0 @ 100.0 = $500 notional, clearing both the amount and cost minimums,
+    # while the free base (0.0005) clears neither.
     row = classify_symbol_exit_state(
         engine_state=engine_state,
         lane_state={},
         symbol="AAA/USDT",
-        exchange=_Exchange(min_amount=0.001),
+        exchange=_Exchange(min_amount=0.001, min_cost=1.0),
+        fresh_bid_provider=lambda _symbol: 100.0,
     )
 
     assert row["impaired"] is True
     assert row["reason"] == REASON_FREE_BALANCE
     assert row["position_executable_in_principle"] is True
     assert row["free_base_quantity"] == pytest.approx(0.0005)
+    assert row["position_value_usd"] == pytest.approx(500.0)
 
     # Never converted to dust, never deleted.
     assert engine_state["positions"]["AAA/USDT"] == pytest.approx(5.0)
@@ -549,3 +555,306 @@ def test_lane_without_executor_is_compatible_and_unchanged():
     assert impairment["impaired_inventory_count"] == 0
     assert impairment["executor_inventory_count"] == 0
     assert impairment["live_authority"] is False
+
+
+# ---------------------------------------------------------------------------
+# P0-B - full-position executability must be proven, not assumed
+# ---------------------------------------------------------------------------
+
+
+def _low_free_state(quantity=5.0):
+    return _engine_state(
+        positions={"AAA/USDT": quantity},
+        position_cost_usd={"AAA/USDT": 10.0},
+        account_balance={"free": {"AAA": 0.0005}},
+    )
+
+
+def test_amount_above_minimum_but_value_below_min_cost_is_not_impairment():
+    """A genuine min-cost residual must never be called trapped inventory."""
+
+    row = classify_symbol_exit_state(
+        engine_state=_low_free_state(quantity=0.002),
+        lane_state={},
+        symbol="AAA/USDT",
+        exchange=_Exchange(min_amount=0.001, min_cost=5.0),
+        fresh_bid_provider=lambda _symbol: 100.0,  # 0.002 * 100 = $0.20 < $5
+    )
+
+    assert row["impaired"] is False
+    assert row["state"] == STATE_NOT_EXECUTABLE_RESIDUAL
+    assert row["reason"] == "position_below_minimum_cost"
+    assert row["estimated_value_usd"] == pytest.approx(0.2)
+
+
+def test_unavailable_fresh_bid_fails_closed():
+    row = classify_symbol_exit_state(
+        engine_state=_low_free_state(),
+        lane_state={},
+        symbol="AAA/USDT",
+        exchange=_Exchange(min_amount=0.001, min_cost=1.0),
+        fresh_bid_provider=lambda _symbol: 0.0,
+    )
+
+    assert row["impaired"] is False
+    assert row["state"] == STATE_EXECUTABILITY_UNPROVABLE
+    assert row["reason"] == "fresh_executable_bid_unavailable"
+    assert row["fail_closed"] is True
+
+
+def test_missing_fresh_bid_provider_fails_closed():
+    row = classify_symbol_exit_state(
+        engine_state=_low_free_state(),
+        lane_state={},
+        symbol="AAA/USDT",
+        exchange=_Exchange(min_amount=0.001, min_cost=1.0),
+    )
+
+    assert row["impaired"] is False
+    assert row["state"] == STATE_EXECUTABILITY_UNPROVABLE
+    assert row["fail_closed"] is True
+
+
+def test_raising_fresh_bid_provider_fails_closed():
+    def _boom(_symbol):
+        raise RuntimeError("ticker unavailable")
+
+    row = classify_symbol_exit_state(
+        engine_state=_low_free_state(),
+        lane_state={},
+        symbol="AAA/USDT",
+        exchange=_Exchange(min_amount=0.001, min_cost=1.0),
+        fresh_bid_provider=_boom,
+    )
+
+    assert row["impaired"] is False
+    assert row["state"] == STATE_EXECUTABILITY_UNPROVABLE
+    assert row["fail_closed"] is True
+
+
+def test_unresolved_canonical_minimums_fail_closed():
+    class _NoMinimums:
+        def market(self, symbol):
+            return {"symbol": symbol, "limits": {}, "info": {}}
+
+    row = classify_symbol_exit_state(
+        engine_state=_low_free_state(),
+        lane_state={},
+        symbol="AAA/USDT",
+        exchange=_NoMinimums(),
+        fresh_bid_provider=lambda _symbol: 100.0,
+    )
+
+    assert row["impaired"] is False
+    assert row["state"] != REASON_FREE_BALANCE
+
+
+def test_cspr_jasmy_price_limit_behavior_is_unchanged_by_executability_proof():
+    """Price-limit impairment is decided before any executability proof."""
+
+    engine_state, lane_state = _cspr_impaired_states()
+
+    for symbol in ("CSPR/USDT", "JASMY/USDT"):
+        row = classify_symbol_exit_state(
+            engine_state=engine_state,
+            lane_state=lane_state,
+            symbol=symbol,
+            exchange=_Exchange(min_amount=0.001, min_cost=1.0),
+            fresh_bid_provider=None,  # never consulted on this path
+        )
+        assert row["impaired"] is True
+        assert row["reason"] == REASON_PRICE_LIMIT
+
+
+# ---------------------------------------------------------------------------
+# P0-A - quarantine may change routing occupancy, never risk authority
+# ---------------------------------------------------------------------------
+
+
+def _growth(*, remaining=15.0, risk=1.0, equity=50.0, allowed=True):
+    return {
+        "state": "normal",
+        "equity": equity,
+        "peak_equity": max(50.0, equity),
+        "protected_principal": 35.0,
+        "locked_profit": 0.0,
+        "reinvestable_realized_profit": 0.0,
+        "remaining_deployable_notional": remaining,
+        "risk_multiplier": risk,
+        "new_entries_allowed": allowed,
+    }
+
+
+def _capacity(lane, *, growth=None, candidate_count=8, entries_today=0):
+    supervisor = {"capital_growth": growth if growth is not None else _growth()}
+    return lane._adaptive_position_capacity(
+        supervisor,
+        lane.testnet.safe_snapshot(),
+        candidate_count=candidate_count,
+        entries_today=entries_today,
+    )
+
+
+def _assert_within_envelope(capacity):
+    """The universal invariant: never above what healthy occupancy allows."""
+
+    assert capacity["available_slots"] <= capacity[
+        "healthy_occupancy_available_slots"
+    ]
+    assert capacity["risk_authority_unchanged"] is True
+    assert capacity["impaired_capital_is_not_liquid"] is True
+
+
+def test_release_cannot_exceed_candidate_room(tmp_path):
+    """5: no candidates means no release, however much capital exists."""
+
+    lane, _service, _instance, _fake = _impaired_lane(tmp_path, free_usdt=10_000.0)
+
+    capacity = _capacity(lane, candidate_count=0)
+
+    assert capacity["impaired_inventory_count"] == 1
+    assert capacity["quarantine_released_slots"] == 0
+    assert capacity["quarantine_release_ceiling"] == 0
+    _assert_within_envelope(capacity)
+
+
+def test_release_cannot_bypass_zero_risk_multiplier(tmp_path):
+    """6: a zero risk multiplier cannot be widened by quarantine."""
+
+    lane, _service, _instance, _fake = _impaired_lane(tmp_path, free_usdt=10_000.0)
+
+    capacity = _capacity(lane, growth=_growth(risk=0.0))
+
+    assert capacity["quarantine_released_slots"] == 0
+    _assert_within_envelope(capacity)
+
+
+def test_release_cannot_bypass_zero_deployable_capital(tmp_path):
+    """7: free USDT alone cannot release a slot when capital room is zero."""
+
+    lane, _service, _instance, _fake = _impaired_lane(tmp_path, free_usdt=10_000.0)
+
+    capacity = _capacity(lane, growth=_growth(remaining=0.0))
+
+    assert capacity["reconciled_free_quote_usd"] == pytest.approx(10_000.0)
+    assert capacity["quarantine_released_slots"] == 0
+    _assert_within_envelope(capacity)
+
+
+def test_release_cannot_bypass_blocked_new_entries(tmp_path):
+    lane, _service, _instance, _fake = _impaired_lane(tmp_path, free_usdt=10_000.0)
+
+    capacity = _capacity(lane, growth=_growth(allowed=False))
+
+    assert capacity["quarantine_released_slots"] == 0
+    _assert_within_envelope(capacity)
+
+
+def test_release_cannot_exceed_daily_entry_room(tmp_path):
+    """1: an exhausted daily entry allowance blocks any release."""
+
+    lane, _service, _instance, _fake = _impaired_lane(tmp_path, free_usdt=10_000.0)
+
+    capacity = _capacity(lane, entries_today=10_000)
+
+    assert capacity["quarantine_released_slots"] == 0
+    _assert_within_envelope(capacity)
+
+
+def test_release_is_bounded_by_executor_and_notional_room(tmp_path):
+    """2/3/4: every original ceiling is reapplied to healthy occupancy.
+
+    The release ceiling is derived by re-running the original capacity function
+    against healthy occupancy, so executor order room, daily submitted-notional
+    room and maximum adaptive positions are all enforced by that original code
+    rather than re-implemented here.
+    """
+
+    lane, _service, _instance, _fake = _impaired_lane(tmp_path, free_usdt=10_000.0)
+
+    capacity = _capacity(lane)
+
+    ceiling = capacity["quarantine_release_ceiling"]
+    assert capacity["quarantine_released_slots"] <= ceiling
+    assert capacity["available_slots"] <= capacity[
+        "healthy_occupancy_available_slots"
+    ]
+    assert capacity["available_slots"] <= capacity["target_positions"] + ceiling
+    _assert_within_envelope(capacity)
+
+
+def test_release_is_bounded_by_real_free_quote(tmp_path):
+    """No release when reconciled free quote cannot fund a ticket."""
+
+    lane, _service, _instance, _fake = _impaired_lane(tmp_path, free_usdt=0.0)
+
+    capacity = _capacity(lane)
+
+    assert capacity["reconciled_free_quote_usd"] == pytest.approx(0.0)
+    assert capacity["quarantine_released_slots"] == 0
+    _assert_within_envelope(capacity)
+
+
+def test_release_is_zero_when_occupancy_is_not_the_binding_constraint(tmp_path):
+    """Quarantine only helps when routing occupancy is what limits capacity.
+
+    available_slots is target - existing, and target is existing +
+    risk_adjusted_slots until the adaptive position ceiling binds. So with only
+    a few positions held, removing impaired inventory from occupancy changes
+    nothing - capacity is limited by risk/capital/candidates instead. Releasing
+    a slot here would be exactly the envelope escape this fix removes.
+    """
+
+    lane, _service, _instance, _fake = _impaired_lane(tmp_path, free_usdt=500.0)
+
+    capacity = _capacity(lane, growth=_growth(remaining=200.0, risk=1.0))
+
+    assert capacity["impaired_inventory_count"] == 1
+    assert capacity["quarantine_release_ceiling"] == 0
+    assert capacity["quarantine_released_slots"] == 0
+    _assert_within_envelope(capacity)
+
+
+def test_releases_one_healthy_slot_when_occupancy_ceiling_binds(tmp_path):
+    """8: at the adaptive position ceiling, impaired inventory frees a slot."""
+
+    lane, _service, instance, _fake = _impaired_lane(tmp_path, free_usdt=500.0)
+
+    # Fill the executor to the adaptive position ceiling. One of those holdings
+    # (CSPR) is impaired, so healthy occupancy is one below the ceiling.
+    ceiling = lane.maximum_adaptive_positions
+    with instance._io_lock:
+        for index in range(ceiling):
+            symbol = f"F{index}/USDT"
+            if symbol in instance.state["positions"]:
+                continue
+            instance.state["positions"][symbol] = 1.0
+            instance.state["position_cost_usd"][symbol] = 1.0
+            instance.state["account_balance"]["free"][f"F{index}"] = 1.0
+            if len(instance.state["positions"]) >= ceiling:
+                break
+        instance._save_state()
+
+    capacity = _capacity(
+        lane,
+        growth=_growth(remaining=200.0, risk=1.0),
+        candidate_count=20,
+    )
+
+    assert capacity["impaired_inventory_count"] == 1
+    assert capacity["original_available_slots"] == 0
+    assert capacity["quarantine_release_ceiling"] >= 1
+    assert capacity["quarantine_released_slots"] == 1
+    assert capacity["available_slots"] == 1
+    _assert_within_envelope(capacity)
+
+
+def test_release_never_exceeds_impaired_inventory_count(tmp_path):
+    lane, _service, _instance, _fake = _impaired_lane(tmp_path, free_usdt=10_000.0)
+
+    capacity = _capacity(lane, growth=_growth(remaining=5_000.0), candidate_count=50)
+
+    assert capacity["quarantine_released_slots"] <= capacity[
+        "impaired_inventory_count"
+    ]
+    _assert_within_envelope(capacity)

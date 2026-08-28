@@ -24,9 +24,13 @@ P2  Executor inventory, healthy reusable routing slots and impaired inventory
     reconciled free quote balance and existing executor risk limits.
 
 P3  ``free_balance_not_executable`` is classified as exit-impaired only when the
-    position itself is executable in principle, the reconciled free base balance
-    is below the executable minimum, and no open/submitting order explains the
-    difference. Ambiguity fails closed and never becomes dust.
+    FULL executor position is executable in principle - clearing both the
+    canonical amount minimum and, against a fresh executable bid, the canonical
+    cost/notional minimum - while the reconciled free base balance is not, and
+    no open/submitting order explains the difference. An unavailable fresh bid,
+    unresolved minimums or an unprovable notional all fail closed. A genuinely
+    non-executable residual is reported as such and never mislabeled as trapped
+    healthy inventory.
 
 P4  Compounding integrity is already enforced by v1.60.8, which gates on actual
     Testnet realized PnL net of residual dust cost basis and the modeled
@@ -63,6 +67,8 @@ REASON_DEFERRED_EXIT = "deferred_exit_obstruction"
 STATE_UNRESOLVED_ORDER = "unresolved_order_blocked"
 STATE_TRUE_DUST = "true_dust"
 STATE_HEALTHY = "healthy"
+STATE_NOT_EXECUTABLE_RESIDUAL = "not_executable_residual"
+STATE_EXECUTABILITY_UNPROVABLE = "executability_unprovable"
 
 
 def _has_unresolved_order(state: dict[str, Any], symbol: str) -> bool:
@@ -105,12 +111,104 @@ def _price_limit_obstructed(lane_state: dict[str, Any], symbol: str) -> bool:
     return row.get("executable_boundary") is False
 
 
+def _position_executable_in_principle(
+    *,
+    exchange: Any,
+    symbol: str,
+    quantity: float,
+    min_amount: float,
+    min_cost: float,
+    resolved: bool,
+    fresh_bid_provider: Any = None,
+) -> dict[str, Any]:
+    """Prove the full position clears every applicable exchange minimum.
+
+    Both the amount minimum and the cost/notional minimum must be satisfied. A
+    fresh executable bid is required whenever a cost minimum applies. Anything
+    that cannot be proven returns ``provable=False`` so the caller fails closed.
+    No order is submitted here.
+    """
+
+    if not resolved or (min_amount <= 0.0 and min_cost <= 0.0):
+        return {
+            "provable": False,
+            "reason": "canonical_minimums_unresolved",
+        }
+
+    if min_amount > 0.0 and quantity < min_amount:
+        return {
+            "provable": True,
+            "executable": False,
+            "reason": "position_below_minimum_amount",
+        }
+
+    if min_cost <= 0.0:
+        return {
+            "provable": True,
+            "executable": True,
+            "reason": "amount_minimum_satisfied",
+            "fresh_bid": 0.0,
+        }
+
+    if not callable(fresh_bid_provider):
+        return {
+            "provable": False,
+            "reason": "fresh_executable_bid_unavailable",
+        }
+
+    try:
+        fresh_bid = max(0.0, _n(fresh_bid_provider(symbol)))
+    except Exception:
+        return {
+            "provable": False,
+            "reason": "fresh_executable_bid_unavailable",
+        }
+
+    if fresh_bid <= 0.0:
+        return {
+            "provable": False,
+            "reason": "fresh_executable_bid_unavailable",
+        }
+
+    # Safe: only reached once quantity already clears the amount minimum, so
+    # precision conversion cannot be handed a sub-precision amount.
+    precise = quantity
+    if exchange is not None and hasattr(exchange, "amount_to_precision"):
+        try:
+            precise = max(0.0, _n(exchange.amount_to_precision(symbol, quantity)))
+        except Exception:
+            return {
+                "provable": False,
+                "reason": "precision_conversion_unavailable",
+            }
+
+    value = precise * fresh_bid
+
+    if value + 1e-12 < min_cost:
+        return {
+            "provable": True,
+            "executable": False,
+            "reason": "position_below_minimum_cost",
+            "fresh_bid": fresh_bid,
+            "estimated_value_usd": value,
+        }
+
+    return {
+        "provable": True,
+        "executable": True,
+        "reason": "position_executable_in_principle",
+        "fresh_bid": fresh_bid,
+        "estimated_value_usd": value,
+    }
+
+
 def classify_symbol_exit_state(
     *,
     engine_state: dict[str, Any],
     lane_state: dict[str, Any],
     symbol: str,
     exchange: Any = None,
+    fresh_bid_provider: Any = None,
 ) -> dict[str, Any]:
     """Classify one symbol's current exit state from authoritative evidence.
 
@@ -181,11 +279,51 @@ def classify_symbol_exit_state(
         ),
     )
 
-    if resolved and min_amount > 0.0:
-        position_executable = quantity >= min_amount
-        free_not_executable = free_base < min_amount
+    # Only a free balance that provably cannot be sold is worth investigating.
+    # This is a cheap, price-free signal, so healthy symbols never trigger a
+    # market-data fetch here.
+    if resolved and min_amount > 0.0 and free_base < min_amount:
+        # Low free base is only an impairment when the FULL executor position is
+        # itself executable in principle. That requires proving both applicable
+        # minimums, so a genuinely non-executable residual is never mislabeled
+        # as trapped healthy inventory. Anything unprovable fails closed.
+        executable = _position_executable_in_principle(
+            exchange=exchange,
+            symbol=normalized,
+            quantity=quantity,
+            min_amount=min_amount,
+            min_cost=min_cost,
+            resolved=resolved,
+            fresh_bid_provider=fresh_bid_provider,
+        )
 
-        if position_executable and free_not_executable:
+        if executable.get("provable") is not True:
+            return {
+                **base,
+                "state": STATE_EXECUTABILITY_UNPROVABLE,
+                "reason": executable.get("reason"),
+                "fail_closed": True,
+                "minimum_amount": min_amount,
+                "minimum_cost_usd": min_cost,
+                "minimums_resolved": resolved,
+            }
+
+        if executable.get("executable") is not True:
+            # Not executable at full size: this is a min-cost/min-amount
+            # residual, handled by the dust path. Never an impairment.
+            return {
+                **base,
+                "state": STATE_NOT_EXECUTABLE_RESIDUAL,
+                "reason": executable.get("reason"),
+                "minimum_amount": min_amount,
+                "minimum_cost_usd": min_cost,
+                "estimated_value_usd": executable.get("estimated_value_usd"),
+            }
+
+        if free_base < min_amount or (
+            min_cost > 0.0
+            and free_base * _n(executable.get("fresh_bid")) < min_cost
+        ):
             return {
                 **base,
                 "impaired": True,
@@ -197,6 +335,8 @@ def classify_symbol_exit_state(
                 "minimum_cost_usd": min_cost,
                 "minimums_resolved": True,
                 "position_executable_in_principle": True,
+                "fresh_bid": executable.get("fresh_bid"),
+                "position_value_usd": executable.get("estimated_value_usd"),
             }
 
     # Persistent deferred exit recovery is impairment once it stops being a
@@ -220,6 +360,7 @@ def exit_impaired_snapshot(
     engine_state: dict[str, Any],
     lane_state: dict[str, Any],
     exchange: Any = None,
+    fresh_bid_provider: Any = None,
 ) -> dict[str, Any]:
     """Classify every currently held symbol and summarize impairment."""
 
@@ -238,6 +379,7 @@ def exit_impaired_snapshot(
             lane_state=lane_state,
             symbol=symbol,
             exchange=exchange,
+            fresh_bid_provider=fresh_bid_provider,
         )
         if row.get("impaired") is True:
             impaired[symbol] = row
@@ -358,10 +500,19 @@ def install_testnet_exit_impaired_quarantine_v1630() -> None:
         else:  # pragma: no cover - defensive
             lane_copy = {}
 
+        def _fresh_bid_provider(symbol: str) -> float:
+            """Lazily fetch a fresh executable bid. Read-only, no order."""
+
+            from .testnet_exit_price_guard_v1611 import _fresh_bid
+
+            bid, _ask = _fresh_bid(testnet, symbol)
+            return bid
+
         return exit_impaired_snapshot(
             engine_state=engine_copy,
             lane_state=lane_copy,
             exchange=exchange,
+            fresh_bid_provider=_fresh_bid_provider,
         )
 
     def exit_impaired_state(self: Any) -> dict[str, Any]:
@@ -493,7 +644,47 @@ def install_testnet_exit_impaired_quarantine_v1630() -> None:
             result["live_authority"] = False
             return result
 
-        # Capacity released by quarantine is bounded by real free quote money.
+        # Recompute capacity with routing occupancy set to healthy inventory
+        # only, by re-running the ORIGINAL capacity function against a snapshot
+        # whose positions exclude impaired symbols. Every pre-existing ceiling
+        # (candidate room, capital slots, daily entry room, executor order room,
+        # daily submitted-notional room, risk multiplier, maximum adaptive
+        # positions) is therefore reapplied by the original code and remains
+        # authoritative. The supervisor - and so capital accounting, including
+        # impaired notional - is passed through unchanged.
+        impaired_symbols = {
+            str(symbol).upper()
+            for symbol in (impairment.get("exit_impaired_symbols") or [])
+        }
+
+        healthy_snapshot = dict(snapshot or {})
+        healthy_snapshot["positions"] = {
+            symbol: quantity
+            for symbol, quantity in (
+                (snapshot or {}).get("positions") or {}
+            ).items()
+            if str(symbol).upper() not in impaired_symbols
+        }
+
+        healthy_result = original_capacity(
+            self,
+            supervisor,
+            healthy_snapshot,
+            candidate_count=candidate_count,
+            entries_today=entries_today,
+        )
+
+        healthy_slots = max(
+            0,
+            int(_n((healthy_result or {}).get("available_slots"))),
+        )
+
+        # Quarantine may only ever remove impaired inventory from routing
+        # occupancy. It can never grant more than the original constraints
+        # already permit for that reduced occupancy.
+        release_ceiling = max(0, healthy_slots - base_slots)
+
+        # And it is additionally bounded by real, reconciled free quote money.
         free_quote = _reconciled_free_quote(self)
         minimum_ticket = max(
             0.0,
@@ -503,21 +694,28 @@ def install_testnet_exit_impaired_quarantine_v1630() -> None:
             ),
         )
 
-        if minimum_ticket <= 0.0:
-            affordable = 0
-        else:
-            affordable = int(free_quote // minimum_ticket)
+        affordable = 0 if minimum_ticket <= 0.0 else int(free_quote // minimum_ticket)
 
-        released = max(0, min(impaired_count, affordable))
+        released = max(0, min(impaired_count, release_ceiling, affordable))
 
         result["reconciled_free_quote_usd"] = free_quote
         result["quarantine_release_candidates"] = impaired_count
+        result["quarantine_release_ceiling"] = release_ceiling
         result["quarantine_released_slots"] = released
         result["quarantine_release_capped_by_free_quote"] = bool(
-            released < impaired_count
+            affordable < min(impaired_count, release_ceiling)
         )
-        result["available_slots"] = base_slots + released
-        result["healthy_reusable_routing_slots"] = base_slots + released
+        result["quarantine_release_capped_by_risk_envelope"] = bool(
+            release_ceiling < impaired_count
+        )
+        result["healthy_occupancy_available_slots"] = healthy_slots
+        result["original_available_slots"] = base_slots
+        result["risk_authority_unchanged"] = True
+
+        # By construction this never exceeds what the original constraints allow
+        # for healthy occupancy.
+        result["available_slots"] = min(base_slots + released, healthy_slots)
+        result["healthy_reusable_routing_slots"] = result["available_slots"]
         result["live_authority"] = False
         return result
 
