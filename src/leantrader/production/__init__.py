@@ -52,6 +52,9 @@ from .testnet_residual_dust_cycle_v1627 import (
 from .testnet_terminal_pending_recovery_v1629 import (
     install_testnet_terminal_pending_recovery_v1629 as _install_testnet_terminal_pending_recovery_v1629,
 )
+from .testnet_exit_impaired_quarantine_v1630 import (
+    install_testnet_exit_impaired_quarantine_v1630 as _install_testnet_exit_impaired_quarantine_v1630,
+)
 
 _install_public_spot_defaults()
 del _install_public_spot_defaults
@@ -90,6 +93,9 @@ del _install_testnet_residual_dust_cycle_v1627
 
 _install_testnet_terminal_pending_recovery_v1629()
 del _install_testnet_terminal_pending_recovery_v1629
+
+_install_testnet_exit_impaired_quarantine_v1630()
+del _install_testnet_exit_impaired_quarantine_v1630
 
 __all__ = [
     "arbitrage_monitor",
@@ -131,4 +137,5 @@ __all__ = [
     "testnet_spot_cycle_integrity_v1623",
     "testnet_residual_dust_cycle_v1627",
     "testnet_terminal_pending_recovery_v1629",
+    "testnet_exit_impaired_quarantine_v1630",
 ]
