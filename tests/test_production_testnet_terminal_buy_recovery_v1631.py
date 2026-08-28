@@ -217,11 +217,10 @@ def test_startup_recovery_fails_closed_when_symbol_has_unresolved_order(tmp_path
 
     outcome = lane.recover_orphaned_terminal_buys_v1631(now=1787930000.0)
 
-    assert outcome["ok"] is True
+    # The executor's own reconciliation catches the unresolved order before the
+    # narrower symbol scan. That is the stronger fail-closed result.
+    assert outcome["ok"] is False
+    assert outcome["reason"] == "executor_reconciliation_ambiguous"
     assert outcome["recovered"] == 0
     assert "XRP/USDT" not in lane.state["active"]
     assert client_id not in lane.state.get("v1631_recovered_client_ids", [])
-    assert any(
-        row.get("reason") == "unresolved_symbol_order_fail_closed"
-        for row in outcome["recent_skips"]
-    )
