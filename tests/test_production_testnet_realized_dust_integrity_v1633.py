@@ -351,3 +351,36 @@ def test_existing_v1608_gate_uses_corrected_dust_input(
     ] == pytest.approx(
         12.0
     )
+
+
+def test_lightweight_testnet_adapter_preserves_original_lane_health(
+    tmp_path,
+):
+    """v1.60.33 must not require private executor state from adapters."""
+
+    lane, _service, testnet = hyper_lane(
+        tmp_path,
+    )
+
+    assert not hasattr(
+        testnet,
+        "_io_lock",
+    )
+
+    payload = lane.health()
+
+    # Existing adapter telemetry survives and v1.60.33 does not try
+    # to manufacture a persistent accounting ledger for it.
+    assert isinstance(
+        payload,
+        dict,
+    )
+
+    assert (
+        "realized_dust_accounting_integrity"
+        not in payload
+    )
+
+    assert payload[
+        "live_authority"
+    ] is False

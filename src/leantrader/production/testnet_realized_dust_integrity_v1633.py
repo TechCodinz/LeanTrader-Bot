@@ -28,6 +28,37 @@ VERSION = "1.60.33"
 MAX_ACCOUNTED_CYCLE_KEYS = 5000
 
 
+def _persistent_executor_supported(
+    engine: Any,
+) -> bool:
+    """True only for the durable Bybit executor shape.
+
+    Lightweight/legacy Testnet adapters intentionally do not expose
+    persistent executor internals such as ``state``, ``_io_lock`` and
+    ``_save_state``. v1.60.33 accounting is not applicable to them and
+    must preserve their existing behavior exactly.
+    """
+
+    return bool(
+        isinstance(
+            getattr(engine, "state", None),
+            dict,
+        )
+        and getattr(
+            engine,
+            "_io_lock",
+            None,
+        ) is not None
+        and callable(
+            getattr(
+                engine,
+                "_save_state",
+                None,
+            )
+        )
+    )
+
+
 def _eligible_finalized_cycle(
     row: Any,
 ) -> bool:
@@ -48,6 +79,23 @@ def _sync_finalized_dust_ledger(
     currently available completed cycles into a durable cumulative amount and
     cycle-key ledger. Future completed cycles are added exactly once.
     """
+
+    if not _persistent_executor_supported(
+        engine
+    ):
+        return {
+            "supported": False,
+            "reason": "persistent_executor_state_unavailable",
+            "finalized_residual_dust_cost_basis_usd": 0.0,
+            "finalized_cycle_count": 0,
+            "cycles_added_this_sync": 0,
+            "cost_basis_added_this_sync_usd": 0.0,
+            "global_realized_pnl_mutated": False,
+            "positions_mutated": False,
+            "order_submitted": False,
+            "testnet_only": True,
+            "live_authority": False,
+        }
 
     with engine._io_lock:
         state = engine.state
@@ -675,7 +723,15 @@ def install_testnet_realized_dust_integrity_v1633(
             None,
         )
 
-        if testnet is None:
+        if (
+            testnet is None
+            or not _persistent_executor_supported(
+                testnet
+            )
+        ):
+            # Preserve legacy/lightweight Testnet adapters exactly.
+            # They have no durable executor accounting ledger for
+            # v1.60.33 to correct.
             return payload
 
         _sync_finalized_dust_ledger(
