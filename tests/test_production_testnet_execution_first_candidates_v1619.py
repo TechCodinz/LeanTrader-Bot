@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import time
 
+import leantrader.production.testnet_execution_first_candidates_v1619 as execution_first
+
 from leantrader.production.testnet_execution_first_candidates_v1619 import (
     _ExecutionFirstCandidateProxy,
 )
@@ -362,6 +364,75 @@ def test_execution_first_pass_cache_reuses_success_within_two_seconds(
         health["live_authority"]
         is False
     )
+
+
+def test_execution_first_rotates_deferred_probe_window(
+    tmp_path,
+    monkeypatch,
+):
+    lane, _instance, fake = _runtime(
+        tmp_path
+    )
+
+    monkeypatch.setattr(
+        execution_first,
+        "MAX_NETWORK_PROBES_PER_CALL",
+        1,
+    )
+
+    now = time.time()
+
+    first = _ExecutionFirstCandidateProxy(
+        RankedService(),
+        lane,
+        now,
+    ).collective_candidates(
+        limit=8
+    )
+
+    # EXPENSIVE is filtered cheaply, BAD consumes the single
+    # network probe, and GOOD is deliberately left for the
+    # next rotating fast pass.
+    assert first == []
+
+    assert (
+        lane.state[
+            "v1636_execution_probe_cursor"
+        ]
+        == 2
+    )
+
+    second = _ExecutionFirstCandidateProxy(
+        RankedService(),
+        lane,
+        now + 0.1,
+    ).collective_candidates(
+        limit=8
+    )
+
+    assert second == [
+        "GOOD/USDT"
+    ]
+
+    selection = lane.state[
+        "v1619_last_candidate_selection"
+    ]
+
+    assert (
+        selection[
+            "persistent_rotating_probe_cursor"
+        ]
+        is True
+    )
+
+    assert (
+        selection[
+            "cyclic_strategy_rank_order_preserved"
+        ]
+        is True
+    )
+
+    assert fake.created == []
 
 
 class SignalRefreshService(RankedService):

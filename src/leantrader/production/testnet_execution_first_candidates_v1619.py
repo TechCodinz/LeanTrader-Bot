@@ -19,9 +19,9 @@ from .testnet_roundtrip_candidate_router_v1616 import (
 
 # v1.60.35: restore broad bounded Testnet execution probing
 # Market intelligence remains authoritative; this layer validates executability across a wider ranked cohort instead of starving the universe behind two probes and a five-minute positive cache.
-MAX_NETWORK_PROBES_PER_CALL = 8
+MAX_NETWORK_PROBES_PER_CALL = 2
 FAIL_CACHE_SECONDS = 12.0
-PASS_CACHE_SECONDS = 2.0
+PASS_CACHE_SECONDS = 15.0
 MIN_FREE_QUOTE_RESERVE_USD = 0.01
 SIGNAL_REFRESH_PIN_SECONDS = 6.0
 
@@ -487,6 +487,42 @@ class _ExecutionFirstCandidateProxy:
             or []
         )
 
+        # v1.60.36: preserve the intelligence-ranked universe while
+        # rotating the expensive execution-preflight starting point.
+        # This prevents every fast pass from spending its network budget
+        # on the same front-ranked symbols.
+        normalized_raw = []
+        raw_seen = set()
+
+        for value in raw:
+            symbol = str(value or "").upper()
+
+            if symbol and symbol not in raw_seen:
+                normalized_raw.append(symbol)
+                raw_seen.add(symbol)
+
+        raw = normalized_raw
+
+        with self._lane._lock:
+            cursor_start = int(
+                self._lane.state.get(
+                    "v1636_execution_probe_cursor"
+                )
+                or 0
+            )
+
+        if raw:
+            cursor_start %= len(raw)
+
+            raw = (
+                raw[cursor_start:]
+                + raw[:cursor_start]
+            )
+        else:
+            cursor_start = 0
+
+        visited = 0
+
         snapshot = (
             self._lane.testnet.safe_snapshot()
         )
@@ -594,6 +630,7 @@ class _ExecutionFirstCandidateProxy:
                 continue
 
             seen.add(symbol)
+            visited += 1
 
             if (
                 symbol in current_positions
@@ -732,8 +769,11 @@ class _ExecutionFirstCandidateProxy:
                 probe_checks
                 >= MAX_NETWORK_PROBES_PER_CALL
             ):
+                # Leave this candidate at the head of the next rotating
+                # execution-preflight window instead of skipping it.
                 budget_deferrals += 1
-                continue
+                visited = max(0, visited - 1)
+                break
 
             result = _probe_candidate(
                 self._lane,
@@ -824,7 +864,33 @@ class _ExecutionFirstCandidateProxy:
             ):
                 break
 
+        next_cursor = (
+            (
+                cursor_start
+                + visited
+            )
+            % len(raw)
+            if raw
+            else 0
+        )
+
         with self._lane._lock:
+            self._lane.state[
+                "v1636_execution_probe_cursor"
+            ] = next_cursor
+
+            self._lane.state[
+                "v1636_execution_probe_rotation_calls"
+            ] = (
+                int(
+                    self._lane.state.get(
+                        "v1636_execution_probe_rotation_calls"
+                    )
+                    or 0
+                )
+                + 1
+            )
+
             self._lane.state[
                 "v1619_probe_cache"
             ] = new_cache
@@ -955,6 +1021,10 @@ class _ExecutionFirstCandidateProxy:
                 "probe_budget_deferrals": (
                     budget_deferrals
                 ),
+                "probe_cursor_start": cursor_start,
+                "probe_cursor_next": next_cursor,
+                "persistent_rotating_probe_cursor": True,
+                "cyclic_strategy_rank_order_preserved": True,
                 "free_usdt": (
                     free_usdt
                 ),
@@ -1075,10 +1145,17 @@ def install_testnet_execution_first_candidates_v1619() -> None:
             payload[
                 "execution_first_candidate_substitution"
             ] = {
-                "version": "1.60.19",
+                "version": "1.60.36",
                 "enabled": True,
                 "maximum_network_probes_per_call": (
                     MAX_NETWORK_PROBES_PER_CALL
+                ),
+                "persistent_rotating_probe_cursor": True,
+                "probe_cursor": int(
+                    self.state.get(
+                        "v1636_execution_probe_cursor"
+                    )
+                    or 0
                 ),
                 "failed_probe_cache_seconds": (
                     FAIL_CACHE_SECONDS
