@@ -61,6 +61,9 @@ from .testnet_terminal_buy_recovery_v1631 import (
 from .testnet_realized_dust_integrity_v1633 import (
     install_testnet_realized_dust_integrity_v1633 as _install_testnet_realized_dust_integrity_v1633,
 )
+from .testnet_fast_profit_guard_v1634 import (
+    install_testnet_fast_profit_guard_v1634 as _install_testnet_fast_profit_guard_v1634,
+)
 
 _install_public_spot_defaults()
 del _install_public_spot_defaults
@@ -109,6 +112,9 @@ del _install_testnet_terminal_buy_recovery_v1631
 _install_testnet_realized_dust_integrity_v1633()
 del _install_testnet_realized_dust_integrity_v1633
 
+_install_testnet_fast_profit_guard_v1634()
+del _install_testnet_fast_profit_guard_v1634
+
 __all__ = [
     "arbitrage_monitor",
     "memory_retention",
@@ -152,4 +158,5 @@ __all__ = [
     "testnet_exit_impaired_quarantine_v1630",
     "testnet_terminal_buy_recovery_v1631",
     "testnet_realized_dust_integrity_v1633",
+    "testnet_fast_profit_guard_v1634",
 ]
