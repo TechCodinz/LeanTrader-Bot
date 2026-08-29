@@ -251,7 +251,7 @@ def test_execution_first_proxy_substitutes_deeper_affordable_executable_candidat
     )
 
 
-def test_execution_first_pass_cache_reuses_success_for_two_minutes(
+def test_execution_first_pass_cache_reuses_success_within_two_seconds(
     tmp_path,
 ):
     (
@@ -298,7 +298,7 @@ def test_execution_first_pass_cache_reuses_success_for_two_minutes(
         _ExecutionFirstCandidateProxy(
             RankedService(),
             lane,
-            now + 120.0,
+            now + 1.0,
         ).collective_candidates(
             limit=8
         )
