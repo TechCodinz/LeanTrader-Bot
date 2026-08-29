@@ -17,9 +17,11 @@ from .testnet_roundtrip_candidate_router_v1616 import (
 )
 
 
-MAX_NETWORK_PROBES_PER_CALL = 2
+# v1.60.35: restore broad bounded Testnet execution probing
+# Market intelligence remains authoritative; this layer validates executability across a wider ranked cohort instead of starving the universe behind two probes and a five-minute positive cache.
+MAX_NETWORK_PROBES_PER_CALL = 8
 FAIL_CACHE_SECONDS = 12.0
-PASS_CACHE_SECONDS = 300.0
+PASS_CACHE_SECONDS = 2.0
 MIN_FREE_QUOTE_RESERVE_USD = 0.01
 SIGNAL_REFRESH_PIN_SECONDS = 6.0
 
