@@ -437,19 +437,18 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             remaining - fast_open,
         )
 
-        # Do not fragment capital into unusably tiny positions merely to
-        # increase the count. $2 is a planning floor; the executor still
-        # applies actual exchange minimums and its own caps.
+        # Capacity planning must follow the lane's real bounded order ticket,
+        # not an arbitrary $2 floor. The downstream execution-first router and
+        # Bybit Testnet executor remain authoritative for actual market
+        # minimums, precision, available balance, price-limit executability,
+        # position caps and modeled round-trip cost.
         minimum_viable_notional = min(
             self.maximum_order_usd,
             max(
-                2.0,
+                0.50,
                 self.order_usd,
             ),
         )
-
-        if minimum_viable_notional <= 0.0:
-            minimum_viable_notional = 0.50
 
         capital_slots = int(
             available
