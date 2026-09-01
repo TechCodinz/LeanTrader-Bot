@@ -380,6 +380,15 @@ def test_execution_first_rotates_deferred_probe_window(
         1,
     )
 
+    # This regression specifically validates rotating deferral with
+    # a single-probe window. v1.60.38 separately tests the adaptive
+    # empty-selection expansion, so pin that budget here as well.
+    monkeypatch.setattr(
+        execution_first,
+        "MAX_EMPTY_SELECTION_NETWORK_PROBES_PER_CALL",
+        1,
+    )
+
     now = time.time()
 
     first = _ExecutionFirstCandidateProxy(
