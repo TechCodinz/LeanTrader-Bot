@@ -20,6 +20,11 @@ from .testnet_roundtrip_candidate_router_v1616 import (
 # v1.60.35: restore broad bounded Testnet execution probing
 # Market intelligence remains authoritative; this layer validates executability across a wider ranked cohort instead of starving the universe behind two probes and a five-minute positive cache.
 MAX_NETWORK_PROBES_PER_CALL = 2
+# v1.60.38: when the normal two-probe window finds no executable
+# candidate, permit two additional rotating probes. Once at least
+# one executable candidate exists, retain the low-latency two-probe
+# ceiling. All execution preflight protections remain authoritative.
+MAX_EMPTY_SELECTION_NETWORK_PROBES_PER_CALL = 4
 FAIL_CACHE_SECONDS = 12.0
 PASS_CACHE_SECONDS = 15.0
 MIN_FREE_QUOTE_RESERVE_USD = 0.01
@@ -765,12 +770,20 @@ class _ExecutionFirstCandidateProxy:
 
                 continue
 
+            probe_budget = (
+                MAX_NETWORK_PROBES_PER_CALL
+                if selected
+                else MAX_EMPTY_SELECTION_NETWORK_PROBES_PER_CALL
+            )
+
             if (
                 probe_checks
-                >= MAX_NETWORK_PROBES_PER_CALL
+                >= probe_budget
             ):
                 # Leave this candidate at the head of the next rotating
                 # execution-preflight window instead of skipping it.
+                # v1.60.38 only expands the budget while no executable
+                # candidate has been found during this fast pass.
                 budget_deferrals += 1
                 visited = max(0, visited - 1)
                 break
