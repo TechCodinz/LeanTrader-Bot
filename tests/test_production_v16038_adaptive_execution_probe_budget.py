@@ -23,6 +23,15 @@ class FakeService:
 class FakeTestnet:
     max_order_usd = 10.0
 
+    def __init__(self):
+        self.state = {
+            "account_balance": {
+                "free": {
+                    "USDT": 10.0,
+                }
+            }
+        }
+
     def safe_snapshot(self):
         return {
             "positions": {},
