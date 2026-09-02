@@ -17,6 +17,10 @@ class FakeService:
         return {
             "fresh": True,
             "age_seconds": 0.1,
+            "micro_velocity": {
+                "fresh": True,
+                "age_seconds": 0.1,
+            },
         }
 
 

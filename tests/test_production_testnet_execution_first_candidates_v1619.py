@@ -452,10 +452,14 @@ class SignalRefreshService(RankedService):
     def collective_signal(self, symbol):
         return {
             "symbol": symbol,
-            "fresh": self.fresh,
-            "age_seconds": (
-                0.2 if self.fresh else 4.0
-            ),
+            "fresh": True,
+            "age_seconds": 0.2,
+            "micro_velocity": {
+                "fresh": self.fresh,
+                "age_seconds": (
+                    0.2 if self.fresh else 4.0
+                ),
+            },
         }
 
     def pin_execution_symbols(
@@ -509,7 +513,7 @@ def test_execution_qualified_stale_signal_is_pinned_then_reused_when_fresh(
     ]
 
     assert refresh["symbol"] == "GOOD/USDT"
-    assert refresh["reason"] == "fast_signal_not_fresh"
+    assert refresh["reason"] == "execution_micro_velocity_not_fresh"
     assert refresh["microstream_pinned"] is True
     assert refresh["candidate_returned"] is False
     assert (
