@@ -1051,6 +1051,37 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                     "reason": f"candidate_error:{type(exc).__name__}",
                 }
             assessed.append((normalized, row))
+
+            velocity_state = {}
+            velocity_method = getattr(
+                self,
+                "_velocity_state",
+                None,
+            )
+            if callable(velocity_method):
+                try:
+                    velocity_state = (
+                        velocity_method(signal)
+                        or {}
+                    )
+                except Exception as exc:
+                    velocity_state = {
+                        "error": type(exc).__name__,
+                    }
+
+            micro = (
+                signal.get("microstructure")
+                or {}
+            )
+            path_rows = [
+                item
+                for item in (
+                    micro.get("path_assessments")
+                    or []
+                )
+                if isinstance(item, dict)
+            ]
+
             with self._lock:
                 self.state["v1639_last_entry_assessment"] = {
                     "symbol": normalized,
@@ -1061,6 +1092,28 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                     "micro_confidence": row.get("micro_confidence"),
                     "cost_qualified": row.get("cost_qualified"),
                     "velocity_sniper": row.get("velocity_sniper"),
+                    "velocity": velocity_state,
+                    "micro_path_count": len(path_rows),
+                    "best_micro_edge_bps": max(
+                        [
+                            self._number(
+                                item.get("expected_edge_bps")
+                            )
+                            for item in path_rows
+                        ]
+                        or [0.0]
+                    ),
+                    "best_micro_path_confidence": max(
+                        [
+                            self._number(
+                                item.get("confidence")
+                            )
+                            for item in path_rows
+                        ]
+                        or [0.0]
+                    ),
+                    "signal_age_seconds": signal.get("age_seconds"),
+                    "signal_fresh": signal.get("fresh") is True,
                     "timestamp": now,
                     "live_authority": False,
                 }
