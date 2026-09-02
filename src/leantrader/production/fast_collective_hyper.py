@@ -1051,6 +1051,20 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                     "reason": f"candidate_error:{type(exc).__name__}",
                 }
             assessed.append((normalized, row))
+            with self._lock:
+                self.state["v1639_last_entry_assessment"] = {
+                    "symbol": normalized,
+                    "allowed": row.get("allowed") is True,
+                    "reason": row.get("reason"),
+                    "decision_score": row.get("decision_score"),
+                    "mtf_confidence": row.get("mtf_confidence"),
+                    "micro_confidence": row.get("micro_confidence"),
+                    "cost_qualified": row.get("cost_qualified"),
+                    "velocity_sniper": row.get("velocity_sniper"),
+                    "timestamp": now,
+                    "live_authority": False,
+                }
+                self._save_locked()
 
         allowed = [
             (symbol, row)
