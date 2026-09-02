@@ -378,14 +378,33 @@ class _ExecutionFirstCandidateProxy:
                 or {}
             )
 
-            age_seconds = signal.get(
-                "age_seconds"
+            micro_velocity = (
+                signal.get("micro_velocity")
+                or {}
             )
 
-            if signal.get("fresh") is True:
+            age_seconds = _n(
+                micro_velocity.get(
+                    "age_seconds"
+                ),
+                1_000_000.0,
+            )
+
+            if (
+                signal.get("fresh") is True
+                and micro_velocity.get(
+                    "fresh"
+                ) is True
+                and age_seconds <= 2.0
+            ):
                 return True
 
-            reason = "fast_signal_not_fresh"
+            if signal.get("fresh") is not True:
+                reason = "fast_signal_not_fresh"
+            elif micro_velocity.get("fresh") is not True:
+                reason = "execution_micro_velocity_not_fresh"
+            else:
+                reason = "execution_micro_velocity_age_exceeded"
 
         except Exception as exc:
             reason = (
