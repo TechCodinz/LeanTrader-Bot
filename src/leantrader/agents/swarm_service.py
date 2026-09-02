@@ -3356,6 +3356,21 @@ class ReadOnlySwarmService:
 
                         self.microstream_sample_failures += 1
 
+                    # v1.60.42: a newly pinned execution candidate must not
+                    # wait behind the remainder of an already-built sampling
+                    # queue. Finish the current network call, then rebuild the
+                    # queue immediately with the newest candidate first.
+                    wake_event = getattr(
+                        self,
+                        "_execution_pin_event",
+                        None,
+                    )
+                    if (
+                        wake_event is not None
+                        and wake_event.is_set()
+                    ):
+                        break
+
             except Exception:
                 with self._lock:
                     self.microstream_last_attempt_started_at = 0.0
