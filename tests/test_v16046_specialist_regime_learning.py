@@ -16,6 +16,7 @@ def lane_fixture():
         "last_specialist_attribution": {},
     }
     lane.round_trip_cost_bps = 30.0
+    lane.state_path = Path("/tmp/leantrader-v16046-specialist-test-state.json")
     return lane
 
 
