@@ -218,4 +218,4 @@ def test_extension_is_bounded():
 
 
 def test_version():
-    assert VERSION == "1.60.34"
+    assert VERSION == "1.60.44"

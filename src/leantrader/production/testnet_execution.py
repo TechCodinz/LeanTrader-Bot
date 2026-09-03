@@ -308,11 +308,11 @@ class BybitTestnetExecutionEngine:
         *,
         spread_bps: float = 0.0,
     ) -> dict[str, Any]:
-        """Estimate current Testnet round-trip economics from real fills.
+        """Estimate current Testnet round-trip economics from authenticated fills.
 
-        A market may only move below the historical 30-bps fallback after
-        enough authenticated, two-sided execution evidence exists. Expensive
-        markets may move above 30 bps immediately.
+        Below-30-bps economics are permitted only after recent, paired,
+        two-sided evidence exists for the symbol. Until then the historical
+        30-bps fallback remains authoritative.
         """
         normalized = str(symbol or "").upper()
         live_spread_bps = max(0.0, float(spread_bps or 0.0))
@@ -322,14 +322,64 @@ class BybitTestnetExecutionEngine:
         except Exception:
             market = {}
 
-        taker = max(0.0, float((market or {}).get("taker") or 0.0))
+        market = market or {}
+        base_asset = str(market.get("base") or normalized.split("/")[0]).upper()
+        quote_asset = str(
+            market.get("quote")
+            or (
+                normalized.split("/", 1)[1]
+                if "/" in normalized
+                else "USDT"
+            )
+        ).upper()
+
+        taker = max(0.0, float(market.get("taker") or 0.0))
         taker_fee_bps = taker * 10_000.0
 
-        rows = []
-        for record in (self.state.get("orders") or {}).values():
-            if not isinstance(record, dict):
-                continue
+        # Reconciliation and order submission mutate this mapping.
+        # Copy a boundedly-small snapshot under the executor RLock and do all
+        # calculation outside the critical section.
+        with self._io_lock:
+            order_rows = [
+                dict(record)
+                for record in (self.state.get("orders") or {}).values()
+                if isinstance(record, dict)
+            ]
+
+        now = dt.datetime.now(dt.timezone.utc)
+
+        def _timestamp(value: Any) -> dt.datetime | None:
+            text = str(value or "").strip()
+            if not text:
+                return None
+            try:
+                parsed = dt.datetime.fromisoformat(
+                    text.replace("Z", "+00:00")
+                )
+            except ValueError:
+                return None
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=dt.timezone.utc)
+            return parsed.astimezone(dt.timezone.utc)
+
+        rows: list[dict[str, Any]] = []
+
+        for record in order_rows:
             if str(record.get("symbol") or "").upper() != normalized:
+                continue
+
+            submitted = _timestamp(record.get("submitted_at"))
+            if submitted is None:
+                continue
+
+            age_seconds = max(
+                0.0,
+                (now - submitted).total_seconds(),
+            )
+
+            # Execution regimes drift. Old fills remain in the ledger but
+            # cannot authorize a cheaper current trading-cost model.
+            if age_seconds > 86_400.0:
                 continue
 
             filled = max(0.0, float(record.get("filled") or 0.0))
@@ -343,6 +393,8 @@ class BybitTestnetExecutionEngine:
             if side not in {"buy", "sell"}:
                 continue
 
+            # Signed decision-to-fill deviation. Favorable execution remains
+            # observable instead of being censored to zero.
             adverse = (
                 (average / reference - 1.0) * 10_000.0
                 if side == "buy"
@@ -358,80 +410,138 @@ class BybitTestnetExecutionEngine:
             fee_currency = str(record.get("fee_currency") or "").upper()
             fee = max(0.0, float(record.get("fee") or 0.0))
 
-            if fee > 0.0 and fee_currency == "USDT" and filled_cost > 0.0:
-                fee_bps = fee / filled_cost * 10_000.0
+            if fee > 0.0 and filled_cost > 0.0:
+                if fee_currency == quote_asset:
+                    fee_bps = fee / filled_cost * 10_000.0
+                elif fee_currency == base_asset and average > 0.0:
+                    fee_bps = (
+                        fee * average / filled_cost * 10_000.0
+                    )
 
             rows.append(
                 {
                     "side": side,
-                    "adverse_slippage_bps": max(0.0, adverse),
+                    "submitted_at": submitted,
+                    "age_seconds": age_seconds,
+                    "adverse_slippage_bps": adverse,
                     "fee_bps": fee_bps,
                 }
             )
 
-        # Recent execution regime matters more than ancient fills.
+        # Dict persistence uses sorted keys, so key order is not chronology.
+        rows.sort(key=lambda row: row["submitted_at"])
         rows = rows[-40:]
 
-        buys = sum(row["side"] == "buy" for row in rows)
-        sells = sum(row["side"] == "sell" for row in rows)
+        buy_rows = [row for row in rows if row["side"] == "buy"]
+        sell_rows = [row for row in rows if row["side"] == "sell"]
+
+        buys = len(buy_rows)
+        sells = len(sell_rows)
         samples = len(rows)
+        completed_cycles = min(buys, sells)
 
-        adverse = sorted(
-            float(row["adverse_slippage_bps"])
-            for row in rows
-        )
-
-        if adverse:
-            index = min(
-                len(adverse) - 1,
-                max(0, int(round((len(adverse) - 1) * 0.75))),
+        def _percentile(values: list[float], quantile: float) -> float:
+            if not values:
+                return 0.0
+            ordered = sorted(float(v) for v in values)
+            pos = (len(ordered) - 1) * quantile
+            lo = int(pos)
+            hi = min(len(ordered) - 1, lo + 1)
+            weight = pos - lo
+            return (
+                ordered[lo] * (1.0 - weight)
+                + ordered[hi] * weight
             )
-            adverse_p75_bps = adverse[index]
-        else:
-            adverse_p75_bps = 0.0
 
-        actual_fees = sorted(
+        buy_adverse = [
+            float(row["adverse_slippage_bps"])
+            for row in buy_rows
+        ]
+        sell_adverse = [
+            float(row["adverse_slippage_bps"])
+            for row in sell_rows
+        ]
+        all_adverse = buy_adverse + sell_adverse
+
+        buy_adverse_p75_bps = _percentile(buy_adverse, 0.75)
+        sell_adverse_p75_bps = _percentile(sell_adverse, 0.75)
+
+        buy_fee_rows = [
             float(row["fee_bps"])
-            for row in rows
+            for row in buy_rows
             if row.get("fee_bps") is not None
+        ]
+        sell_fee_rows = [
+            float(row["fee_bps"])
+            for row in sell_rows
+            if row.get("fee_bps") is not None
+        ]
+
+        buy_fee_bps = (
+            _percentile(buy_fee_rows, 0.50)
+            if buy_fee_rows
+            else taker_fee_bps
+        )
+        sell_fee_bps = (
+            _percentile(sell_fee_rows, 0.50)
+            if sell_fee_rows
+            else taker_fee_bps
         )
 
-        if actual_fees:
-            mid = len(actual_fees) // 2
-            if len(actual_fees) % 2:
-                fee_per_side_bps = actual_fees[mid]
-            else:
-                fee_per_side_bps = (
-                    actual_fees[mid - 1] + actual_fees[mid]
-                ) / 2.0
-            fee_source = "authenticated_quote_fee"
-        else:
-            fee_per_side_bps = taker_fee_bps
-            fee_source = "exchange_taker_metadata"
+        authenticated_fee_sides = int(bool(buy_fee_rows)) + int(
+            bool(sell_fee_rows)
+        )
+        fee_evidence_available = (
+            buy_fee_bps > 0.0
+            and sell_fee_bps > 0.0
+        )
 
-        fee_evidence_available = fee_per_side_bps > 0.0
+        newest_sample_age_seconds = (
+            float(rows[-1]["age_seconds"])
+            if rows
+            else None
+        )
 
-        # One complete cycle is useful evidence, but two complete cycles
-        # are required before LeanTrader is allowed to relax below 30 bps.
+        # This is cost-model evidence, not alpha qualification. Require six
+        # paired recent cycles before permitting a sub-30-bps relaxation.
         evidence_sufficient = (
-            samples >= 4
-            and buys >= 2
-            and sells >= 2
+            completed_cycles >= 6
+            and samples >= 12
             and fee_evidence_available
+            and newest_sample_age_seconds is not None
+            and newest_sample_age_seconds <= 86_400.0
         )
 
-        # Adverse fill deviation already contains much of the crossing/
-        # microstructure effect. Use the larger of current spread and
-        # observed two-leg adverse execution rather than double counting.
+        # spread_bps is the full quoted spread. A round trip crosses roughly
+        # one full spread in total (half-spread on entry + half on exit).
+        # Separately measured buy/exit adverse execution can dominate it.
+        observed_two_leg_adverse_bps = max(
+            0.0,
+            buy_adverse_p75_bps,
+        ) + max(
+            0.0,
+            sell_adverse_p75_bps,
+        )
+
         microstructure_drag_bps = max(
             live_spread_bps,
-            2.0 * adverse_p75_bps,
+            observed_two_leg_adverse_bps,
         )
 
         estimated_round_trip_cost_bps = max(
             0.0,
-            2.0 * fee_per_side_bps
+            buy_fee_bps
+            + sell_fee_bps
             + microstructure_drag_bps,
+        )
+
+        # Uncertainty allowance reflects observed execution dispersion instead
+        # of collapsing almost immediately to an arbitrary constant.
+        p50_adverse = _percentile(all_adverse, 0.50)
+        p90_adverse = _percentile(all_adverse, 0.90)
+        execution_dispersion_bps = max(
+            0.0,
+            p90_adverse - p50_adverse,
         )
 
         if evidence_sufficient:
@@ -442,7 +552,7 @@ class BybitTestnetExecutionEngine:
                 5.0,
                 min(
                     12.0,
-                    12.0 / max(1.0, samples ** 0.5),
+                    5.0 + execution_dispersion_bps,
                 ),
             )
             source = "authenticated_symbol_execution"
@@ -460,16 +570,24 @@ class BybitTestnetExecutionEngine:
             "samples": samples,
             "buy_fills": buys,
             "sell_fills": sells,
+            "completed_cycles": completed_cycles,
             "evidence_sufficient": evidence_sufficient,
             "below_30_authorized": (
                 evidence_sufficient
                 and effective_round_trip_cost_bps < 30.0
             ),
+            "newest_sample_age_seconds": newest_sample_age_seconds,
             "live_spread_bps": live_spread_bps,
             "taker_fee_bps_per_side": taker_fee_bps,
-            "fee_bps_per_side": fee_per_side_bps,
-            "fee_source": fee_source,
-            "adverse_slippage_p75_bps_per_leg": adverse_p75_bps,
+            "buy_fee_bps": buy_fee_bps,
+            "sell_fee_bps": sell_fee_bps,
+            "authenticated_fee_sides": authenticated_fee_sides,
+            "buy_adverse_p75_bps": buy_adverse_p75_bps,
+            "sell_adverse_p75_bps": sell_adverse_p75_bps,
+            "observed_two_leg_adverse_bps": (
+                observed_two_leg_adverse_bps
+            ),
+            "execution_dispersion_bps": execution_dispersion_bps,
             "microstructure_drag_bps": microstructure_drag_bps,
             "estimated_round_trip_cost_bps": (
                 estimated_round_trip_cost_bps

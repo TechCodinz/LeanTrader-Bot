@@ -1381,11 +1381,18 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             ),
         )
 
+        position_cost_bps = self._number(
+            (record.get("intelligence") or {}).get(
+                "modeled_round_trip_cost_bps"
+            ),
+            self.round_trip_cost_bps,
+        )
+
         dynamic_take_profit_bps = max(
-            self.round_trip_cost_bps + 10.0,
+            position_cost_bps + 10.0,
             min(
                 self.take_profit_bps,
-                self.round_trip_cost_bps
+                position_cost_bps
                 + max(
                     10.0,
                     min(
@@ -1417,7 +1424,7 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
 
         elif (
             peak_gain_bps
-            >= self.round_trip_cost_bps + 10.0
+            >= position_cost_bps + 10.0
             and retrace_bps <= -10.0
         ):
             reason = "velocity_trailing_profit"
