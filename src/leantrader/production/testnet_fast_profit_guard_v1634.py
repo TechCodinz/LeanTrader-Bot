@@ -4,7 +4,7 @@ import copy
 from typing import Any
 
 
-VERSION = "1.60.34"
+VERSION = "1.60.44"
 
 # A fast lane must have current micro confirmation.
 MIN_MICRO_CONFIRMATION = 0.10
@@ -48,17 +48,49 @@ def fast_entry_profit_gate(
 
     velocity = result.get("velocity") or {}
 
-    modeled_cost = max(
-        30.0,
+    economics = (
+        result.get("dynamic_execution_economics")
+        or {}
+    )
+
+    evidence_sufficient = (
+        economics.get("evidence_sufficient")
+        is True
+    )
+
+    requested_cost = max(
+        0.0,
         _n(
             result.get("modeled_round_trip_cost_bps"),
             30.0,
         ),
     )
 
+    # Below 30 bps is permitted only when authenticated, two-sided,
+    # per-symbol Testnet execution evidence has qualified it.
+    modeled_cost = (
+        requested_cost
+        if evidence_sufficient
+        else max(30.0, requested_cost)
+    )
+
+    net_margin_bps = (
+        max(
+            5.0,
+            _n(
+                economics.get(
+                    "recommended_net_margin_bps"
+                ),
+                MIN_ENTRY_NET_MARGIN_BPS,
+            ),
+        )
+        if evidence_sufficient
+        else MIN_ENTRY_NET_MARGIN_BPS
+    )
+
     required_capture = (
         modeled_cost
-        + MIN_ENTRY_NET_MARGIN_BPS
+        + net_margin_bps
     )
 
     micro_confidence = max(
@@ -96,6 +128,13 @@ def fast_entry_profit_gate(
         "modeled_round_trip_cost_bps": (
             modeled_cost
         ),
+        "dynamic_execution_economics": (
+            copy.deepcopy(economics)
+        ),
+        "dynamic_cost_evidence_sufficient": (
+            evidence_sufficient
+        ),
+        "net_margin_bps": net_margin_bps,
         "required_capture_bps": (
             required_capture
         ),
@@ -161,6 +200,7 @@ def fee_only_exit_deferral(
     round_trip_cost_bps: float,
     stop_loss_bps: float,
     record: dict[str, Any] | None,
+    dynamic_cost_trusted: bool = False,
 ) -> dict[str, Any] | None:
     if (
         str(pending.get("kind") or "")
@@ -222,12 +262,18 @@ def fee_only_exit_deferral(
         ),
     )
 
-    modeled_cost = max(
-        30.0,
+    requested_cost = max(
+        0.0,
         _n(
             round_trip_cost_bps,
             30.0,
         ),
+    )
+
+    modeled_cost = (
+        requested_cost
+        if dynamic_cost_trusted
+        else max(30.0, requested_cost)
     )
 
     profit_floor = (
@@ -336,6 +382,32 @@ def install_testnet_fast_profit_guard_v1634() -> None:
             relaxed=relaxed,
         )
 
+        economics = (
+            signal.get(
+                "dynamic_execution_economics"
+            )
+            or {}
+        )
+
+        if economics:
+            row = {
+                **row,
+                "dynamic_execution_economics": (
+                    copy.deepcopy(economics)
+                ),
+                "modeled_round_trip_cost_bps": (
+                    _n(
+                        economics.get(
+                            "effective_round_trip_cost_bps"
+                        ),
+                        row.get(
+                            "modeled_round_trip_cost_bps"
+                        )
+                        or 30.0,
+                    )
+                ),
+            }
+
         return fast_entry_profit_gate(
             row
         )
@@ -365,13 +437,34 @@ def install_testnet_fast_profit_guard_v1634() -> None:
                 or {}
             )
 
+        entry_intelligence = (
+            record.get("intelligence")
+            or {}
+        )
+
+        entry_economics = (
+            entry_intelligence.get(
+                "dynamic_execution_economics"
+            )
+            or {}
+        )
+
+        position_cost_bps = _n(
+            entry_intelligence.get(
+                "modeled_round_trip_cost_bps"
+            ),
+            getattr(
+                self,
+                "round_trip_cost_bps",
+                30.0,
+            ),
+        )
+
         deferral = (
             fee_only_exit_deferral(
                 pending,
-                round_trip_cost_bps=getattr(
-                    self,
-                    "round_trip_cost_bps",
-                    30.0,
+                round_trip_cost_bps=(
+                    position_cost_bps
                 ),
                 stop_loss_bps=getattr(
                     self,
@@ -379,6 +472,12 @@ def install_testnet_fast_profit_guard_v1634() -> None:
                     30.0,
                 ),
                 record=record,
+                dynamic_cost_trusted=(
+                    entry_economics.get(
+                        "evidence_sufficient"
+                    )
+                    is True
+                ),
             )
         )
 

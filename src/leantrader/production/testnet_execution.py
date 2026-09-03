@@ -302,6 +302,188 @@ class BybitTestnetExecutionEngine:
         with self._io_lock:
             return self.health()
 
+    def dynamic_execution_cost_profile(
+        self,
+        symbol: str,
+        *,
+        spread_bps: float = 0.0,
+    ) -> dict[str, Any]:
+        """Estimate current Testnet round-trip economics from real fills.
+
+        A market may only move below the historical 30-bps fallback after
+        enough authenticated, two-sided execution evidence exists. Expensive
+        markets may move above 30 bps immediately.
+        """
+        normalized = str(symbol or "").upper()
+        live_spread_bps = max(0.0, float(spread_bps or 0.0))
+
+        try:
+            market = self.exchange.market(normalized)
+        except Exception:
+            market = {}
+
+        taker = max(0.0, float((market or {}).get("taker") or 0.0))
+        taker_fee_bps = taker * 10_000.0
+
+        rows = []
+        for record in (self.state.get("orders") or {}).values():
+            if not isinstance(record, dict):
+                continue
+            if str(record.get("symbol") or "").upper() != normalized:
+                continue
+
+            filled = max(0.0, float(record.get("filled") or 0.0))
+            average = float(record.get("average") or 0.0)
+            reference = float(record.get("reference_price") or 0.0)
+
+            if filled <= 0.0 or average <= 0.0 or reference <= 0.0:
+                continue
+
+            side = str(record.get("side") or "").lower()
+            if side not in {"buy", "sell"}:
+                continue
+
+            adverse = (
+                (average / reference - 1.0) * 10_000.0
+                if side == "buy"
+                else (reference / average - 1.0) * 10_000.0
+            )
+
+            filled_cost = max(
+                0.0,
+                float(record.get("filled_cost") or filled * average),
+            )
+
+            fee_bps = None
+            fee_currency = str(record.get("fee_currency") or "").upper()
+            fee = max(0.0, float(record.get("fee") or 0.0))
+
+            if fee > 0.0 and fee_currency == "USDT" and filled_cost > 0.0:
+                fee_bps = fee / filled_cost * 10_000.0
+
+            rows.append(
+                {
+                    "side": side,
+                    "adverse_slippage_bps": max(0.0, adverse),
+                    "fee_bps": fee_bps,
+                }
+            )
+
+        # Recent execution regime matters more than ancient fills.
+        rows = rows[-40:]
+
+        buys = sum(row["side"] == "buy" for row in rows)
+        sells = sum(row["side"] == "sell" for row in rows)
+        samples = len(rows)
+
+        adverse = sorted(
+            float(row["adverse_slippage_bps"])
+            for row in rows
+        )
+
+        if adverse:
+            index = min(
+                len(adverse) - 1,
+                max(0, int(round((len(adverse) - 1) * 0.75))),
+            )
+            adverse_p75_bps = adverse[index]
+        else:
+            adverse_p75_bps = 0.0
+
+        actual_fees = sorted(
+            float(row["fee_bps"])
+            for row in rows
+            if row.get("fee_bps") is not None
+        )
+
+        if actual_fees:
+            mid = len(actual_fees) // 2
+            if len(actual_fees) % 2:
+                fee_per_side_bps = actual_fees[mid]
+            else:
+                fee_per_side_bps = (
+                    actual_fees[mid - 1] + actual_fees[mid]
+                ) / 2.0
+            fee_source = "authenticated_quote_fee"
+        else:
+            fee_per_side_bps = taker_fee_bps
+            fee_source = "exchange_taker_metadata"
+
+        fee_evidence_available = fee_per_side_bps > 0.0
+
+        # One complete cycle is useful evidence, but two complete cycles
+        # are required before LeanTrader is allowed to relax below 30 bps.
+        evidence_sufficient = (
+            samples >= 4
+            and buys >= 2
+            and sells >= 2
+            and fee_evidence_available
+        )
+
+        # Adverse fill deviation already contains much of the crossing/
+        # microstructure effect. Use the larger of current spread and
+        # observed two-leg adverse execution rather than double counting.
+        microstructure_drag_bps = max(
+            live_spread_bps,
+            2.0 * adverse_p75_bps,
+        )
+
+        estimated_round_trip_cost_bps = max(
+            0.0,
+            2.0 * fee_per_side_bps
+            + microstructure_drag_bps,
+        )
+
+        if evidence_sufficient:
+            effective_round_trip_cost_bps = (
+                estimated_round_trip_cost_bps
+            )
+            recommended_net_margin_bps = max(
+                5.0,
+                min(
+                    12.0,
+                    12.0 / max(1.0, samples ** 0.5),
+                ),
+            )
+            source = "authenticated_symbol_execution"
+        else:
+            effective_round_trip_cost_bps = max(
+                30.0,
+                estimated_round_trip_cost_bps,
+            )
+            recommended_net_margin_bps = 10.0
+            source = "30bps_fallback_plus_current_market"
+
+        return {
+            "symbol": normalized,
+            "source": source,
+            "samples": samples,
+            "buy_fills": buys,
+            "sell_fills": sells,
+            "evidence_sufficient": evidence_sufficient,
+            "below_30_authorized": (
+                evidence_sufficient
+                and effective_round_trip_cost_bps < 30.0
+            ),
+            "live_spread_bps": live_spread_bps,
+            "taker_fee_bps_per_side": taker_fee_bps,
+            "fee_bps_per_side": fee_per_side_bps,
+            "fee_source": fee_source,
+            "adverse_slippage_p75_bps_per_leg": adverse_p75_bps,
+            "microstructure_drag_bps": microstructure_drag_bps,
+            "estimated_round_trip_cost_bps": (
+                estimated_round_trip_cost_bps
+            ),
+            "effective_round_trip_cost_bps": (
+                effective_round_trip_cost_bps
+            ),
+            "recommended_net_margin_bps": (
+                recommended_net_margin_bps
+            ),
+            "testnet_only": True,
+            "live_authority": False,
+        }
+
     def _mirror_event(self, event: dict[str, Any]) -> dict[str, Any]:
         symbol = str(event["symbol"]).upper()
         side = str(event["side"]).lower()

@@ -1040,6 +1040,38 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 continue
             try:
                 signal = service.collective_signal(normalized)
+
+                micro_for_cost = (
+                    signal.get("microstructure")
+                    or {}
+                )
+                features_for_cost = (
+                    micro_for_cost.get("features")
+                    or {}
+                )
+
+                live_spread_bps = self._number(
+                    features_for_cost.get("spread_bps")
+                )
+
+                economics_method = getattr(
+                    self.testnet,
+                    "dynamic_execution_cost_profile",
+                    None,
+                )
+
+                if callable(economics_method):
+                    economics = economics_method(
+                        normalized,
+                        spread_bps=live_spread_bps,
+                    )
+                    signal = {
+                        **signal,
+                        "dynamic_execution_economics": (
+                            copy.deepcopy(economics)
+                        ),
+                    }
+
                 row = self.assess_candidate(
                     signal,
                     supervisor_symbols.get(normalized, {}),
@@ -1671,7 +1703,19 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                             if entry_price > 0.0
                             else 0.0
                         )
-                        net_bps = gross_bps - self.round_trip_cost_bps
+                        entry_intelligence = (
+                            record.get("intelligence")
+                            or {}
+                        )
+
+                        position_cost_bps = self._number(
+                            entry_intelligence.get(
+                                "modeled_round_trip_cost_bps"
+                            ),
+                            self.round_trip_cost_bps,
+                        )
+
+                        net_bps = gross_bps - position_cost_bps
 
                         entry_notional_usd = self._number(
                             record.get(
@@ -1705,7 +1749,7 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                             "entry_notional_usd": entry_notional_usd,
                             "modeled_net_pnl_usd": modeled_net_pnl_usd,
                             "modeled_round_trip_cost_bps": (
-                                self.round_trip_cost_bps
+                                position_cost_bps
                             ),
                             "entered_at": record.get("entered_at"),
                             "exited_at": now,
