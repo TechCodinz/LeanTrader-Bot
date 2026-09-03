@@ -45,7 +45,7 @@ jobs:
           LIVE_CONFIRM: 'NO'
           TRADING_MODE: 'paper'
           PYTHONPATH: src
-        run: python -m pytest -q tests/test_production_*.py tests/test_cns_brain_memory.py tests/test_strategy_observatory.py tests/test_testnet_execution.py tests/test_vps_ops_bridge.py tests/test_v16044_dynamic_execution_economics.py
+        run: python -m pytest -q tests/test_production_*.py tests/test_cns_brain_memory.py tests/test_strategy_observatory.py tests/test_testnet_execution.py tests/test_vps_ops_bridge.py tests/test_v16044_dynamic_execution_economics.py tests/test_v16045_authenticated_testnet_capital.py
 
       - name: Validate VPS operations scripts
         run: |

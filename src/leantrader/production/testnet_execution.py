@@ -1641,19 +1641,51 @@ class BybitTestnetExecutionEngine:
 
     def _update_balance_snapshot(self, balance: dict[str, Any]) -> None:
         totals = balance.get("total") or {}
+        free_balances = balance.get("free") or {}
+        used_balances = balance.get("used") or {}
+
         watched_assets = {"USDT"}
+
         for symbol in self.state.get("positions", {}):
             watched_assets.update(symbol.split("/", 1))
+
         assets: dict[str, float] = {}
+        free: dict[str, float] = {}
+        used: dict[str, float] = {}
+
         for asset in sorted(watched_assets):
-            value = totals.get(asset)
-            if value is None and isinstance(balance.get(asset), dict):
-                value = balance[asset].get("total")
-            if value is not None:
-                assets[asset] = float(value)
+            asset_row = (
+                balance.get(asset)
+                if isinstance(balance.get(asset), dict)
+                else {}
+            )
+
+            total_value = totals.get(asset)
+            if total_value is None:
+                total_value = asset_row.get("total")
+
+            free_value = free_balances.get(asset)
+            if free_value is None:
+                free_value = asset_row.get("free")
+
+            used_value = used_balances.get(asset)
+            if used_value is None:
+                used_value = asset_row.get("used")
+
+            if total_value is not None:
+                assets[asset] = float(total_value)
+
+            if free_value is not None:
+                free[asset] = float(free_value)
+
+            if used_value is not None:
+                used[asset] = float(used_value)
+
         self.state["account_balance"] = {
             "timestamp": dt.datetime.now(dt.UTC).isoformat(),
             "assets": assets,
+            "free": free,
+            "used": used,
         }
 
     def _require_started(self) -> None:

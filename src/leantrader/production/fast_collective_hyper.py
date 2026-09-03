@@ -432,9 +432,36 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             self._fast_open_notional()
         )
 
-        available = max(
+        paper_available = max(
             0.0,
             remaining - fast_open,
+        )
+
+        account_balance = (
+            snapshot.get("account_balance")
+            or {}
+        )
+
+        authenticated_free_quote = self._number(
+            (
+                account_balance.get("free")
+                or {}
+            ).get("USDT"),
+            -1.0,
+        )
+
+        authenticated_available_quote = max(
+            0.0,
+            authenticated_free_quote - 0.01,
+        )
+
+        available = (
+            min(
+                paper_available,
+                authenticated_available_quote,
+            )
+            if authenticated_free_quote >= 0.0
+            else 0.0
         )
 
         # Capacity planning must follow the lane's real bounded order ticket,
@@ -574,6 +601,16 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             ),
             "risk_multiplier": risk_multiplier,
             "available_deployable_usd": available,
+            "paper_available_deployable_usd": paper_available,
+            "authenticated_free_quote_usd": (
+                authenticated_free_quote
+            ),
+            "authenticated_available_quote_usd": (
+                authenticated_available_quote
+            ),
+            "capital_authority": (
+                "authenticated_testnet_free_quote"
+            ),
             "minimum_viable_notional_usd": (
                 minimum_viable_notional
             ),
@@ -638,39 +675,92 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         self,
         supervisor: dict[str, Any],
         *,
-        slots: int,
+        snapshot: dict[str, Any],
+        entries: int,
     ) -> dict[str, Any]:
-        """Allocate only from canonical principal-protected deployable capital."""
+        """Size Testnet entries from authenticated quote under governance ceilings."""
+
+        account_balance = (
+            snapshot.get("account_balance")
+            or {}
+        )
+
+        authenticated_free_quote = self._number(
+            (
+                account_balance.get("free")
+                or {}
+            ).get("USDT"),
+            -1.0,
+        )
+
+        if authenticated_free_quote < 0.0:
+            return {
+                "allowed": False,
+                "reason": "authenticated_quote_balance_unavailable",
+                "capital_authority": "authenticated_testnet_free_quote",
+                "live_authority": False,
+            }
+
+        quote_reserve_usd = 0.01
+
+        exchange_available_pool = max(
+            0.0,
+            authenticated_free_quote - quote_reserve_usd,
+        )
+
+        intended_entries = max(
+            1,
+            min(
+                int(entries),
+                self.maximum_adaptive_entries_per_cycle,
+            ),
+        )
 
         growth = (
             supervisor.get("capital_growth")
             or {}
         )
 
-        # Before the first capital snapshot exists, remain bounded at the
-        # original fixed exploration amount instead of inventing capital.
+        # Before canonical capital is available, authenticated exchange quote
+        # remains the only spendable source. Keep the exploration ticket bounded.
         if not isinstance(growth, dict) or not growth:
+            order_notional = min(
+                self.maximum_order_usd,
+                self.order_usd,
+                exchange_available_pool / intended_entries,
+            )
+
+            if order_notional < 0.50:
+                return {
+                    "allowed": False,
+                    "reason": "authenticated_quote_below_viable_ticket",
+                    "authenticated_free_quote_usd": authenticated_free_quote,
+                    "authenticated_available_quote_usd": exchange_available_pool,
+                    "intended_entries": intended_entries,
+                    "capital_authority": "authenticated_testnet_free_quote",
+                    "live_authority": False,
+                }
+
             return {
                 "allowed": True,
-                "reason": "fixed_fallback_before_capital_snapshot",
-                "order_notional_usd": min(
-                    self.maximum_order_usd,
-                    self.order_usd,
-                ),
+                "reason": "authenticated_fixed_fallback",
+                "order_notional_usd": order_notional,
                 "compounding": False,
+                "authenticated_free_quote_usd": authenticated_free_quote,
+                "authenticated_available_quote_usd": exchange_available_pool,
+                "intended_entries": intended_entries,
+                "capital_authority": "authenticated_testnet_free_quote",
+                "martingale": False,
                 "live_authority": False,
             }
 
-        if (
-            growth.get(
-                "new_entries_allowed"
-            )
-            is False
-        ):
+        if growth.get("new_entries_allowed") is False:
             return {
                 "allowed": False,
                 "reason": "capital_growth_new_entries_blocked",
                 "capital_state": growth.get("state"),
+                "authenticated_free_quote_usd": authenticated_free_quote,
+                "capital_authority": "governance_and_authenticated_quote",
                 "live_authority": False,
             }
 
@@ -679,9 +769,7 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             min(
                 1.0,
                 self._number(
-                    growth.get(
-                        "risk_multiplier"
-                    ),
+                    growth.get("risk_multiplier"),
                     1.0,
                 ),
             ),
@@ -696,29 +784,27 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             ),
         )
 
-        fast_open = (
-            self._fast_open_notional()
-        )
+        fast_open = self._fast_open_notional()
 
-        available_pool = max(
+        paper_available_pool = max(
             0.0,
             remaining - fast_open,
         )
 
-        slot_count = max(
-            1,
-            int(slots),
+        # Canonical capital may reduce exposure, but cannot invent spendable
+        # exchange quote. Actual Testnet free USDT is the hard deployment ceiling.
+        available_pool = min(
+            paper_available_pool,
+            exchange_available_pool,
         )
 
-        slot_budget = (
-            available_pool
-            / slot_count
+        per_entry_budget = (
+            available_pool / intended_entries
         )
 
         order_notional = min(
             self.maximum_order_usd,
-            slot_budget
-            * risk_multiplier,
+            per_entry_budget * risk_multiplier,
         )
 
         if (
@@ -727,19 +813,24 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         ):
             return {
                 "allowed": False,
-                "reason": "capital_growth_insufficient_deployable_budget",
+                "reason": "authenticated_capital_insufficient_deployable_budget",
                 "capital_state": growth.get("state"),
                 "remaining_deployable_notional": remaining,
                 "fast_open_notional": fast_open,
+                "paper_available_pool": paper_available_pool,
+                "authenticated_free_quote_usd": authenticated_free_quote,
+                "authenticated_available_quote_usd": exchange_available_pool,
                 "available_pool": available_pool,
-                "slot_budget": slot_budget,
+                "per_entry_budget": per_entry_budget,
+                "intended_entries": intended_entries,
                 "risk_multiplier": risk_multiplier,
+                "capital_authority": "governance_and_authenticated_quote",
                 "live_authority": False,
             }
 
         return {
             "allowed": True,
-            "reason": "principal_protected_compound_budget",
+            "reason": "authenticated_principal_protected_compound_budget",
             "order_notional_usd": order_notional,
             "compounding": True,
             "capital_state": growth.get("state"),
@@ -750,9 +841,7 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 growth.get("peak_equity")
             ),
             "protected_principal": self._number(
-                growth.get(
-                    "protected_principal"
-                )
+                growth.get("protected_principal")
             ),
             "locked_profit": self._number(
                 growth.get("locked_profit")
@@ -764,9 +853,14 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             ),
             "remaining_deployable_notional": remaining,
             "fast_open_notional": fast_open,
+            "paper_available_pool": paper_available_pool,
+            "authenticated_free_quote_usd": authenticated_free_quote,
+            "authenticated_available_quote_usd": exchange_available_pool,
             "available_pool": available_pool,
-            "slot_budget": slot_budget,
+            "per_entry_budget": per_entry_budget,
+            "intended_entries": intended_entries,
             "risk_multiplier": risk_multiplier,
+            "capital_authority": "governance_and_authenticated_quote",
             "martingale": False,
             "live_authority": False,
         }
@@ -975,7 +1069,8 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
 
         sizing = self._compound_order_notional(
             supervisor,
-            slots=slots,
+            snapshot=snapshot,
+            entries=entry_limit,
         )
 
         sizing = {
