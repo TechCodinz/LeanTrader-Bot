@@ -117,40 +117,88 @@ def _refresh_day_v1608(original: Any, self: Any) -> None:
         self.state["daily_entry_submitted_usd"] = 0.0
 
 
-def _update_balance_snapshot_v1608(self: Any, balance: dict[str, Any]) -> None:
+def _update_balance_snapshot_v1608(
+    self: Any,
+    balance: dict[str, Any],
+) -> None:
     totals = balance.get("total") or {}
+
     free = balance.get("free")
     free_is_distinct = isinstance(free, dict)
     free = free if free_is_distinct else totals
+
+    used = balance.get("used")
+    used_is_distinct = isinstance(used, dict)
+    used = used if used_is_distinct else {}
+
     watched_assets = {"USDT"}
+
     for symbol in self.state.get("positions", {}):
-        watched_assets.update(str(symbol).split("/", 1))
-    for symbol in self.state.get("non_tradeable_dust", {}):
-        watched_assets.update(str(symbol).split("/", 1))
+        watched_assets.update(
+            str(symbol).split("/", 1)
+        )
+
+    for symbol in self.state.get(
+        "non_tradeable_dust",
+        {},
+    ):
+        watched_assets.update(
+            str(symbol).split("/", 1)
+        )
 
     assets: dict[str, float] = {}
     free_assets: dict[str, float] = {}
+    used_assets: dict[str, float] = {}
+
     for asset in sorted(watched_assets):
         total_value = totals.get(asset)
         free_value = free.get(asset)
+        used_value = used.get(asset)
+
         nested = balance.get(asset)
+
         if isinstance(nested, dict):
             if total_value is None:
                 total_value = nested.get("total")
+
             if free_value is None:
                 free_value = nested.get("free")
-                if free_value is None and not free_is_distinct:
+
+                if (
+                    free_value is None
+                    and not free_is_distinct
+                ):
                     free_value = nested.get("total")
+
+            if used_value is None:
+                used_value = nested.get("used")
+
         if total_value is not None:
             assets[asset] = float(total_value)
+
         if free_value is not None:
             free_assets[asset] = float(free_value)
 
+        if used_value is not None:
+            used_assets[asset] = float(used_value)
+
     self.state["account_balance"] = {
-        "timestamp": dt.datetime.now(dt.UTC).isoformat(),
+        "timestamp": dt.datetime.now(
+            dt.UTC
+        ).isoformat(),
         "assets": assets,
         "free": free_assets,
-        "free_balance_source": "exchange_free" if free_is_distinct else "exchange_total_fallback",
+        "used": used_assets,
+        "free_balance_source": (
+            "exchange_free"
+            if free_is_distinct
+            else "exchange_total_fallback"
+        ),
+        "used_balance_source": (
+            "exchange_used"
+            if used_is_distinct
+            else "nested_or_unavailable"
+        ),
     }
 
 
@@ -512,8 +560,40 @@ def _adaptive_position_capacity_v1608(original: Any, self: Any, snapshot: dict[s
     return original(self, adjusted)
 
 
-def _compound_order_notional_v1608(original: Any, self: Any, supervisory: dict[str, Any], *, slots: int) -> dict[str, Any]:
-    canonical = original(self, supervisory, slots=slots)
+def _compound_order_notional_v1608(
+    original: Any,
+    self: Any,
+    supervisory: dict[str, Any],
+    *,
+    slots: int | None = None,
+    snapshot: dict[str, Any] | None = None,
+    entries: int | None = None,
+) -> dict[str, Any]:
+    if snapshot is None:
+        snapshot_method = getattr(
+            self.testnet,
+            "safe_snapshot",
+            None,
+        )
+        snapshot = (
+            snapshot_method()
+            if callable(snapshot_method)
+            else {}
+        )
+
+    resolved_entries = (
+        entries
+        if entries is not None
+        else slots
+    )
+
+    canonical = original(
+        self,
+        supervisory,
+        snapshot=snapshot,
+        entries=resolved_entries,
+        slots=slots,
+    )
     if not canonical.get("allowed"):
         return canonical
 
@@ -811,8 +891,16 @@ def install_testnet_exit_recycle_v1608() -> None:
     HyperSpeedCollectiveTestnetLane._adaptive_position_capacity = lambda self, snapshot: _adaptive_position_capacity_v1608(
         original_hyper_capacity, self, snapshot
     )
-    HyperSpeedCollectiveTestnetLane._compound_order_notional = lambda self, supervisory, *, slots: _compound_order_notional_v1608(
-        original_hyper_compound, self, supervisory, slots=slots
+    HyperSpeedCollectiveTestnetLane._compound_order_notional = (
+        lambda self, supervisory, *, slots=None, snapshot=None, entries=None:
+        _compound_order_notional_v1608(
+            original_hyper_compound,
+            self,
+            supervisory,
+            slots=slots,
+            snapshot=snapshot,
+            entries=entries,
+        )
     )
     HyperSpeedCollectiveTestnetLane._submit_pending = lambda self, pending, now: _submit_pending_v1608(
         original_hyper_submit, self, pending, now

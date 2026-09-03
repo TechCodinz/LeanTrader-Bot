@@ -461,7 +461,11 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 authenticated_available_quote,
             )
             if authenticated_free_quote >= 0.0
-            else 0.0
+            else (
+                0.0
+                if snapshot.get("authenticated") is True
+                else paper_available
+            )
         )
 
         # Capacity planning must follow the lane's real bounded order ticket,
@@ -675,10 +679,32 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         self,
         supervisor: dict[str, Any],
         *,
-        snapshot: dict[str, Any],
-        entries: int,
+        snapshot: dict[str, Any] | None = None,
+        entries: int | None = None,
+        slots: int | None = None,
     ) -> dict[str, Any]:
-        """Size Testnet entries from authenticated quote under governance ceilings."""
+        """Size Testnet entries from authenticated quote under governance ceilings.
+
+        ``slots`` remains accepted for compatibility with the established
+        v1.60.8-v1.60.30 wrapper chain. Authenticated Bybit Testnet execution
+        still requires reconciled free quote; legacy non-authenticated adapters
+        may retain the historical canonical planning path.
+        """
+
+        if snapshot is None:
+            snapshot_method = getattr(
+                self.testnet,
+                "safe_snapshot",
+                None,
+            )
+            snapshot = (
+                snapshot_method()
+                if callable(snapshot_method)
+                else {}
+            )
+
+        if not isinstance(snapshot, dict):
+            snapshot = {}
 
         account_balance = (
             snapshot.get("account_balance")
@@ -693,7 +719,14 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             -1.0,
         )
 
-        if authenticated_free_quote < 0.0:
+        authenticated_executor = (
+            snapshot.get("authenticated") is True
+        )
+
+        if (
+            authenticated_executor
+            and authenticated_free_quote < 0.0
+        ):
             return {
                 "allowed": False,
                 "reason": "authenticated_quote_balance_unavailable",
@@ -703,15 +736,33 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
 
         quote_reserve_usd = 0.01
 
-        exchange_available_pool = max(
-            0.0,
-            authenticated_free_quote - quote_reserve_usd,
+        if authenticated_free_quote >= 0.0:
+            exchange_available_pool = max(
+                0.0,
+                authenticated_free_quote
+                - quote_reserve_usd,
+            )
+        else:
+            # Legacy/non-authenticated Testnet adapters do not possess
+            # authoritative exchange-free balance telemetry. Preserve their
+            # historical planning contract without granting that fallback to
+            # the authenticated Bybit Testnet executor.
+            exchange_available_pool = float("inf")
+
+        requested_entries = (
+            entries
+            if entries is not None
+            else slots
         )
 
         intended_entries = max(
             1,
             min(
-                int(entries),
+                int(
+                    requested_entries
+                    if requested_entries is not None
+                    else 1
+                ),
                 self.maximum_adaptive_entries_per_cycle,
             ),
         )

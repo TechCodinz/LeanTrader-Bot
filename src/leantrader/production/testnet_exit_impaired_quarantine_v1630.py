@@ -723,7 +723,9 @@ def install_testnet_exit_impaired_quarantine_v1630() -> None:
         self: Any,
         supervisor: dict[str, Any],
         *,
-        slots: int,
+        slots: int | None = None,
+        snapshot: dict[str, Any] | None = None,
+        entries: int | None = None,
     ) -> dict[str, Any]:
         """P4 telemetry only. The compounding decision belongs to v1.60.8.
 
@@ -737,7 +739,13 @@ def install_testnet_exit_impaired_quarantine_v1630() -> None:
         only republishes the decision under stable v1.60.30 telemetry keys.
         """
 
-        sizing = original_compound(self, supervisor, slots=slots)
+        sizing = original_compound(
+            self,
+            supervisor,
+            slots=slots,
+            snapshot=snapshot,
+            entries=entries,
+        )
 
         if not isinstance(sizing, dict):  # pragma: no cover - defensive
             return sizing
