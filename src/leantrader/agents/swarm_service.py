@@ -3549,6 +3549,28 @@ class ReadOnlySwarmService:
             ),
         )
 
+        # v1.60.43: static book pressure is useful supporting evidence,
+        # but must not masquerade as velocity. Keep the fast cohort
+        # reserved for the same genuine positive bursts recognized by
+        # the Velocity Sniper execution assessor.
+        positive_burst = bool(
+            (
+                trend >= 8.0
+                and velocity >= 0.50
+            )
+            or (
+                velocity >= 2.0
+                and acceleration >= 0.15
+            )
+            or (
+                trend >= 15.0
+                and microprice >= 0.0
+            )
+        )
+
+        if not positive_burst:
+            return 0.0
+
         return (
             trend
             + min(30.0, velocity * 5.0)
