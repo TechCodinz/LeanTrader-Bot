@@ -358,6 +358,8 @@ class _ExecutionFirstCandidateProxy:
     def _signal_ready(
         self,
         symbol: str,
+        *,
+        pin_on_miss: bool = True,
     ) -> bool:
         signal_method = getattr(
             self._service,
@@ -427,7 +429,7 @@ class _ExecutionFirstCandidateProxy:
                 None,
             )
 
-        if callable(pinner):
+        if callable(pinner) and pin_on_miss:
             try:
                 pinner(
                     {symbol},
@@ -479,6 +481,113 @@ class _ExecutionFirstCandidateProxy:
             }
 
         return False
+
+    def _warm_execution_candidate_cohort(
+        self,
+        symbols: list[str],
+    ) -> list[str]:
+        """Warm a bounded candidate cohort without granting execution authority."""
+
+        normalized: list[str] = []
+
+        for value in symbols:
+            symbol = str(value or "").upper()
+
+            if (
+                symbol
+                and symbol not in normalized
+            ):
+                normalized.append(symbol)
+
+        capacity = max(
+            1,
+            min(
+                12,
+                int(
+                    _n(
+                        getattr(
+                            self._service,
+                            "_precision_micro_capacity",
+                            6,
+                        ),
+                        6.0,
+                    )
+                ),
+            ),
+        )
+
+        cohort = normalized[:capacity]
+
+        if not cohort:
+            return []
+
+        pinner = getattr(
+            self._service,
+            "pin_execution_candidate_symbols",
+            None,
+        )
+
+        if not callable(pinner):
+            pinner = getattr(
+                self._service,
+                "pin_execution_symbols",
+                None,
+            )
+
+        if not callable(pinner):
+            return []
+
+        try:
+            # One wake-up for the whole cohort prevents successive stale
+            # candidates from thrashing the precision queue individually.
+            pinner(
+                list(reversed(cohort)),
+                ttl_seconds=SIGNAL_REFRESH_PIN_SECONDS,
+            )
+        except Exception:
+            return []
+
+        with self._lane._lock:
+            self._lane.state[
+                "v1648_candidate_warm_calls"
+            ] = (
+                int(
+                    self._lane.state.get(
+                        "v1648_candidate_warm_calls"
+                    )
+                    or 0
+                )
+                + 1
+            )
+
+            self._lane.state[
+                "v1648_candidate_warm_symbols"
+            ] = (
+                int(
+                    self._lane.state.get(
+                        "v1648_candidate_warm_symbols"
+                    )
+                    or 0
+                )
+                + len(cohort)
+            )
+
+            self._lane.state[
+                "v1648_last_candidate_warm_cohort"
+            ] = {
+                "symbols": list(cohort),
+                "count": len(cohort),
+                "adaptive_capacity": capacity,
+                "freshness_requirement_seconds": 2.0,
+                "execution_authority": False,
+                "testnet_order_created": False,
+                "normal_execution_preflight_still_required": True,
+                "network_probe_budget_changed": False,
+                "live_authority": False,
+                "observed_at": self._now,
+            }
+
+        return cohort
 
     def collective_candidates(
         self,
@@ -620,6 +729,8 @@ class _ExecutionFirstCandidateProxy:
 
         selected: list[str] = []
         seen: set[str] = set()
+        metadata_warm_candidates: list[str] = []
+        execution_clean_stale: list[str] = []
 
         probe_checks = 0
         probe_passes = 0
@@ -775,7 +886,8 @@ class _ExecutionFirstCandidateProxy:
                     is True
                 ):
                     if self._signal_ready(
-                        symbol
+                        symbol,
+                        pin_on_miss=False,
                     ):
                         selected.append(
                             symbol
@@ -786,8 +898,16 @@ class _ExecutionFirstCandidateProxy:
                             >= bounded
                         ):
                             break
+                    else:
+                        execution_clean_stale.append(
+                            symbol
+                        )
 
                 continue
+
+            metadata_warm_candidates.append(
+                symbol
+            )
 
             probe_budget = (
                 MAX_NETWORK_PROBES_PER_CALL
@@ -834,9 +954,14 @@ class _ExecutionFirstCandidateProxy:
                 probe_passes += 1
 
                 if self._signal_ready(
-                    symbol
+                    symbol,
+                    pin_on_miss=False,
                 ):
                     selected.append(
+                        symbol
+                    )
+                else:
+                    execution_clean_stale.append(
                         symbol
                     )
 
@@ -846,6 +971,11 @@ class _ExecutionFirstCandidateProxy:
 
             else:
                 probe_blocks += 1
+
+                if symbol in metadata_warm_candidates:
+                    metadata_warm_candidates.remove(
+                        symbol
+                    )
 
                 block_reasons[
                     reason
@@ -895,6 +1025,23 @@ class _ExecutionFirstCandidateProxy:
                 >= bounded
             ):
                 break
+
+        selected_set = set(selected)
+
+        warm_candidates = [
+            *execution_clean_stale,
+            *[
+                symbol
+                for symbol in metadata_warm_candidates
+                if symbol not in selected_set
+            ],
+        ]
+
+        warmed_candidates = (
+            self._warm_execution_candidate_cohort(
+                warm_candidates
+            )
+        )
 
         next_cursor = (
             (
@@ -1041,6 +1188,16 @@ class _ExecutionFirstCandidateProxy:
                 "selected_count": len(
                     selected
                 ),
+                "candidate_warm_cohort": list(
+                    warmed_candidates
+                ),
+                "candidate_warm_count": len(
+                    warmed_candidates
+                ),
+                "adaptive_candidate_cohort_warming": True,
+                "freshness_gate_seconds": 2.0,
+                "warmed_candidates_require_normal_preflight": True,
+                "network_probe_budget_changed": False,
                 "network_probes": (
                     probe_checks
                 ),
