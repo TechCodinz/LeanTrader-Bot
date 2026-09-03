@@ -597,8 +597,9 @@ def _compound_order_notional_v1608(
     if not canonical.get("allowed"):
         return canonical
 
-    snapshot_method = getattr(self.testnet, "safe_snapshot", None)
-    snapshot = snapshot_method() if callable(snapshot_method) else {}
+    # Reuse the authoritative snapshot already supplied above.
+    # This keeps lightweight/legacy lane adapters compatible while the
+    # authenticated Bybit path continues to use its reconciled snapshot.
     performance = snapshot.get("performance") or {}
     actual_realized = _number(performance.get("realized_pnl_usd"))
     dust_cost = max(0.0, _number(performance.get("non_tradeable_dust_cost_basis_usd")))
