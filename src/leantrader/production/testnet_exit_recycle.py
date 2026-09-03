@@ -598,15 +598,37 @@ def _compound_order_notional_v1608(
         return canonical
 
     # Reuse the authoritative snapshot already supplied above.
-    # This keeps lightweight/legacy lane adapters compatible while the
-    # authenticated Bybit path continues to use its reconciled snapshot.
+    # The v1.60.8 realized-PnL overlay needs a fully initialized runtime
+    # lane. Lightweight sizing-only lanes return the canonical v1.60.45
+    # result without inventing runtime state.
+    lock = getattr(self, "_lock", None)
+    state = getattr(self, "state", None)
+
+    if lock is None or not isinstance(state, dict):
+        return canonical
+
     performance = snapshot.get("performance") or {}
     actual_realized = _number(performance.get("realized_pnl_usd"))
-    dust_cost = max(0.0, _number(performance.get("non_tradeable_dust_cost_basis_usd")))
-    with self._lock:
+    dust_cost = max(
+        0.0,
+        _number(
+            performance.get(
+                "non_tradeable_dust_cost_basis_usd"
+            )
+        ),
+    )
+
+    with lock:
         completed_entry_notional = sum(
-            max(0.0, _number(row.get("entry_notional_usd"), _number(row.get("entry_price")) * _number(row.get("quantity"))))
-            for row in self.state.get("closed", [])
+            max(
+                0.0,
+                _number(
+                    row.get("entry_notional_usd"),
+                    _number(row.get("entry_price"))
+                    * _number(row.get("quantity")),
+                ),
+            )
+            for row in state.get("closed", [])
             if isinstance(row, dict)
         )
     modeled_floor_bps = max(MODELED_ROUND_TRIP_COST_FLOOR_BPS, _number(self.round_trip_cost_bps))
