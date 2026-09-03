@@ -247,6 +247,9 @@ class BybitTestnetExecutionEngine:
             "positions": dict(self.state["positions"]),
             "position_cost_usd": dict(self.state["position_cost_usd"]),
             "account_balance": dict(self.state["account_balance"]),
+            "last_closed_cycle": (
+                dict(self.state.get("last_closed_cycle") or {})
+            ),
             "performance": {
                 "realized_pnl_usd": float(self.state["realized_pnl_usd"]),
                 "closed_positions": int(self.state["closed_positions"]),
@@ -1324,6 +1327,18 @@ class BybitTestnetExecutionEngine:
                 self.state["closed_positions"] += 1
                 if cycle_pnl > 0:
                     self.state["winning_positions"] += 1
+
+                self.state["last_closed_cycle"] = {
+                    "symbol": symbol,
+                    "realized_pnl_usd": cycle_pnl,
+                    "closed_at": dt.datetime.now(
+                        dt.UTC
+                    ).timestamp(),
+                    "source": (
+                        "authenticated_bybit_testnet_fills"
+                    ),
+                    "live_authority": False,
+                }
         else:
             self.state["positions"][symbol] = current
             self.state["position_cost_usd"][symbol] = current_cost
@@ -1615,6 +1630,7 @@ class BybitTestnetExecutionEngine:
             "weighted_slippage_bps_usd": 0.0,
             "last_fill": None,
             "account_balance": {},
+            "last_closed_cycle": None,
         }
         if not self.state_path.exists():
             return default

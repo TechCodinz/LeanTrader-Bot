@@ -106,7 +106,421 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 "last_sizing",
                 {},
             )
+            self.state.setdefault(
+                "specialist_regime_learning",
+                {},
+            )
+            self.state.setdefault(
+                "last_specialist_attribution",
+                {},
+            )
             self._save_locked()
+
+    def _specialist_regime_bundle(
+        self,
+        signal: dict[str, Any],
+        assessment: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Attribute existing qualified intelligence without adding authority."""
+
+        micro_velocity = (
+            signal.get("micro_velocity")
+            or {}
+        )
+
+        micro = (
+            signal.get("microstructure")
+            or {}
+        )
+
+        features = (
+            micro.get("features")
+            or {}
+        )
+
+        velocity = self._number(
+            micro_velocity.get(
+                "velocity_bps_per_second"
+            ),
+            self._number(
+                features.get(
+                    "midpoint_velocity_bps_per_second"
+                )
+            ),
+        )
+
+        acceleration = self._number(
+            micro_velocity.get(
+                "acceleration_bps_per_second2"
+            ),
+            self._number(
+                features.get(
+                    "midpoint_acceleration_bps_per_second2"
+                )
+            ),
+        )
+
+        trend = self._number(
+            micro_velocity.get(
+                "trend_5s_bps"
+            ),
+            self._number(
+                features.get(
+                    "recent_midpoint_trend_bps_5s"
+                )
+            ),
+        )
+
+        spread = max(
+            0.0,
+            self._number(
+                features.get("spread_bps")
+            ),
+        )
+
+        qualified_timeframes = max(
+            0,
+            int(
+                signal.get(
+                    "qualified_timeframe_paths"
+                )
+                or 0
+            ),
+        )
+
+        qualified_micro = max(
+            0,
+            int(
+                signal.get(
+                    "qualified_micro_proposals"
+                )
+                or 0
+            ),
+        )
+
+        specialists = set(
+            str(name)
+            for name in (
+                assessment.get("support_groups")
+                or []
+            )
+            if str(name).strip()
+        )
+
+        if qualified_timeframes > 0:
+            specialists.add(
+                "qualified_timeframe_paths"
+            )
+
+        if qualified_micro > 0:
+            specialists.add(
+                "qualified_micro_proposals"
+            )
+
+        velocity_state = (
+            assessment.get("velocity")
+            or {}
+        )
+
+        if (
+            assessment.get("velocity_sniper") is True
+            or velocity_state.get(
+                "qualified_long"
+            ) is True
+        ):
+            specialists.add(
+                "velocity_sniper"
+            )
+
+        if assessment.get(
+            "cost_qualified"
+        ) is True:
+            specialists.add(
+                "execution_economics"
+            )
+
+        if (
+            abs(velocity) >= 2.0
+            or abs(trend) >= 8.0
+        ):
+            regime = "fast_momentum"
+
+        elif (
+            spread > 20.0
+            or abs(acceleration) >= 3.0
+        ):
+            regime = "volatile_microstructure"
+
+        elif (
+            qualified_timeframes > 0
+            and abs(trend) >= 2.0
+        ):
+            regime = "timeframe_trend"
+
+        elif qualified_micro > 0:
+            regime = "qualified_micro"
+
+        else:
+            regime = "mixed"
+
+        return {
+            "regime": regime,
+            "specialists": sorted(specialists),
+            "qualified_timeframe_paths": (
+                qualified_timeframes
+            ),
+            "qualified_micro_proposals": (
+                qualified_micro
+            ),
+            "velocity_bps_per_second": velocity,
+            "acceleration_bps_per_second2": (
+                acceleration
+            ),
+            "trend_5s_bps": trend,
+            "spread_bps": spread,
+            "fresh": signal.get("fresh") is True,
+            "signal_age_seconds": (
+                signal.get("age_seconds")
+            ),
+            "execution_authority": False,
+            "ranking_authority_only": True,
+            "live_authority": False,
+        }
+
+    def _specialist_learning_adjustment(
+        self,
+        attribution: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Return a bounded ranking adjustment from completed Testnet evidence."""
+
+        keys = [
+            "regime:" + str(
+                attribution.get("regime")
+                or "mixed"
+            ),
+            *[
+                "specialist:" + str(name)
+                for name in (
+                    attribution.get("specialists")
+                    or []
+                )
+            ],
+        ]
+
+        with self._lock:
+            learning = copy.deepcopy(
+                self.state.get(
+                    "specialist_regime_learning"
+                )
+                or {}
+            )
+
+        contributions = []
+        adjustment = 0.0
+
+        for key in keys:
+            row = learning.get(key) or {}
+            samples = int(
+                row.get("samples")
+                or 0
+            )
+
+            # No learned influence until multiple authenticated
+            # completed cycles exist for the evidence bucket.
+            if samples < 3:
+                continue
+
+            mean_net = self._number(
+                row.get(
+                    "mean_realized_net_bps"
+                )
+            )
+
+            # Ranking only. It cannot convert a rejected candidate
+            # into an allowed candidate or bypass any execution gate.
+            contribution = max(
+                -0.04,
+                min(
+                    0.04,
+                    mean_net / 1000.0,
+                ),
+            )
+
+            adjustment += contribution
+
+            contributions.append(
+                {
+                    "key": key,
+                    "samples": samples,
+                    "mean_realized_net_bps": (
+                        mean_net
+                    ),
+                    "ranking_contribution": (
+                        contribution
+                    ),
+                }
+            )
+
+        adjustment = max(
+            -0.08,
+            min(0.08, adjustment),
+        )
+
+        return {
+            "adjustment": adjustment,
+            "contributors": contributions,
+            "minimum_samples": 3,
+            "maximum_absolute_adjustment": 0.08,
+            "ranking_only": True,
+            "cannot_override_hard_gates": True,
+            "live_authority": False,
+        }
+
+    def _record_specialist_regime_outcome(
+        self,
+        *,
+        attribution: dict[str, Any],
+        realized_pnl_usd: float,
+        entry_notional_usd: float,
+        symbol: str,
+        exit_reason: str | None,
+        closed_at: float,
+    ) -> dict[str, Any]:
+        """Learn only from an authenticated completed Testnet cycle."""
+
+        notional = max(
+            0.0,
+            self._number(entry_notional_usd),
+        )
+
+        realized = self._number(
+            realized_pnl_usd
+        )
+
+        realized_net_bps = (
+            realized / notional * 10_000.0
+            if notional > 0.0
+            else 0.0
+        )
+
+        keys = [
+            "regime:" + str(
+                attribution.get("regime")
+                or "mixed"
+            ),
+            *[
+                "specialist:" + str(name)
+                for name in (
+                    attribution.get("specialists")
+                    or []
+                )
+            ],
+        ]
+
+        with self._lock:
+            learning = self.state.setdefault(
+                "specialist_regime_learning",
+                {},
+            )
+
+            for key in keys:
+                row = dict(
+                    learning.get(key)
+                    or {}
+                )
+
+                samples = int(
+                    row.get("samples")
+                    or 0
+                )
+
+                total_realized = self._number(
+                    row.get(
+                        "total_realized_pnl_usd"
+                    )
+                ) + realized
+
+                total_net_bps = self._number(
+                    row.get(
+                        "total_realized_net_bps"
+                    )
+                ) + realized_net_bps
+
+                wins = int(
+                    row.get("wins")
+                    or 0
+                ) + int(realized > 0.0)
+
+                samples += 1
+
+                learning[key] = {
+                    "samples": samples,
+                    "wins": wins,
+                    "win_rate": (
+                        wins / samples
+                    ),
+                    "total_realized_pnl_usd": (
+                        total_realized
+                    ),
+                    "total_realized_net_bps": (
+                        total_net_bps
+                    ),
+                    "mean_realized_net_bps": (
+                        total_net_bps
+                        / samples
+                    ),
+                    "last_realized_pnl_usd": (
+                        realized
+                    ),
+                    "last_realized_net_bps": (
+                        realized_net_bps
+                    ),
+                    "last_symbol": symbol,
+                    "last_exit_reason": (
+                        exit_reason
+                    ),
+                    "last_closed_at": (
+                        closed_at
+                    ),
+                    "source": (
+                        "authenticated_bybit_testnet_completed_cycle"
+                    ),
+                    "live_authority": False,
+                }
+
+            outcome = {
+                "symbol": symbol,
+                "regime": attribution.get(
+                    "regime"
+                ),
+                "specialists": list(
+                    attribution.get(
+                        "specialists"
+                    )
+                    or []
+                ),
+                "realized_pnl_usd": realized,
+                "realized_net_bps": (
+                    realized_net_bps
+                ),
+                "entry_notional_usd": (
+                    notional
+                ),
+                "exit_reason": exit_reason,
+                "closed_at": closed_at,
+                "source": (
+                    "authenticated_bybit_testnet_completed_cycle"
+                ),
+                "live_authority": False,
+            }
+
+            self.state[
+                "last_specialist_attribution"
+            ] = outcome
+
+            self._save_locked()
+
+        return outcome
 
     def _fast_reconciliation_gate(
         self,
@@ -1224,6 +1638,40 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                     supervisor_symbols.get(normalized, {}),
                     relaxed=relaxed,
                 )
+
+                attribution = (
+                    self._specialist_regime_bundle(
+                        signal,
+                        row,
+                    )
+                )
+
+                learning = (
+                    self._specialist_learning_adjustment(
+                        attribution
+                    )
+                )
+
+                base_score = self._number(
+                    row.get("decision_score")
+                )
+
+                row = {
+                    **row,
+                    "base_decision_score": base_score,
+                    "specialist_regime_attribution": (
+                        attribution
+                    ),
+                    "specialist_learning": learning,
+                    "ranking_score": (
+                        base_score
+                        + self._number(
+                            learning.get(
+                                "adjustment"
+                            )
+                        )
+                    ),
+                }
             except Exception as exc:
                 row = {
                     "allowed": False,
@@ -1342,8 +1790,13 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                 ),
                 self._number(
                     item[1].get(
-                        "decision_score"
-                    )
+                        "ranking_score"
+                    ),
+                    self._number(
+                        item[1].get(
+                            "decision_score"
+                        )
+                    ),
                 ),
                 bool(
                     item[1].get(
@@ -1776,6 +2229,8 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         )
         terminal = status in self.TERMINAL_ORDER_STATES
 
+        completed_learning_outcome = None
+
         with self._lock:
             kind = str(pending.get("kind") or "")
 
@@ -1808,6 +2263,18 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                         "entered_at": now,
                         "entry_event_id": event.get("event_id"),
                         "entry_mode": assessment.get("entry_mode"),
+                        "specialist_regime_attribution": copy.deepcopy(
+                            assessment.get(
+                                "specialist_regime_attribution"
+                            )
+                            or {}
+                        ),
+                        "specialist_learning_at_entry": copy.deepcopy(
+                            assessment.get(
+                                "specialist_learning"
+                            )
+                            or {}
+                        ),
                         "target_hold_seconds": assessment.get(
                             "target_hold_seconds"
                         ),
@@ -1919,6 +2386,48 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                             "testnet_only": True,
                             "live_authority": False,
                         }
+                        authenticated_cycle = (
+                            snapshot.get(
+                                "last_closed_cycle"
+                            )
+                            or {}
+                        )
+
+                        authenticated_realized = None
+
+                        if (
+                            str(
+                                authenticated_cycle.get(
+                                    "symbol"
+                                )
+                                or ""
+                            ).upper()
+                            == symbol
+                            and authenticated_cycle.get(
+                                "source"
+                            )
+                            == (
+                                "authenticated_bybit_testnet_fills"
+                            )
+                        ):
+                            authenticated_realized = (
+                                self._number(
+                                    authenticated_cycle.get(
+                                        "realized_pnl_usd"
+                                    )
+                                )
+                            )
+
+                            closed[
+                                "authenticated_realized_pnl_usd"
+                            ] = authenticated_realized
+
+                            closed[
+                                "realized_outcome_source"
+                            ] = (
+                                "authenticated_bybit_testnet_completed_cycle"
+                            )
+
                         history = list(self.state.get("closed") or [])
                         history.append(closed)
                         self.state["closed"] = history[-250:]
@@ -1942,6 +2451,37 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                             "exit_reason": closed.get("exit_reason"),
                         }
                         self.state["pending_event"] = None
+
+                        if authenticated_realized is not None:
+                            completed_learning_outcome = {
+                                "attribution": copy.deepcopy(
+                                    record.get(
+                                        "specialist_regime_attribution"
+                                    )
+                                    or (
+                                        record.get(
+                                            "intelligence"
+                                        )
+                                        or {}
+                                    ).get(
+                                        "specialist_regime_attribution"
+                                    )
+                                    or {}
+                                ),
+                                "realized_pnl_usd": (
+                                    authenticated_realized
+                                ),
+                                "entry_notional_usd": (
+                                    entry_notional_usd
+                                ),
+                                "symbol": symbol,
+                                "exit_reason": (
+                                    closed.get(
+                                        "exit_reason"
+                                    )
+                                ),
+                                "closed_at": now,
+                            }
                     else:
                         record["quantity"] = remaining_fast
                         if terminal:
@@ -1949,6 +2489,11 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
 
             self.state["last_error"] = None
             self._save_locked()
+
+        if completed_learning_outcome is not None:
+            self._record_specialist_regime_outcome(
+                **completed_learning_outcome
+            )
 
         return self._decision(
             "testnet_event_processed",
@@ -2009,6 +2554,18 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             last_sizing = copy.deepcopy(
                 self.state.get(
                     "last_sizing"
+                )
+                or {}
+            )
+            specialist_learning = copy.deepcopy(
+                self.state.get(
+                    "specialist_regime_learning"
+                )
+                or {}
+            )
+            last_specialist_attribution = copy.deepcopy(
+                self.state.get(
+                    "last_specialist_attribution"
                 )
                 or {}
             )
@@ -2149,6 +2706,23 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                     self.maximum_order_usd
                 ),
                 "last_sizing": last_sizing,
+                "specialist_regime_learning": (
+                    specialist_learning
+                ),
+                "last_specialist_attribution": (
+                    last_specialist_attribution
+                ),
+                "specialist_learning_contract": {
+                    "authenticated_completed_cycles_only": True,
+                    "minimum_samples_before_ranking": 3,
+                    "maximum_absolute_ranking_adjustment": 0.08,
+                    "ranking_only": True,
+                    "cannot_override_candidate_rejection": True,
+                    "cannot_override_execution_economics": True,
+                    "cannot_override_authenticated_capital": True,
+                    "cannot_override_protective_exits": True,
+                    "live_authority": False,
+                },
                 "closed_count": len(net_rows),
                 "win_rate": (
                     wins / len(net_rows)
