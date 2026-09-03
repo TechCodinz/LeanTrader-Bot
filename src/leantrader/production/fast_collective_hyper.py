@@ -691,8 +691,6 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         may retain the historical canonical planning path.
         """
 
-        snapshot_was_supplied = snapshot is not None
-
         if snapshot is None:
             testnet = getattr(self, "testnet", None)
             snapshot_method = getattr(
@@ -726,13 +724,8 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             snapshot.get("authenticated") is True
         )
 
-        authoritative_snapshot = (
-            snapshot_was_supplied
-            or authenticated_executor
-        )
-
         if (
-            authoritative_snapshot
+            authenticated_executor
             and authenticated_free_quote < 0.0
         ):
             return {

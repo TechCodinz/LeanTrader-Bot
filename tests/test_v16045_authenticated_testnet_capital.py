@@ -79,7 +79,10 @@ def test_missing_authenticated_free_quote_fails_closed():
 
     sizing = lane._compound_order_notional(
         _growth(),
-        snapshot={"account_balance": {}},
+        snapshot={
+            "authenticated": True,
+            "account_balance": {},
+        },
         entries=3,
     )
 
