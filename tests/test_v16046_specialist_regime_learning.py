@@ -154,3 +154,69 @@ def test_executor_source_persists_authenticated_cycle_marker():
 
     assert '"last_closed_cycle"' in source
     assert "authenticated_bybit_testnet_fills" in source
+
+
+def test_authenticated_cycle_requires_exact_exit_event_identity():
+    good = {
+        "symbol": "XRP/USDT",
+        "closing_event_id": "fast57-123-9-sell",
+        "source": "authenticated_bybit_testnet_fills",
+    }
+
+    assert HyperSpeedCollectiveTestnetLane._authenticated_cycle_matches_exit(
+        good,
+        symbol="XRP/USDT",
+        event_id="fast57-123-9-sell",
+    ) is True
+
+    stale = {
+        **good,
+        "closing_event_id": "fast57-older-8-sell",
+    }
+
+    assert HyperSpeedCollectiveTestnetLane._authenticated_cycle_matches_exit(
+        stale,
+        symbol="XRP/USDT",
+        event_id="fast57-123-9-sell",
+    ) is False
+
+
+def test_authenticated_cycle_rejects_symbol_or_source_mismatch():
+    cycle = {
+        "symbol": "SUI/USDT",
+        "closing_event_id": "fast57-123-9-sell",
+        "source": "authenticated_bybit_testnet_fills",
+    }
+
+    assert HyperSpeedCollectiveTestnetLane._authenticated_cycle_matches_exit(
+        cycle,
+        symbol="XRP/USDT",
+        event_id="fast57-123-9-sell",
+    ) is False
+
+    cycle["symbol"] = "XRP/USDT"
+    cycle["source"] = "anything_else"
+
+    assert HyperSpeedCollectiveTestnetLane._authenticated_cycle_matches_exit(
+        cycle,
+        symbol="XRP/USDT",
+        event_id="fast57-123-9-sell",
+    ) is False
+
+
+def test_executor_cycle_marker_carries_closing_event_identity():
+    source = Path(
+        "src/leantrader/production/testnet_execution.py"
+    ).read_text()
+
+    assert '"paper_event_id"' in source
+    assert '"closing_event_id"' in source
+    assert '"closing_client_order_id"' in source
+
+
+def test_velocity_profit_decay_uses_position_execution_cost():
+    source = Path(
+        "src/leantrader/production/fast_collective_hyper.py"
+    ).read_text()
+
+    assert ">= position_cost_bps + 5.0" in source

@@ -669,6 +669,7 @@ class BybitTestnetExecutionEngine:
             "reference_price": price,
             "reason": str(event.get("reason", "paper_event")),
             "paper_event_timestamp": str(event.get("timestamp", "")),
+            "paper_event_id": str(event.get("event_id", "")),
             "submitted_at": dt.datetime.now(dt.UTC).isoformat(),
             "status": "submitting",
             "order_id": None,
@@ -1330,6 +1331,13 @@ class BybitTestnetExecutionEngine:
 
                 self.state["last_closed_cycle"] = {
                     "symbol": symbol,
+                    "closing_event_id": str(
+                        record.get("paper_event_id") or ""
+                    ),
+                    "closing_client_order_id": str(
+                        record.get("client_order_id") or ""
+                    ),
+                    "closing_order_id": record.get("order_id"),
                     "realized_pnl_usd": cycle_pnl,
                     "closed_at": dt.datetime.now(
                         dt.UTC

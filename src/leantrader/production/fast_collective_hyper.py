@@ -376,6 +376,28 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             "live_authority": False,
         }
 
+    @staticmethod
+    def _authenticated_cycle_matches_exit(
+        cycle: dict[str, Any],
+        *,
+        symbol: str,
+        event_id: str,
+    ) -> bool:
+        expected_event_id = str(event_id or "").strip()
+
+        if not expected_event_id:
+            return False
+
+        return (
+            isinstance(cycle, dict)
+            and str(cycle.get("symbol") or "").upper()
+            == str(symbol or "").upper()
+            and cycle.get("source")
+            == "authenticated_bybit_testnet_fills"
+            and str(cycle.get("closing_event_id") or "").strip()
+            == expected_event_id
+        )
+
     def _record_specialist_regime_outcome(
         self,
         *,
@@ -2045,7 +2067,7 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         elif (
             age_seconds >= 3.0
             and gross_bps
-            >= self.round_trip_cost_bps + 5.0
+            >= position_cost_bps + 5.0
             and velocity_bps_s <= 0.20
             and trend_5s_bps <= 2.0
         ):
@@ -2395,20 +2417,12 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
 
                         authenticated_realized = None
 
-                        if (
-                            str(
-                                authenticated_cycle.get(
-                                    "symbol"
-                                )
-                                or ""
-                            ).upper()
-                            == symbol
-                            and authenticated_cycle.get(
-                                "source"
-                            )
-                            == (
-                                "authenticated_bybit_testnet_fills"
-                            )
+                        if self._authenticated_cycle_matches_exit(
+                            authenticated_cycle,
+                            symbol=symbol,
+                            event_id=str(
+                                event.get("event_id") or ""
+                            ),
                         ):
                             authenticated_realized = (
                                 self._number(
