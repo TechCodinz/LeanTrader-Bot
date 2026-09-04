@@ -452,6 +452,10 @@ def _mirror_event_v1608(self: Any, event: dict[str, Any]) -> dict[str, Any]:
         "reference_price": price,
         "reason": str(event.get("reason", "paper_event")),
         "paper_event_timestamp": str(event.get("timestamp", "")),
+        # v1.60.52: preserve the canonical fast-lane event identity.
+        # The base executor already does this, but the v1.60.8 wrapper
+        # replaced _mirror_event and accidentally dropped it.
+        "paper_event_id": str(event.get("event_id", "")),
         "submitted_at": dt.datetime.now(dt.UTC).isoformat(),
         "status": "submitting",
         "order_id": None,

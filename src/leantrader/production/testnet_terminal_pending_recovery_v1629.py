@@ -750,9 +750,14 @@ def install_testnet_terminal_pending_recovery_v1629() -> None:
         # The symbol is fully retired only when nothing tradeable remains.
         position_retired = bool(remaining <= 0.0)
 
+        retired_active_record: dict[str, Any] = {}
+
         with self._lock:
             active = self.state.setdefault("active", {})
             record = active.get(symbol)
+
+            if isinstance(record, dict):
+                retired_active_record = copy.deepcopy(record)
 
             if record is not None and not position_retired:
                 # Retain the authoritative remaining executor quantity.
@@ -839,6 +844,189 @@ def install_testnet_terminal_pending_recovery_v1629() -> None:
         if residual_recorded_as_dust:
             finalization = _finalize_symbol_cycle(self.testnet, symbol)
 
+        # v1.60.52: a normal fully-filled terminal exit can also arrive
+        # through this restart/reconciliation path. When it does, retire the
+        # fast position exactly as before, but additionally feed authenticated
+        # outcome learning ONLY when the executor proves that this exact
+        # closing event produced the completed cycle.
+        authenticated_learning: dict[str, Any] = {}
+        exact_cycle_correlated = False
+
+        if position_retired:
+            latest_snapshot = self.testnet.safe_snapshot()
+            cycle = dict(
+                latest_snapshot.get("last_closed_cycle")
+                or {}
+            )
+
+            event_id = str(
+                event.get("event_id")
+                or ""
+            ).strip()
+
+            matcher = getattr(
+                self,
+                "_authenticated_cycle_matches_exit",
+                None,
+            )
+
+            recorder = getattr(
+                self,
+                "_record_specialist_regime_outcome",
+                None,
+            )
+
+            if callable(matcher):
+                try:
+                    exact_cycle_correlated = bool(
+                        matcher(
+                            cycle,
+                            symbol=symbol,
+                            event_id=event_id,
+                        )
+                    )
+                except Exception:
+                    exact_cycle_correlated = False
+
+            if (
+                exact_cycle_correlated
+                and callable(recorder)
+                and retired_active_record
+            ):
+                intelligence = dict(
+                    retired_active_record.get(
+                        "intelligence"
+                    )
+                    or {}
+                )
+
+                attribution = dict(
+                    intelligence.get(
+                        "specialist_regime_attribution"
+                    )
+                    or {}
+                )
+
+                # Learning denominator uses the actual fast position quantity
+                # that was opened whenever available, not merely the planned
+                # ticket. This remains ranking-only learning authority.
+                filled_quantity = max(
+                    0.0,
+                    _n(
+                        retired_active_record.get(
+                            "initial_quantity"
+                        ),
+                        _n(
+                            retired_active_record.get(
+                                "quantity"
+                            )
+                        ),
+                    ),
+                )
+
+                entry_price = max(
+                    0.0,
+                    _n(
+                        retired_active_record.get(
+                            "entry_price"
+                        )
+                    ),
+                )
+
+                actual_entry_notional = (
+                    filled_quantity * entry_price
+                )
+
+                if actual_entry_notional <= 0.0:
+                    actual_entry_notional = max(
+                        0.0,
+                        _n(
+                            retired_active_record.get(
+                                "entry_notional_usd"
+                            ),
+                            _n(
+                                intelligence.get(
+                                    "order_notional_usd"
+                                )
+                            ),
+                        ),
+                    )
+
+                if attribution:
+                    try:
+                        authenticated_learning = recorder(
+                            attribution=attribution,
+                            realized_pnl_usd=_n(
+                                cycle.get(
+                                    "realized_pnl_usd"
+                                )
+                            ),
+                            entry_notional_usd=(
+                                actual_entry_notional
+                            ),
+                            symbol=symbol,
+                            exit_reason=str(
+                                (
+                                    pending.get(
+                                        "assessment"
+                                    )
+                                    or {}
+                                ).get(
+                                    "exit_reason"
+                                )
+                                or event.get("reason")
+                                or ""
+                            ),
+                            closed_at=_n(
+                                cycle.get(
+                                    "closed_at"
+                                ),
+                                now,
+                            ),
+                        )
+                    except Exception as exc:
+                        authenticated_learning = {
+                            "error": type(exc).__name__,
+                            "recorded": False,
+                            "live_authority": False,
+                        }
+
+        with self._lock:
+            ledger = list(
+                self.state.get(
+                    "v1652_terminal_cycle_correlations"
+                )
+                or []
+            )
+
+            ledger.append(
+                {
+                    "symbol": symbol,
+                    "event_id": event.get("event_id"),
+                    "client_order_id": client_order_id,
+                    "position_retired": position_retired,
+                    "exact_authenticated_cycle_correlated": (
+                        exact_cycle_correlated
+                    ),
+                    "authenticated_learning_recorded": bool(
+                        authenticated_learning
+                        and not authenticated_learning.get(
+                            "error"
+                        )
+                    ),
+                    "fabricated_close": False,
+                    "modeled_outcome_used_for_learning": False,
+                    "observed_at": now,
+                    "live_authority": False,
+                }
+            )
+
+            self.state[
+                "v1652_terminal_cycle_correlations"
+            ] = ledger[-100:]
+
+            self._save_locked()
+
         return self._decision(
             "terminal_pending_reconciled",
             details={
@@ -855,6 +1043,12 @@ def install_testnet_terminal_pending_recovery_v1629() -> None:
                 "immediate_cycle_finalization": finalization,
                 "cycle_counted_immediately": bool(
                     finalization.get("eligible") is True
+                ),
+                "exact_authenticated_cycle_correlated": (
+                    exact_cycle_correlated
+                ),
+                "authenticated_learning": (
+                    authenticated_learning
                 ),
                 "order_submitted": False,
                 "resubmission_suppressed": True,
