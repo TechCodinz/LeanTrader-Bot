@@ -727,6 +727,56 @@ class _ExecutionFirstCandidateProxy:
                 or {}
             )
 
+        # v1.60.50: stop expensive candidate probing once the current
+        # authenticated quote balance can no longer fund another minimum
+        # fast-lane ticket. Previously the wrapper kept searching toward the
+        # caller's broad limit (often 48) after finding a fresh executable
+        # candidate, allowing that candidate to age beyond the 2-second
+        # execution freshness gate before the entry assessor consumed it.
+        #
+        # This does not increase authority or relax any gate. As capital grows,
+        # the target expands again up to the lane's existing adaptive entry cap.
+        minimum_ticket = max(
+            1.0,
+            _n(
+                getattr(
+                    self._lane,
+                    "order_usd",
+                    1.0,
+                ),
+                1.0,
+            ),
+        )
+
+        capital_funded_candidates = max(
+            1,
+            int(
+                available_quote
+                // minimum_ticket
+            ),
+        )
+
+        lane_entry_cap = max(
+            1,
+            int(
+                getattr(
+                    self._lane,
+                    "maximum_adaptive_entries_per_cycle",
+                    1,
+                )
+                or 1
+            ),
+        )
+
+        selection_target = max(
+            1,
+            min(
+                bounded,
+                lane_entry_cap,
+                capital_funded_candidates,
+            ),
+        )
+
         selected: list[str] = []
         seen: set[str] = set()
         metadata_warm_candidates: list[str] = []
@@ -895,7 +945,7 @@ class _ExecutionFirstCandidateProxy:
 
                         if (
                             len(selected)
-                            >= bounded
+                            >= selection_target
                         ):
                             break
                     else:
@@ -1022,7 +1072,7 @@ class _ExecutionFirstCandidateProxy:
 
             if (
                 len(selected)
-                >= bounded
+                >= selection_target
             ):
                 break
 
@@ -1188,6 +1238,14 @@ class _ExecutionFirstCandidateProxy:
                 "selected_count": len(
                     selected
                 ),
+                "selection_target": selection_target,
+                "capital_funded_candidate_target": (
+                    capital_funded_candidates
+                ),
+                "minimum_candidate_ticket_usd": (
+                    minimum_ticket
+                ),
+                "fresh_selection_budgeting": True,
                 "candidate_warm_cohort": list(
                     warmed_candidates
                 ),
