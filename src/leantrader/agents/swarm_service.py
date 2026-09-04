@@ -3734,6 +3734,34 @@ class ReadOnlySwarmService:
                 or []
             )
 
+            # v1.60.49: break the cold-start freshness deadlock.
+            #
+            # These rows are candidate-seeding authority only. They do not
+            # become execution-ready here. The execution-first wrapper must
+            # still pass normal exchange preflight and require a <=2 second
+            # microstream signal before returning a symbol to the fast lane.
+            precision_scout_symbols = list(
+                getattr(
+                    self,
+                    "_precision_scout_symbols",
+                    [],
+                )
+                or []
+            )
+
+            discovered_seed_rows = [
+                dict(row)
+                for row in (
+                    getattr(
+                        self,
+                        "_candidates",
+                        [],
+                    )
+                    or []
+                )
+                if isinstance(row, dict)
+            ]
+
         fresh_rows: list[
             tuple[
                 str,
@@ -3837,9 +3865,54 @@ class ReadOnlySwarmService:
         for symbol, _age, _score, _samples in fresh_rows:
             add(symbol)
 
-        # Broad full-swarm evidence remains available as the slower
-        # fallback. Unsampled scout symbols are deliberately NOT injected
-        # directly into the sub-second execution router.
+        # v1.60.49 cold-start seeding:
+        #
+        # Precision-scout symbols may be offered to the execution-first
+        # wrapper before they have a fresh micro snapshot. The wrapper does
+        # not return them for execution while stale: it performs the normal
+        # Testnet round-trip preflight and requests bounded microstream
+        # warming first.
+        #
+        # This breaks the previous circular wait:
+        # no micro sample -> no raw candidate -> no execution pin -> no sample.
+        for symbol in precision_scout_symbols:
+            add(symbol)
+
+        # If the precision scout itself has not completed its first refresh,
+        # use the already exchange-filtered discovery universe strictly as
+        # bounded warming seeds. These rows still receive no execution
+        # authority here and remain subject to every downstream gate.
+        if not precision_scout_symbols and not symbols:
+            seed_rows = sorted(
+                discovered_seed_rows,
+                key=lambda row: (
+                    abs(
+                        float(
+                            row.get("percentage_24h")
+                            or 0.0
+                        )
+                    ),
+                    float(
+                        row.get("quote_volume_usd")
+                        or 0.0
+                    ),
+                    -float(
+                        row.get("spread_bps")
+                        or 1_000_000.0
+                    ),
+                ),
+                reverse=True,
+            )
+
+            for row in seed_rows:
+                add(
+                    str(
+                        row.get("symbol")
+                        or ""
+                    )
+                )
+
+        # Broad completed full-swarm evidence remains the slower fallback.
         for row in ranked:
             if not isinstance(
                 row,
