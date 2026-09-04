@@ -499,20 +499,25 @@ class _ExecutionFirstCandidateProxy:
             ):
                 normalized.append(symbol)
 
+        adaptive_capacity = int(
+            _n(
+                getattr(
+                    self._service,
+                    "_precision_micro_capacity",
+                    6,
+                ),
+                6.0,
+            )
+        )
+
+        # v1.60.53: keep a small but meaningful execution-ready cohort hot.
+        # This is sampling/warming authority only; it creates no order and
+        # cannot bypass subsequent strategy or authenticated preflight gates.
         capacity = max(
-            1,
+            4,
             min(
                 12,
-                int(
-                    _n(
-                        getattr(
-                            self._service,
-                            "_precision_micro_capacity",
-                            6,
-                        ),
-                        6.0,
-                    )
-                ),
+                adaptive_capacity,
             ),
         )
 
@@ -996,6 +1001,26 @@ class _ExecutionFirstCandidateProxy:
 
                 continue
 
+            # v1.60.53: freshness comes before expensive authenticated
+            # execution probing. A stale micro/velocity snapshot cannot
+            # authorize an entry anyway, so spending one of the small Bybit
+            # preflight slots on it only starves fresher ranked candidates.
+            #
+            # The candidate is warmed without execution authority and can be
+            # reconsidered on the next fast pass. The existing <=2s execution
+            # freshness rule remains unchanged.
+            if not self._signal_ready(
+                symbol,
+                pin_on_miss=False,
+            ):
+                execution_clean_stale.append(
+                    symbol
+                )
+                metadata_warm_candidates.append(
+                    symbol
+                )
+                continue
+
             metadata_warm_candidates.append(
                 symbol
             )
@@ -1299,6 +1324,8 @@ class _ExecutionFirstCandidateProxy:
                     warmed_candidates
                 ),
                 "adaptive_candidate_cohort_warming": True,
+                "fresh_first_execution_probing": True,
+                "stale_candidates_consume_network_probe": False,
                 "freshness_gate_seconds": 2.0,
                 "warmed_candidates_require_normal_preflight": True,
                 "network_probe_budget_changed": False,
