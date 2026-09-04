@@ -133,7 +133,12 @@ def test_fast_candidates_prioritize_only_fresh_samples():
 
     assert "FRESH/USDT" in rows
     assert "STALE/USDT" not in rows
-    assert "UNSAMPLED/USDT" not in rows
+
+    # v1.60.49+ contract: an unsampled scout symbol may enter the
+    # raw router as a warming seed. The execution-first wrapper still
+    # requires <=2s fresh micro_velocity before it may become an
+    # executable candidate.
+    assert "UNSAMPLED/USDT" in rows
 
 
 def test_broad_ranked_fallback_remains_available():
@@ -159,7 +164,11 @@ def test_broad_ranked_fallback_remains_available():
     )
 
     assert "SLOW/USDT" in rows
-    assert "DISCOVERY/USDT" not in rows
+
+    # Cold-start discovery rows are warming seeds only. Admission to
+    # authenticated Testnet execution remains protected by the normal
+    # execution-first freshness and preflight contract.
+    assert "DISCOVERY/USDT" in rows
 
 
 class _AliveThread:

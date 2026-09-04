@@ -126,10 +126,81 @@ class BybitTestnetExecutionEngine:
         if callable(close):
             close()
 
+    def recent_clean_reconciliation(
+        self,
+        *,
+        max_age_seconds: float = 7.0,
+    ) -> bool:
+        """Return whether exchange state was recently reconciled cleanly."""
+
+        if (
+            self.state.get(
+                "last_reconciliation_errors"
+            )
+            or []
+        ):
+            return False
+
+        raw = str(
+            self.state.get(
+                "last_reconciliation"
+            )
+            or ""
+        ).strip()
+
+        if not raw:
+            return False
+
+        try:
+            observed = dt.datetime.fromisoformat(
+                raw.replace("Z", "+00:00")
+            )
+
+            if observed.tzinfo is None:
+                observed = observed.replace(
+                    tzinfo=dt.UTC
+                )
+
+            age = (
+                dt.datetime.now(dt.UTC)
+                - observed.astimezone(dt.UTC)
+            ).total_seconds()
+
+        except (TypeError, ValueError):
+            return False
+
+        return (
+            0.0 <= age
+            <= max(
+                0.5,
+                float(max_age_seconds),
+            )
+        )
+
     def mirror_events(self, events: list[dict[str, Any]]) -> list[dict[str, Any]]:
         with self._io_lock:
             self._require_started()
-            reconciliation = self.reconcile()
+
+            # v1.60.51: the fast lane performs bounded reconciliation
+            # BEFORE fresh candidate selection. Reuse that recent clean
+            # state here instead of repeating REST recovery and
+            # fetch_balance after the <=2s signal gate.
+            #
+            # Fail closed exactly as before: if the clean state is not
+            # recent enough, perform reconciliation synchronously.
+            if self.recent_clean_reconciliation(
+                max_age_seconds=7.0,
+            ):
+                reconciliation = {
+                    "reconciled": True,
+                    "checked": 0,
+                    "errors": [],
+                    "source": (
+                        "recent_clean_reconciliation"
+                    ),
+                }
+            else:
+                reconciliation = self.reconcile()
 
             if not reconciliation["reconciled"]:
                 raise RuntimeError(

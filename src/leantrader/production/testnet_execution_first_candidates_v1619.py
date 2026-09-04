@@ -548,6 +548,44 @@ class _ExecutionFirstCandidateProxy:
             return []
 
         with self._lane._lock:
+            # v1.60.51: cohort warming is the component that actually
+            # performs the pin. Reflect that in the v1625 diagnostic
+            # rather than leaving microstream_pinned=False after a
+            # successful cohort pin.
+            last_refresh = dict(
+                self._lane.state.get(
+                    "v1625_last_signal_refresh"
+                )
+                or {}
+            )
+
+            if str(
+                last_refresh.get("symbol")
+                or ""
+            ).upper() in set(cohort):
+                last_refresh[
+                    "microstream_pinned"
+                ] = True
+                last_refresh[
+                    "pin_source"
+                ] = "candidate_cohort_warm"
+
+                self._lane.state[
+                    "v1625_last_signal_refresh"
+                ] = last_refresh
+
+            self._lane.state[
+                "v1625_execution_candidate_pins"
+            ] = (
+                int(
+                    self._lane.state.get(
+                        "v1625_execution_candidate_pins"
+                    )
+                    or 0
+                )
+                + len(cohort)
+            )
+
             self._lane.state[
                 "v1648_candidate_warm_calls"
             ] = (
@@ -748,6 +786,10 @@ class _ExecutionFirstCandidateProxy:
             ),
         )
 
+        # v1.60.51: authenticated quote capital constrains how many
+        # positions may be OPENED, not how much existing intelligence
+        # may be assessed. The hyper lane still derives the final
+        # entry_limit from authenticated capital and executor capacity.
         capital_funded_candidates = max(
             1,
             int(
@@ -773,7 +815,6 @@ class _ExecutionFirstCandidateProxy:
             min(
                 bounded,
                 lane_entry_cap,
-                capital_funded_candidates,
             ),
         )
 
@@ -1246,6 +1287,11 @@ class _ExecutionFirstCandidateProxy:
                     minimum_ticket
                 ),
                 "fresh_selection_budgeting": True,
+                "capital_limits_entries_not_assessment": True,
+                "assessment_target": selection_target,
+                "authenticated_entry_capacity_target": (
+                    capital_funded_candidates
+                ),
                 "candidate_warm_cohort": list(
                     warmed_candidates
                 ),

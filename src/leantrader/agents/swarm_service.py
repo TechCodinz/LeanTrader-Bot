@@ -795,12 +795,105 @@ class ReadOnlySwarmService:
             if isinstance(row, dict)
         ]
 
-        selected_rows = (
+        # v1.60.51: execution-pinned markets must not receive only
+        # sub-second micro data while MTF context is built for a
+        # completely different 24h-ranked symbol set. Preserve the
+        # existing scout width; reserve part of that same capacity for
+        # active execution/candidate pins, then fill the remainder with
+        # the existing movement/liquidity/spread ranking.
+        now = time.time()
+
+        with self._lock:
+            execution_pins = [
+                symbol
+                for symbol, until in (
+                    getattr(
+                        self,
+                        "_execution_precision_pins",
+                        {},
+                    )
+                    or {}
+                ).items()
+                if float(until) > now
+            ]
+
+            candidate_pins = [
+                symbol
+                for symbol, until in reversed(
+                    list(
+                        (
+                            getattr(
+                                self,
+                                "_execution_candidate_pins",
+                                {},
+                            )
+                            or {}
+                        ).items()
+                    )
+                )
+                if float(until) > now
+            ]
+
+        pinned_symbols = self._unique_symbols(
+            [
+                *candidate_pins,
+                *execution_pins,
+            ]
+        )
+
+        candidate_map = {
+            str(
+                row.get("symbol")
+                or ""
+            ).upper(): row
+            for row in candidates
+            if str(
+                row.get("symbol")
+                or ""
+            ).strip()
+        }
+
+        pinned_rows = [
+            dict(candidate_map[symbol])
+            for symbol in pinned_symbols
+            if symbol in candidate_map
+        ]
+
+        movement_rows = (
             self._select_precision_scout(
                 candidates,
                 capacity=self.max_micro_symbols,
             )
         )
+
+        selected_rows = []
+        selected_seen = set()
+
+        for row in [
+            *pinned_rows,
+            *movement_rows,
+        ]:
+            symbol = str(
+                row.get("symbol")
+                or ""
+            ).upper()
+
+            if (
+                not symbol
+                or symbol in selected_seen
+            ):
+                continue
+
+            selected_rows.append(
+                dict(row)
+            )
+            selected_seen.add(symbol)
+
+            if (
+                len(selected_rows)
+                >= self.max_micro_symbols
+            ):
+                break
 
         selected = [
             str(
@@ -818,6 +911,11 @@ class ReadOnlySwarmService:
             self._precision_scout_symbols = (
                 selected
             )
+            self._precision_pinned_context_symbols = [
+                symbol
+                for symbol in selected
+                if symbol in set(pinned_symbols)
+            ]
             self.precision_scout_refreshes += 1
             self.precision_scout_last_refresh_at = (
                 now

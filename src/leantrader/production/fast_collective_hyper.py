@@ -559,13 +559,38 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
             or []
         )
 
-        if not errors:
+        recent_method = getattr(
+            self.testnet,
+            "recent_clean_reconciliation",
+            None,
+        )
+
+        recent_clean = False
+
+        if callable(recent_method):
+            try:
+                recent_clean = bool(
+                    recent_method(
+                        max_age_seconds=5.0,
+                    )
+                )
+            except Exception:
+                recent_clean = False
+
+        # v1.60.51: a clean reconciliation must also be recent before
+        # beginning the freshness-sensitive candidate/assessment path.
+        # When it ages out, refresh it here — before any <=2s signal is
+        # selected — rather than inside mirror_events after the gate.
+        if (
+            not errors
+            and recent_clean
+        ):
             return {
                 "clear": True,
                 "attempted": False,
                 "snapshot": snapshot,
                 "reason": (
-                    "reconciliation_already_clear"
+                    "recent_reconciliation_already_clear"
                 ),
             }
 
