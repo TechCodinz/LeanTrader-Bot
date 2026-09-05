@@ -560,10 +560,13 @@ def test_execution_qualified_stale_signal_is_pinned_then_reused_when_fresh(
         )
     ])
 
-    # The recent successful execution qualification
-    # is reused; actual submission still performs the
-    # existing fresh v1.60.16/v1.60.13 rechecks.
-    assert price_limit_after == price_limit_before
+    # Freshness-first routing deliberately does not spend an
+    # authenticated execution probe while the signal is stale.
+    # Once the requested microstream observation becomes fresh,
+    # exactly one normal preflight is performed. No execution
+    # protection is bypassed.
+    assert price_limit_before == 0
+    assert price_limit_after == price_limit_before + 1
 
     assert fake.created == []
     assert (

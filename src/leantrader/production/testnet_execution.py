@@ -218,6 +218,11 @@ class BybitTestnetExecutionEngine:
                     results.append(
                         self._mirror_event(event)
                     )
+                except TestnetSafetyError:
+                    # Safety-boundary failures must retain their explicit
+                    # type so callers can distinguish a fail-closed sandbox
+                    # rejection from an ordinary execution/runtime failure.
+                    raise
                 except Exception as exc:
                     raise RuntimeError(
                         self._redact(str(exc))

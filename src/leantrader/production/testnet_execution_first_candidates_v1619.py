@@ -717,8 +717,12 @@ class _ExecutionFirstCandidateProxy:
         # v1.60.53: keep a small but meaningful execution-ready cohort hot.
         # This is sampling/warming authority only; it creates no order and
         # cannot bypass subsequent strategy or authenticated preflight gates.
+        # Honor the precision service's actual adaptive capacity.
+        # A capacity of one means warm one symbol, not four. This avoids
+        # over-subscribing a constrained microstream while preserving the
+        # existing upper bound and all execution gates.
         capacity = max(
-            4,
+            1,
             min(
                 12,
                 adaptive_capacity,
