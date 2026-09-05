@@ -482,6 +482,116 @@ class _ExecutionFirstCandidateProxy:
 
         return False
 
+    def _fresh_opportunity_priority(
+        self,
+        symbol: str,
+    ) -> tuple[bool, float, dict[str, Any]]:
+        """Rank already-fresh execution signals without granting authority."""
+
+        signal_method = getattr(
+            self._service,
+            "collective_signal",
+            None,
+        )
+
+        # Preserve compatibility with older fixtures. They remain eligible
+        # for the normal downstream gates but receive no artificial edge.
+        if not callable(signal_method):
+            return True, 0.0, {}
+
+        try:
+            signal = (
+                signal_method(symbol)
+                or {}
+            )
+        except Exception:
+            return False, 0.0, {}
+
+        micro_velocity = (
+            signal.get("micro_velocity")
+            or {}
+        )
+
+        age_seconds = _n(
+            micro_velocity.get(
+                "age_seconds"
+            ),
+            1_000_000.0,
+        )
+
+        fresh = (
+            signal.get("fresh") is True
+            and micro_velocity.get(
+                "fresh"
+            ) is True
+            and age_seconds <= 2.0
+        )
+
+        if not fresh:
+            return False, 0.0, signal
+
+        projected_capture = max(
+            0.0,
+            _n(
+                micro_velocity.get(
+                    "projected_capture_bps_5s"
+                )
+            ),
+        )
+
+        micro_edges: list[float] = []
+
+        for key in (
+            "micro_support",
+            "qualified_micro_proposals",
+        ):
+            rows = signal.get(key) or []
+
+            if isinstance(rows, dict):
+                rows = list(rows.values())
+
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+
+                edge = _n(
+                    row.get(
+                        "expected_edge_bps"
+                    )
+                )
+
+                if edge > 0.0:
+                    micro_edges.append(edge)
+
+        best_micro_edge = max(
+            micro_edges
+            or [0.0]
+        )
+
+        velocity_qualified = (
+            micro_velocity.get(
+                "qualified_long"
+            )
+            is True
+        )
+
+        # Ranking only. This score does not satisfy or replace v1634.
+        # The authenticated candidate still has to survive every existing
+        # execution, cost, liquidity, freshness and sellability gate.
+        priority_score = max(
+            projected_capture,
+            best_micro_edge,
+        )
+
+        if velocity_qualified:
+            priority_score += 0.001
+
+        return (
+            True,
+            priority_score,
+            signal,
+        )
+
     def _warm_execution_candidate_cohort(
         self,
         symbols: list[str],
@@ -696,6 +806,73 @@ class _ExecutionFirstCandidateProxy:
             )
         else:
             cursor_start = 0
+
+        # v1.60.54: capital limits entries, and Bybit probe budget limits
+        # authenticated preflights, but neither should force the scarce probe
+        # onto the first merely-fresh symbol encountered.
+        #
+        # Re-rank a bounded front window using only current <=2s micro evidence.
+        # Stale rows remain in the universe for cohort warming. This is purely
+        # read-only prioritization and grants no execution authority.
+        priority_window = min(
+            12,
+            len(raw),
+        )
+
+        priority_rows: list[
+            tuple[str, bool, float, int]
+        ] = []
+
+        for rank_index, symbol in enumerate(
+            raw[:priority_window]
+        ):
+            fresh, score, _signal = (
+                self._fresh_opportunity_priority(
+                    symbol
+                )
+            )
+
+            priority_rows.append(
+                (
+                    symbol,
+                    fresh,
+                    score,
+                    rank_index,
+                )
+            )
+
+        priority_rows.sort(
+            key=lambda row: (
+                0 if row[1] else 1,
+                -row[2],
+                row[3],
+            )
+        )
+
+        prioritized_front = [
+            row[0]
+            for row in priority_rows
+        ]
+
+        raw = (
+            prioritized_front
+            + raw[priority_window:]
+        )
+
+        fresh_priority_count = sum(
+            1
+            for row in priority_rows
+            if row[1]
+        )
+
+        highest_priority_score = max(
+            [
+                row[2]
+                for row in priority_rows
+                if row[1]
+            ]
+            or [0.0]
+        )
 
         visited = 0
 
@@ -1326,6 +1503,13 @@ class _ExecutionFirstCandidateProxy:
                 "adaptive_candidate_cohort_warming": True,
                 "fresh_first_execution_probing": True,
                 "stale_candidates_consume_network_probe": False,
+                "opportunity_prioritized_fresh_routing": True,
+                "opportunity_priority_window": priority_window,
+                "fresh_priority_candidates": fresh_priority_count,
+                "highest_fresh_priority_score_bps": highest_priority_score,
+                "priority_is_ranking_only": True,
+                "priority_bypasses_profit_gate": False,
+                "priority_bypasses_execution_preflight": False,
                 "freshness_gate_seconds": 2.0,
                 "warmed_candidates_require_normal_preflight": True,
                 "network_probe_budget_changed": False,
