@@ -530,54 +530,148 @@ class _ExecutionFirstCandidateProxy:
         if not fresh:
             return False, 0.0, signal
 
-        projected_capture = max(
-            0.0,
-            _n(
-                micro_velocity.get(
-                    "projected_capture_bps_5s"
-                )
-            ),
+        # v1.60.55: collective_signal() returns the RAW micro-velocity
+        # snapshot. projected_capture_bps_5s and qualified_long are derived
+        # by the VelocitySniper lane and therefore are not guaranteed to
+        # exist in that raw mapping.
+        #
+        # v1.60.54 incorrectly attempted to rank raw candidates using those
+        # post-assessment fields, which could collapse every fresh candidate
+        # to a 0-bps priority score before scarce authenticated preflight
+        # probes were spent.
+        #
+        # Reuse the lane's exact read-only velocity derivation when available.
+        # This grants no execution authority and changes no hard gate.
+        velocity_state: dict[str, Any] = {}
+
+        velocity_method = getattr(
+            self._lane,
+            "_velocity_state",
+            None,
         )
+
+        if callable(velocity_method):
+            try:
+                velocity_state = (
+                    velocity_method(signal)
+                    or {}
+                )
+            except Exception:
+                velocity_state = {}
+
+        if velocity_state:
+            projected_capture = max(
+                0.0,
+                _n(
+                    velocity_state.get(
+                        "projected_capture_bps_5s"
+                    )
+                ),
+            )
+
+            velocity_qualified = (
+                velocity_state.get(
+                    "qualified_long"
+                )
+                is True
+            )
+
+        else:
+            # Compatibility fallback for older/lightweight lane fixtures.
+            trend_5s = _n(
+                micro_velocity.get(
+                    "recent_midpoint_trend_bps_5s"
+                )
+            )
+
+            velocity_bps_s = _n(
+                micro_velocity.get(
+                    "midpoint_velocity_bps_per_second"
+                )
+            )
+
+            acceleration_bps_s2 = _n(
+                micro_velocity.get(
+                    "midpoint_acceleration_bps_per_second2"
+                )
+            )
+
+            projected_capture = max(
+                0.0,
+                trend_5s,
+                velocity_bps_s * 5.0
+                + max(
+                    0.0,
+                    acceleration_bps_s2,
+                )
+                * 4.0,
+            )
+
+            # Full qualification contains spread/depth/sample constraints.
+            # Never recreate or relax it incompletely in the fallback.
+            velocity_qualified = False
+
+        # v1.60.54 also read micro_support/qualified_micro_proposals,
+        # which are assessment-layer fields. At this point we still possess
+        # the raw signal, so rank from the actual raw path assessments that
+        # later feed micro_support.
+        micro = (
+            signal.get("microstructure")
+            or {}
+        )
+
+        path_rows = [
+            row
+            for row in (
+                micro.get("path_assessments")
+                or []
+            )
+            if isinstance(row, dict)
+        ]
 
         micro_edges: list[float] = []
 
-        for key in (
-            "micro_support",
-            "qualified_micro_proposals",
-        ):
-            rows = signal.get(key) or []
+        for row in path_rows:
+            direction = str(
+                row.get("direction")
+                or ""
+            ).lower()
 
-            if isinstance(rows, dict):
-                rows = list(rows.values())
+            confidence = max(
+                0.0,
+                _n(
+                    row.get("confidence")
+                ),
+            )
 
-            for row in rows:
-                if not isinstance(row, dict):
-                    continue
-
-                edge = _n(
-                    row.get(
-                        "expected_edge_bps"
-                    )
+            edge = _n(
+                row.get(
+                    "expected_edge_bps"
                 )
+            )
 
-                if edge > 0.0:
-                    micro_edges.append(edge)
+            if (
+                direction
+                in {
+                    "long",
+                    "buy",
+                    "bull",
+                    "bullish",
+                }
+                and confidence >= 0.10
+                and edge > 0.0
+            ):
+                micro_edges.append(edge)
 
         best_micro_edge = max(
             micro_edges
             or [0.0]
         )
 
-        velocity_qualified = (
-            micro_velocity.get(
-                "qualified_long"
-            )
-            is True
-        )
-
         # Ranking only. This score does not satisfy or replace v1634.
         # The authenticated candidate still has to survive every existing
-        # execution, cost, liquidity, freshness and sellability gate.
+        # execution, profitability, cost, liquidity, freshness, sellability
+        # and reconciliation gate.
         priority_score = max(
             projected_capture,
             best_micro_edge,
@@ -1504,6 +1598,9 @@ class _ExecutionFirstCandidateProxy:
                 "fresh_first_execution_probing": True,
                 "stale_candidates_consume_network_probe": False,
                 "opportunity_prioritized_fresh_routing": True,
+                "raw_signal_priority_alignment": True,
+                "velocity_state_reused_for_priority": True,
+                "raw_micro_path_priority": True,
                 "opportunity_priority_window": priority_window,
                 "fresh_priority_candidates": fresh_priority_count,
                 "highest_fresh_priority_score_bps": highest_priority_score,
