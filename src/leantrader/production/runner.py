@@ -25,6 +25,7 @@ from ..agents.swarm_evidence import SwarmOutcomeJournal, build_v142_swarm_manife
 from ..agents.swarm_orchestrator import MarketSwarmOrchestrator
 from ..agents.swarm_service import ReadOnlySwarmService
 from ..agents.swarm_shadow_portfolio import SwarmShadowPortfolio
+from .legacy_engine_bridge import LegacyEngineBridge, RestoredSwarmService
 
 
 class MicrostructureMarketFeed(MarketFeed):
@@ -76,7 +77,16 @@ class PaperRunner(_V142PaperRunner):
                 maximum_hold_seconds=30.0,
                 take_profit_bps=50.0,
                 stop_loss_bps=30.0,
-                maximum_entries_per_day=45,
+                maximum_entries_per_day=max(
+                    45,
+                    min(
+                        1_000,
+                        max(
+                            45,
+                            self.settings.testnet_max_orders_per_day // 2,
+                        ),
+                    ),
+                ),
                 bootstrap_after_seconds=5.0,
                 # Six is now only the starting baseline. Actual concurrency
                 # expands/contracts from capital, market opportunities,
@@ -85,7 +95,7 @@ class PaperRunner(_V142PaperRunner):
                 maximum_adaptive_positions=max(
                     6,
                     min(
-                        24,
+                        64,
                         self.settings.market_scan_batch_size,
                         max(
                             6,
@@ -98,7 +108,7 @@ class PaperRunner(_V142PaperRunner):
                 maximum_adaptive_entries_per_cycle=max(
                     3,
                     min(
-                        8,
+                        16,
                         max(
                             3,
                             self.settings.market_scan_batch_size
@@ -109,7 +119,7 @@ class PaperRunner(_V142PaperRunner):
                 candidate_scan_limit=max(
                     24,
                     min(
-                        48,
+                        128,
                         self.settings.market_scan_batch_size
                         * 2,
                     ),
@@ -338,6 +348,9 @@ class PaperRunner(_V142PaperRunner):
         precision_scout_feed = MarketFeed(
             self.settings.exchange
         )
+        legacy_restoration_feed = MarketFeed(
+            self.settings.exchange
+        )
         reference_feed = None
         if (
             str(self.settings.exchange).lower() != "okx"
@@ -390,7 +403,18 @@ class PaperRunner(_V142PaperRunner):
                 / 8.0,
             ),
         )
-        return ReadOnlySwarmService(
+        return RestoredSwarmService(
+            legacy_bridge=LegacyEngineBridge(
+                feed=legacy_restoration_feed,
+                market_quote=self.settings.market_quote,
+                min_quote_volume_usd=self.settings.market_min_quote_volume_usd,
+                max_spread_bps=self.settings.market_max_spread_bps,
+                scan_limit=max(64, min(128, self.settings.market_scan_batch_size * 2)),
+                analysis_batch_size=max(8, min(24, self.settings.market_scan_batch_size // 4)),
+                cadence_seconds=3.0,
+                manifest_path=base.with_name("vps_legacy_engine_manifest.json"),
+                arbitrage_venues=self.settings.arbitrage_venues,
+            ),
             feed=dedicated_feed,
             runtime=runtime,
             market_quote=self.settings.market_quote,
@@ -418,7 +442,7 @@ class PaperRunner(_V142PaperRunner):
             max_micro_symbols=max(
                 6,
                 min(
-                    12,
+                    32,
                     self.settings.market_scan_batch_size,
                 ),
             ),

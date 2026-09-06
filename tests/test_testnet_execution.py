@@ -159,6 +159,19 @@ def buy_event():
     }
 
 
+
+def test_v161_high_throughput_testnet_limits_are_configuration_only(tmp_path):
+    instance, _fake = engine(
+        tmp_path,
+        max_daily_submitted_usd=5000.0,
+        max_orders_per_day=2000,
+    )
+    assert instance.max_daily_submitted_usd == 5000.0
+    assert instance.max_orders_per_day == 2000
+    assert instance.exchange is None
+    assert instance.authenticated is False
+
+
 def test_sandbox_switch_is_first_call_and_endpoint_is_verified(tmp_path):
     instance, fake = engine(tmp_path)
     instance.start()

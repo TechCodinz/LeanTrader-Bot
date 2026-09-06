@@ -159,7 +159,7 @@ class ReadOnlySwarmService:
         self._precision_micro_capacity = max(
             1,
             min(
-                6,
+                16,
                 self.max_micro_symbols,
             ),
         )

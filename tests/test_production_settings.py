@@ -54,6 +54,27 @@ def test_testnet_configuration_cannot_grant_live_authority(monkeypatch, tmp_path
     assert settings.testnet_max_order_usd == 10.0
 
 
+
+def test_v161_high_throughput_testnet_settings_are_allowed(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("BYBIT_TESTNET_ENABLED", "true")
+    monkeypatch.setenv(
+        "BYBIT_TESTNET_CONFIRM",
+        "I_UNDERSTAND_TESTNET_ONLY",
+    )
+    monkeypatch.setenv(
+        "BYBIT_TESTNET_MAX_DAILY_SUBMITTED_USD",
+        "5000",
+    )
+    monkeypatch.setenv(
+        "BYBIT_TESTNET_MAX_ORDERS_PER_DAY",
+        "2000",
+    )
+    settings = Settings.from_env()
+    assert settings.testnet_max_daily_submitted_usd == 5000.0
+    assert settings.testnet_max_orders_per_day == 2000
+
+
 def test_auto_symbols_enable_dynamic_all_eligible_market_rotation(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("PAPER_SYMBOLS", "AUTO")

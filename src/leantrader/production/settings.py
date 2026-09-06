@@ -477,7 +477,7 @@ class Settings:
                 raise SafetyError("BYBIT_TESTNET_MAX_ORDER_USD must be in (0, 100]")
             if not self.testnet_max_order_usd <= self.testnet_max_position_usd <= 500:
                 raise SafetyError("BYBIT_TESTNET_MAX_POSITION_USD exceeds the safe testnet boundary")
-            if not self.testnet_max_order_usd <= self.testnet_max_daily_submitted_usd <= 1_000:
-                raise SafetyError("BYBIT_TESTNET_MAX_DAILY_SUBMITTED_USD exceeds the safe boundary")
-            if not 1 <= self.testnet_max_orders_per_day <= 100:
-                raise SafetyError("BYBIT_TESTNET_MAX_ORDERS_PER_DAY must be in [1, 100]")
+            if not self.testnet_max_order_usd <= self.testnet_max_daily_submitted_usd <= 10_000:
+                raise SafetyError("BYBIT_TESTNET_MAX_DAILY_SUBMITTED_USD exceeds the Testnet boundary")
+            if not 1 <= self.testnet_max_orders_per_day <= 2_000:
+                raise SafetyError("BYBIT_TESTNET_MAX_ORDERS_PER_DAY must be in [1, 2000]")

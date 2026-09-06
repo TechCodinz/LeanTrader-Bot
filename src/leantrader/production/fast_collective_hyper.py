@@ -53,7 +53,7 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         self.maximum_adaptive_positions = max(
             self.maximum_concurrent_positions,
             min(
-                24,
+                64,
                 int(maximum_adaptive_positions),
             ),
         )
@@ -69,7 +69,7 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         self.maximum_adaptive_entries_per_cycle = max(
             self.maximum_entries_per_cycle,
             min(
-                8,
+                16,
                 int(
                     maximum_adaptive_entries_per_cycle
                 ),
@@ -79,7 +79,7 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
         self.candidate_scan_limit = max(
             self.maximum_concurrent_positions,
             min(
-                64,
+                128,
                 int(candidate_scan_limit),
             ),
         )

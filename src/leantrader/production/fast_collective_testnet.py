@@ -94,7 +94,7 @@ class FastCollectiveTestnetLane:
 
         self.maximum_entries_per_day = max(
             1,
-            min(100, int(maximum_entries_per_day)),
+            min(1_000, int(maximum_entries_per_day)),
         )
 
         self.bootstrap_after_seconds = max(

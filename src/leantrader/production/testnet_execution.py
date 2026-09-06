@@ -46,10 +46,10 @@ class BybitTestnetExecutionEngine:
             raise TestnetSafetyError("testnet max order must be in (0, 100] USD")
         if not max_order_usd <= max_position_usd <= 500:
             raise TestnetSafetyError("testnet max position must be between the order cap and 500 USD")
-        if not max_order_usd <= max_daily_submitted_usd <= 1_000:
-            raise TestnetSafetyError("testnet daily submitted cap must be between the order cap and 1000 USD")
-        if not 1 <= max_orders_per_day <= 100:
-            raise TestnetSafetyError("testnet daily order count must be in [1, 100]")
+        if not max_order_usd <= max_daily_submitted_usd <= 10_000:
+            raise TestnetSafetyError("testnet daily submitted cap must be between the order cap and 10000 USD")
+        if not 1 <= max_orders_per_day <= 2_000:
+            raise TestnetSafetyError("testnet daily order count must be in [1, 2000]")
 
         self.api_key_path = api_key_path
         self.api_secret_path = api_secret_path
