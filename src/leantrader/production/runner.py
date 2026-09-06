@@ -410,7 +410,13 @@ class PaperRunner(_V142PaperRunner):
                 min_quote_volume_usd=self.settings.market_min_quote_volume_usd,
                 max_spread_bps=self.settings.market_max_spread_bps,
                 scan_limit=max(64, min(128, self.settings.market_scan_batch_size * 2)),
-                analysis_batch_size=max(8, min(24, self.settings.market_scan_batch_size // 4)),
+                analysis_batch_size=max(
+                    8,
+                    min(
+                        16,
+                        self.settings.market_scan_batch_size // 4,
+                    ),
+                ),
                 cadence_seconds=3.0,
                 manifest_path=base.with_name("vps_legacy_engine_manifest.json"),
                 arbitrage_venues=getattr(
@@ -424,7 +430,16 @@ class PaperRunner(_V142PaperRunner):
             market_quote=self.settings.market_quote,
             min_quote_volume_usd=self.settings.market_min_quote_volume_usd,
             max_spread_bps=self.settings.market_max_spread_bps,
-            scan_batch_size=max(1, self.settings.market_scan_batch_size),
+            # Broad discovery remains wide; deep candle analysis rotates
+            # through a bounded cohort instead of blocking one cycle on
+            # the entire discovered market universe.
+            scan_batch_size=max(
+                8,
+                min(
+                    32,
+                    self.settings.market_scan_batch_size,
+                ),
+            ),
             candle_limit=max(48, min(120, self.settings.candle_limit)),
             cadence_seconds=cadence,
             discovery_refresh_seconds=max(60.0, min(300.0, float(self.settings.market_refresh_seconds))),
@@ -446,7 +461,7 @@ class PaperRunner(_V142PaperRunner):
             max_micro_symbols=max(
                 6,
                 min(
-                    32,
+                    16,
                     self.settings.market_scan_batch_size,
                 ),
             ),

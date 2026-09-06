@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import logging
 import math
 import os
 import signal
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -184,6 +186,18 @@ def atr_sized_notional(
 class MarketFeed:
     """Public, read-only CCXT market-data feed. No credentials are loaded."""
 
+    # v1.61.1: all public feed instances remain independent for candles and
+    # order books, but bulk exchange discovery is serialized and briefly
+    # shared. This prevents simultaneous cold-start load_markets/fetch_tickers
+    # storms from starving the fast, precision and restored intelligence lanes.
+    _MARKET_LOAD_LOCK = threading.Lock()
+    _DISCOVERY_LOCK = threading.RLock()
+    _DISCOVERY_CACHE: dict[
+        tuple[str, str, float, float],
+        tuple[float, dict[str, Any]],
+    ] = {}
+    _DISCOVERY_TTL_SECONDS = 15.0
+
     def __init__(self, exchange_id: str) -> None:
         import ccxt  # type: ignore
 
@@ -198,9 +212,15 @@ class MarketFeed:
         self._candle_cache_misses = 0
 
     def _load_markets(self) -> None:
-        if not self._markets_loaded:
-            self.exchange.load_markets()
-            self._markets_loaded = True
+        if self._markets_loaded:
+            return
+
+        # Each CCXT client still receives its own market catalog, but do not
+        # hammer the same provider with several cold loads simultaneously.
+        with type(self)._MARKET_LOAD_LOCK:
+            if not self._markets_loaded:
+                self.exchange.load_markets()
+                self._markets_loaded = True
 
     def candles(self, symbol: str, timeframe: str, limit: int) -> pd.DataFrame:
         self._load_markets()
@@ -239,7 +259,63 @@ class MarketFeed:
         min_quote_volume_usd: float,
         max_spread_bps: float,
     ) -> dict[str, Any]:
-        """Return every active, liquid spot market ranked by quote volume."""
+        """Return a briefly shared bulk-discovery snapshot."""
+
+        exchange_id = str(
+            getattr(self.exchange, "id", "unknown")
+        ).lower()
+
+        cache_key = (
+            exchange_id,
+            str(quote).upper(),
+            float(min_quote_volume_usd),
+            float(max_spread_bps),
+        )
+
+        cls = type(self)
+
+        # Serialize only bulk discovery. Candle/order-book clients remain
+        # independent and keep their own CCXT rate-limit state.
+        with cls._DISCOVERY_LOCK:
+            cached = cls._DISCOVERY_CACHE.get(cache_key)
+            now = time.monotonic()
+
+            if cached is not None:
+                cached_at, cached_payload = cached
+
+                if (
+                    now - float(cached_at)
+                    <= cls._DISCOVERY_TTL_SECONDS
+                ):
+                    payload = copy.deepcopy(cached_payload)
+                    self._last_discovery = {
+                        key: copy.deepcopy(value)
+                        for key, value in payload.items()
+                        if key != "candidates"
+                    }
+                    return payload
+
+            payload = self._discover_markets_uncached(
+                quote=quote,
+                min_quote_volume_usd=min_quote_volume_usd,
+                max_spread_bps=max_spread_bps,
+            )
+
+            cls._DISCOVERY_CACHE[cache_key] = (
+                time.monotonic(),
+                copy.deepcopy(payload),
+            )
+
+            return payload
+
+    def _discover_markets_uncached(
+        self,
+        *,
+        quote: str,
+        min_quote_volume_usd: float,
+        max_spread_bps: float,
+    ) -> dict[str, Any]:
+        """Perform one real provider bulk-discovery request."""
         self._load_markets()
         if not self.exchange.has.get("fetchTickers", False):
             raise RuntimeError("exchange does not support bulk ticker discovery")
@@ -544,7 +620,13 @@ class PaperRunner:
             mode=settings.market_universe_mode,
             configured_symbols=settings.symbols,
             quote=settings.market_quote,
-            batch_size=settings.market_scan_batch_size,
+            batch_size=max(
+                8,
+                min(
+                    24,
+                    settings.market_scan_batch_size,
+                ),
+            ),
             refresh_seconds=settings.market_refresh_seconds,
         )
         self._logged_event_ids = self._load_logged_event_ids(settings.log_path)
