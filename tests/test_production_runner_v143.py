@@ -73,14 +73,17 @@ def test_v143_fast_service_uses_dedicated_feed_and_round_trip_costs(monkeypatch,
     runner.swarm_outcome_journal = SwarmOutcomeJournal(tmp_path / "outcomes.json")
     service = runner._build_fast_swarm_service()
 
-    # v1.60 intentionally uses two independent public read-only
-    # Bybit feeds: the original market-swarm feed and the always-on
-    # precision-scout feed. They must not contend on the same CCXT
-    # client/rate-limit state.
-    assert created == ["bybit", "bybit"]
+    # v1.61 intentionally uses three independent public read-only
+    # Bybit feeds: the original market-swarm feed, the always-on
+    # precision-scout feed, and the restored legacy-engine feed.
+    # They must not contend on the same CCXT client/rate-limit state.
+    assert created == ["bybit", "bybit", "bybit"]
     assert isinstance(service.feed, DummyFeed)
     assert isinstance(service.precision_scout_feed, DummyFeed)
+    assert isinstance(service.legacy_bridge.feed, DummyFeed)
     assert service.precision_scout_feed is not service.feed
+    assert service.legacy_bridge.feed is not service.feed
+    assert service.legacy_bridge.feed is not service.precision_scout_feed
     assert service.runtime.fee_bps == 20.0
     assert service.runtime.slippage_bps == 10.0
     assert service.runtime.swarm.radar.minimum_modeled_round_trip_cost_bps >= 30.0
