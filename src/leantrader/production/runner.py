@@ -413,7 +413,11 @@ class PaperRunner(_V142PaperRunner):
                 analysis_batch_size=max(8, min(24, self.settings.market_scan_batch_size // 4)),
                 cadence_seconds=3.0,
                 manifest_path=base.with_name("vps_legacy_engine_manifest.json"),
-                arbitrage_venues=self.settings.arbitrage_venues,
+                arbitrage_venues=getattr(
+                    self.settings,
+                    "arbitrage_venues",
+                    ("bybit", "okx"),
+                ),
             ),
             feed=dedicated_feed,
             runtime=runtime,
