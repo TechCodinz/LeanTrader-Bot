@@ -410,11 +410,14 @@ class PaperRunner(_V142PaperRunner):
                 min_quote_volume_usd=self.settings.market_min_quote_volume_usd,
                 max_spread_bps=self.settings.market_max_spread_bps,
                 scan_limit=max(64, min(128, self.settings.market_scan_batch_size * 2)),
+                # Rotate a bounded restored-intelligence cohort.
+                # Every analyzed symbol already consumes order-book plus
+                # 1m/5m/15m public market requests before engine inference.
                 analysis_batch_size=max(
-                    8,
+                    1,
                     min(
-                        16,
-                        self.settings.market_scan_batch_size // 4,
+                        4,
+                        self.settings.market_scan_batch_size,
                     ),
                 ),
                 cadence_seconds=3.0,
@@ -433,12 +436,9 @@ class PaperRunner(_V142PaperRunner):
             # Broad discovery remains wide; deep candle analysis rotates
             # through a bounded cohort instead of blocking one cycle on
             # the entire discovered market universe.
-            scan_batch_size=max(
+            scan_batch_size=min(
                 8,
-                min(
-                    32,
-                    self.settings.market_scan_batch_size,
-                ),
+                self.settings.market_scan_batch_size,
             ),
             candle_limit=max(48, min(120, self.settings.candle_limit)),
             cadence_seconds=cadence,

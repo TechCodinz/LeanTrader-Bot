@@ -620,8 +620,11 @@ class PaperRunner:
             mode=settings.market_universe_mode,
             configured_symbols=settings.symbols,
             quote=settings.market_quote,
+            # v1.61.2: Bybit AUTO evaluates the complete verified
+            # 13-timeframe matrix. Keep broad discovery wide while rotating
+            # only a small synchronous deep cohort per canonical cycle.
             batch_size=min(
-                24,
+                4,
                 settings.market_scan_batch_size,
             ),
             refresh_seconds=settings.market_refresh_seconds,
