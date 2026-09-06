@@ -620,12 +620,9 @@ class PaperRunner:
             mode=settings.market_universe_mode,
             configured_symbols=settings.symbols,
             quote=settings.market_quote,
-            batch_size=max(
-                8,
-                min(
-                    24,
-                    settings.market_scan_batch_size,
-                ),
+            batch_size=min(
+                24,
+                settings.market_scan_batch_size,
             ),
             refresh_seconds=settings.market_refresh_seconds,
         )
