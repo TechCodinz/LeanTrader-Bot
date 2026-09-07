@@ -49,6 +49,7 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
         "decision_router",
         "error_attribution",
         "evolution_fabric",
+        "execution_fabric",
         "alpha_tournament",
         "prospective_validation_lab",
         "execution_quality_intelligence",
