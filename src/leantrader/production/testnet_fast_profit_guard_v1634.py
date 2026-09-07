@@ -19,6 +19,22 @@ MIN_EXIT_NET_MARGIN_BPS = 5.0
 # Do not let fee-only holds become permanent positions.
 MAX_FEE_ONLY_EXIT_EXTENSION_SECONDS = 60.0
 
+# v1.61.6: these restored engines operate on micro/short-horizon
+# real market data. They may contribute expected capture evidence,
+# but never execution authority and never without current micro
+# confirmation plus the existing profitability gate.
+RESTORED_FAST_SOURCE_PREFIXES = (
+    "ultra_scalping.",
+    "continuous_scalping",
+    "continuous_momentum",
+    "continuous_breakout",
+    "legacy_swarm.scalping",
+    "ultra_quantum.microstructure_decoder",
+    "ultra_quantum.momentum",
+    "ultra_god_mode.quantum_price",
+    "ultra_fluid_mechanics",
+)
+
 
 def _n(value: Any, default: float = 0.0) -> float:
     try:
@@ -36,6 +52,132 @@ def _best_micro_edge_bps(row: dict[str, Any]) -> float:
         ]
         or [0.0]
     )
+
+
+def _restored_fast_support(
+    signal: dict[str, Any],
+) -> list[dict[str, Any]]:
+    output: list[dict[str, Any]] = []
+
+    assessments = (
+        signal.get("timeframe_assessments")
+        or {}
+    )
+
+    if not isinstance(assessments, dict):
+        return output
+
+    for timeframe, raw in assessments.items():
+        if not isinstance(raw, dict):
+            continue
+
+        if raw.get("legacy_restoration") is not True:
+            continue
+
+        if (
+            raw.get("legacy_economically_positive")
+            is not True
+        ):
+            continue
+
+        direction = str(
+            raw.get("direction") or ""
+        ).lower()
+
+        if direction not in {
+            "long",
+            "buy",
+            "bull",
+            "bullish",
+        }:
+            continue
+
+        source = str(
+            raw.get("source") or ""
+        )
+
+        if not any(
+            source.startswith(prefix)
+            for prefix in RESTORED_FAST_SOURCE_PREFIXES
+        ):
+            continue
+
+        confidence = max(
+            0.0,
+            min(
+                1.0,
+                _n(raw.get("confidence")),
+            ),
+        )
+
+        gross_edge = max(
+            0.0,
+            _n(
+                raw.get(
+                    "legacy_gross_edge_bps"
+                )
+            ),
+        )
+
+        net_edge = max(
+            0.0,
+            _n(
+                raw.get(
+                    "legacy_conservative_net_edge_bps"
+                ),
+                _n(
+                    raw.get(
+                        "expected_edge_bps"
+                    )
+                ),
+            ),
+        )
+
+        if (
+            confidence < 0.10
+            or gross_edge <= 0.0
+            or net_edge <= 0.0
+        ):
+            continue
+
+        output.append(
+            {
+                "source": source,
+                "timeframe": str(
+                    raw.get("timeframe")
+                    or timeframe
+                ),
+                "confidence": confidence,
+                "gross_edge_bps": gross_edge,
+                "conservative_net_edge_bps": (
+                    net_edge
+                ),
+                "modeled_round_trip_cost_bps": (
+                    max(
+                        0.0,
+                        _n(
+                            raw.get(
+                                "legacy_modeled_round_trip_cost_bps"
+                            )
+                        ),
+                    )
+                ),
+                "legacy_restoration": True,
+                "economically_positive": True,
+                "execution_authority": False,
+                "live_authority": False,
+            }
+        )
+
+    output.sort(
+        key=lambda row: (
+            _n(row.get("gross_edge_bps")),
+            _n(row.get("confidence")),
+        ),
+        reverse=True,
+    )
+
+    return output[:8]
 
 
 def fast_entry_profit_gate(
@@ -117,11 +259,75 @@ def fast_entry_profit_gate(
         _best_micro_edge_bps(result),
     )
 
-    # Either real microstructure edge or current velocity capture
-    # may prove the fast move, but MTF alone may not.
+    restored_fast_support = [
+        row
+        for row in (
+            result.get(
+                "restored_fast_support"
+            )
+            or []
+        )
+        if (
+            isinstance(row, dict)
+            and row.get(
+                "economically_positive"
+            )
+            is True
+            and _n(
+                row.get(
+                    "conservative_net_edge_bps"
+                )
+            )
+            > 0.0
+        )
+    ]
+
+    restored_fast_gross_edge = max(
+        [
+            _n(
+                row.get(
+                    "gross_edge_bps"
+                )
+            )
+            for row in restored_fast_support
+        ]
+        or [0.0]
+    )
+
+    restored_fast_net_edge = max(
+        [
+            _n(
+                row.get(
+                    "conservative_net_edge_bps"
+                )
+            )
+            for row in restored_fast_support
+        ]
+        or [0.0]
+    )
+
+    restored_fast_sources = sorted(
+        {
+            str(
+                row.get("source")
+                or ""
+            )
+            for row in restored_fast_support
+            if row.get("source")
+        }
+    )
+
+    # v1.61.6:
+    # - microstructure/velocity still provides CURRENT confirmation
+    # - restored fast engines may provide the expected gross capture
+    # - the existing cost + profit-margin requirement remains unchanged
+    #
+    # This reconnects the already-built fast intelligence without
+    # granting old engines independent execution authority.
     fast_edge = max(
         projected_capture,
         micro_edge,
+        restored_fast_gross_edge,
     )
 
     result["v1634_fast_profit_gate"] = {
@@ -143,6 +349,24 @@ def fast_entry_profit_gate(
         ),
         "best_micro_edge_bps": (
             micro_edge
+        ),
+        "best_restored_fast_gross_edge_bps": (
+            restored_fast_gross_edge
+        ),
+        "best_restored_fast_net_edge_bps": (
+            restored_fast_net_edge
+        ),
+        "restored_fast_sources": (
+            restored_fast_sources
+        ),
+        "restored_fast_support_count": (
+            len(restored_fast_support)
+        ),
+        "restored_fast_edge_bridge_version": (
+            "1.61.6"
+        ),
+        "restored_fast_evidence_is_execution_authority": (
+            False
         ),
         "fast_edge_bps": fast_edge,
         "micro_confidence": (
@@ -388,6 +612,21 @@ def install_testnet_fast_profit_guard_v1634() -> None:
             )
             or {}
         )
+
+        restored_fast = (
+            _restored_fast_support(
+                signal
+            )
+        )
+
+        row = {
+            **row,
+            "restored_fast_support": (
+                copy.deepcopy(
+                    restored_fast
+                )
+            ),
+        }
 
         if economics:
             row = {

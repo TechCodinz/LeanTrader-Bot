@@ -1766,6 +1766,57 @@ class HyperSpeedCollectiveTestnetLane(FastCollectiveTestnetLane):
                     "micro_confidence": row.get("micro_confidence"),
                     "cost_qualified": row.get("cost_qualified"),
                     "velocity_sniper": row.get("velocity_sniper"),
+                    "restored_fast_gross_edge_bps": (
+                        (
+                            row.get(
+                                "v1634_fast_profit_gate"
+                            )
+                            or {}
+                        ).get(
+                            "best_restored_fast_gross_edge_bps"
+                        )
+                    ),
+                    "restored_fast_net_edge_bps": (
+                        (
+                            row.get(
+                                "v1634_fast_profit_gate"
+                            )
+                            or {}
+                        ).get(
+                            "best_restored_fast_net_edge_bps"
+                        )
+                    ),
+                    "restored_fast_sources": (
+                        (
+                            row.get(
+                                "v1634_fast_profit_gate"
+                            )
+                            or {}
+                        ).get(
+                            "restored_fast_sources"
+                        )
+                        or []
+                    ),
+                    "fast_required_capture_bps": (
+                        (
+                            row.get(
+                                "v1634_fast_profit_gate"
+                            )
+                            or {}
+                        ).get(
+                            "required_capture_bps"
+                        )
+                    ),
+                    "fast_proven_capture_bps": (
+                        (
+                            row.get(
+                                "v1634_fast_profit_gate"
+                            )
+                            or {}
+                        ).get(
+                            "fast_edge_bps"
+                        )
+                    ),
                     "velocity": velocity_state,
                     "micro_path_count": len(path_rows),
                     "best_micro_edge_bps": max(

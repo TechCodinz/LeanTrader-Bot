@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from leantrader.production.testnet_fast_profit_guard_v1634 import (
     VERSION,
+    _restored_fast_support,
     fast_entry_profit_gate,
     fee_only_exit_deferral,
 )
@@ -219,3 +220,155 @@ def test_extension_is_bounded():
 
 def test_version():
     assert VERSION == "1.60.44"
+
+
+def test_restored_fast_support_extracts_only_cost_cleared_fast_families():
+    signal = {
+        "timeframe_assessments": {
+            "fast": {
+                "legacy_restoration": True,
+                "legacy_economically_positive": True,
+                "direction": "long",
+                "confidence": 0.75,
+                "expected_edge_bps": 25.0,
+                "legacy_gross_edge_bps": 55.0,
+                "legacy_conservative_net_edge_bps": 25.0,
+                "legacy_modeled_round_trip_cost_bps": 30.0,
+                "source": "continuous_momentum",
+                "timeframe": "1m",
+            },
+            "slow": {
+                "legacy_restoration": True,
+                "legacy_economically_positive": True,
+                "direction": "long",
+                "confidence": 0.90,
+                "expected_edge_bps": 70.0,
+                "legacy_gross_edge_bps": 100.0,
+                "legacy_conservative_net_edge_bps": 70.0,
+                "legacy_modeled_round_trip_cost_bps": 30.0,
+                "source": "legacy_multitimeframe",
+                "timeframe": "1m+5m+15m",
+            },
+            "subcost": {
+                "legacy_restoration": True,
+                "legacy_economically_positive": False,
+                "direction": "long",
+                "confidence": 0.90,
+                "expected_edge_bps": 0.0,
+                "legacy_gross_edge_bps": 5.0,
+                "legacy_conservative_net_edge_bps": 0.0,
+                "source": "ultra_scalping.micro_momentum",
+                "timeframe": "1m",
+            },
+        }
+    }
+
+    rows = _restored_fast_support(
+        signal
+    )
+
+    assert len(rows) == 1
+    assert (
+        rows[0]["source"]
+        == "continuous_momentum"
+    )
+    assert (
+        rows[0]["gross_edge_bps"]
+        == 55.0
+    )
+    assert (
+        rows[0]["conservative_net_edge_bps"]
+        == 25.0
+    )
+    assert (
+        rows[0]["execution_authority"]
+        is False
+    )
+
+
+def test_restored_fast_edge_can_prove_capture_only_with_current_micro_confirmation():
+    row = allowed_row(
+        micro_confidence=0.20,
+        projected_capture=4.0,
+        micro_edge=5.0,
+    )
+
+    row["restored_fast_support"] = [
+        {
+            "source": "continuous_momentum",
+            "confidence": 0.75,
+            "gross_edge_bps": 55.0,
+            "conservative_net_edge_bps": 25.0,
+            "economically_positive": True,
+            "execution_authority": False,
+        }
+    ]
+
+    result = fast_entry_profit_gate(
+        row
+    )
+
+    assert result["allowed"] is True
+
+    gate = result[
+        "v1634_fast_profit_gate"
+    ]
+
+    assert (
+        gate[
+            "best_restored_fast_gross_edge_bps"
+        ]
+        == 55.0
+    )
+
+    assert (
+        gate[
+            "best_restored_fast_net_edge_bps"
+        ]
+        == 25.0
+    )
+
+    assert (
+        gate["fast_edge_bps"]
+        == 55.0
+    )
+
+    assert (
+        gate[
+            "restored_fast_evidence_is_execution_authority"
+        ]
+        is False
+    )
+
+
+def test_restored_fast_edge_never_bypasses_micro_confirmation():
+    row = allowed_row(
+        micro_confidence=0.0,
+        projected_capture=0.0,
+        velocity_qualified=False,
+        micro_edge=0.0,
+    )
+
+    row["restored_fast_support"] = [
+        {
+            "source": (
+                "ultra_scalping.micro_momentum"
+            ),
+            "confidence": 0.90,
+            "gross_edge_bps": 100.0,
+            "conservative_net_edge_bps": 70.0,
+            "economically_positive": True,
+            "execution_authority": False,
+        }
+    ]
+
+    result = fast_entry_profit_gate(
+        row
+    )
+
+    assert result["allowed"] is False
+
+    assert (
+        result["reason"]
+        == "v1634_fast_micro_confirmation_required"
+    )
