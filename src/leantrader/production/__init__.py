@@ -1,4 +1,8 @@
-"""LeanTrader's supported paper runtime and bounded testnet execution mirror."""
+"""LeanTrader adaptive trading runtime.
+
+Paper, Testnet/demo, and live are execution environments beneath the
+LeanTrader intelligence core; none of them defines the system itself.
+"""
 
 from .ccxt_compat import install_public_spot_defaults as _install_public_spot_defaults
 from .fast_testnet_absence_quorum import (
@@ -132,6 +136,7 @@ __all__ = [
     "decision_router",
     "error_attribution",
     "evolution_fabric",
+    "execution_fabric",
     "exchange_intelligence",
     "exchange_protection",
     "fast_testnet_absence_quorum",

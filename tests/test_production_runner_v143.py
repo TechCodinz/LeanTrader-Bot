@@ -471,3 +471,73 @@ def test_v1619_fast_supervisory_carries_full_real_context():
     )
 
     assert row["live_authority"] is False
+
+
+
+def test_v1620_execution_environment_not_system_identity():
+    from leantrader.production.execution_fabric import AdaptiveExecutionFabric
+
+    class FakeValidationAdapter:
+        def mirror_events(self, events):
+            return [{"status": "accepted", **event} for event in events]
+
+        def health(self):
+            return {
+                "authenticated": True,
+                "environment": "testnet",
+                "live_authority": False,
+            }
+
+    fabric = AdaptiveExecutionFabric()
+
+    fabric.register_environment(
+        "paper",
+        role="training",
+        adapter=None,
+        market_types=("spot",),
+        directions=("long", "exit"),
+        externally_executable=False,
+    )
+
+    fabric.register_environment(
+        "testnet",
+        role="validation",
+        adapter=FakeValidationAdapter(),
+        market_types=("spot",),
+        directions=("long", "exit"),
+        externally_executable=True,
+    )
+
+    fabric.declare_market_capability(
+        "linear_perpetual",
+        directions=("long", "short", "exit"),
+        data_sources=("funding", "open_interest"),
+    )
+
+    health = fabric.health()
+
+    assert health["system_identity"] == "leantrader"
+    assert health[
+        "execution_environment_is_not_system_identity"
+    ] is True
+
+    assert health["environments"]["paper"]["role"] == "training"
+    assert health["environments"]["testnet"]["role"] == "validation"
+
+    assert (
+        health["market_capabilities"]["linear_perpetual"]["real_data"]
+        is True
+    )
+
+    assert (
+        health["market_capabilities"]["linear_perpetual"]["directions"]
+        == ["long", "short", "exit"]
+    )
+
+    result = fabric.execute_events(
+        "testnet",
+        [{"symbol": "BTC/USDT", "side": "buy"}],
+    )
+
+    assert result[0]["status"] == "accepted"
+    assert health["live_authority"] is False

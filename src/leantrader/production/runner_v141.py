@@ -34,6 +34,7 @@ from .evolution_fabric import EvolutionFabric
 from .exchange_intelligence import ExchangeIntelligence, timeframe_seconds
 from .exchange_protection import ExchangeProtectionOrchestrator
 from .execution_quality import ExecutionQualityIntelligence
+from .execution_fabric import AdaptiveExecutionFabric
 from .intelligence import AdaptiveIntelligence, IntelligenceDecision, MINIMUM_INTELLIGENCE_CANDLES
 from .ledger import PaperLedger
 from .market_universe import MarketUniverse
@@ -644,6 +645,82 @@ class PaperRunner:
             if settings.testnet_enabled
             else None
         )
+        self.execution_fabric = AdaptiveExecutionFabric()
+
+        # Paper is an internal training/simulation environment.
+        # It is not LeanTrader's identity.
+        self.execution_fabric.register_environment(
+            "paper",
+            role="training",
+            adapter=None,
+            market_types=("spot",),
+            directions=("long", "exit"),
+            externally_executable=False,
+        )
+
+        if self.testnet is not None:
+            # Current authenticated validation adapter is Bybit spot.
+            # Testnet is only one execution environment beneath LeanTrader.
+            self.execution_fabric.register_environment(
+                "testnet",
+                role="validation",
+                adapter=self.testnet,
+                market_types=("spot",),
+                directions=("long", "exit"),
+                externally_executable=True,
+            )
+
+        executable = (
+            ("paper", "testnet")
+            if self.testnet is not None
+            else ("paper",)
+        )
+
+        self.execution_fabric.declare_market_capability(
+            "spot",
+            directions=("long", "exit"),
+            data_sources=(
+                "ccxt_public_spot",
+                "order_book",
+                "market_universe",
+                "microstructure",
+            ),
+            executable_environments=executable,
+        )
+
+        # These are real-data intelligence capabilities already present
+        # in LeanTrader. Execution adapters are added independently.
+        self.execution_fabric.declare_market_capability(
+            "linear_perpetual",
+            directions=("long", "short", "exit"),
+            data_sources=(
+                "bybit_public_derivatives",
+                "funding",
+                "open_interest",
+                "liquidation_websocket",
+                "market_world_model",
+            ),
+        )
+
+        self.execution_fabric.declare_market_capability(
+            "options",
+            directions=("context",),
+            data_sources=(
+                "deribit_public_options",
+                "dvol",
+                "options_surface",
+            ),
+        )
+
+        self.execution_fabric.declare_market_capability(
+            "cross_venue_arbitrage",
+            directions=("buy_sell_pair",),
+            data_sources=(
+                "ccxt_public_cross_venue_quotes",
+                "cost_adjusted_arbitrage_engine",
+            ),
+        )
+
         self.engines = EngineRegistry(
             failure_threshold=settings.engine_failure_threshold,
             recovery_seconds=settings.engine_recovery_seconds,
@@ -933,6 +1010,20 @@ class PaperRunner:
                 ),
                 version=self.testnet.VERSION,
             )
+
+        execution_dependencies = (
+            ("paper_ledger", "bybit_testnet_execution")
+            if self.testnet is not None
+            else ("paper_ledger",)
+        )
+
+        self.engines.register(
+            "execution_fabric",
+            self.execution_fabric,
+            dependencies=execution_dependencies,
+            version=self.execution_fabric.VERSION,
+        )
+
         self.engines.start_all()
         self._recover_open_position_memory()
         self.stop_requested = False
@@ -2257,8 +2348,9 @@ class PaperRunner:
 
                 if protected_events:
                     mirrored = self.engines.call(
-                        "bybit_testnet_execution",
-                        "mirror_events",
+                        "execution_fabric",
+                        "execute_events",
+                        "testnet",
                         protected_events,
                     )
                     testnet_events.extend(mirrored)
@@ -2731,7 +2823,10 @@ class PaperRunner:
         status = {
             "timestamp": time.time(),
             "healthy": bool(decisions) and self.engines.required_healthy(),
+            "system_identity": "leantrader",
             "mode": "paper",
+            "mode_is_execution_environment_not_system_identity": True,
+            "execution_fabric": self.execution_fabric.health(),
             "runtime": "verified-multi-engine-v12.11-continuous-evolution-fabric",
             "exchange": self.settings.exchange,
             "resolved_timeframes": list(resolved_timeframes),
@@ -2886,9 +2981,13 @@ class PaperRunner:
                 "brain_and_cns_review": True,
                 "cognitive_governance_review": True,
                 "paper_authority": True,
+                "paper_role": "internal_training_and_simulation",
                 "testnet_mirror_enabled": (
                     self.testnet is not None
                 ),
+                "testnet_role": "authenticated_execution_validation",
+                "system_identity": "leantrader",
+                "execution_environment_is_not_system_identity": True,
                 "live_authority": False,
             },
             "memory_health": memory_health,
