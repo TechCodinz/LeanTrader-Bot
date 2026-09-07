@@ -118,6 +118,11 @@ def merge_restored_signal(
         edge = max(0.0, _n(contribution.get("expected_edge_bps")))
         if direction == "flat" or confidence <= 0.0 or edge <= 0.0:
             continue
+        metadata = (
+            contribution.get("metadata")
+            if isinstance(contribution.get("metadata"), dict)
+            else {}
+        )
         source = str(
             contribution.get("source") or f"legacy_{index}"
         ).replace(" ", "_")
@@ -131,6 +136,18 @@ def merge_restored_signal(
             "legacy_restoration": True,
             "source": source,
             "timeframe": timeframe,
+            "legacy_gross_edge_bps": _n(
+                metadata.get("gross_edge_bps")
+            ),
+            "legacy_modeled_round_trip_cost_bps": _n(
+                metadata.get("modeled_round_trip_cost_bps")
+            ),
+            "legacy_conservative_net_edge_bps": _n(
+                metadata.get("conservative_net_edge_bps")
+            ),
+            "legacy_economically_positive": (
+                metadata.get("economically_positive") is True
+            ),
             "execution_authority": False,
             "testnet_authority": False,
             "live_authority": False,
@@ -151,7 +168,7 @@ class LegacyEngineBridge:
     Testnet executor.
     """
 
-    VERSION = "1.61.3"
+    VERSION = "1.61.4"
 
     ENGINE_CLASS_TOKENS = (
         "engine",
@@ -184,6 +201,8 @@ class LegacyEngineBridge:
         cadence_seconds: float = 3.0,
         manifest_path: Path | None = None,
         arbitrage_venues: tuple[str, ...] = ("bybit", "okx"),
+        minimum_round_trip_cost_bps: float = 30.0,
+        minimum_positive_net_edge_bps: float = 5.0,
     ) -> None:
         self.feed = feed
         self.market_quote = str(market_quote).upper()
@@ -197,6 +216,14 @@ class LegacyEngineBridge:
         self.manifest_path = manifest_path
         self.arbitrage_venues = tuple(
             dict.fromkeys(str(v).lower() for v in arbitrage_venues if v)
+        )
+        self.minimum_round_trip_cost_bps = max(
+            0.0,
+            float(minimum_round_trip_cost_bps),
+        )
+        self.minimum_positive_net_edge_bps = max(
+            0.0,
+            float(minimum_positive_net_edge_bps),
         )
 
         self._stop = threading.Event()
@@ -506,17 +533,53 @@ class LegacyEngineBridge:
     ) -> None:
         normalized_direction = _direction(direction)
         conf = max(0.0, min(1.0, _n(confidence)))
-        edge = max(0.0, _n(expected_edge_bps))
-        if normalized_direction == "flat" or conf <= 0.0 or edge <= 0.0:
+        gross_edge = max(0.0, _n(expected_edge_bps))
+
+        if normalized_direction == "flat" or conf <= 0.0:
             return
+
+        conservative_net_edge = max(
+            0.0,
+            gross_edge - self.minimum_round_trip_cost_bps,
+        )
+        economically_positive = bool(
+            conservative_net_edge
+            >= self.minimum_positive_net_edge_bps
+        )
+
+        handoff_edge = (
+            conservative_net_edge
+            if economically_positive
+            else 0.0
+        )
+
+        meta = copy.deepcopy(metadata or {})
+        meta.update(
+            {
+                "gross_edge_bps": gross_edge,
+                "modeled_round_trip_cost_bps": (
+                    self.minimum_round_trip_cost_bps
+                ),
+                "minimum_positive_net_edge_bps": (
+                    self.minimum_positive_net_edge_bps
+                ),
+                "conservative_net_edge_bps": (
+                    conservative_net_edge
+                ),
+                "economically_positive": (
+                    economically_positive
+                ),
+            }
+        )
+
         output.append(
             {
                 "source": source,
                 "timeframe": timeframe,
                 "direction": normalized_direction,
                 "confidence": conf,
-                "expected_edge_bps": edge,
-                "metadata": copy.deepcopy(metadata or {}),
+                "expected_edge_bps": handoff_edge,
+                "metadata": meta,
             }
         )
 
@@ -579,20 +642,57 @@ class LegacyEngineBridge:
                     )
                 )
                 self.engine_calls += 1
-                for signal in signals or []:
+                signal_rows = list(signals or [])
+                self._record_family_call(
+                    "ultra_scalping",
+                    {"signals": len(signal_rows)},
+                )
+
+                prices = payload_1m.get("prices") or []
+                for signal in signal_rows:
+                    strategy = str(
+                        getattr(signal, "strategy", "") or ""
+                    )
+
+                    if strategy == "spread_capture":
+                        continue
+
                     direction = (
                         "long"
                         if _n(signal.target_price)
                         > _n(signal.entry_price)
                         else "short"
                     )
+
+                    lookback = (
+                        10
+                        if strategy == "micro_momentum"
+                        else 5
+                    )
+                    gross_edge = 0.0
+                    if (
+                        len(prices) >= lookback
+                        and _n(prices[-lookback]) > 0.0
+                    ):
+                        gross_edge = abs(
+                            _n(prices[-1])
+                            / _n(prices[-lookback])
+                            - 1.0
+                        ) * 10_000.0
+
                     self._append(
                         contributions,
-                        source=f"ultra_scalping.{signal.strategy}",
+                        source=f"ultra_scalping.{strategy}",
                         timeframe="1m",
                         direction=direction,
                         confidence=signal.confidence,
-                        expected_edge_bps=signal.profit_pips,
+                        expected_edge_bps=gross_edge,
+                        metadata={
+                            "legacy_nominal_target_bps": _n(
+                                signal.profit_pips
+                            ),
+                            "observed_move_bps": gross_edge,
+                        },
                     )
             except Exception:
                 self.engine_failures += 1
@@ -646,15 +746,115 @@ class LegacyEngineBridge:
                         )
                     )
                     self.engine_calls += 1
-                    for opportunity in opportunities or []:
-                        prices = payload.get("prices") or []
-                        direction = "flat"
-                        if len(prices) >= 2:
+                    opportunity_rows = list(
+                        opportunities or []
+                    )
+                    self._record_family_call(
+                        name,
+                        {"signals": len(opportunity_rows)},
+                    )
+
+                    for opportunity in opportunity_rows:
+                        prices = [
+                            _n(value)
+                            for value in (
+                                payload.get("prices") or []
+                            )
+                            if _n(value) > 0.0
+                        ]
+                        direction = _direction(
+                            opportunity.get("direction")
+                        )
+                        gross_edge = _n(
+                            opportunity.get(
+                                "expected_edge_bps"
+                            )
+                        )
+
+                        if (
+                            name == "continuous_scalping"
+                            and len(prices) >= 5
+                        ):
+                            move = (
+                                prices[-1] / prices[-5] - 1.0
+                            )
                             direction = (
                                 "long"
-                                if prices[-1] >= prices[-2]
+                                if move > 0.0
                                 else "short"
+                                if move < 0.0
+                                else "flat"
                             )
+                            gross_edge = abs(move) * 10_000.0
+
+                        elif (
+                            name == "continuous_momentum"
+                            and len(prices) >= 20
+                        ):
+                            short_mean = (
+                                sum(prices[-5:]) / 5.0
+                            )
+                            long_mean = (
+                                sum(prices[-20:]) / 20.0
+                            )
+                            move = (
+                                short_mean / long_mean - 1.0
+                                if long_mean > 0.0
+                                else 0.0
+                            )
+                            direction = (
+                                "long"
+                                if move > 0.0
+                                else "short"
+                                if move < 0.0
+                                else "flat"
+                            )
+                            gross_edge = abs(move) * 10_000.0
+
+                        elif (
+                            name
+                            == "continuous_mean_reversion"
+                            and len(prices) >= 50
+                        ):
+                            mean_price = (
+                                sum(prices[-50:]) / 50.0
+                            )
+                            deviation = (
+                                prices[-1] / mean_price - 1.0
+                                if mean_price > 0.0
+                                else 0.0
+                            )
+                            direction = (
+                                "short"
+                                if deviation > 0.0
+                                else "long"
+                                if deviation < 0.0
+                                else "flat"
+                            )
+                            gross_edge = (
+                                abs(deviation) * 10_000.0
+                            )
+
+                        elif (
+                            name == "continuous_breakout"
+                            and len(prices) >= 20
+                        ):
+                            prior = prices[-20:-1]
+                            prior_high = max(prior)
+                            prior_low = min(prior)
+                            current = prices[-1]
+
+                            if current > prior_high:
+                                direction = "long"
+                                gross_edge = (
+                                    current / prior_high - 1.0
+                                ) * 10_000.0
+                            elif current < prior_low:
+                                direction = "short"
+                                gross_edge = (
+                                    prior_low / current - 1.0
+                                ) * 10_000.0
+
                         self._append(
                             contributions,
                             source=name,
@@ -663,18 +863,19 @@ class LegacyEngineBridge:
                             confidence=opportunity.get(
                                 "confidence"
                             ),
-                            expected_edge_bps=max(
-                                _n(
-                                    opportunity.get(
-                                        "profit_target"
-                                    )
-                                ),
-                                0.5,
-                            ),
+                            expected_edge_bps=gross_edge,
                             metadata={
                                 "strategy": opportunity.get(
                                     "strategy"
-                                )
+                                ),
+                                "legacy_nominal_target_bps": (
+                                    _n(
+                                        opportunity.get(
+                                            "profit_target"
+                                        )
+                                    )
+                                ),
+                                "observed_move_bps": gross_edge,
                             },
                         )
                 except Exception:
@@ -1608,6 +1809,20 @@ class LegacyEngineBridge:
             self._last_success_at = now
             self._last_error = None
 
+            if self.cycles == 1 or self.cycles % 10 == 0:
+                LOGGER.info(
+                    "legacy-restoration cycle=%s symbols=%s "
+                    "cached=%s engine_calls=%s failures=%s "
+                    "family_calls=%s family_failures=%s",
+                    self.cycles,
+                    self.symbols_analyzed,
+                    len(self._signals),
+                    self.engine_calls,
+                    self.engine_failures,
+                    dict(self.family_calls),
+                    dict(self.family_failures),
+                )
+
     def _run(self) -> None:
         while not self._stop.is_set():
             started = time.monotonic()
@@ -1727,7 +1942,7 @@ class LegacyEngineBridge:
 class RestoredSwarmService(ReadOnlySwarmService):
     """Current fast swarm plus restored legacy-intelligence contributors."""
 
-    VERSION = "1.61.3"
+    VERSION = "1.61.4"
 
     def __init__(
         self,

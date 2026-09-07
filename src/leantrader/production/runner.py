@@ -427,6 +427,10 @@ class PaperRunner(_V142PaperRunner):
                     "arbitrage_venues",
                     ("bybit", "okx"),
                 ),
+                minimum_round_trip_cost_bps=(
+                    self._swarm_round_trip_cost_bps()
+                ),
+                minimum_positive_net_edge_bps=5.0,
             ),
             feed=dedicated_feed,
             runtime=runtime,
