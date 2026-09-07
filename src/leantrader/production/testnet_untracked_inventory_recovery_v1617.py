@@ -9,7 +9,7 @@ from .testnet_exit_price_guard_v1611 import (
     _price_limit,
 )
 
-VERSION = "1.61.7"
+VERSION = "1.61.8"
 SCAN_SECONDS = 5.0
 MAX_PREFLIGHTS_PER_SCAN = 6
 
@@ -198,6 +198,47 @@ def _augment_balance(
     ] = untracked
 
 
+def _rotating_batch(
+    candidates: list[str],
+    *,
+    cursor: int,
+    limit: int,
+) -> tuple[list[str], int, int]:
+    rows = [
+        str(value).upper()
+        for value in candidates
+        if str(value or "")
+    ]
+
+    if not rows or limit <= 0:
+        return [], 0, 0
+
+    start = int(cursor or 0) % len(rows)
+    take = min(
+        len(rows),
+        max(1, int(limit)),
+    )
+
+    batch = [
+        rows[
+            (start + offset)
+            % len(rows)
+        ]
+        for offset in range(take)
+    ]
+
+    next_cursor = (
+        start + take
+    ) % len(rows)
+
+    return (
+        batch,
+        start,
+        next_cursor,
+    )
+
+
+
 def _candidate_symbols(
     testnet: Any,
 ) -> list[str]:
@@ -346,16 +387,66 @@ def _assess(
             "reason": "fresh_bid_unavailable",
         }
 
-    quantity = max(
-        0.0,
-        _n(
-            testnet.exchange
-            .amount_to_precision(
-                symbol,
-                free_quantity,
-            )
-        ),
+    raw_value = (
+        free_quantity * bid
     )
+
+    # Reject obvious dust before CCXT precision conversion.
+    # Some Bybit markets raise InvalidOrder when an amount is
+    # already below their precision/minimum boundary.
+    if (
+        (
+            minimum_amount > 0.0
+            and free_quantity + 1e-12
+            < minimum_amount
+        )
+        or (
+            minimum_cost > 0.0
+            and raw_value + 1e-12
+            < minimum_cost
+        )
+    ):
+        return {
+            "eligible": False,
+            "symbol": symbol,
+            "reason": (
+                "untracked_inventory_below_exchange_minimum"
+            ),
+            "quantity": free_quantity,
+            "fresh_bid": bid,
+            "fresh_ask": ask,
+            "estimated_value_usd": raw_value,
+            "minimum_amount": minimum_amount,
+            "minimum_cost_usd": minimum_cost,
+            "precision_conversion_attempted": False,
+        }
+
+    try:
+        quantity = max(
+            0.0,
+            _n(
+                testnet.exchange
+                .amount_to_precision(
+                    symbol,
+                    free_quantity,
+                )
+            ),
+        )
+    except Exception as exc:
+        return {
+            "eligible": False,
+            "symbol": symbol,
+            "reason": (
+                "untracked_inventory_below_exchange_precision"
+            ),
+            "quantity": free_quantity,
+            "fresh_bid": bid,
+            "fresh_ask": ask,
+            "estimated_value_usd": raw_value,
+            "minimum_amount": minimum_amount,
+            "minimum_cost_usd": minimum_cost,
+            "precision_error": type(exc).__name__,
+        }
 
     value = quantity * bid
 
@@ -363,7 +454,7 @@ def _assess(
         quantity <= 0.0
         or (
             minimum_amount > 0.0
-            and quantity
+            and quantity + 1e-12
             < minimum_amount
         )
         or (
@@ -384,6 +475,7 @@ def _assess(
             "estimated_value_usd": value,
             "minimum_amount": minimum_amount,
             "minimum_cost_usd": minimum_cost,
+            "precision_conversion_attempted": True,
         }
 
     price_limit = _price_limit(
@@ -605,12 +697,34 @@ def _recover_once(
         testnet
     )
 
+    with testnet._io_lock:
+        cursor = int(
+            testnet.state.get(
+                "v1617_recovery_scan_cursor"
+            )
+            or 0
+        )
+
+    (
+        scan_batch,
+        cursor_start,
+        cursor_next,
+    ) = _rotating_batch(
+        candidates,
+        cursor=cursor,
+        limit=MAX_PREFLIGHTS_PER_SCAN,
+    )
+
+    with testnet._io_lock:
+        testnet.state[
+            "v1617_recovery_scan_cursor"
+        ] = cursor_next
+        testnet._save_state()
+
     assessments = []
     selected = None
 
-    for symbol in candidates[
-        :MAX_PREFLIGHTS_PER_SCAN
-    ]:
+    for symbol in scan_batch:
         try:
             row = _assess(
                 testnet,
@@ -657,6 +771,15 @@ def _recover_once(
             "candidate_count": len(
                 candidates
             ),
+            "assessment_limit": (
+                MAX_PREFLIGHTS_PER_SCAN
+            ),
+            "cursor_start": cursor_start,
+            "cursor_next": cursor_next,
+            "assessed_symbols": list(
+                scan_batch
+            ),
+            "full_inventory_rotation": True,
             "assessments": (
                 assessments[-20:]
             ),
