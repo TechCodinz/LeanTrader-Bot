@@ -151,7 +151,7 @@ class LegacyEngineBridge:
     Testnet executor.
     """
 
-    VERSION = "1.61.0"
+    VERSION = "1.61.3"
 
     ENGINE_CLASS_TOKENS = (
         "engine",
@@ -212,6 +212,9 @@ class LegacyEngineBridge:
         self.symbols_analyzed = 0
         self.engine_calls = 0
         self.engine_failures = 0
+        self.family_calls: dict[str, int] = {}
+        self.family_failures: dict[str, int] = {}
+        self.family_last_outputs: dict[str, Any] = {}
         self.loaded_families: dict[str, str] = {}
         self._components: dict[str, Any] = {}
         self._manifest_summary: dict[str, Any] = {}
@@ -286,6 +289,7 @@ class LegacyEngineBridge:
         try:
             from ultra_quantum_intelligence import (
                 AdaptiveMarketRegimeDetector,
+                FractalResonanceDetector,
                 MicrostructureDecoder,
                 QuantumMomentumOscillator,
             )
@@ -299,11 +303,69 @@ class LegacyEngineBridge:
             self._components["quantum_regime"] = (
                 AdaptiveMarketRegimeDetector()
             )
+            self._components["quantum_fractal"] = (
+                FractalResonanceDetector()
+            )
             self.loaded_families["ultra_quantum"] = (
-                "active_core_components_real_data"
+                "active_microstructure_momentum_regime_fractal_real_data"
             )
         except Exception as exc:
             self.loaded_families["ultra_quantum"] = (
+                f"unavailable:{type(exc).__name__}"
+            )
+
+        try:
+            from ultra_god_mode import (
+                FractalMarketAnalyzer,
+                QuantumPricePredictor,
+            )
+
+            self._components["god_quantum_price"] = (
+                QuantumPricePredictor()
+            )
+            self._components["god_fractal"] = (
+                FractalMarketAnalyzer()
+            )
+            self.loaded_families["ultra_god_mode"] = (
+                "active_quantum_price_and_fractal_real_data;"
+                "simulated_moneyflow_and_random_swarm_excluded"
+            )
+        except Exception as exc:
+            self.loaded_families["ultra_god_mode"] = (
+                f"unavailable:{type(exc).__name__}"
+            )
+
+        try:
+            from ultra_fluid_mechanics import FluidMechanicsEngine
+
+            self._components["fluid_mechanics"] = (
+                FluidMechanicsEngine(None, None)
+            )
+            self.loaded_families["ultra_fluid_mechanics"] = (
+                "active_real_ohlcv_intelligence"
+            )
+        except Exception as exc:
+            self.loaded_families["ultra_fluid_mechanics"] = (
+                f"unavailable:{type(exc).__name__}"
+            )
+
+        try:
+            from ultra_forex_master import (
+                ForexPatternRecognizer,
+                MultiTimeframeAnalyzer,
+            )
+
+            self._components["legacy_pattern_recognizer"] = (
+                ForexPatternRecognizer()
+            )
+            self._components["legacy_mtf_analyzer"] = (
+                MultiTimeframeAnalyzer()
+            )
+            self.loaded_families["legacy_pattern_mtf"] = (
+                "active_real_ohlcv_pattern_and_multitimeframe"
+            )
+        except Exception as exc:
+            self.loaded_families["legacy_pattern_mtf"] = (
                 f"unavailable:{type(exc).__name__}"
             )
 
@@ -314,12 +376,34 @@ class LegacyEngineBridge:
                 cross_exchange_spreads
             )
             self.loaded_families["legacy_arbitrage"] = (
-                "active_public_scan_ranking_only"
+                "available_real_public_scanner;"
+                "modern_cross_venue_arbitrage_runtime_preferred"
             )
         except Exception as exc:
             self.loaded_families["legacy_arbitrage"] = (
                 f"unavailable:{type(exc).__name__}"
             )
+
+        self.loaded_families["legacy_testnet_trader"] = (
+            "preserved_but_simulated_market_excluded;"
+            "authenticated_bybit_testnet_executor_active"
+        )
+        self.loaded_families["legacy_backtest"] = (
+            "preserved_but_synthetic_history_loader_excluded;"
+            "modern_prospective_validation_and_research_active"
+        )
+        self.loaded_families["legacy_multi_platform"] = (
+            "preserved_but_random_market_sources_excluded;"
+            "real_cross_venue_engine_preferred"
+        )
+        self.loaded_families["november_growth"] = (
+            "preserved_goal_manager_not_execution_authority;"
+            "modern_capital_growth_engine_active"
+        )
+        self.loaded_families["ultra_moon_spotter"] = (
+            "preserved_external_research_engine;"
+            "not_allowed_to_inject_unverified_or_placeholder_market_data"
+        )
 
     def _inventory_repository_engines(self) -> None:
         root = Path("/app")
@@ -434,6 +518,27 @@ class LegacyEngineBridge:
                 "expected_edge_bps": edge,
                 "metadata": copy.deepcopy(metadata or {}),
             }
+        )
+
+    def _record_family_call(
+        self,
+        family: str,
+        output: dict[str, Any] | None = None,
+    ) -> None:
+        self.family_calls[family] = (
+            self.family_calls.get(family, 0) + 1
+        )
+        if output is not None:
+            self.family_last_outputs[family] = copy.deepcopy(
+                output
+            )
+
+    def _record_family_failure(
+        self,
+        family: str,
+    ) -> None:
+        self.family_failures[family] = (
+            self.family_failures.get(family, 0) + 1
         )
 
     def _analyze_symbol(
@@ -696,6 +801,684 @@ class LegacyEngineBridge:
             except Exception:
                 self.engine_failures += 1
 
+        # --------------------------------------------------------
+        # Adaptive regime intelligence
+        # --------------------------------------------------------
+        regime_detector = self._components.get(
+            "quantum_regime"
+        )
+        if regime_detector is not None:
+            try:
+                regime_result = regime_detector.detect_regime(
+                    frame_15m
+                )
+                self.engine_calls += 1
+                indicators = (
+                    regime_result.get("indicators") or {}
+                )
+                momentum_value = _n(
+                    indicators.get("momentum")
+                )
+                regime_name = str(
+                    regime_result.get("current_regime") or ""
+                ).lower()
+
+                if regime_name == "crash":
+                    regime_direction = "short"
+                elif momentum_value > 0.0:
+                    regime_direction = "long"
+                elif momentum_value < 0.0:
+                    regime_direction = "short"
+                else:
+                    regime_direction = "flat"
+
+                regime_conf = max(
+                    0.0,
+                    min(
+                        1.0,
+                        _n(regime_result.get("confidence")),
+                    ),
+                )
+
+                self._record_family_call(
+                    "ultra_quantum.regime",
+                    {
+                        "regime": regime_name,
+                        "confidence": regime_conf,
+                        "momentum": momentum_value,
+                    },
+                )
+
+                self._append(
+                    contributions,
+                    source="ultra_quantum.regime",
+                    timeframe="15m",
+                    direction=regime_direction,
+                    confidence=regime_conf,
+                    expected_edge_bps=min(
+                        100.0,
+                        max(
+                            1.0,
+                            abs(momentum_value) * 10_000.0,
+                        ),
+                    ),
+                    metadata={
+                        "regime": regime_name,
+                        "regime_stability": _n(
+                            regime_result.get(
+                                "regime_stability"
+                            )
+                        ),
+                    },
+                )
+            except Exception:
+                self.engine_failures += 1
+                self._record_family_failure(
+                    "ultra_quantum.regime"
+                )
+
+        # --------------------------------------------------------
+        # Quantum multi-timeframe fractal resonance
+        # --------------------------------------------------------
+        quantum_fractal = self._components.get(
+            "quantum_fractal"
+        )
+        if quantum_fractal is not None:
+            try:
+                resonance = quantum_fractal.detect_resonance(
+                    {
+                        1: frame_1m,
+                        5: frame_5m,
+                        15: frame_15m,
+                    }
+                )
+                self.engine_calls += 1
+
+                raw_direction = str(
+                    resonance.get("resonance_type")
+                    or resonance.get("cascade_direction")
+                    or ""
+                ).lower()
+
+                if raw_direction in {
+                    "bullish",
+                    "up",
+                    "long",
+                }:
+                    resonance_direction = "long"
+                elif raw_direction in {
+                    "bearish",
+                    "down",
+                    "short",
+                }:
+                    resonance_direction = "short"
+                else:
+                    resonance_direction = "flat"
+
+                resonance_conf = max(
+                    _n(resonance.get("resonance_score")),
+                    _n(
+                        resonance.get(
+                            "cascade_probability"
+                        )
+                    ),
+                )
+                resonance_conf = max(
+                    0.0,
+                    min(1.0, resonance_conf),
+                )
+                cascade_magnitude = abs(
+                    _n(
+                        resonance.get(
+                            "cascade_magnitude"
+                        )
+                    )
+                )
+
+                self._record_family_call(
+                    "ultra_quantum.fractal_resonance",
+                    {
+                        "direction": resonance_direction,
+                        "confidence": resonance_conf,
+                        "cascade_magnitude": (
+                            cascade_magnitude
+                        ),
+                    },
+                )
+
+                self._append(
+                    contributions,
+                    source=(
+                        "ultra_quantum."
+                        "fractal_resonance"
+                    ),
+                    timeframe="1m+5m+15m",
+                    direction=resonance_direction,
+                    confidence=resonance_conf,
+                    expected_edge_bps=min(
+                        100.0,
+                        max(
+                            1.0,
+                            cascade_magnitude
+                            * 10_000.0,
+                            resonance_conf * 10.0,
+                        ),
+                    ),
+                )
+            except Exception:
+                self.engine_failures += 1
+                self._record_family_failure(
+                    "ultra_quantum.fractal_resonance"
+                )
+
+        # --------------------------------------------------------
+        # Existing God Mode components that are based on real price
+        # data only. Simulated smart-money/options pieces remain
+        # excluded.
+        # --------------------------------------------------------
+        god_fractal = self._components.get(
+            "god_fractal"
+        )
+        if god_fractal is not None:
+            try:
+                closes = frame_1m[
+                    "close"
+                ].to_numpy()
+                fractal_result = (
+                    god_fractal.analyze_fractals(
+                        closes
+                    )
+                )
+                self.engine_calls += 1
+
+                state = str(
+                    fractal_result.get(
+                        "market_state"
+                    )
+                    or ""
+                ).lower()
+                predictability = max(
+                    0.0,
+                    min(
+                        1.0,
+                        _n(
+                            fractal_result.get(
+                                "predictability"
+                            )
+                        ),
+                    ),
+                )
+
+                recent_return = 0.0
+                if len(closes) >= 20 and closes[-20] > 0:
+                    recent_return = (
+                        closes[-1] / closes[-20] - 1.0
+                    )
+
+                if "mean_revert" in state:
+                    fractal_direction = (
+                        "short"
+                        if recent_return > 0.0
+                        else "long"
+                        if recent_return < 0.0
+                        else "flat"
+                    )
+                elif (
+                    "trend" in state
+                    or "persistent" in state
+                ):
+                    fractal_direction = (
+                        "long"
+                        if recent_return > 0.0
+                        else "short"
+                        if recent_return < 0.0
+                        else "flat"
+                    )
+                else:
+                    fractal_direction = "flat"
+
+                self._record_family_call(
+                    "ultra_god_mode.fractal",
+                    {
+                        "state": state,
+                        "predictability": (
+                            predictability
+                        ),
+                        "recent_return": recent_return,
+                    },
+                )
+
+                self._append(
+                    contributions,
+                    source="ultra_god_mode.fractal",
+                    timeframe="1m",
+                    direction=fractal_direction,
+                    confidence=predictability,
+                    expected_edge_bps=min(
+                        100.0,
+                        max(
+                            1.0,
+                            abs(recent_return)
+                            * 10_000.0,
+                        ),
+                    ),
+                    metadata={
+                        "market_state": state,
+                        "chaos_level": (
+                            fractal_result.get(
+                                "chaos_level"
+                            )
+                        ),
+                    },
+                )
+            except Exception:
+                self.engine_failures += 1
+                self._record_family_failure(
+                    "ultra_god_mode.fractal"
+                )
+
+        # Quantum price forecast is computationally heavier.
+        # Keep it active, but do not repeat it on every 3-second
+        # pass for every symbol.
+        god_quantum = self._components.get(
+            "god_quantum_price"
+        )
+        if (
+            god_quantum is not None
+            and self.cycles % 3 == 0
+        ):
+            try:
+                closes = frame_1m[
+                    "close"
+                ].to_numpy()
+                forecast = (
+                    god_quantum.quantum_forecast(
+                        closes
+                    )
+                )
+                self.engine_calls += 1
+
+                current_price = _n(closes[-1])
+                expected_price = _n(
+                    forecast.get(
+                        "most_likely_price"
+                    )
+                )
+                if expected_price > current_price:
+                    forecast_direction = "long"
+                elif (
+                    expected_price > 0.0
+                    and expected_price < current_price
+                ):
+                    forecast_direction = "short"
+                else:
+                    forecast_direction = "flat"
+
+                forecast_conf = max(
+                    0.0,
+                    min(
+                        1.0,
+                        _n(
+                            forecast.get(
+                                "quantum_probability"
+                            )
+                        ),
+                    ),
+                )
+                forecast_edge = 0.0
+                if current_price > 0.0:
+                    forecast_edge = abs(
+                        expected_price
+                        / current_price
+                        - 1.0
+                    ) * 10_000.0
+
+                self._record_family_call(
+                    "ultra_god_mode.quantum_price",
+                    {
+                        "direction": (
+                            forecast_direction
+                        ),
+                        "confidence": forecast_conf,
+                        "edge_bps": forecast_edge,
+                    },
+                )
+
+                self._append(
+                    contributions,
+                    source=(
+                        "ultra_god_mode."
+                        "quantum_price"
+                    ),
+                    timeframe="1m",
+                    direction=forecast_direction,
+                    confidence=forecast_conf,
+                    expected_edge_bps=min(
+                        200.0,
+                        max(1.0, forecast_edge),
+                    ),
+                )
+            except Exception:
+                self.engine_failures += 1
+                self._record_family_failure(
+                    "ultra_god_mode.quantum_price"
+                )
+
+        # --------------------------------------------------------
+        # Fluid-mechanics / sentinel price-flow intelligence
+        # --------------------------------------------------------
+        fluid_engine = self._components.get(
+            "fluid_mechanics"
+        )
+        if fluid_engine is not None:
+            try:
+                fluid_state = self._run_async(
+                    fluid_engine.analyze_fluid_dynamics(
+                        frame_1m
+                    )
+                )
+                self.engine_calls += 1
+
+                flow = str(
+                    getattr(
+                        fluid_state,
+                        "flow_direction",
+                        "",
+                    )
+                ).lower()
+                velocity = _n(
+                    getattr(
+                        fluid_state,
+                        "velocity",
+                        0.0,
+                    )
+                )
+                turbulence = _n(
+                    getattr(
+                        fluid_state,
+                        "turbulence_level",
+                        0.0,
+                    )
+                )
+
+                if flow == "up":
+                    fluid_direction = "long"
+                elif flow == "down":
+                    fluid_direction = "short"
+                else:
+                    fluid_direction = "flat"
+
+                fluid_conf = min(
+                    0.95,
+                    max(
+                        0.50,
+                        0.50
+                        + min(
+                            0.45,
+                            abs(velocity) * 50.0,
+                        ),
+                    ),
+                )
+
+                self._record_family_call(
+                    "ultra_fluid_mechanics",
+                    {
+                        "flow": flow,
+                        "velocity": velocity,
+                        "turbulence": turbulence,
+                    },
+                )
+
+                self._append(
+                    contributions,
+                    source="ultra_fluid_mechanics",
+                    timeframe="1m",
+                    direction=fluid_direction,
+                    confidence=fluid_conf,
+                    expected_edge_bps=min(
+                        100.0,
+                        max(
+                            1.0,
+                            abs(velocity) * 10_000.0,
+                        ),
+                    ),
+                    metadata={
+                        "turbulence": turbulence,
+                        "pressure": _n(
+                            getattr(
+                                fluid_state,
+                                "pressure",
+                                0.0,
+                            )
+                        ),
+                    },
+                )
+            except Exception:
+                self.engine_failures += 1
+                self._record_family_failure(
+                    "ultra_fluid_mechanics"
+                )
+
+        # --------------------------------------------------------
+        # Existing price-pattern engine
+        # --------------------------------------------------------
+        pattern_engine = self._components.get(
+            "legacy_pattern_recognizer"
+        )
+        if pattern_engine is not None:
+            try:
+                patterns = (
+                    pattern_engine.detect_patterns(
+                        frame_15m
+                    )
+                    or []
+                )
+                self.engine_calls += 1
+
+                best_direction = "flat"
+                best_confidence = 0.0
+                best_pattern = ""
+
+                bullish_names = {
+                    "double_bottom",
+                    "hammer",
+                    "morning_star",
+                    "three_white_soldiers",
+                }
+                bearish_names = {
+                    "double_top",
+                    "head_shoulders",
+                    "shooting_star",
+                    "evening_star",
+                    "three_black_crows",
+                }
+
+                for pattern in patterns:
+                    name = str(
+                        pattern.get("name") or ""
+                    ).lower()
+                    signal_name = str(
+                        pattern.get("signal") or ""
+                    ).lower()
+                    reliability = max(
+                        0.0,
+                        min(
+                            1.0,
+                            _n(
+                                pattern.get(
+                                    "reliability"
+                                )
+                            ),
+                        ),
+                    )
+
+                    direction = "flat"
+                    if (
+                        "bullish" in signal_name
+                        or name in bullish_names
+                    ):
+                        direction = "long"
+                    elif (
+                        "bearish" in signal_name
+                        or name in bearish_names
+                    ):
+                        direction = "short"
+                    elif name == "engulfing":
+                        direction = (
+                            "long"
+                            if _n(
+                                frame_15m[
+                                    "close"
+                                ].iloc[-1]
+                            )
+                            >= _n(
+                                frame_15m[
+                                    "open"
+                                ].iloc[-1]
+                            )
+                            else "short"
+                        )
+
+                    if (
+                        direction != "flat"
+                        and reliability
+                        > best_confidence
+                    ):
+                        best_direction = direction
+                        best_confidence = reliability
+                        best_pattern = name
+
+                self._record_family_call(
+                    "legacy_pattern_recognizer",
+                    {
+                        "patterns": len(patterns),
+                        "best_pattern": best_pattern,
+                        "confidence": best_confidence,
+                    },
+                )
+
+                recent_close = frame_15m[
+                    "close"
+                ].to_numpy()
+                pattern_edge = 1.0
+                if (
+                    len(recent_close) >= 20
+                    and recent_close[-20] > 0
+                ):
+                    pattern_edge = abs(
+                        recent_close[-1]
+                        / recent_close[-20]
+                        - 1.0
+                    ) * 10_000.0
+
+                self._append(
+                    contributions,
+                    source=(
+                        "legacy_pattern_recognizer."
+                        + (
+                            best_pattern
+                            or "pattern"
+                        )
+                    ),
+                    timeframe="15m",
+                    direction=best_direction,
+                    confidence=best_confidence,
+                    expected_edge_bps=min(
+                        100.0,
+                        max(1.0, pattern_edge),
+                    ),
+                )
+            except Exception:
+                self.engine_failures += 1
+                self._record_family_failure(
+                    "legacy_pattern_recognizer"
+                )
+
+        # --------------------------------------------------------
+        # Existing multi-timeframe confluence engine
+        # --------------------------------------------------------
+        mtf_engine = self._components.get(
+            "legacy_mtf_analyzer"
+        )
+        if mtf_engine is not None:
+            try:
+                mtf_result = (
+                    mtf_engine.analyze_all_timeframes(
+                        symbol,
+                        {
+                            "M1": frame_1m,
+                            "M5": frame_5m,
+                            "M15": frame_15m,
+                        },
+                    )
+                )
+                self.engine_calls += 1
+
+                dominant = str(
+                    mtf_result.get(
+                        "dominant_trend"
+                    )
+                    or ""
+                ).lower()
+                if dominant in {
+                    "bullish",
+                    "up",
+                    "long",
+                }:
+                    mtf_direction = "long"
+                elif dominant in {
+                    "bearish",
+                    "down",
+                    "short",
+                }:
+                    mtf_direction = "short"
+                else:
+                    mtf_direction = "flat"
+
+                raw_confluence = abs(
+                    _n(
+                        mtf_result.get(
+                            "confluence_score"
+                        )
+                    )
+                )
+                mtf_conf = min(
+                    1.0,
+                    (
+                        raw_confluence
+                        if raw_confluence <= 1.0
+                        else raw_confluence / 100.0
+                    ),
+                )
+
+                self._record_family_call(
+                    "legacy_multitimeframe",
+                    {
+                        "dominant_trend": dominant,
+                        "confluence": raw_confluence,
+                    },
+                )
+
+                self._append(
+                    contributions,
+                    source="legacy_multitimeframe",
+                    timeframe="1m+5m+15m",
+                    direction=mtf_direction,
+                    confidence=mtf_conf,
+                    expected_edge_bps=min(
+                        100.0,
+                        max(
+                            1.0,
+                            mtf_conf * 30.0,
+                        ),
+                    ),
+                )
+            except Exception:
+                self.engine_failures += 1
+                self._record_family_failure(
+                    "legacy_multitimeframe"
+                )
+
         long_support = sum(
             _n(item.get("confidence"))
             * _n(item.get("expected_edge_bps"))
@@ -889,6 +1672,17 @@ class LegacyEngineBridge:
 
     def health(self) -> dict[str, Any]:
         with self._lock:
+            active_contributors = sorted(
+                {
+                    str(item.get("source"))
+                    for signal in self._signals.values()
+                    for item in (
+                        signal.get("contributions") or []
+                    )
+                    if isinstance(item, dict)
+                    and item.get("source")
+                }
+            )
             return {
                 "version": self.VERSION,
                 "running": bool(
@@ -906,6 +1700,18 @@ class LegacyEngineBridge:
                 "loaded_families": dict(
                     self.loaded_families
                 ),
+                "family_calls": dict(
+                    self.family_calls
+                ),
+                "family_failures": dict(
+                    self.family_failures
+                ),
+                "family_last_outputs": copy.deepcopy(
+                    self.family_last_outputs
+                ),
+                "active_contributors": (
+                    active_contributors
+                ),
                 "manifest": dict(
                     self._manifest_summary
                 ),
@@ -921,7 +1727,7 @@ class LegacyEngineBridge:
 class RestoredSwarmService(ReadOnlySwarmService):
     """Current fast swarm plus restored legacy-intelligence contributors."""
 
-    VERSION = "1.61.0"
+    VERSION = "1.61.3"
 
     def __init__(
         self,
