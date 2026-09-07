@@ -342,42 +342,75 @@ class UltraContinuousTradingOrchestrator:
         market_data: Dict[str, Any],
         weight: float
     ) -> List[Dict[str, Any]]:
-        """Detect scalping opportunities"""
+        """Detect real-data micro momentum opportunities."""
         opportunities = []
 
         try:
-            # Only for M1 and M5 timeframes
             if timeframe not in ['M1', 'M5']:
                 return opportunities
 
-            current_price = market_data.get('close', 0)
-            if current_price <= 0:
+            current_price = float(
+                market_data.get('close', 0) or 0
+            )
+            prices = [
+                float(value)
+                for value in (
+                    market_data.get('prices', [])
+                    or []
+                )
+                if float(value) > 0
+            ]
+
+            if current_price <= 0 or len(prices) < 5:
                 return opportunities
 
-            # Check for micro-momentum
-            prices = market_data.get('prices', [])
-            if len(prices) >= 5:
-                recent_prices = prices[-5:]
-                momentum = (recent_prices[-1] - recent_prices[0]) / recent_prices[0]
+            recent_prices = prices[-5:]
+            momentum = (
+                recent_prices[-1]
+                / recent_prices[0]
+                - 1.0
+            )
 
-                if abs(momentum) > 0.0001:  # 0.01% minimum momentum
-                    confidence = min(0.95, abs(momentum) * 1000)
+            if abs(momentum) > 0.0001:
+                confidence = min(
+                    0.95,
+                    abs(momentum) * 1000.0,
+                )
 
-                    if confidence >= 0.75:
-                        opportunities.append({
-                            'symbol': symbol,
-                            'timeframe': timeframe,
-                            'strategy': 'scalping',
-                            'entry_price': current_price,
-                            'confidence': confidence,
-                            'weight': weight,
-                            'profit_target': 0.5,  # 0.5 pip target
-                            'stop_loss': 1.0,      # 1 pip stop
-                            'timestamp': time.time()
-                        })
+                if confidence >= 0.75:
+                    gross_edge_bps = (
+                        abs(momentum) * 10000.0
+                    )
+
+                    opportunities.append({
+                        'symbol': symbol,
+                        'timeframe': timeframe,
+                        'strategy': 'scalping',
+                        'direction': (
+                            'long'
+                            if momentum > 0
+                            else 'short'
+                        ),
+                        'entry_price': current_price,
+                        'confidence': confidence,
+                        'weight': weight,
+                        'expected_edge_bps': (
+                            gross_edge_bps
+                        ),
+                        'observed_move_bps': (
+                            gross_edge_bps
+                        ),
+                        'legacy_nominal_target_bps': (
+                            0.5
+                        ),
+                        'timestamp': time.time(),
+                    })
 
         except Exception as e:
-            self.logger.error(f"Error detecting scalping opportunities: {e}")
+            self.logger.error(
+                f"Error detecting scalping "
+                f"opportunities: {e}"
+            )
 
         return opportunities
 
@@ -409,39 +442,70 @@ class UltraContinuousTradingOrchestrator:
         market_data: Dict[str, Any],
         weight: float
     ) -> List[Dict[str, Any]]:
-        """Detect momentum opportunities"""
+        """Detect real-data momentum opportunities."""
         opportunities = []
 
         try:
-            prices = market_data.get('prices', [])
+            prices = [
+                float(value)
+                for value in (
+                    market_data.get('prices', [])
+                    or []
+                )
+                if float(value) > 0
+            ]
+
             if len(prices) < 20:
                 return opportunities
 
-            # Calculate momentum indicators
             recent_prices = prices[-20:]
-            sma_short = np.mean(recent_prices[-5:])
-            sma_long = np.mean(recent_prices[-20:])
+            sma_short = float(
+                np.mean(recent_prices[-5:])
+            )
+            sma_long = float(
+                np.mean(recent_prices)
+            )
 
-            momentum = (sma_short - sma_long) / sma_long
+            if sma_long <= 0:
+                return opportunities
 
-            if abs(momentum) > 0.005:  # 0.5% minimum momentum
-                confidence = min(0.90, abs(momentum) * 100)
+            momentum = (
+                sma_short / sma_long - 1.0
+            )
+
+            if abs(momentum) > 0.005:
+                confidence = min(
+                    0.90,
+                    abs(momentum) * 100.0,
+                )
 
                 if confidence >= 0.70:
                     opportunities.append({
                         'symbol': symbol,
                         'timeframe': timeframe,
                         'strategy': 'momentum',
-                        'entry_price': recent_prices[-1],
+                        'direction': (
+                            'long'
+                            if momentum > 0
+                            else 'short'
+                        ),
+                        'entry_price': (
+                            recent_prices[-1]
+                        ),
                         'confidence': confidence,
                         'weight': weight,
-                        'profit_target': 2.0,  # 2 pip target
-                        'stop_loss': 1.5,      # 1.5 pip stop
-                        'timestamp': time.time()
+                        'expected_edge_bps': (
+                            abs(momentum)
+                            * 10000.0
+                        ),
+                        'timestamp': time.time(),
                     })
 
         except Exception as e:
-            self.logger.error(f"Error detecting momentum opportunities: {e}")
+            self.logger.error(
+                f"Error detecting momentum "
+                f"opportunities: {e}"
+            )
 
         return opportunities
 
@@ -452,40 +516,68 @@ class UltraContinuousTradingOrchestrator:
         market_data: Dict[str, Any],
         weight: float
     ) -> List[Dict[str, Any]]:
-        """Detect mean reversion opportunities"""
+        """Detect real-data mean-reversion opportunities."""
         opportunities = []
 
         try:
-            prices = market_data.get('prices', [])
+            prices = [
+                float(value)
+                for value in (
+                    market_data.get('prices', [])
+                    or []
+                )
+                if float(value) > 0
+            ]
+
             if len(prices) < 50:
                 return opportunities
 
-            # Calculate mean reversion indicators
             recent_prices = prices[-50:]
-            sma = np.mean(recent_prices)
+            mean_price = float(
+                np.mean(recent_prices)
+            )
             current_price = recent_prices[-1]
 
-            deviation = (current_price - sma) / sma
+            if mean_price <= 0:
+                return opportunities
 
-            # Look for overbought/oversold conditions
-            if abs(deviation) > 0.02:  # 2% deviation from mean
-                confidence = min(0.85, abs(deviation) * 20)
+            deviation = (
+                current_price / mean_price - 1.0
+            )
+
+            if abs(deviation) > 0.02:
+                confidence = min(
+                    0.85,
+                    abs(deviation) * 20.0,
+                )
 
                 if confidence >= 0.65:
                     opportunities.append({
                         'symbol': symbol,
                         'timeframe': timeframe,
-                        'strategy': 'mean_reversion',
+                        'strategy': (
+                            'mean_reversion'
+                        ),
+                        'direction': (
+                            'short'
+                            if deviation > 0
+                            else 'long'
+                        ),
                         'entry_price': current_price,
                         'confidence': confidence,
                         'weight': weight,
-                        'profit_target': 1.5,  # 1.5 pip target
-                        'stop_loss': 2.0,      # 2 pip stop
-                        'timestamp': time.time()
+                        'expected_edge_bps': (
+                            abs(deviation)
+                            * 10000.0
+                        ),
+                        'timestamp': time.time(),
                     })
 
         except Exception as e:
-            self.logger.error(f"Error detecting mean reversion opportunities: {e}")
+            self.logger.error(
+                f"Error detecting mean reversion "
+                f"opportunities: {e}"
+            )
 
         return opportunities
 
@@ -496,39 +588,78 @@ class UltraContinuousTradingOrchestrator:
         market_data: Dict[str, Any],
         weight: float
     ) -> List[Dict[str, Any]]:
-        """Detect breakout opportunities"""
+        """Detect real breakouts against prior resistance/support."""
         opportunities = []
 
         try:
-            prices = market_data.get('prices', [])
+            prices = [
+                float(value)
+                for value in (
+                    market_data.get('prices', [])
+                    or []
+                )
+                if float(value) > 0
+            ]
+
             if len(prices) < 20:
                 return opportunities
 
-            # Calculate breakout indicators
             recent_prices = prices[-20:]
-            high = max(recent_prices)
-            # low = min(recent_prices)  # Unused variable
+            prior_prices = recent_prices[:-1]
             current_price = recent_prices[-1]
 
-            # Check for breakout above resistance or below support
-            if current_price > high * 0.999:  # Near high
-                confidence = min(0.80, (current_price - high) / high * 1000)
+            prior_high = max(prior_prices)
+            prior_low = min(prior_prices)
 
-                if confidence >= 0.60:
-                    opportunities.append({
-                        'symbol': symbol,
-                        'timeframe': timeframe,
-                        'strategy': 'breakout',
-                        'entry_price': current_price,
-                        'confidence': confidence,
-                        'weight': weight,
-                        'profit_target': 3.0,  # 3 pip target
-                        'stop_loss': 2.0,      # 2 pip stop
-                        'timestamp': time.time()
-                    })
+            direction = None
+            breakout_bps = 0.0
+
+            if current_price > prior_high:
+                direction = 'long'
+                breakout_bps = (
+                    current_price / prior_high
+                    - 1.0
+                ) * 10000.0
+
+            elif current_price < prior_low:
+                direction = 'short'
+                breakout_bps = (
+                    prior_low / current_price
+                    - 1.0
+                ) * 10000.0
+
+            if (
+                direction is not None
+                and breakout_bps >= 2.0
+            ):
+                confidence = min(
+                    0.95,
+                    0.60
+                    + min(
+                        0.35,
+                        breakout_bps / 100.0,
+                    ),
+                )
+
+                opportunities.append({
+                    'symbol': symbol,
+                    'timeframe': timeframe,
+                    'strategy': 'breakout',
+                    'direction': direction,
+                    'entry_price': current_price,
+                    'confidence': confidence,
+                    'weight': weight,
+                    'expected_edge_bps': (
+                        breakout_bps
+                    ),
+                    'timestamp': time.time(),
+                })
 
         except Exception as e:
-            self.logger.error(f"Error detecting breakout opportunities: {e}")
+            self.logger.error(
+                f"Error detecting breakout "
+                f"opportunities: {e}"
+            )
 
         return opportunities
 
@@ -566,39 +697,23 @@ class UltraContinuousTradingOrchestrator:
             self.logger.error(f"Error checking if can open position: {e}")
             return False
 
-    async def _execute_opportunity(self, opportunity: Dict[str, Any]) -> None:
-        """Execute trading opportunity"""
+    async def _execute_opportunity(
+        self,
+        opportunity: Dict[str, Any]
+    ) -> None:
+        """Delegate execution to the authenticated modern executor."""
         try:
-            # Create trading session
-            session_id = f"{opportunity['symbol']}_{opportunity['timeframe']}_{int(opportunity['timestamp'])}"
-
-            session = TradingSession(
-                session_id=session_id,
-                start_time=time.time(),
-                end_time=0,
-                strategy=opportunity['strategy'],
-                timeframe=opportunity['timeframe'],
-                symbol=opportunity['symbol'],
-                initial_balance=self.daily_balance,
-                final_balance=0,
-                profit=0,
-                trades_count=0,
-                win_rate=0,
-                status='active'
-            )
-
-            # Store active session
-            self.active_sessions[session_id] = session
-
             self.logger.info(
-                f"🎯 Opened Position: {opportunity['symbol']} "
-                f"{opportunity['timeframe']} {opportunity['strategy']} "
-                f"@ {opportunity['entry_price']:.6f} "
-                f"(confidence: {opportunity['confidence']:.2f})"
+                "Legacy continuous signal delegated: "
+                "%s %s %s; no local order created",
+                opportunity.get('symbol'),
+                opportunity.get('timeframe'),
+                opportunity.get('strategy'),
             )
-
         except Exception as e:
-            self.logger.error(f"Error executing opportunity: {e}")
+            self.logger.error(
+                f"Error delegating opportunity: {e}"
+            )
 
     async def _monitor_all_positions(self) -> None:
         """Monitor all active positions"""
@@ -636,47 +751,42 @@ class UltraContinuousTradingOrchestrator:
             self.logger.error(f"Error checking if should close position: {e}")
             return True
 
-    async def _close_position(self, session_id: str, session: TradingSession) -> None:
-        """Close trading position"""
+    async def _close_position(
+        self,
+        session_id: str,
+        session: TradingSession
+    ) -> None:
+        """Close only legacy bookkeeping without synthetic P&L."""
         try:
-            # Calculate profit (simulate)
-            import random
-            profit = random.uniform(-0.01, 0.05)  # -$0.01 to $0.05 profit
-
-            # Update session
             session.end_time = time.time()
-            session.final_balance = session.initial_balance + profit
-            session.profit = profit
-            session.trades_count = 1
-            session.win_rate = 1.0 if profit > 0 else 0.0
-            session.status = 'completed'
+            session.final_balance = (
+                session.initial_balance
+            )
+            session.profit = 0.0
+            session.trades_count = 0
+            session.win_rate = 0.0
+            session.status = (
+                'delegated_to_authenticated_executor'
+            )
 
-            # Update balances
-            self.daily_balance += profit
-            self.total_balance += profit
-            self.daily_profit += profit
-            self.total_profit += profit
+            self.completed_sessions.append(
+                session
+            )
+            self.active_sessions.pop(
+                session_id,
+                None,
+            )
 
-            # Update trade counts
-            self.daily_trades += 1
-            self.total_trades += 1
-            if profit > 0:
-                self.daily_wins += 1
-                self.total_wins += 1
-
-            # Move to completed sessions
-            self.completed_sessions.append(session)
-            del self.active_sessions[session_id]
-
-            # Log result
-            status = "✅ WIN" if profit > 0 else "❌ LOSS"
             self.logger.info(
-                f"{status} Position: {session.symbol} {session.timeframe} "
-                f"Profit: ${profit:.4f} Balance: ${self.daily_balance:.2f}"
+                "Legacy continuous session closed "
+                "without synthetic P&L: %s",
+                session.symbol,
             )
 
         except Exception as e:
-            self.logger.error(f"Error closing position: {e}")
+            self.logger.error(
+                f"Error closing legacy session: {e}"
+            )
 
     async def _manage_compound_growth(self) -> None:
         """Manage compound growth acceleration"""

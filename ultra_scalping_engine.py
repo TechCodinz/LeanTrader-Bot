@@ -363,27 +363,23 @@ class UltraScalpingEngine:
 
         return None
 
-    async def _execute_scalp_trade(self, signal: ScalpSignal) -> None:
-        """Execute scalping trade"""
+    async def _execute_scalp_trade(
+        self,
+        signal: ScalpSignal
+    ) -> None:
+        """Delegate restored scalp execution to the modern executor."""
         try:
-            # Check risk limits
-            if not await self.risk_engine.check_scalp_risk(signal):
-                return
-
-            # Execute trade
-            position_id = f"{signal.symbol}_{signal.timeframe}_{int(signal.timestamp)}"
-
-            # Store active position
-            self.active_positions[position_id] = signal
-
             self.logger.info(
-                f"🎯 Executed scalp trade: {signal.symbol} {signal.timeframe} "
-                f"@ {signal.entry_price:.6f} → {signal.target_price:.6f} "
-                f"(confidence: {signal.confidence:.2f})"
+                "Legacy scalp signal delegated: "
+                "%s %s %s; no local fill recorded",
+                signal.symbol,
+                signal.timeframe,
+                signal.strategy,
             )
-
         except Exception as e:
-            self.logger.error(f"Error executing scalp trade: {e}")
+            self.logger.error(
+                f"Error delegating scalp signal: {e}"
+            )
 
     async def _monitor_positions(self) -> None:
         """Monitor active scalping positions"""
@@ -471,14 +467,90 @@ class UltraScalpingEngine:
         except Exception as e:
             self.logger.error(f"Error closing scalp position: {e}")
 
-    async def _get_current_price(self, symbol: str) -> float:
-        """Get current price for symbol"""
+    async def _get_current_price(
+        self,
+        symbol: str
+    ) -> float:
+        """Read current public market price without order authority."""
         try:
-            # This would integrate with your market data provider
-            # For now, return a placeholder
+            core = getattr(
+                self,
+                "ultra_core",
+                None,
+            )
+            router = getattr(
+                core,
+                "router",
+                None,
+            )
+
+            if router is None:
+                return 0.0
+
+            ticker_reader = getattr(
+                router,
+                "safe_fetch_ticker",
+                None,
+            )
+
+            if callable(ticker_reader):
+                ticker = ticker_reader(symbol)
+
+                if asyncio.iscoroutine(ticker):
+                    ticker = await ticker
+
+                if isinstance(ticker, dict):
+                    for key in (
+                        "last",
+                        "close",
+                        "price",
+                        "bid",
+                        "ask",
+                    ):
+                        try:
+                            value = float(
+                                ticker.get(key) or 0.0
+                            )
+                        except (
+                            TypeError,
+                            ValueError,
+                        ):
+                            value = 0.0
+
+                        if value > 0.0:
+                            return value
+
+            price_reader = getattr(
+                router,
+                "get_current_price",
+                None,
+            )
+
+            if callable(price_reader):
+                value = price_reader(symbol)
+
+                if asyncio.iscoroutine(value):
+                    value = await value
+
+                try:
+                    value = float(
+                        value or 0.0
+                    )
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    value = 0.0
+
+                if value > 0.0:
+                    return value
+
             return 0.0
+
         except Exception as e:
-            self.logger.error(f"Error getting current price: {e}")
+            self.logger.error(
+                f"Error getting current price: {e}"
+            )
             return 0.0
 
     async def _manage_risk(self) -> None:

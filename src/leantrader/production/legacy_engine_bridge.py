@@ -87,14 +87,43 @@ def merge_restored_signal(
         0.0,
         min(1.0, _n(ranked.get("quality_multiplier"))),
     )
-    restored_quality = min(
-        1.0,
-        max(
-            existing_quality,
-            abs(legacy_score) * 0.65 + legacy_confidence * 0.35,
-        ),
+
+    economic_contributions = [
+        row
+        for row in (
+            legacy.get("contributions") or []
+        )
+        if (
+            isinstance(row, dict)
+            and _direction(row.get("direction"))
+            != "flat"
+            and _n(
+                row.get("expected_edge_bps")
+            ) > 0.0
+        )
+    ]
+
+    economic_support = bool(
+        economic_contributions
     )
+
+    restored_quality = (
+        min(
+            1.0,
+            max(
+                existing_quality,
+                abs(legacy_score) * 0.65
+                + legacy_confidence * 0.35,
+            ),
+        )
+        if economic_support
+        else existing_quality
+    )
+
     ranked["quality_multiplier"] = restored_quality
+    ranked[
+        "legacy_restoration_economic_support"
+    ] = economic_support
     ranked["legacy_restoration_score"] = legacy_score
     ranked["legacy_restoration_confidence"] = legacy_confidence
     ranked["legacy_restoration_contributors"] = list(
@@ -1703,6 +1732,11 @@ class LegacyEngineBridge:
                 [
                     _n(item.get("confidence"))
                     for item in contributions
+                    if _n(
+                        item.get(
+                            "expected_edge_bps"
+                        )
+                    ) > 0.0
                 ]
                 or [0.0]
             ),

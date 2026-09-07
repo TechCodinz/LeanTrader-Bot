@@ -300,76 +300,36 @@ class UltraArbitrageEngine:
             self.logger.error(f"Error checking arbitrage execution: {e}")
             return False
 
-    async def _execute_arbitrage(self, opportunity: ArbitrageOpportunity) -> None:
-        """Execute arbitrage opportunity"""
+    async def _execute_arbitrage(
+        self,
+        opportunity: ArbitrageOpportunity
+    ) -> None:
+        """Delegate multi-venue execution; never fabricate a fill."""
         try:
-            start_time = time.time()
-
-            # Calculate optimal quantity
-            quantity = min(
-                opportunity.max_quantity,
-                max(opportunity.min_quantity, 0.01)  # Start with $0.01
+            self.logger.info(
+                "Legacy arbitrage evidence delegated: "
+                "%s %s->%s spread=%.2f bps; "
+                "no synthetic execution recorded",
+                opportunity.symbol,
+                opportunity.buy_exchange,
+                opportunity.sell_exchange,
+                opportunity.spread_pips,
             )
 
-            # Create arbitrage plan
-            arb_plan = {
-                'buy_venue': opportunity.buy_exchange,
-                'sell_venue': opportunity.sell_exchange,
-                'symbol': opportunity.symbol,
-                'size_cap': quantity
-            }
-
-            # Execute arbitrage plan
-            execution_plan = plan_and_route(arb_plan, quantity)
-
-            if not execution_plan or not execution_plan.get('plan'):
-                self.logger.warning(f"Failed to create arbitrage plan for {opportunity.symbol}")
-                return
-
-            # Simulate execution (in real implementation, this would execute actual trades)
-            execution_success = await self._simulate_arbitrage_execution(
-                opportunity, quantity, execution_plan
+            opp_id = (
+                f"{opportunity.symbol}_"
+                f"{opportunity.buy_exchange}_"
+                f"{opportunity.sell_exchange}"
             )
-
-            execution_time = time.time() - start_time
-
-            # Calculate actual profit
-            if execution_success:
-                actual_profit = opportunity.spread * quantity
-                self.daily_profit += actual_profit
-                self.total_profit += actual_profit
-
-                # Create result
-                result = ArbitrageResult(
-                    symbol=opportunity.symbol,
-                    buy_exchange=opportunity.buy_exchange,
-                    sell_exchange=opportunity.sell_exchange,
-                    quantity=quantity,
-                    buy_price=opportunity.buy_price,
-                    sell_price=opportunity.sell_price,
-                    profit=actual_profit,
-                    execution_time=execution_time,
-                    success=True,
-                    timestamp=time.time()
-                )
-
-                self.completed_arbitrages.append(result)
-
-                self.logger.info(
-                    f"✅ Arbitrage Executed: {opportunity.symbol} "
-                    f"Profit: ${actual_profit:.4f} "
-                    f"Time: {execution_time:.2f}s"
-                )
-            else:
-                self.logger.warning(f"❌ Arbitrage Failed: {opportunity.symbol}")
-
-            # Remove from active opportunities
-            opp_id = f"{opportunity.symbol}_{opportunity.buy_exchange}_{opportunity.sell_exchange}"
-            if opp_id in self.active_arbitrages:
-                del self.active_arbitrages[opp_id]
+            self.active_arbitrages.pop(
+                opp_id,
+                None,
+            )
 
         except Exception as e:
-            self.logger.error(f"Error executing arbitrage: {e}")
+            self.logger.error(
+                f"Error delegating arbitrage: {e}"
+            )
 
     async def _simulate_arbitrage_execution(
         self,
@@ -377,18 +337,13 @@ class UltraArbitrageEngine:
         quantity: float,
         execution_plan: Dict[str, Any]
     ) -> bool:
-        """Simulate arbitrage execution (replace with real execution)"""
-        try:
-            # Simulate execution delay
-            await asyncio.sleep(0.1)  # 100ms execution time
-
-            # Simulate 95% success rate
-            import random
-            return random.random() < 0.95
-
-        except Exception as e:
-            self.logger.error(f"Error simulating arbitrage execution: {e}")
-            return False
+        """Synthetic arbitrage fills are permanently disabled."""
+        self.logger.debug(
+            "Synthetic arbitrage execution disabled "
+            "for %s",
+            opportunity.symbol,
+        )
+        return False
 
     async def _monitor_arbitrage_positions(self) -> None:
         """Monitor active arbitrage positions"""
