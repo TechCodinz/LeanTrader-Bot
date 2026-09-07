@@ -26,7 +26,11 @@ MAX_NETWORK_PROBES_PER_CALL = 2
 # ceiling. All execution preflight protections remain authoritative.
 MAX_EMPTY_SELECTION_NETWORK_PROBES_PER_CALL = 4
 FAIL_CACHE_SECONDS = 12.0
-PASS_CACHE_SECONDS = 15.0
+# v1.61.5: Bybit spot price-limit boundaries can move between
+# candidate probing and final authenticated submission. Keep a
+# successful probe inside the <=2s execution-freshness envelope.
+PASS_CACHE_SECONDS = 1.5
+MAX_SAME_CYCLE_FALLBACK_PASSES = 3
 MIN_FREE_QUOTE_RESERVE_USD = 0.01
 SIGNAL_REFRESH_PIN_SECONDS = 6.0
 
@@ -333,6 +337,77 @@ def _probe_candidate(
             )
         ),
     }
+
+
+def _same_cycle_fallback_allowed(
+    lane: Any,
+    result: dict[str, Any],
+    *,
+    attempt_started_at: float,
+) -> bool:
+    if not isinstance(result, dict):
+        return False
+
+    if result.get("reason") != "fast_multi_route_cycle":
+        return False
+
+    details = (
+        result.get("details")
+        if isinstance(result.get("details"), dict)
+        else {}
+    )
+
+    if details.get("opened"):
+        return False
+
+    pending_method = getattr(
+        lane,
+        "_pending",
+        None,
+    )
+
+    if callable(pending_method):
+        try:
+            if pending_method() is not None:
+                return False
+        except Exception:
+            return False
+
+    with lane._lock:
+        last = copy.deepcopy(
+            lane.state.get(
+                "v1616_last_route_preflight"
+            )
+            or {}
+        )
+
+    if not last:
+        return False
+
+    if last.get("allowed") is True:
+        return False
+
+    if (
+        last.get("executor_order_created")
+        is True
+    ):
+        return False
+
+    observed_at = _n(
+        last.get("observed_at")
+    )
+
+    # Only react to the preflight belonging to this exact
+    # execution attempt; never recycle an old historical block.
+    if (
+        observed_at <= 0.0
+        or observed_at
+        < attempt_started_at - 2.0
+    ):
+        return False
+
+    return True
+
 
 
 class _ExecutionFirstCandidateProxy:
@@ -1715,23 +1790,155 @@ def install_testnet_execution_first_candidates_v1619() -> None:
                 now=current,
             )
 
-        proxy = (
-            _ExecutionFirstCandidateProxy(
-                service,
-                self,
-                current,
-            )
-        )
-
-        self.service_provider = (
-            lambda: proxy
-        )
+        fallback_passes = 0
+        last_result: dict[str, Any] = {}
 
         try:
-            return original_step(
-                self,
-                now=current,
-            )
+            while True:
+                attempt_now = (
+                    current
+                    if fallback_passes == 0
+                    else time.time()
+                )
+
+                proxy = (
+                    _ExecutionFirstCandidateProxy(
+                        service,
+                        self,
+                        attempt_now,
+                    )
+                )
+
+                self.service_provider = (
+                    lambda proxy=proxy: proxy
+                )
+
+                result = original_step(
+                    self,
+                    now=attempt_now,
+                )
+
+                last_result = (
+                    result
+                    if isinstance(result, dict)
+                    else {}
+                )
+
+                details = (
+                    last_result.get("details")
+                    if isinstance(
+                        last_result.get("details"),
+                        dict,
+                    )
+                    else {}
+                )
+
+                opened = list(
+                    details.get("opened")
+                    or []
+                )
+
+                if opened:
+                    if fallback_passes > 0:
+                        with self._lock:
+                            self.state[
+                                "v1619_same_cycle_fallback_successes"
+                            ] = (
+                                int(
+                                    self.state.get(
+                                        "v1619_same_cycle_fallback_successes"
+                                    )
+                                    or 0
+                                )
+                                + 1
+                            )
+
+                            self.state[
+                                "v1619_last_same_cycle_fallback"
+                            ] = {
+                                "fallback_passes": (
+                                    fallback_passes
+                                ),
+                                "opened": opened,
+                                "successful": True,
+                                "observed_at": time.time(),
+                                "live_authority": False,
+                            }
+
+                            self._save_locked()
+
+                    return result
+
+                retryable = (
+                    _same_cycle_fallback_allowed(
+                        self,
+                        last_result,
+                        attempt_started_at=(
+                            attempt_now
+                        ),
+                    )
+                )
+
+                if (
+                    not retryable
+                    or fallback_passes
+                    >= MAX_SAME_CYCLE_FALLBACK_PASSES
+                ):
+                    return result
+
+                fallback_passes += 1
+
+                with self._lock:
+                    self.state[
+                        "v1619_same_cycle_fallback_attempts"
+                    ] = (
+                        int(
+                            self.state.get(
+                                "v1619_same_cycle_fallback_attempts"
+                            )
+                            or 0
+                        )
+                        + 1
+                    )
+
+                    last_preflight = (
+                        copy.deepcopy(
+                            self.state.get(
+                                "v1616_last_route_preflight"
+                            )
+                            or {}
+                        )
+                    )
+
+                    self.state[
+                        "v1619_last_same_cycle_fallback"
+                    ] = {
+                        "fallback_passes": (
+                            fallback_passes
+                        ),
+                        "blocked_symbol": (
+                            last_preflight.get(
+                                "symbol"
+                            )
+                        ),
+                        "blocked_reason": (
+                            last_preflight.get(
+                                "reason"
+                            )
+                        ),
+                        "successful": False,
+                        "executor_order_created": False,
+                        "observed_at": time.time(),
+                        "live_authority": False,
+                    }
+
+                    self._save_locked()
+
+                # The blocked symbol is already quarantined by the
+                # existing v1.60.13/v1.60.16 guard. The next pass
+                # therefore rotates to another ranked candidate.
+                continue
+
         finally:
             self.service_provider = (
                 provider
@@ -1755,6 +1962,34 @@ def install_testnet_execution_first_candidates_v1619() -> None:
                 "maximum_network_probes_per_call": (
                     MAX_NETWORK_PROBES_PER_CALL
                 ),
+                "passed_probe_cache_seconds": (
+                    PASS_CACHE_SECONDS
+                ),
+                "maximum_same_cycle_fallback_passes": (
+                    MAX_SAME_CYCLE_FALLBACK_PASSES
+                ),
+                "same_cycle_fallback_attempts": int(
+                    self.state.get(
+                        "v1619_same_cycle_fallback_attempts"
+                    )
+                    or 0
+                ),
+                "same_cycle_fallback_successes": int(
+                    self.state.get(
+                        "v1619_same_cycle_fallback_successes"
+                    )
+                    or 0
+                ),
+                "last_same_cycle_fallback": (
+                    copy.deepcopy(
+                        self.state.get(
+                            "v1619_last_same_cycle_fallback"
+                        )
+                        or {}
+                    )
+                ),
+                "successful_entry_capacity_increased": False,
+                "hard_execution_gates_preserved": True,
                 "persistent_rotating_probe_cursor": True,
                 "probe_cursor": int(
                     self.state.get(

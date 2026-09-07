@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import threading
 import time
 
 import leantrader.production.testnet_execution_first_candidates_v1619 as execution_first
 
 from leantrader.production.testnet_execution_first_candidates_v1619 import (
     _ExecutionFirstCandidateProxy,
+    _same_cycle_fallback_allowed,
 )
 from tests.test_production_testnet_exit_price_guard_v1611 import (
     PriceGuardBybit,
@@ -573,3 +575,72 @@ def test_execution_qualified_stale_signal_is_pinned_then_reused_when_fresh(
         instance.state.get("orders")
         or {}
     ) == {}
+
+
+def test_same_cycle_fallback_requires_recent_final_preflight_block():
+    class Lane:
+        def __init__(self):
+            self._lock = threading.RLock()
+            self.state = {
+                "v1616_last_route_preflight": {
+                    "symbol": "JUP/USDT",
+                    "allowed": False,
+                    "reason": (
+                        "prospective_exit_price_limit_unexecutable"
+                    ),
+                    "executor_order_created": False,
+                    "observed_at": 1000.0,
+                }
+            }
+
+        def _pending(self):
+            return None
+
+    lane = Lane()
+
+    result = {
+        "reason": "fast_multi_route_cycle",
+        "details": {
+            "opened": [],
+        },
+    }
+
+    assert (
+        _same_cycle_fallback_allowed(
+            lane,
+            result,
+            attempt_started_at=1000.0,
+        )
+        is True
+    )
+
+    lane.state[
+        "v1616_last_route_preflight"
+    ]["observed_at"] = 990.0
+
+    assert (
+        _same_cycle_fallback_allowed(
+            lane,
+            result,
+            attempt_started_at=1000.0,
+        )
+        is False
+    )
+
+    lane.state[
+        "v1616_last_route_preflight"
+    ]["observed_at"] = 1000.0
+
+    assert (
+        _same_cycle_fallback_allowed(
+            lane,
+            {
+                "reason": "fast_multi_route_cycle",
+                "details": {
+                    "opened": ["SOL/USDT"],
+                },
+            },
+            attempt_started_at=1000.0,
+        )
+        is False
+    )
