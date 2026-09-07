@@ -4,7 +4,7 @@ import copy
 from typing import Any
 
 
-VERSION = "1.60.44"
+VERSION = "1.61.9"
 
 # A fast lane must have current micro confirmation.
 MIN_MICRO_CONFIRMATION = 0.10
@@ -33,6 +33,9 @@ RESTORED_FAST_SOURCE_PREFIXES = (
     "ultra_quantum.momentum",
     "ultra_god_mode.quantum_price",
     "ultra_fluid_mechanics",
+    "modern_fast.smart_scalping",
+    "modern_fast.technical_structure",
+    "modern_fast.spectral_harmonics",
 )
 
 
@@ -178,6 +181,263 @@ def _restored_fast_support(
     )
 
     return output[:8]
+
+
+def _canonical_fast_context(
+    supervisor_symbol: dict[str, Any] | None,
+) -> dict[str, Any]:
+    supervisor = (
+        supervisor_symbol
+        if isinstance(
+            supervisor_symbol,
+            dict,
+        )
+        else {}
+    )
+
+    advanced = (
+        supervisor.get(
+            "advanced_shadow"
+        )
+        or {}
+    )
+
+    signal_rows = [
+        row
+        for row in (
+            advanced.get("signals")
+            or []
+        )
+        if isinstance(row, dict)
+    ]
+
+    weighted_score = 0.0
+    weight = 0.0
+    positive_engines = []
+    negative_engines = []
+
+    for row in signal_rows:
+        score = max(
+            -1.0,
+            min(
+                1.0,
+                _n(row.get("score")),
+            ),
+        )
+
+        confidence = max(
+            0.0,
+            min(
+                1.0,
+                _n(
+                    row.get(
+                        "confidence"
+                    )
+                ),
+            ),
+        )
+
+        if confidence <= 0.0:
+            continue
+
+        weighted_score += (
+            score * confidence
+        )
+
+        weight += confidence
+
+        engine = str(
+            row.get("engine")
+            or "unknown"
+        )
+
+        if (
+            score >= 0.10
+            and confidence >= 0.20
+        ):
+            positive_engines.append(
+                engine
+            )
+
+        elif (
+            score <= -0.10
+            and confidence >= 0.20
+        ):
+            negative_engines.append(
+                engine
+            )
+
+    advanced_score = (
+        weighted_score / weight
+        if weight > 0.0
+        else 0.0
+    )
+
+    advanced_confidence = (
+        min(
+            1.0,
+            weight
+            / max(
+                1.0,
+                float(
+                    len(signal_rows)
+                ),
+            ),
+        )
+        if signal_rows
+        else 0.0
+    )
+
+    swarm = (
+        advanced.get("swarm")
+        or {}
+    )
+
+    swarm_score = max(
+        -1.0,
+        min(
+            1.0,
+            _n(swarm.get("score")),
+        ),
+    )
+
+    swarm_confidence = max(
+        0.0,
+        min(
+            1.0,
+            _n(
+                swarm.get(
+                    "confidence"
+                )
+            ),
+        ),
+    )
+
+    if swarm_confidence > 0.0:
+        combined_weight = (
+            advanced_confidence
+            + swarm_confidence
+        )
+
+        canonical_score = (
+            (
+                advanced_score
+                * advanced_confidence
+                + swarm_score
+                * swarm_confidence
+            )
+            / combined_weight
+            if combined_weight > 0.0
+            else 0.0
+        )
+
+        canonical_confidence = min(
+            1.0,
+            combined_weight / 2.0,
+        )
+
+    else:
+        canonical_score = (
+            advanced_score
+        )
+
+        canonical_confidence = (
+            advanced_confidence
+        )
+
+    world = (
+        supervisor.get(
+            "market_world_model"
+        )
+        or {}
+    )
+
+    sensors = (
+        supervisor.get(
+            "sensor_context"
+        )
+        or {}
+    )
+
+    sensor_sources = sorted(
+        str(name)
+        for name, row in (
+            sensors.items()
+            if isinstance(
+                sensors,
+                dict,
+            )
+            else []
+        )
+        if (
+            isinstance(row, dict)
+            and str(
+                row.get("status")
+                or "available"
+            )
+            not in {
+                "unsupported",
+                "not_applicable",
+            }
+        )
+    )
+
+    return {
+        "available": bool(
+            advanced
+            or world
+            or sensors
+        ),
+        "canonical_score": (
+            canonical_score
+        ),
+        "canonical_confidence": (
+            canonical_confidence
+        ),
+        "advanced_positive_engines": (
+            sorted(
+                set(
+                    positive_engines
+                )
+            )
+        ),
+        "advanced_negative_engines": (
+            sorted(
+                set(
+                    negative_engines
+                )
+            )
+        ),
+        "world_state_confidence": (
+            _n(
+                world.get(
+                    "state_confidence"
+                )
+            )
+        ),
+        "world_rare_scope_score": (
+            _n(
+                (
+                    world.get("senses")
+                    or {}
+                ).get(
+                    "rare_scope_score"
+                )
+            )
+        ),
+        "sensor_sources": sensor_sources,
+        "rich_context_bridge_version": (
+            supervisor.get(
+                "rich_context_bridge_version"
+            )
+        ),
+        "ranking_only": True,
+        "cannot_create_entry_authority": True,
+        "cannot_bypass_profit_gate": True,
+        "execution_authority": False,
+        "live_authority": False,
+    }
+
 
 
 def fast_entry_profit_gate(
@@ -605,6 +865,95 @@ def install_testnet_fast_profit_guard_v1634() -> None:
             supervisor_symbol,
             relaxed=relaxed,
         )
+
+        canonical_context = (
+            _canonical_fast_context(
+                supervisor_symbol
+            )
+        )
+
+        row = {
+            **row,
+            "canonical_fast_context": (
+                copy.deepcopy(
+                    canonical_context
+                )
+            ),
+        }
+
+        # The rich canonical stack is allowed to rank an already
+        # eligible Testnet candidate, never manufacture eligibility.
+        # Fresh micro confirmation + cost-margin proof still decide
+        # whether an order can be attempted.
+        if row.get("allowed") is True:
+            canonical_score = _n(
+                canonical_context.get(
+                    "canonical_score"
+                )
+            )
+
+            canonical_confidence = max(
+                0.0,
+                min(
+                    1.0,
+                    _n(
+                        canonical_context.get(
+                            "canonical_confidence"
+                        )
+                    ),
+                ),
+            )
+
+            ranking_adjustment = max(
+                -0.08,
+                min(
+                    0.06,
+                    canonical_score
+                    * canonical_confidence
+                    * 0.08,
+                ),
+            )
+
+            row[
+                "decision_score"
+            ] = max(
+                0.0,
+                min(
+                    1.0,
+                    _n(
+                        row.get(
+                            "decision_score"
+                        )
+                    )
+                    + ranking_adjustment,
+                ),
+            )
+
+            row[
+                "canonical_context_ranking_adjustment"
+            ] = ranking_adjustment
+
+            if (
+                canonical_score >= 0.10
+                and canonical_confidence
+                >= 0.20
+            ):
+                groups = list(
+                    row.get(
+                        "support_groups"
+                    )
+                    or []
+                )
+
+                groups.append(
+                    "canonical_advanced_real_data"
+                )
+
+                row[
+                    "support_groups"
+                ] = sorted(
+                    set(groups)
+                )
 
         economics = (
             signal.get(

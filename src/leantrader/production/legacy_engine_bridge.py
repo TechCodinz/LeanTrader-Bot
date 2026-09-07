@@ -197,7 +197,7 @@ class LegacyEngineBridge:
     Testnet executor.
     """
 
-    VERSION = "1.61.4"
+    VERSION = "1.61.9"
 
     ENGINE_CLASS_TOKENS = (
         "engine",
@@ -426,6 +426,51 @@ class LegacyEngineBridge:
             )
 
         try:
+            from .advanced_engines import (
+                LiquidityFluidEngine,
+                SmartScalpingEngine,
+                SpectralHarmonicsEngine,
+                SwarmConsensusEngine,
+                TechnicalStructureEngine,
+            )
+
+            self._components[
+                "modern_smart_scalping"
+            ] = SmartScalpingEngine()
+
+            self._components[
+                "modern_technical_structure"
+            ] = TechnicalStructureEngine()
+
+            self._components[
+                "modern_spectral"
+            ] = SpectralHarmonicsEngine()
+
+            self._components[
+                "modern_liquidity"
+            ] = LiquidityFluidEngine()
+
+            self._components[
+                "modern_swarm_consensus"
+            ] = SwarmConsensusEngine()
+
+            self.loaded_families[
+                "modern_fast_overlay"
+            ] = (
+                "active_real_same_frame_and_orderbook;"
+                "smart_scalping_technical_spectral_"
+                "liquidity_consensus;"
+                "no_extra_execution_authority"
+            )
+
+        except Exception as exc:
+            self.loaded_families[
+                "modern_fast_overlay"
+            ] = (
+                f"unavailable:{type(exc).__name__}"
+            )
+
+        try:
             from scanners.arbitrage import cross_exchange_spreads
 
             self._components["cross_exchange_spreads"] = (
@@ -647,7 +692,9 @@ class LegacyEngineBridge:
         bid = _n(bids[0][0]) if bids else 0.0
         ask = _n(asks[0][0]) if asks else 0.0
 
-        frame_1m = self.feed.candles(symbol, "1m", 100)
+        # 160 candles activates the deterministic spectral engine
+        # without adding another network request.
+        frame_1m = self.feed.candles(symbol, "1m", 160)
         frame_5m = self.feed.candles(symbol, "5m", 100)
         frame_15m = self.feed.candles(symbol, "15m", 100)
 
@@ -661,6 +708,15 @@ class LegacyEngineBridge:
             frame_15m, bid=bid, ask=ask
         )
         contributions: list[dict[str, Any]] = []
+        modern_fast_context: dict[str, Any] = {
+            "version": "1.61.9",
+            "same_real_market_payload": True,
+            "additional_network_requests": 0,
+            "direct_execution_authority": False,
+            "testnet_authority": False,
+            "live_authority": False,
+        }
+        modern_engine_signals: list[Any] = []
 
         scalp = self._components.get("ultra_scalping")
         if scalp is not None:
@@ -1709,6 +1765,450 @@ class LegacyEngineBridge:
                     "legacy_multitimeframe"
                 )
 
+        # --------------------------------------------------------
+        # v1.61.9 deterministic modern fast overlay.
+        #
+        # These engines use the SAME real CCXT candles/order book
+        # already fetched above. Model direction alone never becomes
+        # economic edge. Handoff edge exists only when actual observed
+        # price movement agrees with the model direction.
+        # --------------------------------------------------------
+
+        closes_1m = [
+            _n(value)
+            for value in list(
+                frame_1m["close"]
+            )
+            if _n(value) > 0.0
+        ]
+
+        spread_bps = 1_000_000.0
+        if (
+            bid > 0.0
+            and ask > 0.0
+            and ask >= bid
+        ):
+            midpoint = (
+                bid + ask
+            ) / 2.0
+
+            if midpoint > 0.0:
+                spread_bps = (
+                    (ask - bid)
+                    / midpoint
+                    * 10_000.0
+                )
+
+        def aligned_observed_edge(
+            *,
+            score: float,
+            lookback: int,
+        ) -> tuple[str, float, float]:
+            if (
+                len(closes_1m) < lookback
+                or closes_1m[-lookback] <= 0.0
+            ):
+                return "flat", 0.0, 0.0
+
+            observed_move = (
+                closes_1m[-1]
+                / closes_1m[-lookback]
+                - 1.0
+            )
+
+            model_direction = (
+                "long"
+                if score > 0.0
+                else "short"
+                if score < 0.0
+                else "flat"
+            )
+
+            observed_direction = (
+                "long"
+                if observed_move > 0.0
+                else "short"
+                if observed_move < 0.0
+                else "flat"
+            )
+
+            gross = (
+                abs(observed_move)
+                * 10_000.0
+                if (
+                    model_direction != "flat"
+                    and model_direction
+                    == observed_direction
+                )
+                else 0.0
+            )
+
+            return (
+                model_direction,
+                gross,
+                observed_move,
+            )
+
+        smart = self._components.get(
+            "modern_smart_scalping"
+        )
+
+        if smart is not None:
+            try:
+                signal = smart.evaluate(
+                    frame_1m,
+                    spread_bps=spread_bps,
+                )
+
+                self.engine_calls += 1
+
+                (
+                    direction,
+                    gross_edge,
+                    observed_move,
+                ) = aligned_observed_edge(
+                    score=_n(signal.score),
+                    lookback=6,
+                )
+
+                self._record_family_call(
+                    "modern_fast.smart_scalping",
+                    {
+                        "score": _n(signal.score),
+                        "confidence": _n(
+                            signal.confidence
+                        ),
+                        "gross_edge_bps": gross_edge,
+                    },
+                )
+
+                modern_engine_signals.append(
+                    signal
+                )
+
+                modern_fast_context[
+                    "smart_scalping"
+                ] = {
+                    "score": _n(signal.score),
+                    "confidence": _n(
+                        signal.confidence
+                    ),
+                    "direction": direction,
+                    "observed_move_bps": (
+                        abs(observed_move)
+                        * 10_000.0
+                    ),
+                    "aligned_gross_edge_bps": (
+                        gross_edge
+                    ),
+                    "rationale": (
+                        signal.rationale
+                    ),
+                }
+
+                self._append(
+                    contributions,
+                    source=(
+                        "modern_fast."
+                        "smart_scalping"
+                    ),
+                    timeframe="1m",
+                    direction=direction,
+                    confidence=(
+                        signal.confidence
+                    ),
+                    expected_edge_bps=(
+                        gross_edge
+                    ),
+                    metadata={
+                        "model_score": (
+                            _n(signal.score)
+                        ),
+                        "observed_move_bps": (
+                            abs(observed_move)
+                            * 10_000.0
+                        ),
+                        "model_and_observed_"
+                        "direction_aligned": (
+                            gross_edge > 0.0
+                        ),
+                    },
+                )
+
+            except Exception:
+                self.engine_failures += 1
+                self._record_family_failure(
+                    "modern_fast.smart_scalping"
+                )
+
+        technical = self._components.get(
+            "modern_technical_structure"
+        )
+
+        if technical is not None:
+            try:
+                signal = technical.evaluate(
+                    frame_1m
+                )
+
+                self.engine_calls += 1
+
+                (
+                    direction,
+                    gross_edge,
+                    observed_move,
+                ) = aligned_observed_edge(
+                    score=_n(signal.score),
+                    lookback=10,
+                )
+
+                self._record_family_call(
+                    "modern_fast.technical_structure",
+                    {
+                        "score": _n(signal.score),
+                        "confidence": _n(
+                            signal.confidence
+                        ),
+                        "gross_edge_bps": gross_edge,
+                    },
+                )
+
+                modern_engine_signals.append(
+                    signal
+                )
+
+                modern_fast_context[
+                    "technical_structure"
+                ] = {
+                    "score": _n(signal.score),
+                    "confidence": _n(
+                        signal.confidence
+                    ),
+                    "direction": direction,
+                    "observed_move_bps": (
+                        abs(observed_move)
+                        * 10_000.0
+                    ),
+                    "aligned_gross_edge_bps": (
+                        gross_edge
+                    ),
+                    "rationale": (
+                        signal.rationale
+                    ),
+                }
+
+                self._append(
+                    contributions,
+                    source=(
+                        "modern_fast."
+                        "technical_structure"
+                    ),
+                    timeframe="1m",
+                    direction=direction,
+                    confidence=(
+                        signal.confidence
+                    ),
+                    expected_edge_bps=(
+                        gross_edge
+                    ),
+                    metadata={
+                        "model_score": (
+                            _n(signal.score)
+                        ),
+                        "observed_move_bps": (
+                            abs(observed_move)
+                            * 10_000.0
+                        ),
+                        "model_and_observed_"
+                        "direction_aligned": (
+                            gross_edge > 0.0
+                        ),
+                    },
+                )
+
+            except Exception:
+                self.engine_failures += 1
+                self._record_family_failure(
+                    "modern_fast.technical_structure"
+                )
+
+        spectral = self._components.get(
+            "modern_spectral"
+        )
+
+        if spectral is not None:
+            try:
+                signal = spectral.evaluate(
+                    frame_1m
+                )
+
+                self.engine_calls += 1
+
+                (
+                    direction,
+                    gross_edge,
+                    observed_move,
+                ) = aligned_observed_edge(
+                    score=_n(signal.score),
+                    lookback=16,
+                )
+
+                self._record_family_call(
+                    "modern_fast.spectral_harmonics",
+                    {
+                        "score": _n(signal.score),
+                        "confidence": _n(
+                            signal.confidence
+                        ),
+                        "gross_edge_bps": gross_edge,
+                    },
+                )
+
+                modern_engine_signals.append(
+                    signal
+                )
+
+                modern_fast_context[
+                    "spectral_harmonics"
+                ] = {
+                    "score": _n(signal.score),
+                    "confidence": _n(
+                        signal.confidence
+                    ),
+                    "direction": direction,
+                    "observed_move_bps": (
+                        abs(observed_move)
+                        * 10_000.0
+                    ),
+                    "aligned_gross_edge_bps": (
+                        gross_edge
+                    ),
+                    "rationale": (
+                        signal.rationale
+                    ),
+                }
+
+                self._append(
+                    contributions,
+                    source=(
+                        "modern_fast."
+                        "spectral_harmonics"
+                    ),
+                    timeframe="1m",
+                    direction=direction,
+                    confidence=(
+                        signal.confidence
+                    ),
+                    expected_edge_bps=(
+                        gross_edge
+                    ),
+                    metadata={
+                        "model_score": (
+                            _n(signal.score)
+                        ),
+                        "observed_move_bps": (
+                            abs(observed_move)
+                            * 10_000.0
+                        ),
+                        "model_and_observed_"
+                        "direction_aligned": (
+                            gross_edge > 0.0
+                        ),
+                    },
+                )
+
+            except Exception:
+                self.engine_failures += 1
+                self._record_family_failure(
+                    "modern_fast.spectral_harmonics"
+                )
+
+        liquidity = self._components.get(
+            "modern_liquidity"
+        )
+
+        if liquidity is not None:
+            try:
+                liquidity_state = (
+                    liquidity.evaluate(
+                        order_book
+                    )
+                )
+
+                self.engine_calls += 1
+
+                self._record_family_call(
+                    "modern_fast.liquidity",
+                    liquidity_state,
+                )
+
+                modern_fast_context[
+                    "liquidity"
+                ] = {
+                    **copy.deepcopy(
+                        liquidity_state
+                    ),
+                    "economic_edge_claim": False,
+                    "ranking_context_only": True,
+                }
+
+            except Exception:
+                self.engine_failures += 1
+                self._record_family_failure(
+                    "modern_fast.liquidity"
+                )
+
+        consensus = self._components.get(
+            "modern_swarm_consensus"
+        )
+
+        if (
+            consensus is not None
+            and modern_engine_signals
+        ):
+            try:
+                consensus_signal = (
+                    consensus.combine(
+                        modern_engine_signals
+                    )
+                )
+
+                self.engine_calls += 1
+
+                self._record_family_call(
+                    "modern_fast.swarm_consensus",
+                    {
+                        "score": _n(
+                            consensus_signal.score
+                        ),
+                        "confidence": _n(
+                            consensus_signal.confidence
+                        ),
+                    },
+                )
+
+                modern_fast_context[
+                    "swarm_consensus"
+                ] = {
+                    "score": _n(
+                        consensus_signal.score
+                    ),
+                    "confidence": _n(
+                        consensus_signal.confidence
+                    ),
+                    "rationale": (
+                        consensus_signal.rationale
+                    ),
+                    "economic_edge_claim": False,
+                    "ranking_context_only": True,
+                }
+
+            except Exception:
+                self.engine_failures += 1
+                self._record_family_failure(
+                    "modern_fast.swarm_consensus"
+                )
+
         long_support = sum(
             _n(item.get("confidence"))
             * _n(item.get("expected_edge_bps"))
@@ -1754,6 +2254,9 @@ class LegacyEngineBridge:
                 }
             ),
             "contributions": contributions,
+            "modern_fast_context": (
+                modern_fast_context
+            ),
             "quote_volume_usd": _n(
                 row.get("quote_volume_usd")
             ),
@@ -1976,7 +2479,7 @@ class LegacyEngineBridge:
 class RestoredSwarmService(ReadOnlySwarmService):
     """Current fast swarm plus restored legacy-intelligence contributors."""
 
-    VERSION = "1.61.4"
+    VERSION = "1.61.9"
 
     def __init__(
         self,

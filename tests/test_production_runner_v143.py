@@ -340,3 +340,134 @@ def test_v153_runtime_health_refresh_does_not_rewrite_market_heartbeat(
     assert len(writes) == 1
     assert writes[0][0].name == "vps_health_state.json"
     assert writes[0][0] != runner.settings.heartbeat_path
+
+
+
+def test_v1619_fast_supervisory_carries_full_real_context():
+    status = {
+        "timestamp": 1000.0,
+        "healthy": True,
+        "engines": {
+            "market_data": {
+                "required": True,
+                "healthy": True,
+            }
+        },
+        "decisions": {
+            "BTC/USDT": {
+                "route": {
+                    "allowed": True,
+                }
+            }
+        },
+        "collective_profit_fabric": {
+            "symbols": {
+                "BTC/USDT": {
+                    "ensemble_score": 0.4,
+                }
+            }
+        },
+        "advanced_shadow": {
+            "symbols": {
+                "BTC/USDT": {
+                    "signals": [
+                        {
+                            "engine": "smart_scalping",
+                            "score": 0.4,
+                            "confidence": 0.7,
+                        }
+                    ]
+                }
+            }
+        },
+        "market_sensor_fabric": {
+            "snapshot": {
+                "symbols": {
+                    "BTC/USDT": {
+                        "derivatives": {
+                            "status": "available"
+                        }
+                    }
+                }
+            }
+        },
+        "market_world_model": {
+            "symbols": {
+                "BTC/USDT": {
+                    "state_confidence": 0.7
+                }
+            }
+        },
+        "cns": {
+            "symbols": {
+                "BTC/USDT": {
+                    "available": True
+                }
+            }
+        },
+        "brain": {
+            "symbols": {
+                "BTC/USDT": {
+                    "allow_entry": True
+                }
+            }
+        },
+        "cognitive_governance": {
+            "symbols": {
+                "BTC/USDT": {
+                    "allowed": True
+                }
+            }
+        },
+    }
+
+    result = (
+        PaperRunner._extract_fast_supervisory(
+            status
+        )
+    )
+
+    row = result["symbols"][
+        "BTC/USDT"
+    ]
+
+    assert result[
+        "rich_symbol_context"
+    ] is True
+
+    assert (
+        row["advanced_shadow"]
+        ["signals"][0]["engine"]
+        == "smart_scalping"
+    )
+
+    assert (
+        row["sensor_context"]
+        ["derivatives"]["status"]
+        == "available"
+    )
+
+    assert (
+        row["market_world_model"]
+        ["state_confidence"]
+        == 0.7
+    )
+
+    assert row["cns"]["available"] is True
+    assert row["brain"]["allow_entry"] is True
+
+    assert (
+        row[
+            "cognitive_governance"
+        ]["allowed"]
+        is True
+    )
+
+    assert (
+        row[
+            "rich_context_bridge_version"
+        ]
+        == "1.61.9"
+    )
+
+    assert row["live_authority"] is False

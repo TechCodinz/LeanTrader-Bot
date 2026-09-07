@@ -176,12 +176,79 @@ class PaperRunner(_V142PaperRunner):
             or {}
         )
 
+        advanced_symbols = (
+            (
+                status.get(
+                    "advanced_shadow"
+                )
+                or {}
+            ).get("symbols")
+            or {}
+        )
+
+        sensor_symbols = (
+            (
+                (
+                    status.get(
+                        "market_sensor_fabric"
+                    )
+                    or {}
+                ).get("snapshot")
+                or {}
+            ).get("symbols")
+            or {}
+        )
+
+        world_symbols = (
+            (
+                status.get(
+                    "market_world_model"
+                )
+                or {}
+            ).get("symbols")
+            or {}
+        )
+
+        cns_symbols = (
+            (
+                status.get("cns")
+                or {}
+            ).get("symbols")
+            or {}
+        )
+
+        brain_symbols = (
+            (
+                status.get("brain")
+                or {}
+            ).get("symbols")
+            or {}
+        )
+
+        governance_symbols = (
+            (
+                status.get(
+                    "cognitive_governance"
+                )
+                or {}
+            ).get("symbols")
+            or {}
+        )
+
         symbols: dict[str, Any] = {}
 
-        for symbol in (
+        symbol_names = (
             set(decisions)
             | set(collective_symbols)
-        ):
+            | set(advanced_symbols)
+            | set(sensor_symbols)
+            | set(world_symbols)
+            | set(cns_symbols)
+            | set(brain_symbols)
+            | set(governance_symbols)
+        )
+
+        for symbol in symbol_names:
             decision = (
                 decisions.get(symbol)
                 or {}
@@ -198,6 +265,44 @@ class PaperRunner(_V142PaperRunner):
                         {},
                     )
                 ),
+                "advanced_shadow": copy.deepcopy(
+                    advanced_symbols.get(
+                        symbol,
+                        {},
+                    )
+                ),
+                "sensor_context": copy.deepcopy(
+                    sensor_symbols.get(
+                        symbol,
+                        {},
+                    )
+                ),
+                "market_world_model": copy.deepcopy(
+                    world_symbols.get(
+                        symbol,
+                        {},
+                    )
+                ),
+                "cns": copy.deepcopy(
+                    cns_symbols.get(
+                        symbol,
+                        {},
+                    )
+                ),
+                "brain": copy.deepcopy(
+                    brain_symbols.get(
+                        symbol,
+                        {},
+                    )
+                ),
+                "cognitive_governance": copy.deepcopy(
+                    governance_symbols.get(
+                        symbol,
+                        {},
+                    )
+                ),
+                "rich_context_bridge_version": "1.61.9",
+                "live_authority": False,
             }
 
         return {
@@ -232,6 +337,8 @@ class PaperRunner(_V142PaperRunner):
                 required_failures
             ),
             "symbols": symbols,
+            "rich_symbol_context": True,
+            "rich_context_bridge_version": "1.61.9",
             "canonical_open_positions": list(
                 status.get("open_positions")
                 or []

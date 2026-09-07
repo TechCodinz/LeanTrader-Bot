@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from leantrader.production.testnet_fast_profit_guard_v1634 import (
     VERSION,
+    _canonical_fast_context,
     _restored_fast_support,
     fast_entry_profit_gate,
     fee_only_exit_deferral,
@@ -219,7 +220,7 @@ def test_extension_is_bounded():
 
 
 def test_version():
-    assert VERSION == "1.60.44"
+    assert VERSION == "1.61.9"
 
 
 def test_restored_fast_support_extracts_only_cost_cleared_fast_families():
@@ -372,3 +373,98 @@ def test_restored_fast_edge_never_bypasses_micro_confirmation():
         result["reason"]
         == "v1634_fast_micro_confirmation_required"
     )
+
+
+
+def test_v1619_modern_fast_source_is_cost_aware():
+    signal = {
+        "timeframe_assessments": {
+            "modern": {
+                "legacy_restoration": True,
+                "legacy_economically_positive": True,
+                "direction": "long",
+                "confidence": 0.80,
+                "expected_edge_bps": 25.0,
+                "legacy_gross_edge_bps": 55.0,
+                "legacy_conservative_net_edge_bps": 25.0,
+                "legacy_modeled_round_trip_cost_bps": 30.0,
+                "source": "modern_fast.smart_scalping",
+                "timeframe": "1m",
+            }
+        }
+    }
+
+    rows = _restored_fast_support(
+        signal
+    )
+
+    assert len(rows) == 1
+    assert (
+        rows[0]["source"]
+        == "modern_fast.smart_scalping"
+    )
+    assert rows[0]["gross_edge_bps"] == 55.0
+    assert (
+        rows[0]["conservative_net_edge_bps"]
+        == 25.0
+    )
+    assert rows[0]["execution_authority"] is False
+
+
+def test_v1619_canonical_context_is_ranking_only():
+    context = _canonical_fast_context(
+        {
+            "advanced_shadow": {
+                "signals": [
+                    {
+                        "engine": "smart_scalping",
+                        "score": 0.50,
+                        "confidence": 0.80,
+                    },
+                    {
+                        "engine": "technical_structure",
+                        "score": 0.30,
+                        "confidence": 0.70,
+                    },
+                ],
+                "swarm": {
+                    "score": 0.40,
+                    "confidence": 0.75,
+                },
+            },
+            "sensor_context": {
+                "derivatives": {
+                    "status": "available"
+                },
+                "liquidations": {
+                    "status": "available"
+                },
+            },
+            "market_world_model": {
+                "state_confidence": 0.70,
+                "senses": {
+                    "rare_scope_score": 0.25
+                },
+            },
+            "rich_context_bridge_version": "1.61.9",
+        }
+    )
+
+    assert context["available"] is True
+    assert context["canonical_score"] > 0.0
+    assert context["canonical_confidence"] > 0.0
+    assert (
+        "smart_scalping"
+        in context[
+            "advanced_positive_engines"
+        ]
+    )
+    assert (
+        context["cannot_create_entry_authority"]
+        is True
+    )
+    assert (
+        context["cannot_bypass_profit_gate"]
+        is True
+    )
+    assert context["live_authority"] is False
