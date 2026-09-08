@@ -6,6 +6,7 @@ from typing import Any
 
 from .testnet_entry_roundtrip_v1613 import (
     EXIT_STRESS_BPS,
+    PREFLIGHT_COOLDOWN_SECONDS,
     _normalize_buy,
     _preflight,
     _supported,
@@ -1557,8 +1558,24 @@ class _ExecutionFirstCandidateProxy:
                     + 1
                 )
 
+                # Bybit price-limit failures are temporary exchange
+                # executability states, not alpha failures. Keep them out
+                # of the scarce probe window for the same bounded cooldown
+                # already used by the final round-trip route preflight.
+                #
+                # No execution gate is relaxed; the candidate must still
+                # pass a completely fresh preflight after this expires.
                 ttl = (
-                    FAIL_CACHE_SECONDS
+                    max(
+                        FAIL_CACHE_SECONDS,
+                        PREFLIGHT_COOLDOWN_SECONDS,
+                    )
+                    if reason
+                    in {
+                        "buy_price_limit_unexecutable",
+                        "prospective_exit_price_limit_unexecutable",
+                    }
+                    else FAIL_CACHE_SECONDS
                 )
 
             new_cache[
@@ -1580,6 +1597,10 @@ class _ExecutionFirstCandidateProxy:
                 "reason": reason,
                 "detail": copy.deepcopy(
                     result
+                ),
+                "probe_cache_seconds": ttl,
+                "probe_cache_expires_at": (
+                    self._now + ttl
                 ),
                 "observed_at": (
                     self._now
@@ -1857,6 +1878,11 @@ class _ExecutionFirstCandidateProxy:
                 "freshness_gate_seconds": 2.0,
                 "warmed_candidates_require_normal_preflight": True,
                 "network_probe_budget_changed": False,
+                "price_limit_probe_backoff_seconds": max(
+                    FAIL_CACHE_SECONDS,
+                    PREFLIGHT_COOLDOWN_SECONDS,
+                ),
+                "price_limit_guard_preserved": True,
                 "network_probes": (
                     probe_checks
                 ),
