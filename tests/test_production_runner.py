@@ -77,6 +77,16 @@ def test_one_cycle_writes_healthy_state(monkeypatch, tmp_path):
     assert all(engine["healthy"] for engine in result["engines"].values())
     assert result["decisions"]["BTC/USDT"]["quality_score"] == 1.0
     assert result["advanced_shadow"]["execution_authority"] is False
+    assert result["ultra_legacy_realdata"]["system_identity"] == "leantrader"
+    assert result["ultra_legacy_realdata"]["execution_authority"] is False
+    assert result["ultra_legacy_realdata"]["canonical_cycle"]["real_data"] is True
+    assert (
+        result["ultra_legacy_realdata"]["canonical_cycle"]["synthetic_market_data"]
+        is False
+    )
+    assert "BTC/USDT" in (
+        result["ultra_legacy_realdata"]["canonical_cycle"]["frame_symbols"]
+    )
     assert result["market_world_model"]["execution_authority"] is False
     assert result["meta_cognitive_self_model"]["consciousness_claim"] is False
     assert result["intelligence_council"]["execution_authority"] is False

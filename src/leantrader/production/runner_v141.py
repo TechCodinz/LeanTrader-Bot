@@ -2426,6 +2426,20 @@ class PaperRunner:
             )
         except Exception as exc:  # noqa: BLE001 - advanced suite is shadow-only
             advanced_market = {"error": f"{type(exc).__name__}: {exc}"}
+
+        ultra_legacy_snapshot = self._shadow_call(
+            errors,
+            "ultra_legacy_realdata:observe_cycle",
+            "ultra_legacy_realdata",
+            "observe_cycle",
+            symbols=list(frames),
+            frames=frames,
+            sensor_snapshot=sensor_snapshot,
+            public_symbol_context=public_symbol_context,
+            arbitrage_collection=arbitrage_collection,
+            advanced_market=advanced_market,
+        )
+
         block_reason_counts: dict[str, int] = {}
         for reason in entry_blocks.values():
             block_reason_counts[str(reason)] = block_reason_counts.get(str(reason), 0) + 1
@@ -3032,6 +3046,7 @@ class PaperRunner:
                 "market": advanced_market,
                 "execution_authority": False,
             },
+            "ultra_legacy_realdata": ultra_legacy_snapshot,
             "research_governor": research_state,
             "capital_growth": growth_state,
             "cns": {
