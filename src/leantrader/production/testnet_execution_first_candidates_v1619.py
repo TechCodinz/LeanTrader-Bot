@@ -1098,32 +1098,62 @@ class _ExecutionFirstCandidateProxy:
         )
 
         priority_rows: list[
-            tuple[str, bool, float, int]
+            tuple[str, bool, bool, float, int]
         ] = []
+
+        fresh_velocity_qualified = 0
 
         for rank_index, symbol in enumerate(
             raw[:priority_window]
         ):
-            fresh, score, _signal = (
+            fresh, score, signal = (
                 self._fresh_opportunity_priority(
                     symbol
                 )
             )
 
+            velocity_qualified = False
+
+            velocity_method = getattr(
+                self._lane,
+                "_velocity_state",
+                None,
+            )
+
+            if fresh and callable(velocity_method):
+                try:
+                    velocity_qualified = (
+                        (
+                            velocity_method(signal)
+                            or {}
+                        ).get("qualified_long")
+                        is True
+                    )
+                except Exception:
+                    velocity_qualified = False
+
+            if velocity_qualified:
+                fresh_velocity_qualified += 1
+
             priority_rows.append(
                 (
                     symbol,
                     fresh,
+                    velocity_qualified,
                     score,
                     rank_index,
                 )
             )
 
+        # Fresh execution-quality-qualified microstructure comes first.
+        # Raw alpha score still ranks candidates inside each quality tier.
+        # This is probe ordering only and grants no execution authority.
         priority_rows.sort(
             key=lambda row: (
                 0 if row[1] else 1,
-                -row[2],
-                row[3],
+                0 if row[2] else 1,
+                -row[3],
+                row[4],
             )
         )
 
@@ -1145,7 +1175,7 @@ class _ExecutionFirstCandidateProxy:
 
         highest_priority_score = max(
             [
-                row[2]
+                row[3]
                 for row in priority_rows
                 if row[1]
             ]
@@ -1868,6 +1898,10 @@ class _ExecutionFirstCandidateProxy:
                 "opportunity_prioritized_fresh_routing": True,
                 "raw_signal_priority_alignment": True,
                 "velocity_state_reused_for_priority": True,
+                "velocity_execution_quality_priority": True,
+                "fresh_velocity_qualified_candidates": (
+                    fresh_velocity_qualified
+                ),
                 "raw_micro_path_priority": True,
                 "opportunity_priority_window": priority_window,
                 "fresh_priority_candidates": fresh_priority_count,
