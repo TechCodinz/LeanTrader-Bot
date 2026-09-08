@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import math
 from typing import Any
 
 from .testnet_entry_roundtrip_v1613 import (
@@ -33,7 +34,9 @@ PASS_CACHE_SECONDS = 1.5
 MAX_SAME_CYCLE_FALLBACK_PASSES = 3
 MIN_FREE_QUOTE_RESERVE_USD = 0.01
 SIGNAL_REFRESH_PIN_SECONDS = 6.0
-MAX_STICKY_WARM_RECHECKS = 2
+# Hard ceiling only. The actual recheck count is derived from the
+# microstream target loop and the fast-lane cadence each call.
+MAX_STICKY_WARM_RECHECKS = 8
 
 
 def _n(
@@ -848,18 +851,50 @@ class _ExecutionFirstCandidateProxy:
             )
         )
 
-        # v1.60.53: keep a small but meaningful execution-ready cohort hot.
-        # This is sampling/warming authority only; it creates no order and
-        # cannot bypass subsequent strategy or authenticated preflight gates.
-        # Honor the precision service's actual adaptive capacity.
-        # A capacity of one means warm one symbol, not four. This avoids
-        # over-subscribing a constrained microstream while preserving the
-        # existing upper bound and all execution gates.
+        target_loop = max(
+            0.50,
+            _n(
+                getattr(
+                    self._service,
+                    "microstream_target_loop_seconds",
+                    1.50,
+                ),
+                1.50,
+            ),
+        )
+
+        per_symbol_latency = max(
+            0.02,
+            _n(
+                getattr(
+                    self._service,
+                    "microstream_per_symbol_latency_seconds",
+                    0.25,
+                ),
+                0.25,
+            ),
+        )
+
+        latency_capacity = max(
+            1,
+            int(
+                target_loop
+                / per_symbol_latency
+            ),
+        )
+
+        # Warm only what the current latency budget can refresh inside
+        # the precision microstream's own target loop. This prevents a
+        # temporarily larger adaptive capacity from creating a cohort
+        # that cannot become <=2s fresh before the next routing pass.
+        #
+        # Sampling only: no execution authority or gate is changed here.
         capacity = max(
             1,
             min(
                 12,
                 adaptive_capacity,
+                latency_capacity,
             ),
         )
 
@@ -962,7 +997,11 @@ class _ExecutionFirstCandidateProxy:
             ] = {
                 "symbols": list(cohort),
                 "count": len(cohort),
-                "adaptive_capacity": capacity,
+                "adaptive_capacity": adaptive_capacity,
+                "latency_capacity": latency_capacity,
+                "selected_warm_capacity": capacity,
+                "microstream_target_loop_seconds": target_loop,
+                "estimated_per_symbol_latency_seconds": per_symbol_latency,
                 "freshness_requirement_seconds": 2.0,
                 "execution_authority": False,
                 "testnet_order_created": False,
@@ -1574,6 +1613,47 @@ class _ExecutionFirstCandidateProxy:
             )
         )
 
+        lane_cadence = max(
+            0.10,
+            _n(
+                getattr(
+                    self._lane,
+                    "cadence_seconds",
+                    0.50,
+                ),
+                0.50,
+            ),
+        )
+
+        service_target_loop = max(
+            lane_cadence,
+            _n(
+                getattr(
+                    self._service,
+                    "microstream_target_loop_seconds",
+                    1.50,
+                ),
+                1.50,
+            ),
+        )
+
+        # Cover at least one complete target microstream loop plus one
+        # bounded scheduling grace pass. At the current 1.5s/0.5s runtime
+        # this resolves to four checks, not an arbitrary fixed value.
+        sticky_recheck_limit = max(
+            2,
+            min(
+                MAX_STICKY_WARM_RECHECKS,
+                int(
+                    math.ceil(
+                        service_target_loop
+                        / lane_cadence
+                    )
+                )
+                + 1,
+            ),
+        )
+
         sticky_warm_recheck = bool(
             raw
             and not selected
@@ -1581,7 +1661,7 @@ class _ExecutionFirstCandidateProxy:
             and probe_checks
             < MAX_EMPTY_SELECTION_NETWORK_PROBES_PER_CALL
             and sticky_warm_rechecks
-            < MAX_STICKY_WARM_RECHECKS
+            < sticky_recheck_limit
         )
 
         if sticky_warm_recheck:
@@ -1797,7 +1877,16 @@ class _ExecutionFirstCandidateProxy:
                     next_sticky_warm_rechecks
                 ),
                 "maximum_sticky_warm_rechecks": (
+                    sticky_recheck_limit
+                ),
+                "sticky_recheck_hard_ceiling": (
                     MAX_STICKY_WARM_RECHECKS
+                ),
+                "microstream_target_loop_seconds": (
+                    service_target_loop
+                ),
+                "fast_lane_cadence_seconds": (
+                    lane_cadence
                 ),
                 "cyclic_strategy_rank_order_preserved": True,
                 "free_usdt": (

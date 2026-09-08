@@ -4638,6 +4638,17 @@ class ReadOnlySwarmService:
                                 {},
                             )
                         ),
+                        "execution_candidate_pins_newest_first": list(
+                            reversed(
+                                list(
+                                    getattr(
+                                        self,
+                                        "_execution_candidate_pins",
+                                        {},
+                                    )
+                                )
+                            )
+                        ),
                         "live_scout_slots": (
                             self.precision_micro_live_slots
                         ),
