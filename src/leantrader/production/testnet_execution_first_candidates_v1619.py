@@ -744,6 +744,59 @@ class _ExecutionFirstCandidateProxy:
             or [0.0]
         )
 
+        # Include the same positive MTF evidence that the downstream
+        # candidate assessor already uses. This is ranking only: it decides
+        # where scarce authenticated preflight probes are spent, but cannot
+        # authorize an entry or bypass any existing execution/profit gate.
+        timeframe_rows = [
+            row
+            for row in (
+                signal.get("timeframe_assessments")
+                or {}
+            ).values()
+            if isinstance(row, dict)
+        ]
+
+        mtf_edges = []
+        qualified_mtf_edges = []
+
+        for row in timeframe_rows:
+            direction = str(
+                row.get("direction") or ""
+            ).lower()
+
+            confidence = max(
+                0.0,
+                _n(row.get("confidence")),
+            )
+
+            edge = _n(
+                row.get("expected_edge_bps")
+            )
+
+            if (
+                direction
+                in {
+                    "long",
+                    "buy",
+                    "bull",
+                    "bullish",
+                }
+                and confidence >= 0.50
+                and edge > 0.0
+            ):
+                mtf_edges.append(edge)
+
+                if (
+                    row.get("independently_qualified")
+                    is True
+                ):
+                    qualified_mtf_edges.append(edge)
+
+        best_mtf_edge = max(
+            mtf_edges or [0.0]
+        )
+
         # Ranking only. This score does not satisfy or replace v1634.
         # The authenticated candidate still has to survive every existing
         # execution, profitability, cost, liquidity, freshness, sellability
@@ -751,7 +804,12 @@ class _ExecutionFirstCandidateProxy:
         priority_score = max(
             projected_capture,
             best_micro_edge,
+            best_mtf_edge,
         )
+
+        # Tiny deterministic tie-break only. It cannot manufacture edge.
+        if qualified_mtf_edges:
+            priority_score += 0.002
 
         if velocity_qualified:
             priority_score += 0.001
