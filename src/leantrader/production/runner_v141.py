@@ -54,6 +54,7 @@ from .strategy_observatory import StrategyObservatory
 from .tail_risk_sentinel import TailRiskSentinel
 from .temporal_guard import MarketTemporalGuard
 from .testnet_execution import BybitTestnetExecutionEngine
+from .ultra_legacy_realdata import UltraLegacyRealDataHub
 from .unified_control_plane import (
     UnifiedDecisionControlPlane,
     build_specialist_evidence,
@@ -721,6 +722,8 @@ class PaperRunner:
             ),
         )
 
+        self.ultra_legacy_realdata = UltraLegacyRealDataHub()
+
         self.engines = EngineRegistry(
             failure_threshold=settings.engine_failure_threshold,
             recovery_seconds=settings.engine_recovery_seconds,
@@ -1022,6 +1025,20 @@ class PaperRunner:
             self.execution_fabric,
             dependencies=execution_dependencies,
             version=self.execution_fabric.VERSION,
+        )
+
+        self.engines.register(
+            "ultra_legacy_realdata",
+            self.ultra_legacy_realdata,
+            required=False,
+            dependencies=(
+                "market_data",
+                "public_market_context",
+                "market_sensor_fabric",
+                "cross_venue_arbitrage",
+                "advanced_shadow_suite",
+            ),
+            version=self.ultra_legacy_realdata.VERSION,
         )
 
         self.engines.start_all()
