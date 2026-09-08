@@ -1098,10 +1098,20 @@ class _ExecutionFirstCandidateProxy:
         )
 
         priority_rows: list[
-            tuple[str, bool, bool, float, int]
+            tuple[
+                str,
+                bool,
+                bool,
+                bool,
+                bool,
+                float,
+                int,
+            ]
         ] = []
 
         fresh_velocity_qualified = 0
+        fresh_liquidity_ready = 0
+        fresh_cost_qualified = 0
 
         for rank_index, symbol in enumerate(
             raw[:priority_window]
@@ -1113,6 +1123,7 @@ class _ExecutionFirstCandidateProxy:
             )
 
             velocity_qualified = False
+            liquidity_ready = False
 
             velocity_method = getattr(
                 self._lane,
@@ -1122,38 +1133,168 @@ class _ExecutionFirstCandidateProxy:
 
             if fresh and callable(velocity_method):
                 try:
+                    velocity_state = (
+                        velocity_method(signal)
+                        or {}
+                    )
+
                     velocity_qualified = (
-                        (
-                            velocity_method(signal)
-                            or {}
-                        ).get("qualified_long")
+                        velocity_state.get(
+                            "qualified_long"
+                        )
                         is True
+                    )
+
+                    # Reuse the execution-quality subset already present in
+                    # VelocitySniper. This is ranking only: no alpha,
+                    # profitability or execution gate is satisfied here.
+                    liquidity_ready = bool(
+                        _n(
+                            velocity_state.get(
+                                "age_seconds"
+                            ),
+                            1_000_000.0,
+                        )
+                        <= 2.0
+                        and _n(
+                            velocity_state.get(
+                                "spread_bps"
+                            ),
+                            1_000_000.0,
+                        )
+                        <= 20.0
+                        and _n(
+                            velocity_state.get(
+                                "depth_usd"
+                            )
+                        )
+                        >= 10_000.0
+                        and int(
+                            _n(
+                                velocity_state.get(
+                                    "temporal_samples"
+                                )
+                            )
+                        )
+                        >= 3
                     )
                 except Exception:
                     velocity_qualified = False
+                    liquidity_ready = False
+
+            cost_qualified = False
+
+            if fresh:
+                timeframe_rows = [
+                    row
+                    for row in (
+                        signal.get(
+                            "timeframe_assessments"
+                        )
+                        or {}
+                    ).values()
+                    if isinstance(row, dict)
+                ]
+
+                cost_qualified = any(
+                    str(
+                        row.get("direction") or ""
+                    ).lower()
+                    in {
+                        "long",
+                        "buy",
+                        "bull",
+                        "bullish",
+                    }
+                    and _n(
+                        row.get("confidence")
+                    )
+                    >= 0.50
+                    and _n(
+                        row.get(
+                            "expected_edge_bps"
+                        )
+                    )
+                    > 0.0
+                    and row.get(
+                        "independently_qualified"
+                    )
+                    is True
+                    for row in timeframe_rows
+                )
+
+                if not cost_qualified:
+                    cost_qualified = any(
+                        isinstance(row, dict)
+                        and str(
+                            row.get("side") or ""
+                        ).lower()
+                        in {
+                            "long",
+                            "buy",
+                            "bull",
+                            "bullish",
+                        }
+                        and row.get(
+                            "evidence_qualified"
+                        )
+                        is True
+                        and row.get(
+                            "independently_qualified"
+                        )
+                        is True
+                        and _n(
+                            row.get(
+                                "conservative_net_edge_bps"
+                            )
+                        )
+                        > 0.0
+                        for row in (
+                            signal.get(
+                                "micro_proposals"
+                            )
+                            or []
+                        )
+                    )
 
             if velocity_qualified:
                 fresh_velocity_qualified += 1
+
+            if liquidity_ready:
+                fresh_liquidity_ready += 1
+
+            if cost_qualified:
+                fresh_cost_qualified += 1
 
             priority_rows.append(
                 (
                     symbol,
                     fresh,
+                    cost_qualified,
+                    liquidity_ready,
                     velocity_qualified,
                     score,
                     rank_index,
                 )
             )
 
-        # Fresh execution-quality-qualified microstructure comes first.
-        # Raw alpha score still ranks candidates inside each quality tier.
-        # This is probe ordering only and grants no execution authority.
+        # Spend scarce authenticated probes on the best evidence first:
+        # 1. current cost-qualified evidence,
+        # 2. strict velocity-qualified bursts,
+        # 3. liquid/tight/deep fresh microstructure,
+        # 4. raw observed edge.
+        #
+        # Ranking only. Every candidate still passes the normal strategy,
+        # economics, Bybit price-limit, liquidity, sellability and
+        # reconciliation gates before an order can exist.
         priority_rows.sort(
             key=lambda row: (
                 0 if row[1] else 1,
                 0 if row[2] else 1,
-                -row[3],
-                row[4],
+                0 if row[4] else 1,
+                0 if row[3] else 1,
+                -row[5],
+                row[6],
             )
         )
 
@@ -1175,7 +1316,7 @@ class _ExecutionFirstCandidateProxy:
 
         highest_priority_score = max(
             [
-                row[3]
+                row[5]
                 for row in priority_rows
                 if row[1]
             ]
@@ -1899,6 +2040,14 @@ class _ExecutionFirstCandidateProxy:
                 "raw_signal_priority_alignment": True,
                 "velocity_state_reused_for_priority": True,
                 "velocity_execution_quality_priority": True,
+                "cost_qualified_execution_priority": True,
+                "liquidity_ready_execution_priority": True,
+                "fresh_cost_qualified_candidates": (
+                    fresh_cost_qualified
+                ),
+                "fresh_liquidity_ready_candidates": (
+                    fresh_liquidity_ready
+                ),
                 "fresh_velocity_qualified_candidates": (
                     fresh_velocity_qualified
                 ),
