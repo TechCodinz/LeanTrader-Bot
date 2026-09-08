@@ -156,12 +156,82 @@ def merge_restored_signal(
             contribution.get("source") or f"legacy_{index}"
         ).replace(" ", "_")
         timeframe = str(contribution.get("timeframe") or "1m")
+
+        gross_edge = max(
+            0.0,
+            _n(metadata.get("gross_edge_bps")),
+        )
+        modeled_cost = max(
+            0.0,
+            _n(
+                metadata.get(
+                    "modeled_round_trip_cost_bps"
+                )
+            ),
+        )
+        conservative_net = max(
+            0.0,
+            _n(
+                metadata.get(
+                    "conservative_net_edge_bps"
+                )
+            ),
+        )
+        minimum_net = max(
+            0.0,
+            _n(
+                metadata.get(
+                    "minimum_positive_net_edge_bps"
+                ),
+                5.0,
+            ),
+        )
+
+        economically_positive = (
+            metadata.get("economically_positive")
+            is True
+        )
+
+        fast_execution_family = any(
+            source.startswith(prefix)
+            for prefix in (
+                "ultra_scalping.",
+                "continuous_scalping",
+                "continuous_momentum",
+                "continuous_breakout",
+                "legacy_swarm.scalping",
+                "ultra_quantum.microstructure_decoder",
+                "ultra_quantum.momentum",
+                "ultra_god_mode.quantum_price",
+                "ultra_fluid_mechanics",
+                "modern_fast.smart_scalping",
+                "modern_fast.technical_structure",
+                "modern_fast.spectral_harmonics",
+            )
+        )
+
+        execution_intent_qualified = bool(
+            fast_execution_family
+            and economically_positive
+            and conservative_net >= minimum_net
+            and gross_edge + 1e-12
+            >= modeled_cost + minimum_net
+        )
+
         key = f"legacy:{source}:{timeframe}:{index}"
         assessments[key] = {
             "direction": direction,
             "confidence": confidence,
             "expected_edge_bps": edge,
-            "independently_qualified": False,
+            "independently_qualified": (
+                execution_intent_qualified
+            ),
+            "legacy_execution_intent_qualified": (
+                execution_intent_qualified
+            ),
+            "legacy_execution_fast_family": (
+                fast_execution_family
+            ),
             "legacy_restoration": True,
             "source": source,
             "timeframe": timeframe,
@@ -182,7 +252,41 @@ def merge_restored_signal(
             "live_authority": False,
         }
 
+    execution_intents = [
+        {
+            "assessment": key,
+            "source": row.get("source"),
+            "timeframe": row.get("timeframe"),
+            "direction": row.get("direction"),
+            "confidence": row.get("confidence"),
+            "gross_edge_bps": row.get(
+                "legacy_gross_edge_bps"
+            ),
+            "conservative_net_edge_bps": row.get(
+                "legacy_conservative_net_edge_bps"
+            ),
+        }
+        for key, row in assessments.items()
+        if (
+            isinstance(row, dict)
+            and row.get(
+                "legacy_execution_intent_qualified"
+            )
+            is True
+        )
+    ]
+
     result["timeframe_assessments"] = assessments
+    result["legacy_execution_intents"] = (
+        execution_intents[:16]
+    )
+    result["legacy_execution_intent_active"] = bool(
+        execution_intents
+    )
+    result["legacy_execution_intent_delegate"] = (
+        "authenticated_testnet_fast_lane"
+    )
+    result["legacy_direct_execution_authority"] = False
     result["legacy_restoration_active"] = True
     result["legacy_direct_execution_authority"] = False
     result["live_authority"] = False
