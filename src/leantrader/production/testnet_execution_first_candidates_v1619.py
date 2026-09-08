@@ -33,6 +33,7 @@ PASS_CACHE_SECONDS = 1.5
 MAX_SAME_CYCLE_FALLBACK_PASSES = 3
 MIN_FREE_QUOTE_RESERVE_USD = 0.01
 SIGNAL_REFRESH_PIN_SECONDS = 6.0
+MAX_STICKY_WARM_RECHECKS = 2
 
 
 def _n(
@@ -969,6 +970,12 @@ class _ExecutionFirstCandidateProxy:
                 )
                 or 0
             )
+            sticky_warm_rechecks = int(
+                self._lane.state.get(
+                    "v1623_sticky_warm_rechecks"
+                )
+                or 0
+            )
 
         if raw:
             cursor_start %= len(raw)
@@ -1509,20 +1516,43 @@ class _ExecutionFirstCandidateProxy:
             )
         )
 
-        next_cursor = (
-            (
-                cursor_start
-                + visited
-            )
-            % len(raw)
-            if raw
-            else 0
+        sticky_warm_recheck = bool(
+            raw
+            and not selected
+            and warmed_candidates
+            and probe_checks
+            < MAX_EMPTY_SELECTION_NETWORK_PROBES_PER_CALL
+            and sticky_warm_rechecks
+            < MAX_STICKY_WARM_RECHECKS
         )
+
+        if sticky_warm_recheck:
+            # Give the cohort we just warmed a bounded chance to become
+            # <=2s fresh before rotating away from it.
+            next_cursor = cursor_start
+            next_sticky_warm_rechecks = (
+                sticky_warm_rechecks + 1
+            )
+        else:
+            next_cursor = (
+                (
+                    cursor_start
+                    + visited
+                )
+                % len(raw)
+                if raw
+                else 0
+            )
+            next_sticky_warm_rechecks = 0
 
         with self._lane._lock:
             self._lane.state[
                 "v1636_execution_probe_cursor"
             ] = next_cursor
+
+            self._lane.state[
+                "v1623_sticky_warm_rechecks"
+            ] = next_sticky_warm_rechecks
 
             self._lane.state[
                 "v1636_execution_probe_rotation_calls"
@@ -1704,6 +1734,13 @@ class _ExecutionFirstCandidateProxy:
                 "probe_cursor_start": cursor_start,
                 "probe_cursor_next": next_cursor,
                 "persistent_rotating_probe_cursor": True,
+                "sticky_warm_recheck": sticky_warm_recheck,
+                "sticky_warm_rechecks": (
+                    next_sticky_warm_rechecks
+                ),
+                "maximum_sticky_warm_rechecks": (
+                    MAX_STICKY_WARM_RECHECKS
+                ),
                 "cyclic_strategy_rank_order_preserved": True,
                 "free_usdt": (
                     free_usdt
