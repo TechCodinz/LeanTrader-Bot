@@ -35,7 +35,6 @@ def main():
     # Start background services (lightweight)
     try:
         import os
-from typing import Callable
 
         run_daemons = os.getenv("RUN_DAEMONS", "true").strip().lower() in ("1", "true", "yes", "on")
         if run_daemons:
