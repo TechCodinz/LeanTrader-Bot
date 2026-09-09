@@ -15,12 +15,157 @@ class RiskEngine:
         self.daily_loss_limit = 50.0  # $50 daily loss limit
 
     async def check_scalp_risk(self, signal) -> bool:
-        """Check if scalping trade is within risk limits"""
-        return True
+        """Validate a scalp signal against real signal fields."""
+        try:
+            if isinstance(signal, dict):
+                getter = signal.get
+            else:
+                getter = lambda key, default=None: getattr(
+                    signal,
+                    key,
+                    default,
+                )
+
+            confidence = float(
+                getter("confidence", 0.0)
+                or 0.0
+            )
+
+            entry = float(
+                getter(
+                    "entry_price",
+                    getter("price", 0.0),
+                )
+                or 0.0
+            )
+
+            stop = float(
+                getter(
+                    "stop_loss",
+                    0.0,
+                )
+                or 0.0
+            )
+
+            minimum = float(
+                os.getenv(
+                    "SCALP_MIN_CONFIDENCE",
+                    "0.70",
+                )
+            )
+
+            if confidence < minimum:
+                return False
+
+            if entry <= 0.0:
+                return False
+
+            if stop > 0.0:
+                stop_distance = abs(
+                    entry - stop
+                ) / entry
+
+                max_stop = float(
+                    os.getenv(
+                        "SCALP_MAX_STOP_PCT",
+                        "0.03",
+                    )
+                )
+
+                if (
+                    stop_distance <= 0.0
+                    or stop_distance > max_stop
+                ):
+                    return False
+
+            return True
+
+        except Exception:
+            return False
 
     async def check_arbitrage_risk(self, opportunity) -> bool:
-        """Check if arbitrage trade is within risk limits"""
-        return True
+        """Validate arbitrage economics before execution."""
+        try:
+            if isinstance(
+                opportunity,
+                dict,
+            ):
+                getter = opportunity.get
+            else:
+                getter = lambda key, default=None: getattr(
+                    opportunity,
+                    key,
+                    default,
+                )
+
+            buy_price = float(
+                getter(
+                    "buy_price",
+                    getter("buy", 0.0),
+                )
+                or 0.0
+            )
+
+            sell_price = float(
+                getter(
+                    "sell_price",
+                    getter("sell", 0.0),
+                )
+                or 0.0
+            )
+
+            spread_bps = float(
+                getter(
+                    "spread_pips",
+                    getter(
+                        "spread_bps",
+                        0.0,
+                    ),
+                )
+                or 0.0
+            )
+
+            confidence = float(
+                getter(
+                    "confidence",
+                    1.0,
+                )
+                or 0.0
+            )
+
+            minimum_bps = float(
+                os.getenv(
+                    "ARBITRAGE_MIN_BPS",
+                    "5.0",
+                )
+            )
+
+            minimum_confidence = float(
+                os.getenv(
+                    "ARBITRAGE_MIN_CONFIDENCE",
+                    "0.70",
+                )
+            )
+
+            if (
+                buy_price <= 0.0
+                or sell_price <= buy_price
+            ):
+                return False
+
+            if spread_bps < minimum_bps:
+                return False
+
+            if (
+                confidence
+                < minimum_confidence
+            ):
+                return False
+
+            return True
+
+        except Exception:
+            return False
 
     async def update_risk_parameters(self, params: Dict[str, Any]) -> None:
         """Update risk parameters"""

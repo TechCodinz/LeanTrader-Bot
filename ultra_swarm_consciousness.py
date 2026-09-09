@@ -17,7 +17,8 @@ import queue
 import logging
 import hashlib
 import pandas as pd
-from collections import deque
+import numpy as np
+from collections import defaultdict, deque
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
@@ -106,38 +107,72 @@ class SwarmAgent:
             self.logger.error(f"Error in agent {self.agent_id} analysis: {e}")
             return None
 
-    async def _get_market_data(self, symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
-        """Get market data for analysis"""
+    async def _get_market_data(
+        self,
+        symbol: str,
+        timeframe: str,
+    ) -> Optional[pd.DataFrame]:
+        """Read real OHLCV from UltraCore."""
         try:
-            # Simulate market data fetching
-            # In real implementation, this would fetch from exchanges
-            data_points = 100
-            base_price = 50000 if 'BTC' in symbol else 3000 if 'ETH' in symbol else 500
-
-            prices = []
-            current_price = base_price
-            for i in range(data_points):
-                # Simulate price movement
-                change = np.random.normal(0, 0.02) * current_price
-                current_price += change
-                prices.append(current_price)
-
-            # Create OHLCV data
-            df = pd.DataFrame(
-                {
-                    'timestamp': [time.time() - (data_points - i) * 60 for i in range(data_points)],
-                    'open': prices,
-                    'high': [p * (1 + abs(np.random.normal(0, 0.01))) for p in prices],
-                    'low': [p * (1 - abs(np.random.normal(0, 0.01))) for p in prices],
-                    'close': prices,
-                    'volume': [np.random.uniform(100, 1000) for _ in range(data_points)],
-                }
+            payload = await self.ultra_core.get_market_data(
+                symbol,
+                timeframe,
             )
 
-            return df
+            if not isinstance(
+                payload,
+                dict,
+            ):
+                return None
 
-        except Exception as e:
-            self.logger.error(f"Error getting market data: {e}")
+            rows = (
+                payload.get("ohlcv")
+                or []
+            )
+
+            if (
+                not isinstance(rows, list)
+                or len(rows) < 20
+            ):
+                return None
+
+            clean = []
+
+            for row in rows:
+                if (
+                    isinstance(
+                        row,
+                        (list, tuple),
+                    )
+                    and len(row) >= 6
+                ):
+                    clean.append(
+                        row[:6]
+                    )
+
+            if len(clean) < 20:
+                return None
+
+            return pd.DataFrame(
+                clean,
+                columns=[
+                    "timestamp",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                ],
+            )
+
+        except Exception as exc:
+            self.logger.error(
+                "Error getting real market "
+                "data for %s %s: %s",
+                symbol,
+                timeframe,
+                exc,
+            )
             return None
 
     async def _analyze_scalping(
@@ -314,6 +349,7 @@ class SwarmConsciousness:
         # Agent management
         self.agents: List[SwarmAgent] = []
         self.signal_queue = queue.Queue()
+        self.recent_signals = deque(maxlen=2000)
         self.collective_awareness = CollectiveAwareness(
             timestamp=time.time(),
             market_state='normal',
@@ -416,23 +452,42 @@ class SwarmConsciousness:
                 self.logger.error(f"Error in consciousness processing: {e}")
                 await asyncio.sleep(1)
 
-    async def _process_signals(self, signals: List[SwarmSignal]):
-        """Process collected signals and update collective awareness"""
+    async def _process_signals(
+        self,
+        signals: List[SwarmSignal],
+    ):
+        """Process real agent signals and retain a recent execution feed."""
         if not signals:
             return
 
-        # Group signals by symbol and timeframe
-        signal_groups = defaultdict(list)
+        self.recent_signals.extend(
+            signals
+        )
+
+        signal_groups = defaultdict(
+            list
+        )
+
         for signal in signals:
-            key = f"{signal.symbol}_{signal.timeframe}"
-            signal_groups[key].append(signal)
+            key = (
+                f"{signal.symbol}_"
+                f"{signal.timeframe}"
+            )
 
-        # Process each group
-        for key, group_signals in signal_groups.items():
-            await self._process_signal_group(group_signals)
+            signal_groups[key].append(
+                signal
+            )
 
-        # Update collective awareness
-        await self._update_collective_awareness(signals)
+        for group_signals in (
+            signal_groups.values()
+        ):
+            await self._process_signal_group(
+                group_signals
+            )
+
+        await self._update_collective_awareness(
+            signals
+        )
 
     async def _process_signal_group(self, signals: List[SwarmSignal]):
         """Process a group of signals for the same symbol/timeframe"""
@@ -577,52 +632,23 @@ class SwarmConsciousness:
                 await asyncio.sleep(5)
 
     async def _execute_testnet_trades(self):
-        """Execute trades on testnet based on swarm signals"""
-        # This would implement actual testnet trading
-        # For now, we'll simulate the trading logic
+        """
+        Swarm publishes intelligence only.
 
-        # Get recent high-confidence signals
-        recent_signals = []
-        while not self.signal_queue.empty():
-            try:
-                signal = self.signal_queue.get_nowait()
-                if signal.confidence > 0.8:
-                    recent_signals.append(signal)
-            except queue.Empty:
-                break
+        Actual authenticated Testnet orders are
+        consumed by TestnetTradingEngine from
+        recent_signals, preventing duplicate orders.
+        """
+        return
 
-        # Execute trades based on signals
-        for signal in recent_signals:
-            if signal.signal_type in ['buy', 'sell']:
-                await self._execute_testnet_trade(signal)
-
-    async def _execute_testnet_trade(self, signal: SwarmSignal):
-        """Execute a single testnet trade"""
-        try:
-            # Simulate testnet trade execution
-            trade_id = hashlib.md5(f"{signal.agent_id}_{signal.timestamp}".encode()).hexdigest()[:8]
-
-            trade = {
-                'id': trade_id,
-                'symbol': signal.symbol,
-                'side': signal.signal_type,
-                'price': signal.price,
-                'confidence': signal.confidence,
-                'timestamp': signal.timestamp,
-                'agent_id': signal.agent_id,
-                'testnet': True,
-            }
-
-            self.active_trades[trade_id] = trade
-            self.trade_history.append(trade)
-
-            self.logger.info(
-                f"Testnet trade executed: {signal.signal_type} {signal.symbol} "
-                f"at {signal.price} (confidence: {signal.confidence:.2f})"
-            )
-
-        except Exception as e:
-            self.logger.error(f"Error executing testnet trade: {e}")
+    async def _execute_testnet_trade(
+        self,
+        signal: SwarmSignal,
+    ):
+        """Retain signal for the native Testnet execution engine."""
+        self.recent_signals.append(
+            signal
+        )
 
     async def _performance_monitoring_loop(self):
         """Monitor and track swarm performance"""
@@ -636,30 +662,30 @@ class SwarmConsciousness:
                 await asyncio.sleep(60)
 
     async def _update_performance_metrics(self):
-        """Update performance metrics for all agents"""
-        current_time = time.time()
+        """Report observed swarm activity without synthetic performance."""
+        total_agents = len(
+            self.agents
+        )
 
-        # Calculate performance for each agent
-        for agent in self.agents:
-            if len(agent.performance_history) > 0:
-                # Simple performance calculation
-                recent_trades = [
-                    t for t in agent.performance_history if current_time - t['timestamp'] < 3600
-                ]  # Last hour
+        active_agents = (
+            self.collective_awareness
+            .active_agents
+        )
 
-                if recent_trades:
-                    # Simulate performance calculation
-                    performance = np.random.normal(0.02, 0.05)  # 2% average, 5% std
-                    agent.performance_history[-1]['performance'] = performance
-
-        # Log swarm performance
-        total_agents = len(self.agents)
-        active_agents = self.collective_awareness.active_agents
-        signals_count = self.collective_awareness.signals_count
+        signals_count = (
+            self.collective_awareness
+            .signals_count
+        )
 
         self.logger.info(
-            f"Swarm Performance: {active_agents}/{total_agents} agents active, "
-            f"{signals_count} signals, opportunity score: {self.collective_awareness.opportunity_score:.2f}"
+            "Swarm activity: %s/%s agents "
+            "active, %s signals, "
+            "opportunity score %.3f",
+            active_agents,
+            total_agents,
+            signals_count,
+            self.collective_awareness
+            .opportunity_score,
         )
 
     async def _black_swan_detection_loop(self):

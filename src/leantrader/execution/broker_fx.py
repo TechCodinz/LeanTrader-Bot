@@ -1,4 +1,5 @@
 import os
+from typing import Any, Dict
 
 class BrokerFX:
     """FX broker adapter (OANDA/MT5) with strong safety guards.

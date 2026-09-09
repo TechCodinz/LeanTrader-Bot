@@ -13,8 +13,11 @@ This system:
 """
 
 import asyncio
+import os
 import time
 import logging
+from collections import deque
+import numpy as np
 
 # Core imports
 from ultra_core import UltraCore
@@ -83,13 +86,21 @@ class TestnetTradingEngine:
         self._initialize_market_data()
 
     def _initialize_market_data(self):
-        """Initialize simulated market data"""
-        base_prices = {'BTC/USDT': 50000, 'ETH/USDT': 3000, 'BNB/USDT': 500}
-
+        """Initialize empty state; prices are populated from real public feeds."""
         for symbol in self.symbols:
-            self.market_prices[symbol] = base_prices[symbol]
-            self.price_history[symbol] = deque(maxlen=1000)
-            self.volatility_data[symbol] = 0.02  # 2% base volatility
+            self.market_prices[
+                symbol
+            ] = 0.0
+
+            self.price_history[
+                symbol
+            ] = deque(
+                maxlen=1000
+            )
+
+            self.volatility_data[
+                symbol
+            ] = 0.0
 
     async def start_testnet_trading(self):
         """Start the testnet trading system"""
@@ -121,44 +132,107 @@ class TestnetTradingEngine:
                 await asyncio.sleep(1)
 
     async def _update_market_prices(self):
-        """Update simulated market prices"""
+        """Refresh real market prices from UltraCore."""
         current_time = time.time()
 
         for symbol in self.symbols:
-            # Get current price
-            current_price = self.market_prices[symbol]
+            try:
+                payload = await self.ultra_core.get_market_data(
+                    symbol,
+                    "1m",
+                )
 
-            # Simulate price movement using geometric Brownian motion
-            dt = 0.1  # 100ms time step
-            volatility = self.volatility_data[symbol]
-            drift = 0.0001  # Slight upward drift
+                if not isinstance(
+                    payload,
+                    dict,
+                ):
+                    continue
 
-            # Random walk
-            random_shock = np.random.normal(0, 1)
-            price_change = current_price * (drift * dt + volatility * np.sqrt(dt) * random_shock)
+                price = float(
+                    payload.get(
+                        "close",
+                        0.0,
+                    )
+                    or 0.0
+                )
 
-            # Update price
-            new_price = max(
-                current_price + price_change, current_price * 0.5
-            )  # Prevent negative prices
-            self.market_prices[symbol] = new_price
+                if price <= 0.0:
+                    continue
 
-            # Update price history
-            self.price_history[symbol].append(
-                {
-                    'timestamp': current_time,
-                    'price': new_price,
-                    'volume': np.random.uniform(100, 1000),
-                }
-            )
+                rows = (
+                    payload.get(
+                        "ohlcv",
+                    )
+                    or []
+                )
 
-            # Update volatility based on recent price movements
-            if len(self.price_history[symbol]) > 20:
-                recent_prices = [p['price'] for p in list(self.price_history[symbol])[-20:]]
-                returns = np.diff(np.log(recent_prices))
-                self.volatility_data[symbol] = np.std(returns) * np.sqrt(
-                    252
-                )  # Annualized volatility
+                volume = 0.0
+
+                if (
+                    rows
+                    and isinstance(
+                        rows[-1],
+                        (list, tuple),
+                    )
+                    and len(rows[-1]) >= 6
+                ):
+                    volume = float(
+                        rows[-1][5]
+                        or 0.0
+                    )
+
+                self.market_prices[
+                    symbol
+                ] = price
+
+                self.price_history[
+                    symbol
+                ].append(
+                    {
+                        "timestamp": (
+                            current_time
+                        ),
+                        "price": price,
+                        "volume": volume,
+                    }
+                )
+
+                history = list(
+                    self.price_history[
+                        symbol
+                    ]
+                )
+
+                if len(history) >= 20:
+                    prices = np.asarray(
+                        [
+                            row["price"]
+                            for row in history[-20:]
+                            if row["price"] > 0
+                        ],
+                        dtype=float,
+                    )
+
+                    if len(prices) >= 2:
+                        returns = np.diff(
+                            np.log(prices)
+                        )
+
+                        self.volatility_data[
+                            symbol
+                        ] = float(
+                            np.std(
+                                returns
+                            )
+                        )
+
+            except Exception as exc:
+                self.logger.error(
+                    "Real market update failed "
+                    "for %s: %s",
+                    symbol,
+                    exc,
+                )
 
     async def _signal_processing_loop(self):
         """Process signals from swarm consciousness"""
@@ -178,33 +252,66 @@ class TestnetTradingEngine:
                 await asyncio.sleep(1)
 
     async def _get_swarm_signals(self):
-        """Get signals from swarm consciousness"""
-        # This would integrate with the actual swarm consciousness system
-        # For now, we'll simulate getting signals
-
-        signals = []
+        """Consume recent real-data signals produced by the swarm."""
         current_time = time.time()
 
-        # Simulate signal generation
-        if np.random.random() < 0.1:  # 10% chance of signal per cycle
-            symbol = np.random.choice(self.symbols)
-            signal_type = np.random.choice(['buy', 'sell'])
-            confidence = np.random.uniform(0.6, 0.95)
-
-            signal = SwarmSignal(
-                agent_id=f"testnet_agent_{np.random.randint(0, 100)}",
-                symbol=symbol,
-                timeframe=np.random.choice(self.timeframes),
-                signal_type=signal_type,
-                confidence=confidence,
-                price=self.market_prices[symbol],
-                timestamp=current_time,
-                metadata={'testnet': True},
-                reasoning=f"Testnet signal: {signal_type} {symbol}",
+        recent = list(
+            getattr(
+                self.swarm,
+                "recent_signals",
+                [],
             )
-            signals.append(signal)
+        )
 
-        return signals
+        selected = []
+        seen = set()
+
+        for signal in reversed(
+            recent
+        ):
+            try:
+                if (
+                    current_time
+                    - float(
+                        signal.timestamp
+                    )
+                    > 3.0
+                ):
+                    continue
+
+                if (
+                    float(
+                        signal.confidence
+                    )
+                    < self.min_confidence
+                ):
+                    continue
+
+                key = (
+                    signal.agent_id,
+                    signal.symbol,
+                    signal.timeframe,
+                    signal.signal_type,
+                    signal.timestamp,
+                )
+
+                if key in seen:
+                    continue
+
+                seen.add(key)
+                selected.append(
+                    signal
+                )
+
+                if len(selected) >= 50:
+                    break
+
+            except Exception:
+                continue
+
+        return list(
+            reversed(selected)
+        )
 
     async def _process_signal(self, signal: SwarmSignal):
         """Process a single signal and potentially execute a trade"""
@@ -243,44 +350,130 @@ class TestnetTradingEngine:
 
         return True
 
-    async def _execute_testnet_trade(self, signal: SwarmSignal):
-        """Execute a testnet trade based on signal"""
+    async def _execute_testnet_trade(
+        self,
+        signal: SwarmSignal,
+    ):
+        """Submit an authenticated exchange Testnet order."""
         try:
-            # Generate trade ID
-            trade_id = f"testnet_{int(time.time() * 1000)}_{np.random.randint(1000, 9999)}"
+            from src.leantrader.execution.router import (
+                route_order,
+            )
 
-            # Calculate position size
-            account_balance = 1000.0  # Simulated account balance
-            position_size = account_balance * self.risk_engine.RISK_PCT_PER_TRADE
+            price = float(
+                signal.price
+                or self.market_prices.get(
+                    signal.symbol,
+                    0.0,
+                )
+                or 0.0
+            )
 
-            # Calculate quantity
-            quantity = position_size / signal.price
+            if price <= 0.0:
+                return
 
-            # Create trade record
+            order_usd = float(
+                os.getenv(
+                    "TESTNET_ORDER_USD",
+                    "5.0",
+                )
+            )
+
+            quantity = (
+                order_usd / price
+            )
+
+            result = await asyncio.to_thread(
+                route_order,
+                {
+                    "symbol": (
+                        signal.symbol
+                    ),
+                    "side": (
+                        signal.signal_type
+                    ),
+                    "qty": quantity,
+                    "price": price,
+                },
+                "ccxt",
+            )
+
+            if (
+                not result.get("ok")
+                or not result.get(
+                    "executed"
+                )
+                or result.get(
+                    "simulated"
+                )
+            ):
+                self.logger.warning(
+                    "Testnet order rejected: "
+                    "%s",
+                    result.get(
+                        "error",
+                        result,
+                    ),
+                )
+                return
+
+            order = (
+                result.get("order")
+                or {}
+            )
+
+            fill_price = float(
+                order.get("average")
+                or order.get("price")
+                or price
+            )
+
+            trade_id = str(
+                order.get("id")
+                or (
+                    f"testnet_"
+                    f"{int(time.time()*1000)}"
+                )
+            )
+
             trade = TestnetTrade(
                 trade_id=trade_id,
                 symbol=signal.symbol,
                 side=signal.signal_type,
-                price=signal.price,
+                price=fill_price,
                 quantity=quantity,
-                timestamp=signal.timestamp,
+                timestamp=time.time(),
                 agent_id=signal.agent_id,
-                confidence=signal.confidence,
-                reasoning=signal.reasoning,
-                status='open',
+                confidence=(
+                    signal.confidence
+                ),
+                reasoning=(
+                    signal.reasoning
+                ),
+                status="open",
             )
 
-            # Add to active trades
-            self.active_trades[trade_id] = trade
+            self.active_trades[
+                trade_id
+            ] = trade
 
-            # Log trade
             self.logger.info(
-                f"Testnet trade opened: {signal.signal_type} {signal.symbol} "
-                f"at {signal.price:.2f} (confidence: {signal.confidence:.2f})"
+                "AUTH TESTNET OPEN %s %s "
+                "qty=%.8f price=%.8f "
+                "order=%s",
+                trade.side,
+                trade.symbol,
+                trade.quantity,
+                trade.price,
+                trade.trade_id,
             )
 
-        except Exception as e:
-            self.logger.error(f"Error executing testnet trade: {e}")
+        except Exception as exc:
+            self.logger.error(
+                "Authenticated Testnet "
+                "execution error: %s",
+                exc,
+            )
 
     async def _trade_management_loop(self):
         """Manage open trades and check for exit conditions"""
@@ -346,38 +539,118 @@ class TestnetTradingEngine:
 
         return False, 0.0, ""
 
-    async def _close_trade(self, trade_id: str, exit_price: float, exit_reason: str):
-        """Close a trade and record results"""
+    async def _close_trade(
+        self,
+        trade_id: str,
+        exit_price: float,
+        exit_reason: str,
+    ):
+        """Close with an authenticated opposite Testnet order."""
         try:
-            trade = self.active_trades[trade_id]
-
-            # Calculate final P&L
-            if trade.side == 'buy':
-                pnl = (exit_price - trade.price) / trade.price
-            else:
-                pnl = (trade.price - exit_price) / trade.price
-
-            # Update trade record
-            trade.status = 'closed'
-            trade.exit_price = exit_price
-            trade.exit_timestamp = time.time()
-            trade.pnl = pnl
-
-            # Move to history
-            self.trade_history.append(trade)
-            del self.active_trades[trade_id]
-
-            # Update performance metrics
-            self._update_performance_metrics(trade)
-
-            # Log trade closure
-            self.logger.info(
-                f"Testnet trade closed: {trade.symbol} {trade.side} "
-                f"P&L: {pnl:.3%} ({exit_reason})"
+            from src.leantrader.execution.router import (
+                route_order,
             )
 
-        except Exception as e:
-            self.logger.error(f"Error closing trade {trade_id}: {e}")
+            trade = self.active_trades[
+                trade_id
+            ]
+
+            close_side = (
+                "sell"
+                if trade.side == "buy"
+                else "buy"
+            )
+
+            result = await asyncio.to_thread(
+                route_order,
+                {
+                    "symbol": trade.symbol,
+                    "side": close_side,
+                    "qty": trade.quantity,
+                    "price": exit_price,
+                },
+                "ccxt",
+            )
+
+            if (
+                not result.get("ok")
+                or not result.get(
+                    "executed"
+                )
+                or result.get(
+                    "simulated"
+                )
+            ):
+                self.logger.warning(
+                    "Testnet close rejected "
+                    "for %s: %s",
+                    trade_id,
+                    result.get(
+                        "error",
+                        result,
+                    ),
+                )
+                return
+
+            order = (
+                result.get("order")
+                or {}
+            )
+
+            actual_exit = float(
+                order.get("average")
+                or order.get("price")
+                or exit_price
+            )
+
+            if trade.side == "buy":
+                pnl = (
+                    actual_exit
+                    - trade.price
+                ) / trade.price
+            else:
+                pnl = (
+                    trade.price
+                    - actual_exit
+                ) / trade.price
+
+            trade.status = "closed"
+            trade.exit_price = (
+                actual_exit
+            )
+            trade.exit_timestamp = (
+                time.time()
+            )
+            trade.pnl = pnl
+
+            self.trade_history.append(
+                trade
+            )
+
+            del self.active_trades[
+                trade_id
+            ]
+
+            self._update_performance_metrics(
+                trade
+            )
+
+            self.logger.info(
+                "AUTH TESTNET CLOSE %s "
+                "%s pnl=%.6f reason=%s",
+                trade.symbol,
+                trade.side,
+                pnl,
+                exit_reason,
+            )
+
+        except Exception as exc:
+            self.logger.error(
+                "Authenticated Testnet "
+                "close error %s: %s",
+                trade_id,
+                exc,
+            )
 
     def _update_performance_metrics(self, trade: TestnetTrade):
         """Update performance metrics with new trade"""
