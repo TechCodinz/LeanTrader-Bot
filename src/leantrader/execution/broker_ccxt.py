@@ -1,17 +1,35 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import time
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 
-def _env_bool(name: str, default: bool = False) -> bool:
-    value = os.getenv(
+EXECUTION_MODES = {
+    "auto",
+    "paper",
+    "testnet",
+    "live",
+}
+
+_PROBE_CACHE: Dict[
+    Tuple[str, str],
+    Tuple[str, float],
+] = {}
+
+_PROBE_TTL_SECONDS = 300.0
+
+
+def _env_bool(
+    name: str,
+    default: bool = False,
+) -> bool:
+    return os.getenv(
         name,
         "true" if default else "false",
-    )
-
-    return value.strip().lower() in {
+    ).strip().lower() in {
         "1",
         "true",
         "yes",
@@ -19,64 +37,209 @@ def _env_bool(name: str, default: bool = False) -> bool:
     }
 
 
-class BrokerCCXT:
+def _normalize_mode(
+    value: Optional[str],
+) -> str:
+    value = str(
+        value or ""
+    ).strip().lower()
+
+    aliases = {
+        "sandbox": "testnet",
+        "demo": "testnet",
+        "practice": "testnet",
+        "real": "live",
+        "production": "live",
+        "prod": "live",
+        "simulation": "paper",
+        "sim": "paper",
+        "emu": "paper",
+    }
+
+    value = aliases.get(
+        value,
+        value,
+    )
+
+    if value in EXECUTION_MODES:
+        return value
+
+    return "auto"
+
+
+def _legacy_mode() -> str:
     """
-    Native LeanTrader CCXT execution backend.
-
-    Supports:
-      - authenticated exchange Testnet execution
-      - public market reads
-      - explicitly configured live execution
-      - no fabricated fill when execution authority is absent
+    Preserve compatibility with old environment files,
+    without making those flags the architecture.
     """
+    explicit = os.getenv(
+        "EXECUTION_MODE",
+        "",
+    ).strip()
 
-    def __init__(self) -> None:
-        self.exchange_id = (
-            os.getenv("CCXT_EXCHANGE")
-            or os.getenv("EXCHANGE_ID")
-            or "bybit"
-        ).lower()
-
-        self.mode = (
-            os.getenv("EXCHANGE_MODE")
-            or "spot"
-        ).lower()
-
-        self.testnet = (
-            _env_bool("CCXT_TESTNET", False)
-            or _env_bool("BYBIT_TESTNET", False)
+    if explicit:
+        return _normalize_mode(
+            explicit
         )
 
-        self.enable_live = _env_bool(
+    if (
+        _env_bool(
+            "CCXT_TESTNET",
+            False,
+        )
+        or _env_bool(
+            "BYBIT_TESTNET",
+            False,
+        )
+    ):
+        return "testnet"
+
+    legacy_live = (
+        _env_bool(
             "ENABLE_LIVE",
             False,
         )
-
-        self.allow_live = _env_bool(
+        and _env_bool(
             "ALLOW_LIVE",
             False,
         )
-
-        self.live_confirm = (
+        and (
             os.getenv(
                 "LIVE_CONFIRM",
                 "",
             ).strip().upper()
             == "YES"
         )
+    )
 
-        prefix = self.exchange_id.upper()
+    if legacy_live:
+        return "live"
+
+    trading_mode = os.getenv(
+        "TRADING_MODE",
+        "",
+    ).strip().lower()
+
+    if trading_mode in {
+        "paper",
+        "simulation",
+        "sim",
+    }:
+        return "paper"
+
+    return "auto"
+
+
+class BrokerCCXT:
+    """
+    Native LeanTrader exchange execution backend.
+
+    Strategy engines do not know whether execution is:
+      - paper
+      - testnet/sandbox
+      - live/production
+
+    EXECUTION_MODE controls that at runtime.
+
+    In auto mode:
+      - no credentials -> paper
+      - sandbox credentials authenticate -> testnet
+      - production credentials authenticate -> live
+      - credentials authenticate nowhere -> invalid/no authority
+
+    Environment detection uses read-only authenticated calls.
+    """
+
+    def __init__(
+        self,
+        execution_mode: Optional[str] = None,
+        exchange_id: Optional[str] = None,
+    ) -> None:
+        self.exchange_id = (
+            exchange_id
+            or os.getenv(
+                "CCXT_EXCHANGE"
+            )
+            or os.getenv(
+                "EXCHANGE_ID"
+            )
+            or "bybit"
+        ).strip().lower()
+
+        self.market_mode = (
+            os.getenv(
+                "EXCHANGE_MODE",
+                "spot",
+            )
+            or "spot"
+        ).strip().lower()
+
+        self.requested_mode = (
+            _normalize_mode(
+                execution_mode
+            )
+            if execution_mode
+            else _legacy_mode()
+        )
+
+        prefix = (
+            self.exchange_id
+            .replace("-", "_")
+            .upper()
+        )
 
         self.api_key = (
-            os.getenv("API_KEY")
-            or os.getenv(f"{prefix}_API_KEY")
+            os.getenv(
+                f"{prefix}_API_KEY"
+            )
+            or os.getenv(
+                "CCXT_API_KEY"
+            )
+            or os.getenv(
+                "API_KEY"
+            )
             or ""
         )
 
         self.api_secret = (
-            os.getenv("API_SECRET")
-            or os.getenv(f"{prefix}_API_SECRET")
-            or os.getenv(f"{prefix}_SECRET_KEY")
+            os.getenv(
+                f"{prefix}_API_SECRET"
+            )
+            or os.getenv(
+                f"{prefix}_SECRET_KEY"
+            )
+            or os.getenv(
+                "CCXT_API_SECRET"
+            )
+            or os.getenv(
+                "API_SECRET"
+            )
+            or ""
+        )
+
+        self.password = (
+            os.getenv(
+                f"{prefix}_API_PASSWORD"
+            )
+            or os.getenv(
+                f"{prefix}_PASSPHRASE"
+            )
+            or os.getenv(
+                "CCXT_API_PASSWORD"
+            )
+            or os.getenv(
+                "API_PASSWORD"
+            )
+            or ""
+        )
+
+        self.uid = (
+            os.getenv(
+                f"{prefix}_UID"
+            )
+            or os.getenv(
+                "CCXT_UID"
+            )
             or ""
         )
 
@@ -85,52 +248,181 @@ class BrokerCCXT:
             and self.api_secret
         )
 
-        self.live = bool(
-            not self.testnet
-            and self.enable_live
-            and self.allow_live
-            and self.live_confirm
-            and self.has_credentials
+        self._resolved_mode: Optional[
+            str
+        ] = None
+
+        self._exchange_cache: Dict[
+            Tuple[str, bool],
+            Any,
+        ] = {}
+
+        self._probe_errors: Dict[
+            str,
+            str,
+        ] = {}
+
+    def _credential_fingerprint(
+        self,
+    ) -> str:
+        if not self.has_credentials:
+            return "public"
+
+        payload = (
+            self.api_key
+            + "\0"
+            + self.api_secret
+            + "\0"
+            + self.password
+        ).encode(
+            "utf-8",
+            errors="ignore",
         )
 
-        self.testnet_authority = bool(
-            self.testnet
-            and self.has_credentials
-        )
+        return hashlib.sha256(
+            payload
+        ).hexdigest()[:16]
 
-        if self.testnet_authority:
-            self.authority = "testnet"
-        elif self.live:
-            self.authority = "live"
-        else:
-            self.authority = "none"
-
-        self._ex = None
-
-    def _ensure_ex(self):
-        if self._ex is not None:
-            return self._ex
-
+    def _ccxt_class(
+        self,
+    ):
         try:
             import ccxt
         except Exception as exc:
             raise RuntimeError(
-                f"ccxt import failed: {exc}"
+                "ccxt import failed"
             ) from exc
 
-        klass = getattr(
-            ccxt,
-            self.exchange_id,
-            None,
-        )
+        candidates = [
+            self.exchange_id
+        ]
 
-        if klass is None:
-            raise RuntimeError(
-                f"Unsupported CCXT exchange: "
-                f"{self.exchange_id}"
+        if self.exchange_id == "gate":
+            candidates.append(
+                "gateio"
             )
 
-        opts: Dict[str, Any] = {
+        if self.exchange_id == "gateio":
+            candidates.append(
+                "gate"
+            )
+
+        for candidate in candidates:
+            klass = getattr(
+                ccxt,
+                candidate,
+                None,
+            )
+
+            if klass is not None:
+                return klass
+
+        raise RuntimeError(
+            "Unsupported CCXT exchange: "
+            f"{self.exchange_id}"
+        )
+
+    def _base_options(
+        self,
+    ) -> Dict[str, Any]:
+        options: Dict[
+            str,
+            Any,
+        ] = {}
+
+        if self.exchange_id == "bybit":
+            options[
+                "defaultType"
+            ] = (
+                "swap"
+                if self.market_mode
+                in {
+                    "linear",
+                    "swap",
+                    "futures",
+                    "future",
+                }
+                else "spot"
+            )
+
+            if (
+                self.market_mode
+                == "linear"
+            ):
+                options[
+                    "defaultSubType"
+                ] = "linear"
+
+        elif (
+            self.exchange_id
+            == "binance"
+            and self.market_mode
+            in {
+                "linear",
+                "swap",
+                "future",
+                "futures",
+            }
+        ):
+            options[
+                "defaultType"
+            ] = "future"
+
+        extra = os.getenv(
+            "CCXT_OPTIONS_JSON",
+            "",
+        ).strip()
+
+        if extra:
+            try:
+                parsed = json.loads(
+                    extra
+                )
+
+                if isinstance(
+                    parsed,
+                    dict,
+                ):
+                    options.update(
+                        parsed
+                    )
+            except Exception:
+                pass
+
+        return options
+
+    def _make_exchange(
+        self,
+        environment: str,
+        authenticated: bool,
+    ):
+        environment = (
+            "testnet"
+            if environment
+            == "testnet"
+            else "live"
+        )
+
+        key = (
+            environment,
+            bool(authenticated),
+        )
+
+        cached = (
+            self._exchange_cache.get(
+                key
+            )
+        )
+
+        if cached is not None:
+            return cached
+
+        klass = self._ccxt_class()
+
+        opts: Dict[
+            str,
+            Any,
+        ] = {
             "enableRateLimit": True,
             "timeout": int(
                 os.getenv(
@@ -138,76 +430,385 @@ class BrokerCCXT:
                     "15000",
                 )
             ),
-            "options": {},
+            "options": (
+                self._base_options()
+            ),
         }
 
-        if self.exchange_id == "bybit":
-            opts["options"]["defaultType"] = (
-                "swap"
-                if self.mode == "linear"
-                else "spot"
-            )
-
-            if self.mode == "linear":
-                opts["options"][
-                    "defaultSubType"
-                ] = "linear"
-
-        elif (
-            self.exchange_id == "binance"
-            and self.mode == "linear"
+        if (
+            authenticated
+            and self.has_credentials
         ):
-            opts["options"][
-                "defaultType"
-            ] = "future"
+            opts[
+                "apiKey"
+            ] = self.api_key
 
-        if self.has_credentials:
-            opts["apiKey"] = self.api_key
-            opts["secret"] = self.api_secret
+            opts[
+                "secret"
+            ] = self.api_secret
 
-        exchange = klass(opts)
+            if self.password:
+                opts[
+                    "password"
+                ] = self.password
 
-        if self.testnet:
+            if self.uid:
+                opts[
+                    "uid"
+                ] = self.uid
+
+        exchange = klass(
+            opts
+        )
+
+        if environment == "testnet":
             sandbox = getattr(
                 exchange,
                 "set_sandbox_mode",
                 None,
             )
 
-            if not callable(sandbox):
+            if not callable(
+                sandbox
+            ):
                 raise RuntimeError(
-                    f"{self.exchange_id} does not "
-                    "expose CCXT sandbox mode; "
-                    "refusing to fall through to "
-                    "production endpoints"
+                    f"{self.exchange_id} "
+                    "does not expose a "
+                    "CCXT sandbox endpoint"
                 )
 
-            sandbox(True)
+            sandbox(
+                True
+            )
 
-        self._ex = exchange
+        self._exchange_cache[
+            key
+        ] = exchange
+
         return exchange
+
+    def _probe_environment(
+        self,
+        environment: str,
+    ) -> bool:
+        """
+        Read-only authenticated probe.
+        No order is submitted here.
+        """
+        if not self.has_credentials:
+            return False
+
+        try:
+            exchange = (
+                self._make_exchange(
+                    environment,
+                    authenticated=True,
+                )
+            )
+
+            result = (
+                exchange.fetch_balance()
+            )
+
+            return isinstance(
+                result,
+                dict,
+            )
+
+        except Exception as exc:
+            self._probe_errors[
+                environment
+            ] = (
+                type(exc).__name__
+            )
+
+            return False
+
+    def resolve_mode(
+        self,
+    ) -> str:
+        if self._resolved_mode:
+            return self._resolved_mode
+
+        requested = (
+            self.requested_mode
+        )
+
+        if requested == "paper":
+            self._resolved_mode = (
+                "paper"
+            )
+
+            return (
+                self._resolved_mode
+            )
+
+        if requested in {
+            "testnet",
+            "live",
+        }:
+            self._resolved_mode = (
+                requested
+            )
+
+            return (
+                self._resolved_mode
+            )
+
+        if not self.has_credentials:
+            self._resolved_mode = (
+                "paper"
+            )
+
+            return (
+                self._resolved_mode
+            )
+
+        hint = (
+            os.getenv(
+                "API_ENVIRONMENT"
+            )
+            or os.getenv(
+                "EXCHANGE_ENVIRONMENT"
+            )
+            or ""
+        )
+
+        hint = _normalize_mode(
+            hint
+        )
+
+        if hint in {
+            "testnet",
+            "live",
+        }:
+            if self._probe_environment(
+                hint
+            ):
+                self._resolved_mode = (
+                    hint
+                )
+
+                return (
+                    self._resolved_mode
+                )
+
+            self._resolved_mode = (
+                "invalid"
+            )
+
+            return (
+                self._resolved_mode
+            )
+
+        cache_key = (
+            self.exchange_id,
+            self._credential_fingerprint(),
+        )
+
+        cached = _PROBE_CACHE.get(
+            cache_key
+        )
+
+        if cached:
+            cached_mode, timestamp = (
+                cached
+            )
+
+            if (
+                time.time()
+                - timestamp
+                < _PROBE_TTL_SECONDS
+            ):
+                self._resolved_mode = (
+                    cached_mode
+                )
+
+                return (
+                    self._resolved_mode
+                )
+
+        for environment in (
+            "testnet",
+            "live",
+        ):
+            if self._probe_environment(
+                environment
+            ):
+                self._resolved_mode = (
+                    environment
+                )
+
+                _PROBE_CACHE[
+                    cache_key
+                ] = (
+                    environment,
+                    time.time(),
+                )
+
+                return (
+                    self._resolved_mode
+                )
+
+        self._resolved_mode = (
+            "invalid"
+        )
+
+        _PROBE_CACHE[
+            cache_key
+        ] = (
+            "invalid",
+            time.time(),
+        )
+
+        return self._resolved_mode
+
+    @property
+    def authority(
+        self,
+    ) -> str:
+        mode = self.resolve_mode()
+
+        if mode == "paper":
+            return "paper"
+
+        if (
+            mode in {
+                "testnet",
+                "live",
+            }
+            and self.has_credentials
+        ):
+            return mode
+
+        return "none"
+
+    @property
+    def environment(
+        self,
+    ) -> str:
+        return self.resolve_mode()
+
+    def describe(
+        self,
+    ) -> Dict[str, Any]:
+        """
+        Redacted execution description.
+        Never returns credentials.
+        """
+        return {
+            "exchange": (
+                self.exchange_id
+            ),
+            "market_mode": (
+                self.market_mode
+            ),
+            "requested_mode": (
+                self.requested_mode
+            ),
+            "resolved_mode": (
+                self.resolve_mode()
+            ),
+            "authority": (
+                self.authority
+            ),
+            "authenticated": (
+                self.has_credentials
+            ),
+            "probe_errors": dict(
+                self._probe_errors
+            ),
+        }
 
     def fetch_ticker(
         self,
         symbol: str,
     ) -> Dict[str, Any]:
-        exchange = self._ensure_ex()
+        mode = self.resolve_mode()
 
-        ticker = exchange.fetch_ticker(
-            symbol
+        environment = (
+            mode
+            if mode
+            in {
+                "testnet",
+                "live",
+            }
+            else "live"
+        )
+
+        exchange = (
+            self._make_exchange(
+                environment,
+                authenticated=False,
+            )
+        )
+
+        ticker = (
+            exchange.fetch_ticker(
+                symbol
+            )
         )
 
         return ticker or {}
 
+    def fetch_ohlcv(
+        self,
+        symbol: str,
+        timeframe: str = "1m",
+        limit: int = 100,
+    ):
+        mode = self.resolve_mode()
+
+        environment = (
+            mode
+            if mode
+            in {
+                "testnet",
+                "live",
+            }
+            else "live"
+        )
+
+        exchange = (
+            self._make_exchange(
+                environment,
+                authenticated=False,
+            )
+        )
+
+        return (
+            exchange.fetch_ohlcv(
+                symbol,
+                timeframe=timeframe,
+                limit=limit,
+            )
+            or []
+        )
+
     def fetch_balance(
         self,
     ) -> Dict[str, Any]:
-        if not self.has_credentials:
+        mode = self.resolve_mode()
+
+        if (
+            mode not in {
+                "testnet",
+                "live",
+            }
+            or not self.has_credentials
+        ):
             return {}
 
-        exchange = self._ensure_ex()
+        exchange = (
+            self._make_exchange(
+                mode,
+                authenticated=True,
+            )
+        )
 
-        balance = exchange.fetch_balance()
+        balance = (
+            exchange.fetch_balance()
+        )
 
         return balance or {}
 
@@ -218,62 +819,123 @@ class BrokerCCXT:
         qty: float,
         ref_price: float = 0.0,
     ) -> Dict[str, Any]:
+        symbol = str(
+            symbol or ""
+        )
 
-        symbol = str(symbol or "")
-        side = str(side or "").lower()
+        side = str(
+            side or ""
+        ).lower()
 
         try:
-            qty = float(qty or 0.0)
+            qty = float(
+                qty or 0.0
+            )
         except Exception:
             qty = 0.0
 
         if (
             not symbol
-            or side not in {"buy", "sell"}
+            or side
+            not in {
+                "buy",
+                "sell",
+            }
             or qty <= 0.0
         ):
             return {
                 "ok": False,
-                "error": "invalid_order_request",
+                "executed": False,
+                "simulated": False,
+                "error": (
+                    "invalid_order_request"
+                ),
                 "symbol": symbol,
                 "side": side,
                 "qty": qty,
             }
 
-        if self.authority == "none":
+        mode = self.resolve_mode()
+
+        if mode == "paper":
+            return {
+                "ok": False,
+                "executed": False,
+                "simulated": False,
+                "authority": "paper",
+                "execution_mode": (
+                    "paper"
+                ),
+                "exchange": (
+                    self.exchange_id
+                ),
+                "error": (
+                    "paper_orders_are_"
+                    "handled_by_router"
+                ),
+            }
+
+        if mode == "invalid":
             return {
                 "ok": False,
                 "executed": False,
                 "simulated": False,
                 "authority": "none",
-                "exchange": self.exchange_id,
-                "symbol": symbol,
-                "side": side,
-                "qty": qty,
-                "reference_price": float(
-                    ref_price or 0.0
+                "execution_mode": (
+                    "invalid"
+                ),
+                "exchange": (
+                    self.exchange_id
                 ),
                 "error": (
-                    "no_authenticated_execution_"
-                    "authority"
+                    "credentials_not_"
+                    "authenticated_on_"
+                    "configured_exchange"
                 ),
             }
 
-        exchange = self._ensure_ex()
+        if self.authority not in {
+            "testnet",
+            "live",
+        }:
+            return {
+                "ok": False,
+                "executed": False,
+                "simulated": False,
+                "authority": "none",
+                "execution_mode": mode,
+                "exchange": (
+                    self.exchange_id
+                ),
+                "error": (
+                    "no_authenticated_"
+                    "execution_authority"
+                ),
+            }
+
+        exchange = (
+            self._make_exchange(
+                mode,
+                authenticated=True,
+            )
+        )
 
         try:
-            order = exchange.create_order(
-                symbol,
-                "market",
-                side,
-                qty,
-                None,
-                {},
+            order = (
+                exchange.create_order(
+                    symbol,
+                    "market",
+                    side,
+                    qty,
+                    None,
+                    {},
+                )
+                or {}
             )
 
-            order = order or {}
-
-            order_id = order.get("id")
+            order_id = (
+                order.get("id")
+            )
 
             if (
                 order_id
@@ -284,7 +946,9 @@ class BrokerCCXT:
             ):
                 for _ in range(3):
                     try:
-                        time.sleep(0.25)
+                        time.sleep(
+                            0.25
+                        )
 
                         refreshed = (
                             exchange.fetch_order(
@@ -294,7 +958,9 @@ class BrokerCCXT:
                         )
 
                         if refreshed:
-                            order = refreshed
+                            order = (
+                                refreshed
+                            )
 
                         status = str(
                             order.get(
@@ -316,8 +982,11 @@ class BrokerCCXT:
                 "ok": True,
                 "executed": True,
                 "simulated": False,
-                "authority": self.authority,
-                "exchange": self.exchange_id,
+                "authority": mode,
+                "execution_mode": mode,
+                "exchange": (
+                    self.exchange_id
+                ),
                 "order": order,
             }
 
@@ -326,8 +995,13 @@ class BrokerCCXT:
                 "ok": False,
                 "executed": False,
                 "simulated": False,
-                "authority": self.authority,
-                "exchange": self.exchange_id,
+                "authority": (
+                    self.authority
+                ),
+                "execution_mode": mode,
+                "exchange": (
+                    self.exchange_id
+                ),
                 "symbol": symbol,
                 "side": side,
                 "qty": qty,

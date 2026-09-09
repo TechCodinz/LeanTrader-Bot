@@ -1,0 +1,112 @@
+{
+  "restoration_base": "fd8795bc5e95c2bf3669a1459b25c5e8a5ccc782",
+  "top_orchestrator": "COMPLETE_ULTIMATE_ORCHESTRATOR.py",
+  "top_classes": [
+    "AdvancedScoutingOrchestrator",
+    "ForexTradingOrchestrator",
+    "DeepLearningOrchestrator",
+    "CompleteUltimateOrchestrator"
+  ],
+  "start_run_methods": [
+    {
+      "class": "CompleteUltimateOrchestrator",
+      "method": "start",
+      "async": true
+    }
+  ],
+  "assembly_artifacts": {
+    "MASTER_COMPLETE_INTEGRATION.py": true,
+    "FINAL_MISSING_ENGINES_PATCH.py": true,
+    "ABSOLUTE_FINAL_COMPLETE_PATCH.py": true,
+    "PROPERLY_WIRE_EVERYTHING.py": true,
+    "WIRE_ABSOLUTELY_EVERYTHING.py": true
+  },
+  "local_dependency_closure_count": 118,
+  "direct_execution_hotspots": [
+    {
+      "file": "COMPLETE_ULTIMATE_ORCHESTRATOR.py",
+      "calls": 1
+    },
+    {
+      "file": "CROSS_EXCHANGE_ARBITRAGE.py",
+      "calls": 2
+    },
+    {
+      "file": "LIVE_TRADE_EXECUTOR.py",
+      "calls": 3
+    },
+    {
+      "file": "MICRO_TRADING_BOT.py",
+      "calls": 2
+    },
+    {
+      "file": "PREMIUM_VIP_TELEGRAM_SYSTEM.py",
+      "calls": 2
+    },
+    {
+      "file": "REAL_PROFIT_BOT.py",
+      "calls": 2
+    },
+    {
+      "file": "TELEGRAM_ORCHESTRATOR.py",
+      "calls": 2
+    },
+    {
+      "file": "critical_features_addon.py",
+      "calls": 1
+    },
+    {
+      "file": "enhanced_trading_bot.py",
+      "calls": 1
+    },
+    {
+      "file": "exchange_manager.py",
+      "calls": 2
+    },
+    {
+      "file": "execution_adv.py",
+      "calls": 3
+    },
+    {
+      "file": "nobel_hedge_fund_system.py",
+      "calls": 1
+    },
+    {
+      "file": "nobel_simple_system.py",
+      "calls": 1
+    },
+    {
+      "file": "order_utils.py",
+      "calls": 10
+    },
+    {
+      "file": "paper_broker.py",
+      "calls": 1
+    },
+    {
+      "file": "router.py",
+      "calls": 5
+    },
+    {
+      "file": "traders_core/connectors/crypto_ccxt.py",
+      "calls": 2
+    },
+    {
+      "file": "ultra_business_system.py",
+      "calls": 1
+    }
+  ],
+  "redacted_secret_literal_count": 2,
+  "architecture": {
+    "strategy_engines": "mode_agnostic",
+    "execution_fabric": "universal",
+    "execution_modes": [
+      "auto",
+      "paper",
+      "testnet",
+      "live"
+    ],
+    "default_exchange_backend": "ccxt",
+    "runtime_mode_is_not_bot_identity": true
+  }
+}

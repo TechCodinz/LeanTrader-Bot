@@ -898,7 +898,7 @@ Free Users: {user_count - vip_count}
             
             # Try Gate.io first (user's main exchange with $42)
             if os.getenv('GATE_API_KEY'):
-                logger.info(f"   Trying Gate.io (user's \$42 exchange)...")
+                logger.info(f"   Trying Gate.io (user's $42 exchange)...")
                 try:
                     exchange = ccxt.gateio({
                         'apiKey': os.getenv('GATE_API_KEY'),
