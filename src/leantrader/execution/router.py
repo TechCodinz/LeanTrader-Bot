@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from .broker_ccxt import (
     BrokerCCXT,
@@ -62,20 +62,16 @@ def _requested_execution_mode(
     payload: Optional[
         Dict[str, Any]
     ] = None,
-    requested: Optional[
-        str
-    ] = None,
+    requested: Optional[str] = None,
 ) -> str:
     payload = payload or {}
 
     if requested:
         candidate = str(
             requested
-        ).lower()
+        ).strip().lower()
 
-        if candidate in (
-            EXECUTION_MODES
-        ):
+        if candidate in EXECUTION_MODES:
             return (
                 _normalize_execution_mode(
                     candidate
@@ -87,8 +83,10 @@ def _requested_execution_mode(
     )
 
     if candidate:
-        return _normalize_execution_mode(
-            candidate
+        return (
+            _normalize_execution_mode(
+                candidate
+            )
         )
 
     configured = os.getenv(
@@ -97,16 +95,18 @@ def _requested_execution_mode(
     ).strip()
 
     if configured:
-        return _normalize_execution_mode(
-            configured
+        return (
+            _normalize_execution_mode(
+                configured
+            )
         )
 
-    # Backwards compatibility only.
+    # Legacy compatibility only.
     if (
         os.getenv(
             "CCXT_TESTNET",
             "",
-        ).lower()
+        ).strip().lower()
         in {
             "1",
             "true",
@@ -116,7 +116,7 @@ def _requested_execution_mode(
         or os.getenv(
             "BYBIT_TESTNET",
             "",
-        ).lower()
+        ).strip().lower()
         in {
             "1",
             "true",
@@ -133,20 +133,14 @@ def _requested_backend(
     payload: Optional[
         Dict[str, Any]
     ] = None,
-    requested: Optional[
-        str
-    ] = None,
+    requested: Optional[str] = None,
 ) -> str:
     payload = payload or {}
 
-    # Existing historical calls like
-    # route_order(payload, "ccxt")
-    # remain valid. "ccxt" now means
-    # backend, not Testnet.
     if requested:
         candidate = str(
             requested
-        ).lower()
+        ).strip().lower()
 
         if candidate in BACKENDS:
             return candidate
@@ -176,11 +170,49 @@ def _requested_backend(
     return "ccxt"
 
 
+def _requested_exchange(
+    payload: Optional[
+        Dict[str, Any]
+    ] = None,
+    exchange_id: Optional[
+        str
+    ] = None,
+) -> str:
+    payload = payload or {}
+
+    value = (
+        exchange_id
+        or payload.get(
+            "exchange_id"
+        )
+        or payload.get(
+            "exchange"
+        )
+        or payload.get(
+            "venue"
+        )
+        or os.getenv(
+            "CCXT_EXCHANGE"
+        )
+        or os.getenv(
+            "EXCHANGE_ID"
+        )
+        or "bybit"
+    )
+
+    return str(
+        value
+    ).strip().lower()
+
+
 def resolve_execution_context(
     payload: Optional[
         Dict[str, Any]
     ] = None,
     mode: Optional[str] = None,
+    exchange_id: Optional[
+        str
+    ] = None,
 ) -> Dict[str, Any]:
     payload = payload or {}
 
@@ -198,6 +230,13 @@ def resolve_execution_context(
         )
     )
 
+    exchange = (
+        _requested_exchange(
+            payload,
+            exchange_id,
+        )
+    )
+
     if backend == "emu":
         return {
             "requested_mode": (
@@ -208,13 +247,15 @@ def resolve_execution_context(
             ),
             "authority": "paper",
             "backend": "emu",
+            "exchange": exchange,
         }
 
     if backend == "ccxt":
         broker = BrokerCCXT(
             execution_mode=(
                 requested_mode
-            )
+            ),
+            exchange_id=exchange,
         )
 
         resolved = (
@@ -245,7 +286,7 @@ def resolve_execution_context(
 
     if backend == "fx":
         if requested_mode == "auto":
-            fx_hint = (
+            hint = (
                 os.getenv(
                     "FX_ENVIRONMENT"
                 )
@@ -253,23 +294,23 @@ def resolve_execution_context(
                     "OANDA_ENV"
                 )
                 or ""
-            ).strip().lower()
+            )
 
-            if fx_hint in {
-                "practice",
-                "demo",
-                "testnet",
-                "sandbox",
-            }:
-                resolved = "testnet"
-            elif fx_hint in {
-                "live",
-                "real",
-                "production",
-            }:
-                resolved = "live"
-            else:
-                resolved = "paper"
+            hint = (
+                _normalize_execution_mode(
+                    hint
+                )
+            )
+
+            resolved = (
+                hint
+                if hint
+                in {
+                    "testnet",
+                    "live",
+                }
+                else "paper"
+            )
         else:
             resolved = (
                 requested_mode
@@ -293,6 +334,7 @@ def resolve_execution_context(
                 else "none"
             ),
             "backend": "fx",
+            "exchange": exchange,
         }
 
     return {
@@ -304,6 +346,7 @@ def resolve_execution_context(
         ),
         "authority": "none",
         "backend": backend,
+        "exchange": exchange,
     }
 
 
@@ -312,10 +355,16 @@ def route_order(
     mode: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Universal historical LeanTrader order route.
+    One universal order intent.
 
-    Engines submit one order intent.
-    This router decides paper/testnet/live.
+    Strategy engines submit:
+      symbol
+      side
+      quantity
+      order type
+      target exchange
+
+    Runtime decides paper/testnet/live.
     """
     context = (
         resolve_execution_context(
@@ -331,7 +380,16 @@ def route_order(
     )
 
     backend = (
-        context["backend"]
+        context[
+            "backend"
+        ]
+    )
+
+    exchange = (
+        context.get(
+            "exchange"
+        )
+        or "bybit"
     )
 
     symbol = str(
@@ -345,7 +403,7 @@ def route_order(
             "side",
             "buy",
         )
-    ).lower()
+    ).strip().lower()
 
     qty = float(
         payload.get(
@@ -363,26 +421,62 @@ def route_order(
         or 0.0
     )
 
-    price = float(
+    price_value = (
         payload.get(
-            "price",
-            0.0,
+            "price"
+        )
+        if payload.get(
+            "price"
+        )
+        is not None
+        else payload.get(
+            "reference_price"
+        )
+    )
+
+    price = None
+
+    if price_value is not None:
+        try:
+            price = float(
+                price_value
+            )
+        except Exception:
+            price = None
+
+    order_type = str(
+        payload.get(
+            "order_type"
         )
         or payload.get(
-            "reference_price",
-            0.0,
+            "type"
         )
-        or 0.0
+        or (
+            "market"
+            if price is None
+            else "limit"
+        )
+    ).strip().lower()
+
+    params = dict(
+        payload.get(
+            "params"
+        )
+        or {}
     )
 
     if execution_mode == "paper":
+        ref_price = float(
+            price or 0.0
+        )
+
         result = (
             BrokerEmulator()
             .market(
                 symbol,
                 side,
                 qty,
-                price,
+                ref_price,
             )
         )
 
@@ -395,25 +489,54 @@ def route_order(
                 "paper"
             ),
             "backend": "emu",
-            "exchange": (
-                context.get(
-                    "exchange"
-                )
+            "exchange": exchange,
+            "order_type": (
+                order_type
             ),
             "order": result,
         }
 
-    if (
-        backend == "ccxt"
-        and execution_mode
-        in {
-            "testnet",
-            "live",
-            "auto",
-            "invalid",
-        }
-    ):
+    if backend == "ccxt":
         broker = BrokerCCXT(
+            execution_mode=(
+                execution_mode
+            ),
+            exchange_id=(
+                exchange
+            ),
+        )
+
+        return broker.order(
+            symbol=symbol,
+            order_type=(
+                order_type
+            ),
+            side=side,
+            qty=qty,
+            price=price,
+            params=params,
+        )
+
+    if backend == "fx":
+        if order_type != "market":
+            return {
+                "ok": False,
+                "executed": False,
+                "simulated": False,
+                "authority": (
+                    execution_mode
+                ),
+                "execution_mode": (
+                    execution_mode
+                ),
+                "backend": "fx",
+                "error": (
+                    "fx_adapter_currently_"
+                    "supports_market_orders"
+                ),
+            }
+
+        broker = BrokerFX(
             execution_mode=(
                 execution_mode
             )
@@ -423,67 +546,10 @@ def route_order(
             symbol,
             side,
             qty,
-            price,
+            float(
+                price or 0.0
+            ),
         )
-
-    if backend == "fx":
-        # BrokerFX remains the historical
-        # OANDA/MT5 adapter. Global mode
-        # is passed through environment.
-        previous = os.environ.get(
-            "EXECUTION_MODE"
-        )
-
-        os.environ[
-            "EXECUTION_MODE"
-        ] = execution_mode
-
-        try:
-            result = (
-                BrokerFX()
-                .market(
-                    symbol,
-                    side,
-                    qty,
-                    price,
-                )
-            )
-        finally:
-            if previous is None:
-                os.environ.pop(
-                    "EXECUTION_MODE",
-                    None,
-                )
-            else:
-                os.environ[
-                    "EXECUTION_MODE"
-                ] = previous
-
-        result = (
-            result
-            if isinstance(
-                result,
-                dict,
-            )
-            else {
-                "ok": False,
-                "error": (
-                    "invalid_fx_result"
-                ),
-            }
-        )
-
-        result.setdefault(
-            "execution_mode",
-            execution_mode,
-        )
-
-        result.setdefault(
-            "authority",
-            execution_mode,
-        )
-
-        return result
 
     return {
         "ok": False,
@@ -494,6 +560,7 @@ def route_order(
             execution_mode
         ),
         "backend": backend,
+        "exchange": exchange,
         "error": (
             "execution_route_"
             "unavailable"
@@ -503,11 +570,15 @@ def route_order(
 
 def route_balance(
     mode: Optional[str] = None,
+    exchange_id: Optional[
+        str
+    ] = None,
 ) -> Dict[str, Any]:
     context = (
         resolve_execution_context(
             {},
             mode,
+            exchange_id,
         )
     )
 
@@ -515,10 +586,6 @@ def route_balance(
         context[
             "execution_mode"
         ]
-    )
-
-    backend = (
-        context["backend"]
     )
 
     if execution_mode == "paper":
@@ -550,15 +617,21 @@ def route_balance(
             ),
         }
 
-    if backend == "ccxt":
-        broker = BrokerCCXT(
-            execution_mode=(
-                execution_mode
-            )
-        )
-
+    if context[
+        "backend"
+    ] == "ccxt":
         return (
-            broker.fetch_balance()
+            BrokerCCXT(
+                execution_mode=(
+                    execution_mode
+                ),
+                exchange_id=(
+                    context[
+                        "exchange"
+                    ]
+                ),
+            )
+            .fetch_balance()
         )
 
     return {}
@@ -567,35 +640,35 @@ def route_balance(
 def route_ticker(
     symbol: str,
     mode: Optional[str] = None,
+    exchange_id: Optional[
+        str
+    ] = None,
 ) -> Dict[str, Any]:
     context = (
         resolve_execution_context(
             {},
             mode,
+            exchange_id,
         )
     )
 
-    # Market observation remains real
-    # even when order execution is paper.
-    if context[
-        "backend"
-    ] in {
-        "ccxt",
-        "emu",
-    }:
-        broker = BrokerCCXT(
+    return (
+        BrokerCCXT(
             execution_mode=(
                 context[
                     "execution_mode"
                 ]
-            )
+            ),
+            exchange_id=(
+                context[
+                    "exchange"
+                ]
+            ),
         )
-
-        return broker.fetch_ticker(
+        .fetch_ticker(
             symbol
         )
-
-    return {}
+    )
 
 
 def route_ohlcv(
@@ -603,41 +676,83 @@ def route_ohlcv(
     timeframe: str = "1m",
     limit: int = 100,
     mode: Optional[str] = None,
+    exchange_id: Optional[
+        str
+    ] = None,
 ):
     context = (
         resolve_execution_context(
             {},
             mode,
+            exchange_id,
         )
     )
 
-    if context[
-        "backend"
-    ] in {
-        "ccxt",
-        "emu",
-    }:
-        broker = BrokerCCXT(
+    return (
+        BrokerCCXT(
             execution_mode=(
                 context[
                     "execution_mode"
                 ]
-            )
+            ),
+            exchange_id=(
+                context[
+                    "exchange"
+                ]
+            ),
         )
-
-        return broker.fetch_ohlcv(
+        .fetch_ohlcv(
             symbol,
             timeframe=timeframe,
             limit=limit,
         )
+    )
 
-    return []
+
+def route_order_book(
+    symbol: str,
+    limit: int = 20,
+    mode: Optional[str] = None,
+    exchange_id: Optional[
+        str
+    ] = None,
+) -> Dict[str, Any]:
+    context = (
+        resolve_execution_context(
+            {},
+            mode,
+            exchange_id,
+        )
+    )
+
+    return (
+        BrokerCCXT(
+            execution_mode=(
+                context[
+                    "execution_mode"
+                ]
+            ),
+            exchange_id=(
+                context[
+                    "exchange"
+                ]
+            ),
+        )
+        .fetch_order_book(
+            symbol,
+            limit=limit,
+        )
+    )
 
 
 def execution_status(
     mode: Optional[str] = None,
+    exchange_id: Optional[
+        str
+    ] = None,
 ) -> Dict[str, Any]:
     return resolve_execution_context(
         {},
         mode,
+        exchange_id,
     )

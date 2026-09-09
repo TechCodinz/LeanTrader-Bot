@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import ccxt
+import os
 import time
 import requests
 from datetime import datetime
@@ -7,21 +8,32 @@ from datetime import datetime
 class REAL_PROFIT_BOT:
     def __init__(self, universe=None):
         # TELEGRAM CONFIGURATION
-        self.telegram_bot_token = "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
-        self.admin_chat_id = "5329503447"
-        self.vip_chat_id = "-1002983007302"
-        self.free_chat_id = "-1002930953007"
+        self.telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        self.admin_chat_id = os.getenv("TELEGRAM_ADMIN_CHAT_ID", "")
+        self.vip_chat_id = os.getenv("TELEGRAM_VIP_CHAT_ID", "")
+        self.free_chat_id = os.getenv("TELEGRAM_FREE_CHAT_ID", "")
 
         # GATE.IO API CONFIGURATION (REAL TRADING)
+        self.exchange_id = os.getenv("LEGACY_PROFIT_EXCHANGE", "gateio").strip().lower()
+
         self.gate_config = {
-            'apiKey': 'a0508d8aadf3bcb76e16f4373e1f3a76',
-            'secret': '451770a07dbede1b87bb92f5ce98e24029d2fe91e0053be2ec41771c953113f9',
-            'sandbox': False,  # REAL TRADING
-            'enableRateLimit': True,
+            "enableRateLimit": True,
         }
 
-        # Initialize Gate.io exchange
-        self.gate = ccxt.gate(self.gate_config)
+        exchange_name = (
+            "gateio"
+            if self.exchange_id in {"gate", "gateio"}
+            else self.exchange_id
+        )
+
+        exchange_class = getattr(
+            ccxt,
+            exchange_name,
+        )
+
+        self.gate = exchange_class(
+            self.gate_config
+        )
 
         # REAL PROFIT POSITION SIZES - CALCULATED FOR MEANINGFUL INCOME
         # These are designed to generate $50-200 daily profits to cover bills
@@ -78,27 +90,108 @@ class REAL_PROFIT_BOT:
             return False
 
     def check_gate_balance(self):
-        """Check Gate.io USDT balance"""
+        from src.leantrader.execution.router import (
+            route_balance,
+        )
+
         try:
-            balance = self.gate.fetch_balance()
-            usdt_balance = balance['USDT']['free']
-            print(f"💰 Gate.io USDT Balance: {usdt_balance}")
-            return float(usdt_balance)
-        except Exception as e:
-            print(f"❌ Balance check error: {e}")
+            balance = (
+                route_balance(
+                    exchange_id=(
+                        self.exchange_id
+                    )
+                )
+                or {}
+            )
+
+            free = (
+                balance.get("free")
+                or {}
+            )
+
+            value = (
+                free.get("USDT")
+                if isinstance(
+                    free,
+                    dict,
+                )
+                else None
+            )
+
+            if value is None:
+                coin = (
+                    balance.get("USDT")
+                    or {}
+                )
+
+                if isinstance(
+                    coin,
+                    dict,
+                ):
+                    value = coin.get(
+                        "free"
+                    )
+
+            return float(
+                value or 0.0
+            )
+
+        except Exception as exc:
+            print(
+                "Balance unavailable:",
+                type(exc).__name__,
+            )
             return 0.0
 
-    def get_gate_ticker(self, symbol):
-        """Get ticker data from Gate.io with proper error handling"""
+    def get_gate_ticker(
+        self,
+        symbol,
+    ):
+        from src.leantrader.execution.router import (
+            route_ticker,
+        )
+
         try:
-            ticker = self.gate.fetch_ticker(symbol)
+            ticker = (
+                route_ticker(
+                    symbol,
+                    exchange_id=(
+                        self.exchange_id
+                    ),
+                )
+                or {}
+            )
+
+            price = float(
+                ticker.get("last")
+                or ticker.get("close")
+                or 0.0
+            )
+
+            if price <= 0.0:
+                return None
+
             return {
-                'price': float(ticker['last']),
-                'change': float(ticker['percentage']) if ticker['percentage'] else 0,
-                'volume': float(ticker['quoteVolume']) if ticker['quoteVolume'] else 0,
+                "price": price,
+                "change": float(
+                    ticker.get(
+                        "percentage"
+                    )
+                    or 0.0
+                ),
+                "volume": float(
+                    ticker.get(
+                        "quoteVolume"
+                    )
+                    or 0.0
+                ),
             }
-        except Exception as e:
-            print(f"❌ Gate.io ticker error for {symbol}: {e}")
+
+        except Exception as exc:
+            print(
+                "Ticker unavailable:",
+                type(exc).__name__,
+            )
             return None
 
     def analyze_market(self, symbol):
@@ -160,144 +253,149 @@ class REAL_PROFIT_BOT:
             print(f"❌ Market analysis error for {symbol}: {e}")
             return "HOLD", 0, 0, 0, 0
 
-    def execute_trade(self, symbol, signal, price):
-        """Execute trade with REAL PROFIT position sizing"""
-        try:
-            position_size = self.position_sizes.get(symbol, 0.01)
+    def execute_trade(
+        self,
+        symbol,
+        signal,
+        price,
+    ):
+        from src.leantrader.execution.router import (
+            route_order,
+        )
 
-            # Check if we have enough balance first
-            balance = self.check_gate_balance()
-            required_balance = price * position_size * 1.2  # Add 20% buffer for slippage
+        side = str(
+            signal or ""
+        ).lower()
 
-            if balance < required_balance:
-                print(f"❌ Insufficient balance: Need ${required_balance:.2f}, have ${balance:.2f}")
-                # Try smaller position size
-                smaller_size = position_size * 0.5
-                required_balance = price * smaller_size * 1.2
-                if balance >= required_balance:
-                    position_size = smaller_size
-                    print(f"✅ Using smaller position size: {position_size}")
-                else:
-                    return None
-
-            if signal == "BUY":
-                order = self.gate.create_market_buy_order(symbol, position_size)
-                print(f"✅ REAL PROFIT BUY: {symbol} @ ${price:.4f} | Size: {position_size}")
-            elif signal == "SELL":
-                order = self.gate.create_market_sell_order(symbol, position_size)
-                print(f"✅ REAL PROFIT SELL: {symbol} @ ${price:.4f} | Size: {position_size}")
-            else:
-                return None
-
-            return order
-
-        except Exception as e:
-            print(f"❌ Trade execution failed: {e}")
+        if side not in {
+            "buy",
+            "sell",
+        }:
             return None
 
+        amount = float(
+            self.position_sizes.get(
+                symbol,
+                0.01,
+            )
+        )
+
+        return route_order(
+            {
+                "symbol": symbol,
+                "side": side,
+                "qty": amount,
+                "price": float(
+                    price or 0.0
+                ),
+                "order_type": "market",
+                "exchange_id": (
+                    self.exchange_id
+                ),
+                "backend": "ccxt",
+            }
+        )
+
     def run_real_profit_trading(self):
-        """Main REAL PROFIT trading cycle"""
-        print("🚀 Starting REAL PROFIT BOT...")
+        """
+        Preserve historical signal generation
+        while requiring reconciled closes before
+        realized PnL is counted.
+        """
+        balance = (
+            self.check_gate_balance()
+        )
 
-        balance = self.check_gate_balance()
-
-        startup_message = f"""🚀 <b>REAL PROFIT BOT ACTIVATED!</b>
-
-💰 <b>YOUR BALANCE:</b> ${balance:.2f}
-📊 <b>TRADING PAIRS:</b> {len(self.crypto_pairs)}
-🎯 <b>REAL INCOME GENERATION</b>
-
-<b>💰 REAL PROFIT POSITION SIZES:</b>
-• BTC: 0.01 (~$430)
-• ETH: 0.05 (~$125)
-• BNB: 0.5 (~$75)
-• SOL: 5.0 (~$50)
-• ADA: 1000 (~$240)
-• XRP: 500 (~$240)
-• DOGE: 10K (~$1200)
-• SHIB: 50M (~$120)
-• PEPE: 100M (~$240)
-
-🎯 <b>TARGET: $50-200 DAILY PROFITS</b>
-💰 <b>MONTHLY TARGET: $1500-6000</b>
-🏠 <b>COVERS RENT BILLS!</b>"""
-
-        self.send_telegram(startup_message)
+        self.send_telegram(
+            (
+                "REAL PROFIT STRATEGY ACTIVE\n"
+                f"Balance: {balance:.2f}\n"
+                f"Pairs: {len(self.crypto_pairs)}\n"
+                "Execution environment is selected "
+                "by the universal router."
+            )
+        )
 
         trade_count = 0
 
         while self.running:
             try:
-                for symbol in self.crypto_pairs:
-                    signal, confidence, price, change, volume = self.analyze_market(symbol)
+                for symbol in (
+                    self.crypto_pairs
+                ):
+                    (
+                        signal,
+                        confidence,
+                        price,
+                        change,
+                        volume,
+                    ) = self.analyze_market(
+                        symbol
+                    )
 
-                    if confidence >= 85 and signal != "HOLD":
-                        trade_count += 1
+                    if (
+                        confidence < 85
+                        or signal
+                        == "HOLD"
+                    ):
+                        continue
 
-                        trade_result = self.execute_trade(symbol, signal, price)
+                    result = (
+                        self.execute_trade(
+                            symbol,
+                            signal,
+                            price,
+                        )
+                    )
 
-                        if trade_result:
-                            position_size = self.position_sizes.get(symbol, 0.01)
-                            profit = abs(
-                                price * position_size * (confidence / 100) * 0.05
-                            )  # 5% profit factor
-                            self.total_profit += profit
-                            self.total_trades += 1
+                    if not (
+                        isinstance(
+                            result,
+                            dict,
+                        )
+                        and result.get(
+                            "ok"
+                        )
+                    ):
+                        continue
 
-                            if profit > 0:
-                                self.winning_trades += 1
+                    trade_count += 1
+                    self.total_trades += 1
 
-                            signal_message = f"""🚀 <b>REAL PROFIT SIGNAL #{trade_count}</b>
+                    print(
+                        "REAL PROFIT ENTRY",
+                        symbol,
+                        signal,
+                        "confidence=",
+                        confidence,
+                        "mode=",
+                        result.get(
+                            "execution_mode"
+                        ),
+                        "exchange=",
+                        result.get(
+                            "exchange"
+                        ),
+                        "realized_pnl=PENDING_CLOSE",
+                    )
 
-💰 <b>{symbol}</b>
-🎯 <b>Signal:</b> {signal}
-💵 <b>Price:</b> ${price:.4f}
-📈 <b>Change:</b> {change:+.2f}%
-🔥 <b>Confidence:</b> {confidence}%
-📊 <b>Volume:</b> ${volume:,.0f}
-💰 <b>Position Size:</b> {position_size}
-
-<b>💰 REAL PROFIT:</b> ${profit:.2f}
-<b>📊 TOTAL PROFIT:</b> ${self.total_profit:.2f}
-<b>✅ REAL TRADE EXECUTED</b>
-<b>🏠 BILLS COVERAGE:</b> ${self.total_profit:.2f}
-
-⏰ {datetime.now().strftime('%H:%M:%S')}"""
-
-                            self.send_telegram(signal_message)
-                            print(
-                                f"🚀 REAL PROFIT {symbol}: {signal} @ ${price:.4f} | Profit: ${profit:.2f}"
-                            )
-
-                            time.sleep(45)  # Wait between trades
-
-                # Send summary every 5 trades
-                if trade_count % 5 == 0 and trade_count > 0:
-                    summary_message = f"""📊 <b>REAL PROFIT SUMMARY</b>
-
-💰 <b>Total Profit:</b> ${self.total_profit:.2f}
-📈 <b>Win Rate:</b> {(self.winning_trades/max(self.total_trades,1)*100):.1f}%
-📊 <b>Total Trades:</b> {trade_count}
-🎯 <b>Daily Target:</b> $50-200
-
-<b>🏠 BILLS COVERAGE:</b>
-• Daily: ${self.total_profit:.2f}
-• Weekly: ${self.total_profit * 7:.2f}
-• Monthly: ${self.total_profit * 30:.2f}
-
-<b>🎯 STATUS:</b> {'TARGET ACHIEVED!' if self.total_profit >= 50 else 'TRADING FOR BILLS'}
-
-⏰ {datetime.now().strftime('%H:%M:%S')}"""
-
-                    self.send_telegram(summary_message)
+                    time.sleep(45)
 
                 print(
-                    f"🔄 Real profit cycle completed - Trades: {trade_count}, Profit: ${self.total_profit:.2f}"
+                    "Real-profit cycle complete",
+                    "entries=",
+                    trade_count,
+                    "confirmed_realized_pnl=",
+                    self.total_profit,
                 )
-                time.sleep(15)  # 15 second cycles for more opportunities
 
-            except Exception as e:
-                print(f"❌ Error in real profit cycle: {e}")
+                time.sleep(15)
+
+            except Exception as exc:
+                print(
+                    "Real-profit cycle error:",
+                    type(exc).__name__,
+                )
                 time.sleep(30)
 
     def run(self):

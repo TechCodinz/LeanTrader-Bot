@@ -107,8 +107,8 @@ class ExchangeRouter:
             )
             self.live = False
 
-        api_key = _env("API_KEY") or _env(f"{self.id.upper()}_API_KEY")
-        api_sec = _env("API_SECRET") or _env(f"{self.id.upper()}_API_SECRET")
+        api_key = _env(f"{self.id.upper()}_API_KEY") or _env("CCXT_API_KEY") or _env("API_KEY")
+        api_sec = _env(f"{self.id.upper()}_API_SECRET") or _env("CCXT_API_SECRET") or _env("API_SECRET")
 
         # If user insisted on live mode via envs, require API credentials to avoid accidental live execution.
         if self.live and not (api_key and api_sec):
@@ -624,260 +624,99 @@ class ExchangeRouter:
         side: str,
         amount: float,
         price: Optional[float] = None,
-        params: Optional[Dict[str, Any]] = None,
+        params: Optional[
+            Dict[str, Any]
+        ] = None,
     ) -> Dict[str, Any]:
         """
-        Thin, defensive order placement wrapper.
-        - If router.live is False we perform a dry-run and return a simulated response.
-        - Attempts to call common ccxt order methods otherwise, with graceful error handling.
+        Historical ExchangeRouter interface,
+        backed by universal execution authority.
         """
-        try:
-            # If exchange failed to load markets previously, avoid calling into it
-            if getattr(self, "_exchange_malformed", False):
-                print(
-                    f"[router] exchange malformed, simulating dry-run order: {side} {amount} {symbol}"
-                )
-                return {
-                    "ok": False,
-                    "dry_run": True,
-                    "symbol": symbol,
-                    "side": side,
-                    "amount": amount,
-                }
+        from src.leantrader.execution.router import (
+            route_order,
+        )
 
-            # Live-safety: require explicit ALLOW_LIVE env to actually send live orders.
-            # DEFAULT: even if ENABLE_LIVE=true, ALLOW_LIVE must be set to a truthy value.
-            # require both ALLOW_LIVE and LIVE_CONFIRM=YES to proceed with real orders
-            allow_live = _env_bool("ALLOW_LIVE", False) and (
-                _env("LIVE_CONFIRM", "").strip().lower() == "yes"
+        payload = {
+            "symbol": symbol,
+            "side": side,
+            "qty": amount,
+            "price": price,
+            "order_type": (
+                "market"
+                if price is None
+                else "limit"
+            ),
+            "params": dict(
+                params or {}
+            ),
+            "exchange_id": (
+                self.id
+                if self.id
+                != "paper"
+                else "bybit"
+            ),
+            "backend": (
+                "emu"
+                if self.id
+                == "paper"
+                else "ccxt"
+            ),
+        }
+
+        if self.id == "paper":
+            payload[
+                "execution_mode"
+            ] = "paper"
+
+        result = route_order(
+            payload
+        )
+
+        if not isinstance(
+            result,
+            dict,
+        ):
+            return {
+                "ok": False,
+                "error": (
+                    "invalid_execution_result"
+                ),
+            }
+
+        order = result.get(
+            "order"
+        )
+
+        if (
+            result.get("ok")
+            and isinstance(
+                order,
+                dict,
             )
-            max_order_size = _env_float("MAX_ORDER_SIZE", float("inf"))
-            # Optional USD cap per order to avoid large accidental trades (set LIVE_ORDER_USD)
-            live_order_usd_env = _env("LIVE_ORDER_USD", "")
-            try:
-                live_order_usd = float(live_order_usd_env) if live_order_usd_env else None
-            except Exception:
-                live_order_usd = None
+        ):
+            output = dict(order)
 
-            if not self.live or not allow_live:
-                # still simulate/dry-run when live not allowed
-                if self.live and not allow_live:
-                    print("[router] live trading requested but ALLOW_LIVE not set -> dry-run")
-                else:
-                    print(f"[router] dry-run order: {side} {amount} {symbol} price={price}")
-                return {
-                    "ok": False,
-                    "dry_run": True,
-                    "symbol": symbol,
-                    "side": side,
-                    "amount": amount,
-                }
-
-            # Runtime credential guard: refuse to place live orders if the router instance
-            # does not have API credentials (captured at init) — protects against
-            # enabling live mode via envs during runtime without credentials present.
-            if self.live and allow_live and not getattr(self, "_has_api_creds", False):
-                msg = "Live trading allowed by flags but API credentials missing at runtime; refusing to place live order"
-                print(f"[router] {msg}")
-                return {"ok": False, "error": msg}
-
-            # enforce maximum allowed order size when configured
-            try:
+            for field in (
+                "ok",
+                "executed",
+                "simulated",
+                "authority",
+                "execution_mode",
+                "exchange",
+                "order_type",
+            ):
                 if (
-                    max_order_size is not None
-                    and max_order_size != float("inf")
-                    and float(amount) > float(max_order_size)
+                    field in result
+                    and field
+                    not in output
                 ):
-                    msg = f"order amount {amount} exceeds MAX_ORDER_SIZE={max_order_size}"
-                    print(f"[router] {msg}")
-                    return {
-                        "ok": False,
-                        "error": msg,
-                        "symbol": symbol,
-                        "side": side,
-                        "amount": amount,
-                    }
+                    output[field] = (
+                        result[field]
+                    )
 
-                # Awareness gate (opt-in)
-                if getattr(self, "_aw_enabled", False) and self._aw is not None:
-                    # Prepare recent OHLCV as DataFrame
-                    df = None
-                    try:
-                        import pandas as _pd
+            return output
 
-                        rows = []
-                        try:
-                            rows = self.fetch_ohlcv(
-                                symbol, timeframe=_env("AWARENESS_TF", "5m"), limit=200
-                            )
-                        except Exception:
-                            rows = []
-                        if rows:
-                            df = _pd.DataFrame(
-                                rows, columns=["time", "open", "high", "low", "close", "volume"]
-                            ).tail(100)
-                    except Exception:
-                        df = None
-
-                    # Equity from perf tracker or balance
-                    equity = 0.0
-                    try:
-                        from metrics import perf_tracker as _pt
-
-                        equity = float(_pt.current_equity())
-                    except Exception:
-                        equity = 0.0
-                    if not equity:
-                        try:
-                            bal = self.safe_fetch_balance() or {}
-                            t = bal.get("total") or bal.get("free") or {}
-                            equity = float((t.get("USDT") if isinstance(t, dict) else 0.0) or 0.0)
-                        except Exception:
-                            equity = 0.0
-
-                    # Base confidence from params or fallback
-                    try:
-                        base_conf = float((params or {}).get("base_conf", 0.5))
-                    except Exception:
-                        base_conf = 0.5
-
-                # Rolling performance (fallbacks tune to avoid zero-kelly cold start)
-                try:
-                    from metrics import perf_tracker as _pt
-
-                    wr = float(_pt.get_roll_winrate(symbol))
-                    pf = float(_pt.get_roll_payoff(symbol))
-                except Exception:
-                    wr, pf = None, None
-                # env-tunable defaults; avoid (0.5,1.0) which yields zero Kelly
-                if not wr or wr <= 0.0 or wr >= 1.0:
-                    try:
-                        wr = float(os.getenv("AW_DEFAULT_WR", "0.55"))
-                    except Exception:
-                        wr = 0.55
-                if not pf or pf <= 0.0:
-                    try:
-                        pf = float(os.getenv("AW_DEFAULT_PF", "1.1"))
-                    except Exception:
-                        pf = 1.1
-
-                    # News blackout
-                    try:
-                        from news.blackout import is_high_impact_soon as _blk
-
-                        blk = _blk(symbol, minutes=15)
-                    except Exception:
-                        blk = False
-
-                    if df is not None:
-                        dec = self._aw.decide(
-                            df, equity or 0.0, base_conf, wr, pf, high_impact_event_soon=blk
-                        )
-                        try:
-                            import importlib as _il
-                            _jl_mod = _il.import_module("utils.jsonlog")
-                            jlog = getattr(_jl_mod, "jlog", None)
-                            if jlog:
-                                jlog(
-                                    "info",
-                                    "router",
-                                    "aw_decision",
-                                    symbol=symbol,
-                                    reason=dec.reason,
-                                    size_frac=dec.size_frac,
-                                    stop_atr=dec.stop_atr,
-                                    take_atr=dec.take_atr,
-                                )
-                        except Exception:
-                            pass
-                        if not dec.allow:
-                            try:
-                                if dec.reason in ("circuit_breaker_dd", "cooldown"):
-                                    import importlib as _il2
-                                    _t_mod = _il2.import_module("utils.tele")
-                                    _notify = getattr(_t_mod, "notify", None)
-                                    if _notify:
-                                        _notify(f"AW block {symbol}: {dec.reason}")
-                            except Exception:
-                                pass
-                            return {
-                                "ok": False,
-                                "error": f"aw_block:{dec.reason}",
-                                "symbol": symbol,
-                                "side": side,
-                            }
-                        # annotate params for downstream planners
-                        params = dict(params or {})
-                        params.setdefault("aw_size_frac", dec.size_frac)
-                        params.setdefault("aw_stop_atr", dec.stop_atr)
-                        params.setdefault("aw_take_atr", dec.take_atr)
-            except Exception:
-                # Don't block on conversion errors; proceed to attempt placing the order
-                pass
-
-            # If a USD per-order cap is configured, attempt to compute the order notional and enforce it.
-            try:
-                if self.live and live_order_usd is not None:
-                    price_for_notional = price
-                    # if price not provided, try to fetch last ticker
-                    if price_for_notional is None:
-                        try:
-                            t = self.fetch_ticker(symbol) or {}
-                            price_for_notional = (
-                                t.get("last") or t.get("price") or t.get("close") or t.get("c")
-                            )
-                        except Exception:
-                            price_for_notional = None
-                    try:
-                        price_f = (
-                            float(price_for_notional) if price_for_notional is not None else 0.0
-                        )
-                    except Exception:
-                        price_f = 0.0
-                    usd_notional = float(amount) * price_f if price_f else 0.0
-                    if usd_notional and usd_notional > float(live_order_usd):
-                        msg = f"order notional ${usd_notional:.2f} exceeds LIVE_ORDER_USD=${live_order_usd:.2f}"
-                        print(f"[router] {msg}")
-                        return {
-                            "ok": False,
-                            "error": msg,
-                            "symbol": symbol,
-                            "side": side,
-                            "amount": amount,
-                            "usd_notional": usd_notional,
-                        }
-            except Exception:
-                # don't block on notional checks if something goes wrong computing price
-                pass
-
-            # prefer centralized safe_create_order if available
-            if hasattr(self.ex, "create_order"):
-                try:
-                    typ = "market" if price is None else "limit"
-                    from order_utils import safe_create_order
-
-                    return safe_create_order(self.ex, typ, symbol, side, amount, price, params)
-                except Exception:
-                    # last-resort: try calling adapter directly
-                    try:
-                        typ = "market" if price is None else "limit"
-                        order = self.ex.create_order(symbol, typ, side, amount, price, params or {})
-                        return order or {}
-                    except Exception as _e2:
-                        print(f"[router] direct create_order failed: {_e2}")
-                        return {"ok": False, "error": str(_e2)}
-
-            # fallbacks for some ccxt forks
-            if hasattr(self.ex, "create_market_order") and price is None:
-                try:
-                    return self.ex.create_market_order(symbol, side, amount)
-                except Exception as _e:
-                    print(f"[router] safe_fetch_balance error: {_e}")
-                    return {}
-
-        except Exception as _e:
-            print(f"[router] safe_fetch_balance error: {_e}")
-            return {}
+        return result
 
     def safe_close_position(self, symbol: str) -> Dict[str, Any]:
         """

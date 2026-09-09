@@ -6,6 +6,8 @@ Manages multiple exchange connections and provides unified interface
 from typing import Dict, List, Optional, Any
 
 import json
+import asyncio
+import os
 import time
 import logging
 import ccxt
@@ -167,7 +169,7 @@ class ExchangeManager:
                 continue
 
         # Return mock data if all exchanges fail
-        return self._get_mock_ticker(symbol)
+        return {}
 
     async def fetch_orderbook(
         self, symbol: str, exchange_name: Optional[str] = None, limit: int = 20
@@ -197,7 +199,7 @@ class ExchangeManager:
                 continue
 
         # Return mock data if all exchanges fail
-        return self._get_mock_orderbook(symbol)
+        return {}
 
     async def fetch_ohlcv(
         self,
@@ -224,7 +226,7 @@ class ExchangeManager:
                 continue
 
         # Return mock data if all exchanges fail
-        return self._get_mock_ohlcv(symbol, timeframe, limit)
+        return []
 
     async def fetch_balance(self, exchange_name: str) -> Dict[str, Any]:
         """Fetch account balance"""
@@ -256,52 +258,62 @@ class ExchangeManager:
         order_type: str,
         side: str,
         amount: float,
-        price: Optional[float] = None,
-        exchange_name: str = 'binance',
+        price: Optional[
+            float
+        ] = None,
+        exchange_name: str = "binance",
         live: bool = False,
     ) -> Dict[str, Any]:
-        """Create an order - paper trading by default, live if enabled"""
-        try:
-            if exchange_name not in self.async_exchanges:
-                return {"ok": False, "error": f"Exchange {exchange_name} not available"}
+        """
+        Historical multi-exchange interface.
 
-            exchange = self.async_exchanges[exchange_name]
-            normalized_symbol = self._normalize_symbol(symbol, exchange_name)
+        `live` remains accepted for old callers,
+        but the global EXECUTION_MODE is now the
+        primary runtime authority.
+        """
+        from src.leantrader.execution.router import (
+            route_order,
+        )
 
-            if not live:
-                # Paper trading simulation
-                order = {
-                    'id': f"paper_{int(time.time() * 1000)}",
-                    'symbol': normalized_symbol,
-                    'type': order_type,
-                    'side': side,
-                    'amount': amount,
-                    'price': price,
-                    'status': 'open',
-                    'timestamp': int(time.time() * 1000),
-                    'datetime': time.strftime('%Y-%m-%d %H:%M:%S'),
-                    'filled': 0,
-                    'remaining': amount,
-                    'cost': amount * (price or 0),
-                    'exchange': exchange_name,
-                    'simulated': True,
-                }
-                self.logger.info(f"Paper order created: {order}")
-                return {"ok": True, "order": order}
-            else:
-                # Live trading
-                if not self._has_live_credentials(exchange_name):
-                    return {"ok": False, "error": f"No live credentials for {exchange_name}"}
+        normalized_symbol = (
+            self._normalize_symbol(
+                symbol,
+                exchange_name,
+            )
+        )
 
-                order = await exchange.create_order(
-                    normalized_symbol, order_type, side, amount, price
-                )
-                self.logger.info(f"Live order created: {order}")
-                return {"ok": True, "order": order}
+        payload = {
+            "symbol": (
+                normalized_symbol
+            ),
+            "side": side,
+            "qty": amount,
+            "price": price,
+            "order_type": (
+                order_type
+            ),
+            "exchange_id": (
+                exchange_name
+            ),
+            "backend": "ccxt",
+        }
 
-        except Exception as e:
-            self.logger.error(f"Error creating order: {e}")
-            return {"ok": False, "error": str(e)}
+        if (
+            live
+            and not os.getenv(
+                "EXECUTION_MODE"
+            )
+        ):
+            payload[
+                "execution_mode"
+            ] = "live"
+
+        result = await asyncio.to_thread(
+            route_order,
+            payload,
+        )
+
+        return result
 
     def _has_live_credentials(self, exchange_name: str) -> bool:
         """Check if exchange has live trading credentials"""
@@ -323,7 +335,7 @@ class ExchangeManager:
 
             if not self._has_live_credentials(exchange_name):
                 # Return mock data for paper trading
-                return self._get_mock_trades(normalized_symbol, limit)
+                return []
 
             trades = await exchange.fetch_my_trades(normalized_symbol, limit=limit)
             return trades
@@ -345,7 +357,7 @@ class ExchangeManager:
 
             if not self._has_live_credentials(exchange_name):
                 # Return mock data for paper trading
-                return self._get_mock_orders(normalized_symbol, limit)
+                return []
 
             orders = await exchange.fetch_open_orders(normalized_symbol, limit=limit)
             return orders

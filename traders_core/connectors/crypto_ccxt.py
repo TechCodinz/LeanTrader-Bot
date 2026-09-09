@@ -1,3 +1,5 @@
+from typing import Any, Dict
+import pandas as pd
 import os  # noqa: F401  # intentionally kept
 
 from dotenv import load_dotenv
@@ -7,9 +9,9 @@ load_dotenv()
 import ccxt  # type: ignore  # noqa: E402
 
 def _mk_exchange(name: str, testnet: bool) -> Any:
-    api_key = os.getenv("CRYPTO_API_KEY") or ""
-    secret = os.getenv("CRYPTO_API_SECRET") or ""
-    password = os.getenv("CRYPTO_API_PASSWORD") or None
+    api_key = os.getenv(f"{name.upper()}_API_KEY") or os.getenv("CRYPTO_API_KEY") or ""
+    secret = os.getenv(f"{name.upper()}_API_SECRET") or os.getenv("CRYPTO_API_SECRET") or ""
+    password = os.getenv(f"{name.upper()}_API_PASSWORD") or os.getenv("CRYPTO_API_PASSWORD") or None
 
     # Prefer central ExchangeRouter when possible so safety checks (ALLOW_LIVE,
     # LIVE_CONFIRM, LIVE_ORDER_USD) are applied uniformly. We only use the
@@ -106,43 +108,77 @@ def ticker_price(exchange: str, symbol: str, testnet: bool) -> float:
     except Exception:
         return 0.0
 
-def market_buy(exchange: str, symbol: str, amount: float, testnet: bool) -> Dict[str, Any]:
-    ex = _mk_exchange(exchange, testnet)
-    try:
-        if hasattr(ex, "safe_place_order"):
-            return ex.safe_place_order(symbol, "buy", amount)
-        if hasattr(ex, "create_market_buy_order"):
-            try:
-                return ex.create_market_buy_order(symbol, amount)
-            except Exception:
-                pass
-        if hasattr(ex, "create_order"):
-            try:
-                return safe_create_order(ex, "market", symbol, "buy", amount)
-            except Exception as _e:
-                print(f"[traders_core.connectors.crypto_ccxt] safe_create_order buy failed: {_e}")
-        return place_market(ex, symbol, "buy", amount)
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+def market_buy(
+    exchange: str,
+    symbol: str,
+    amount: float,
+    testnet: bool,
+) -> Dict[str, Any]:
+    from src.leantrader.execution.router import (
+        route_order,
+    )
 
-def market_sell(exchange: str, symbol: str, amount: float, testnet: bool) -> Dict[str, Any]:
-    ex = _mk_exchange(exchange, testnet)
-    try:
-        if hasattr(ex, "safe_place_order"):
-            return ex.safe_place_order(symbol, "sell", amount)
-        if hasattr(ex, "create_market_sell_order"):
-            try:
-                return ex.create_market_sell_order(symbol, amount)
-            except Exception:
-                pass
-        if hasattr(ex, "create_order"):
-            try:
-                return safe_create_order(ex, "market", symbol, "sell", amount)
-            except Exception as _e:
-                print(f"[traders_core.connectors.crypto_ccxt] safe_create_order sell failed: {_e}")
-        return place_market(ex, symbol, "sell", amount)
-    except Exception as _e:
-        return {"ok": False, "error": str(_e)}
+    payload = {
+        "symbol": symbol,
+        "side": "buy",
+        "qty": amount,
+        "order_type": "market",
+        "exchange_id": exchange,
+        "backend": "ccxt",
+    }
+
+    # Legacy parameter is only a
+    # compatibility hint when no global
+    # runtime mode has been selected.
+    if (
+        testnet
+        and not os.getenv(
+            "EXECUTION_MODE"
+        )
+    ):
+        payload[
+            "execution_mode"
+        ] = "testnet"
+
+    return route_order(
+        payload
+    )
+
+def market_sell(
+    exchange: str,
+    symbol: str,
+    amount: float,
+    testnet: bool,
+) -> Dict[str, Any]:
+    from src.leantrader.execution.router import (
+        route_order,
+    )
+
+    payload = {
+        "symbol": symbol,
+        "side": "sell",
+        "qty": amount,
+        "order_type": "market",
+        "exchange_id": exchange,
+        "backend": "ccxt",
+    }
+
+    # Legacy parameter is only a
+    # compatibility hint when no global
+    # runtime mode has been selected.
+    if (
+        testnet
+        and not os.getenv(
+            "EXECUTION_MODE"
+        )
+    ):
+        payload[
+            "execution_mode"
+        ] = "testnet"
+
+    return route_order(
+        payload
+    )
 
 def market_info(exchange: str, symbol: str, testnet: bool) -> Dict[str, Any]:
     ex = _mk_exchange(exchange, testnet)

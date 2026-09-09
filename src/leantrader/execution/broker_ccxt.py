@@ -785,6 +785,79 @@ class BrokerCCXT:
             or []
         )
 
+    def load_markets(
+        self,
+    ) -> Dict[str, Any]:
+        mode = self.resolve_mode()
+
+        environment = (
+            mode
+            if mode in {
+                "testnet",
+                "live",
+            }
+            else "live"
+        )
+
+        exchange = (
+            self._make_exchange(
+                environment,
+                authenticated=False,
+            )
+        )
+
+        markets = (
+            exchange.load_markets()
+        )
+
+        return (
+            markets
+            if isinstance(
+                markets,
+                dict,
+            )
+            else {}
+        )
+
+    def fetch_order_book(
+        self,
+        symbol: str,
+        limit: int = 20,
+    ) -> Dict[str, Any]:
+        mode = self.resolve_mode()
+
+        environment = (
+            mode
+            if mode in {
+                "testnet",
+                "live",
+            }
+            else "live"
+        )
+
+        exchange = (
+            self._make_exchange(
+                environment,
+                authenticated=False,
+            )
+        )
+
+        result = (
+            exchange.fetch_order_book(
+                symbol,
+                limit=limit,
+            )
+        )
+
+        return (
+            result
+            if isinstance(
+                result,
+                dict,
+            )
+            else {}
+        )
+
     def fetch_balance(
         self,
     ) -> Dict[str, Any]:
@@ -812,20 +885,35 @@ class BrokerCCXT:
 
         return balance or {}
 
-    def market(
+    def order(
         self,
         symbol: str,
+        order_type: str,
         side: str,
         qty: float,
-        ref_price: float = 0.0,
+        price: Optional[float] = None,
+        params: Optional[
+            Dict[str, Any]
+        ] = None,
     ) -> Dict[str, Any]:
+        """
+        Universal authenticated exchange order.
+
+        The strategy decides intent.
+        Execution mode and exchange environment
+        remain runtime concerns.
+        """
         symbol = str(
             symbol or ""
         )
 
+        order_type = str(
+            order_type or "market"
+        ).strip().lower()
+
         side = str(
             side or ""
-        ).lower()
+        ).strip().lower()
 
         try:
             qty = float(
@@ -834,10 +922,21 @@ class BrokerCCXT:
         except Exception:
             qty = 0.0
 
+        if price is not None:
+            try:
+                price = float(
+                    price
+                )
+            except Exception:
+                price = None
+
+        params = dict(
+            params or {}
+        )
+
         if (
             not symbol
-            or side
-            not in {
+            or side not in {
                 "buy",
                 "sell",
             }
@@ -921,20 +1020,32 @@ class BrokerCCXT:
         )
 
         try:
+            order_price = (
+                None
+                if order_type
+                == "market"
+                else price
+            )
+
             order = (
                 exchange.create_order(
                     symbol,
-                    "market",
+                    order_type,
                     side,
                     qty,
-                    None,
-                    {},
+                    order_price,
+                    params,
                 )
                 or {}
             )
 
             order_id = (
                 order.get("id")
+                if isinstance(
+                    order,
+                    dict,
+                )
+                else None
             )
 
             if (
@@ -963,7 +1074,14 @@ class BrokerCCXT:
                             )
 
                         status = str(
-                            order.get(
+                            (
+                                order
+                                if isinstance(
+                                    order,
+                                    dict,
+                                )
+                                else {}
+                            ).get(
                                 "status",
                                 "",
                             )
@@ -987,6 +1105,9 @@ class BrokerCCXT:
                 "exchange": (
                     self.exchange_id
                 ),
+                "order_type": (
+                    order_type
+                ),
                 "order": order,
             }
 
@@ -1005,5 +1126,24 @@ class BrokerCCXT:
                 "symbol": symbol,
                 "side": side,
                 "qty": qty,
+                "order_type": (
+                    order_type
+                ),
                 "error": str(exc),
             }
+
+    def market(
+        self,
+        symbol: str,
+        side: str,
+        qty: float,
+        ref_price: float = 0.0,
+    ) -> Dict[str, Any]:
+        return self.order(
+            symbol=symbol,
+            order_type="market",
+            side=side,
+            qty=qty,
+            price=None,
+            params={},
+        )

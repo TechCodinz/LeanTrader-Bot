@@ -1,193 +1,262 @@
-# execution_adv.py
 from typing import Any, Dict
 
-
-def safe_create_order(ex, type_: str, symbol: str, side: str, amount: float, price: float, params: Dict[str, Any] | None = None):
-    try:
-        params = params or {}
-        return ex.create_order(symbol, type_, side, amount, price, params)
-    except Exception:
-        return None
+from order_utils import (
+    place_market,
+    safe_create_order as universal_safe_create_order,
+)
 
 
-def place_market(ex, symbol: str, side: str, amount: float):
-    try:
-        if hasattr(ex, "safe_place_order"):
-            return ex.safe_place_order(symbol, side, amount)
-        if hasattr(ex, "create_market_order"):
-            return ex.create_market_order(symbol, side, amount)
-        if hasattr(ex, "create_order"):
-            return ex.create_order(symbol, "market", side, amount)
-    except Exception:
-        pass
-    return {"ok": False, "error": "market order unavailable"}
+def safe_create_order(
+    ex,
+    type_: str,
+    symbol: str,
+    side: str,
+    amount: float,
+    price: float = None,
+    params: Dict[
+        str,
+        Any,
+    ] | None = None,
+):
+    return (
+        universal_safe_create_order(
+            ex,
+            type_,
+            symbol,
+            side,
+            amount,
+            price,
+            params,
+        )
+    )
 
 
 class LimitMakerExecutor:
     """
-    Maker-only limit order helper (postOnly when supported by the exchange).
-    Use on thin books to reduce taker fees/slippage. Falls back safely.
+    Historical maker executor.
+
+    It preserves post-only intent while
+    routing all order creation through
+    the universal execution fabric.
     """
 
-    def __init__(self, ex, logger, fee_frac: float = 0.001):
+    def __init__(
+        self,
+        ex,
+        logger,
+        fee_frac: float = 0.001,
+    ):
         self.ex = ex
         self.log = logger
         self.fee_frac = fee_frac
 
-    def limit_maker_buy(self, symbol: str, price: float, amount: float) -> Dict[str, Any]:
-        params = {"postOnly": True}
+    def _maker(
+        self,
+        symbol: str,
+        side: str,
+        price: float,
+        amount: float,
+    ) -> Dict[str, Any]:
+        result = (
+            universal_safe_create_order(
+                self.ex,
+                "limit",
+                symbol,
+                side,
+                amount,
+                price,
+                {
+                    "postOnly": True
+                },
+            )
+        )
+
+        if (
+            isinstance(
+                result,
+                dict,
+            )
+            and result.get(
+                "ok",
+                True,
+            )
+        ):
+            return result
+
+        self.log.warning(
+            "postOnly unavailable; "
+            "retrying normal limit"
+        )
+
+        result = (
+            universal_safe_create_order(
+                self.ex,
+                "limit",
+                symbol,
+                side,
+                amount,
+                price,
+                {},
+            )
+        )
+
+        if (
+            isinstance(
+                result,
+                dict,
+            )
+            and result.get(
+                "ok",
+                True,
+            )
+        ):
+            return result
+
+        return place_market(
+            self.ex,
+            symbol,
+            side,
+            amount,
+        )
+
+    def limit_maker_buy(
+        self,
+        symbol: str,
+        price: float,
+        amount: float,
+    ) -> Dict[str, Any]:
+        result = self._maker(
+            symbol,
+            "buy",
+            price,
+            amount,
+        )
+
+        self.log.info(
+            "BUY intent %s px=%s amt=%s",
+            symbol,
+            price,
+            amount,
+        )
+
+        return result
+
+    def limit_maker_sell(
+        self,
+        symbol: str,
+        price: float,
+        amount: float,
+    ) -> Dict[str, Any]:
+        result = self._maker(
+            symbol,
+            "sell",
+            price,
+            amount,
+        )
+
+        self.log.info(
+            "SELL intent %s px=%s amt=%s",
+            symbol,
+            price,
+            amount,
+        )
+
+        return result
+
+    def safe_cancel(
+        self,
+        order_id: str,
+        symbol: str,
+    ) -> None:
+        """
+        Preserve historical cancellation
+        compatibility for now.
+        """
         try:
-            # Prefer safe wrapper, then create_order, then router-level helpers
-            if hasattr(self.ex, "safe_place_order"):
-                order = self.ex.safe_place_order(symbol, "buy", amount, price=price, params=params)
-            elif hasattr(self.ex, "place_spot_market"):
-                # ExchangeRouter-style helper: returns {ok: bool, result: ...}
-                res = self.ex.place_spot_market(symbol, "buy", qty=amount)
-                order = res.get("result") if isinstance(res, dict) else res
-            elif hasattr(self.ex, "create_limit_order"):
-                try:
-                    order = self.ex.create_limit_order(symbol, "buy", amount, price)
-                except Exception:
-                    order = None
-            elif hasattr(self.ex, "create_order"):
-                try:
-                    order = safe_create_order(
-                        self.ex, "limit", symbol, "buy", amount, price, params=params
+            if hasattr(
+                self.ex,
+                "safe_cancel_order",
+            ):
+                self.ex.safe_cancel_order(
+                    order_id,
+                    symbol,
+                )
+
+            elif hasattr(
+                self.ex,
+                "cancel_order",
+            ):
+                self.ex.cancel_order(
+                    order_id,
+                    symbol,
+                )
+
+            self.log.info(
+                "CANCEL %s order=%s",
+                symbol,
+                order_id,
+            )
+
+        except Exception as exc:
+            self.log.error(
+                "Cancel failed %s: %s",
+                symbol,
+                type(exc).__name__,
+            )
+
+    def get_order_status(
+        self,
+        order_id: str,
+        symbol: str,
+    ) -> Dict[str, Any]:
+        try:
+            if hasattr(
+                self.ex,
+                "get_order_status",
+            ):
+                return (
+                    self.ex
+                    .get_order_status(
+                        order_id,
+                        symbol,
                     )
-                except Exception:
-                    order = None
-            else:
-                raise RuntimeError("no order method available on exchange")
-            self.log.info(f"POST-ONLY BUY {symbol} px={price} amt={amount}")
-            return order
-        except Exception as e:
-            self.log.warning(f"postOnly failed, fallback to limit BUY: {e}")
-            # best-effort fallbacks
-            try:
-                if hasattr(self.ex, "safe_place_order"):
-                    return self.ex.safe_place_order(symbol, "buy", amount, price=price)
-                if hasattr(self.ex, "place_spot_market"):
-                    return self.ex.place_spot_market(symbol, "buy", qty=amount)
-                if hasattr(self.ex, "create_limit_order"):
-                    try:
-                        return self.ex.create_limit_order(symbol, "buy", amount, price)
-                    except Exception:
-                        pass
-                if hasattr(self.ex, "create_order"):
-                    try:
-                        return safe_create_order(self.ex, "limit", symbol, "buy", amount, price)
-                    except Exception:
-                        pass
-                # last resort: place market using helper
-                return place_market(self.ex, symbol, "buy", amount)
-            except Exception:
-                pass
-            return {"ok": False, "error": "no order method available"}
+                    or {}
+                )
 
-    def limit_maker_sell(self, symbol: str, price: float, amount: float) -> Dict[str, Any]:
-        params = {"postOnly": True}
-        try:
-            if hasattr(self.ex, "safe_place_order"):
-                order = self.ex.safe_place_order(symbol, "sell", amount, price=price, params=params)
-            elif hasattr(self.ex, "place_spot_market"):
-                res = self.ex.place_spot_market(symbol, "sell", qty=amount)
-                order = res.get("result") if isinstance(res, dict) else res
-            elif hasattr(self.ex, "create_limit_order"):
-                try:
-                    order = self.ex.create_limit_order(symbol, "sell", amount, price)
-                except Exception:
-                    order = None
-            elif hasattr(self.ex, "create_order"):
-                try:
-                    order = safe_create_order(
-                        self.ex, "limit", symbol, "sell", amount, price, params=params
+            if hasattr(
+                self.ex,
+                "safe_fetch_order",
+            ):
+                return (
+                    self.ex
+                    .safe_fetch_order(
+                        order_id,
+                        symbol,
                     )
-                except Exception:
-                    order = None
-            else:
-                raise RuntimeError("no order method available on exchange")
-            self.log.info(f"POST-ONLY SELL {symbol} px={price} amt={amount}")
-            return order
-        except Exception as e:
-            self.log.warning(f"postOnly failed, fallback to limit SELL: {e}")
-            try:
-                if hasattr(self.ex, "safe_place_order"):
-                    return self.ex.safe_place_order(symbol, "sell", amount, price=price)
-                if hasattr(self.ex, "place_spot_market"):
-                    return self.ex.place_spot_market(symbol, "sell", qty=amount)
-                if hasattr(self.ex, "create_limit_order"):
-                    try:
-                        return self.ex.create_limit_order(symbol, "sell", amount, price)
-                    except Exception:
-                        pass
-                if hasattr(self.ex, "create_order"):
-                    try:
-                        return safe_create_order(self.ex, "limit", symbol, "sell", amount, price)
-                    except Exception:
-                        pass
-                return place_market(self.ex, symbol, "sell", amount)
-            except Exception:
-                pass
-            return {"ok": False, "error": "no order method available"}
+                    or {}
+                )
 
-    def safe_cancel(self, order_id: str, symbol: str) -> None:
-        try:
-            if hasattr(self.ex, "safe_cancel_order"):
-                try:
-                    self.ex.safe_cancel_order(order_id, symbol)
-                except Exception as e:
-                    print(f"[execution_adv] safe_cancel_order failed: {e}")
-            elif hasattr(self.ex, "cancel_order"):
-                try:
-                    self.ex.cancel_order(order_id, symbol)
-                except Exception as e:
-                    print(f"[execution_adv] cancel_order failed: {e}")
-            elif hasattr(self.ex, "place_spot_market") and hasattr(self.ex, "get_order_status"):
-                # last-resort: router-style exchange may provide a cancel helper
-                try:
-                    self.ex.safe_cancel_order(order_id, symbol)
-                except Exception:
-                    pass
-            else:
-                raise RuntimeError("no cancel method available")
-            self.log.info(f"CANCELLED {symbol} order_id={order_id}")
-        except Exception as e:
-            try:
-                self.log.error(f"Failed to cancel {symbol} order_id={order_id}: {e}")
-            except Exception:
-                print(f"[execution_adv] Failed to cancel {symbol} order_id={order_id}: {e}")
+            if hasattr(
+                self.ex,
+                "fetch_order",
+            ):
+                return (
+                    self.ex
+                    .fetch_order(
+                        order_id,
+                        symbol,
+                    )
+                    or {}
+                )
 
-    def get_order_status(self, order_id: str, symbol: str) -> Dict[str, Any]:
-        try:
-            # prefer explicit helper, then ccxt fetch_order; guard exceptions
-            if hasattr(self.ex, "get_order_status"):
-                try:
-                    status = self.ex.get_order_status(order_id, symbol)
-                except Exception as e:
-                    print(f"[execution_adv] get_order_status helper failed: {e}")
-                    status = {}
-            elif hasattr(self.ex, "safe_fetch_order"):
-                try:
-                    status = self.ex.safe_fetch_order(order_id, symbol)
-                except Exception as e:
-                    print(f"[execution_adv] safe_fetch_order failed: {e}")
-                    status = {}
-            elif hasattr(self.ex, "fetch_order"):
-                try:
-                    status = self.ex.fetch_order(order_id, symbol)
-                except Exception as e:
-                    print(f"[execution_adv] fetch_order failed: {e}")
-                    status = {}
-            else:
-                status = {"error": "no order status method available"}
-            try:
-                self.log.info(f"ORDER STATUS {symbol} order_id={order_id}: {status}")
-            except Exception:
-                print(f"[execution_adv] ORDER STATUS {symbol} order_id={order_id}: {status}")
-            return status or {}
-        except Exception as e:
-            try:
-                self.log.error(f"Failed to get {symbol} order_id={order_id} status: {e}")
-            except Exception:
-                print(f"[execution_adv] Failed to get {symbol} order_id={order_id} status: {e}")
-            return {"error": str(e)}
+            return {
+                "error": (
+                    "order_status_"
+                    "unavailable"
+                )
+            }
+
+        except Exception as exc:
+            return {
+                "error": str(exc)
+            }

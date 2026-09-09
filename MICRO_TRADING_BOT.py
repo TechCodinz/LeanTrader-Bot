@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import ccxt
+import os
 import time
 import requests
 from datetime import datetime
@@ -7,21 +8,32 @@ from datetime import datetime
 class MICRO_GATE_BOT:
     def __init__(self):
         # TELEGRAM CONFIGURATION
-        self.telegram_bot_token = "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
-        self.admin_chat_id = "5329503447"
-        self.vip_chat_id = "-1002983007302"
-        self.free_chat_id = "-1002930953007"
+        self.telegram_bot_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        self.admin_chat_id = os.getenv("TELEGRAM_ADMIN_CHAT_ID", "")
+        self.vip_chat_id = os.getenv("TELEGRAM_VIP_CHAT_ID", "")
+        self.free_chat_id = os.getenv("TELEGRAM_FREE_CHAT_ID", "")
 
         # GATE.IO API CONFIGURATION (REAL TRADING)
+        self.exchange_id = os.getenv("LEGACY_PROFIT_EXCHANGE", "gateio").strip().lower()
+
         self.gate_config = {
-            'apiKey': 'a0508d8aadf3bcb76e16f4373e1f3a76',
-            'secret': '451770a07dbede1b87bb92f5ce98e24029d2fe91e0053be2ec41771c953113f9',
-            'sandbox': False,  # REAL TRADING
-            'enableRateLimit': True,
+            "enableRateLimit": True,
         }
 
-        # Initialize Gate.io exchange
-        self.gate = ccxt.gate(self.gate_config)
+        exchange_name = (
+            "gateio"
+            if self.exchange_id in {"gate", "gateio"}
+            else self.exchange_id
+        )
+
+        exchange_class = getattr(
+            ccxt,
+            exchange_name,
+        )
+
+        self.gate = exchange_class(
+            self.gate_config
+        )
 
         # MICRO POSITION SIZES - VERY SMALL TO ENSURE SUFFICIENT BALANCE
         # These are extremely conservative to avoid "BALANCE_NOT_ENOUGH" errors
@@ -73,27 +85,108 @@ class MICRO_GATE_BOT:
             return False
 
     def check_gate_balance(self):
-        """Check Gate.io USDT balance"""
+        from src.leantrader.execution.router import (
+            route_balance,
+        )
+
         try:
-            balance = self.gate.fetch_balance()
-            usdt_balance = balance['USDT']['free']
-            print(f"💰 Gate.io USDT Balance: {usdt_balance}")
-            return float(usdt_balance)
-        except Exception as e:
-            print(f"❌ Balance check error: {e}")
+            balance = (
+                route_balance(
+                    exchange_id=(
+                        self.exchange_id
+                    )
+                )
+                or {}
+            )
+
+            free = (
+                balance.get("free")
+                or {}
+            )
+
+            value = (
+                free.get("USDT")
+                if isinstance(
+                    free,
+                    dict,
+                )
+                else None
+            )
+
+            if value is None:
+                coin = (
+                    balance.get("USDT")
+                    or {}
+                )
+
+                if isinstance(
+                    coin,
+                    dict,
+                ):
+                    value = coin.get(
+                        "free"
+                    )
+
+            return float(
+                value or 0.0
+            )
+
+        except Exception as exc:
+            print(
+                "Balance unavailable:",
+                type(exc).__name__,
+            )
             return 0.0
 
-    def get_gate_ticker(self, symbol):
-        """Get ticker data from Gate.io with proper error handling"""
+    def get_gate_ticker(
+        self,
+        symbol,
+    ):
+        from src.leantrader.execution.router import (
+            route_ticker,
+        )
+
         try:
-            ticker = self.gate.fetch_ticker(symbol)
+            ticker = (
+                route_ticker(
+                    symbol,
+                    exchange_id=(
+                        self.exchange_id
+                    ),
+                )
+                or {}
+            )
+
+            price = float(
+                ticker.get("last")
+                or ticker.get("close")
+                or 0.0
+            )
+
+            if price <= 0.0:
+                return None
+
             return {
-                'price': float(ticker['last']),
-                'change': float(ticker['percentage']) if ticker['percentage'] else 0,
-                'volume': float(ticker['quoteVolume']) if ticker['quoteVolume'] else 0,
+                "price": price,
+                "change": float(
+                    ticker.get(
+                        "percentage"
+                    )
+                    or 0.0
+                ),
+                "volume": float(
+                    ticker.get(
+                        "quoteVolume"
+                    )
+                    or 0.0
+                ),
             }
-        except Exception as e:
-            print(f"❌ Gate.io ticker error for {symbol}: {e}")
+
+        except Exception as exc:
+            print(
+                "Ticker unavailable:",
+                type(exc).__name__,
+            )
             return None
 
     def analyze_market(self, symbol):
@@ -119,123 +212,151 @@ class MICRO_GATE_BOT:
             print(f"❌ Market analysis error for {symbol}: {e}")
             return "HOLD", 0, 0, 0, 0
 
-    def execute_trade(self, symbol, signal, price, quantity=None):
-        """Execute trade with micro position sizing"""
-        print(f"🔍 execute_trade called: {symbol} {signal} price={price} qty={quantity}")
-        try:
-            # SAFETY CHECK: Stop if daily loss limit reached
-            print(f"   Checking daily loss: {self.daily_loss:.2f} / {self.max_daily_loss:.2f}")
-            if self.daily_loss >= self.max_daily_loss:
-                print(f"🛑 SAFETY: Daily loss limit reached (${self.daily_loss:.2f}). Stopping trading.")
-                return None
-            
-            # SAFETY CHECK: Limit trades per day
-            # Infinite trading - no daily limit
+    def execute_trade(
+        self,
+        symbol,
+        signal,
+        price,
+        quantity=None,
+    ):
+        from src.leantrader.execution.router import (
+            route_order,
+        )
 
-            # Use passed quantity or calculate from balance
-            if quantity is None:
-                position_size = self.position_sizes.get(symbol, 0.001)
-            else:
-                position_size = quantity
-            
-            # Check if we have enough balance first
-            balance = self.check_gate_balance()
-            required_balance = price * position_size * 1.1  # Add 10% buffer
+        side = str(
+            signal or ""
+        ).lower()
 
-            print(f"   Balance check: have ${balance:.2f}, need ${required_balance:.2f}")
-            if balance < required_balance:
-                print(f"❌ Insufficient balance: Need ${required_balance:.2f}, have ${balance:.2f}")
-                return None
-
-            print(f"   Signal type: {signal.upper()}")
-            if signal.upper() == "BUY":
-                print(f"   Creating BUY order...")
-                # Gate.io market buy needs COST (total $ to spend), not quantity
-                cost_to_spend = price * position_size
-                params = {'createMarketBuyOrderRequiresPrice': False}
-                order = self.gate.create_market_buy_order(symbol, cost_to_spend, params)
-                print(f"✅ MICRO BUY: {symbol} - Spent ${cost_to_spend:.2f}")
-            elif signal.upper() == "SELL":
-                order = self.gate.create_market_sell_order(symbol, position_size)
-                print(f"✅ MICRO SELL: {symbol} @ ${price:.4f} | Size: {position_size}")
-            else:
-                return None
-
-            return order
-
-        except Exception as e:
-            print(f"❌ Trade execution failed: {e}")
+        if side not in {
+            "buy",
+            "sell",
+        }:
             return None
 
+        amount = float(
+            quantity
+            if quantity is not None
+            else self.position_sizes.get(
+                symbol,
+                0.001,
+            )
+        )
+
+        return route_order(
+            {
+                "symbol": symbol,
+                "side": side,
+                "qty": amount,
+                "price": float(
+                    price or 0.0
+                ),
+                "order_type": "market",
+                "exchange_id": (
+                    self.exchange_id
+                ),
+                "backend": "ccxt",
+            }
+        )
+
     def run_micro_trading(self):
-        """Main micro trading cycle"""
-        print("🚀 Starting MICRO GATE.IO BOT...")
+        """
+        Preserve the historical micro strategy.
 
-        balance = self.check_gate_balance()
+        Entry fills are not counted as profit.
+        Realized PnL requires a reconciled close.
+        """
+        balance = (
+            self.check_gate_balance()
+        )
 
-        startup_message = f"""🚀 <b>MICRO GATE.IO BOT ACTIVATED!</b>
-
-💰 <b>YOUR BALANCE:</b> ${balance:.2f}
-📊 <b>TRADING PAIRS:</b> {len(self.crypto_pairs)}
-🎯 <b>MICRO POSITION STRATEGY</b>
-
-<b>💰 MICRO POSITION SIZES:</b>
-• DOGE: 50 (~$6)
-
-🎯 <b>TARGET: $0.50-2.00 daily profits</b>
-🚀 <b>CONSERVATIVE MICRO TRADING</b>"""
-
-        self.send_telegram(startup_message)
+        self.send_telegram(
+            (
+                "MICRO STRATEGY ACTIVE\n"
+                f"Balance: {balance:.2f}\n"
+                f"Pairs: {len(self.crypto_pairs)}\n"
+                "Execution mode is selected "
+                "by LeanTrader's universal router."
+            )
+        )
 
         trade_count = 0
 
         while self.running:
             try:
-                for symbol in self.crypto_pairs:
-                    signal, confidence, price, change, volume = self.analyze_market(symbol)
+                for symbol in (
+                    self.crypto_pairs
+                ):
+                    (
+                        signal,
+                        confidence,
+                        price,
+                        change,
+                        volume,
+                    ) = self.analyze_market(
+                        symbol
+                    )
 
-                    if confidence >= 80 and signal != "HOLD":
-                        trade_count += 1
+                    if (
+                        confidence < 80
+                        or signal
+                        == "HOLD"
+                    ):
+                        continue
 
-                        trade_result = self.execute_trade(symbol, signal, price)
+                    result = (
+                        self.execute_trade(
+                            symbol,
+                            signal,
+                            price,
+                        )
+                    )
 
-                        if trade_result:
-                            position_size = self.position_sizes.get(symbol, 0.001)
-                            profit = abs(price * position_size * 0.01)  # 1% profit factor
-                            self.total_profit += profit
-                            self.total_trades += 1
+                    if not (
+                        isinstance(
+                            result,
+                            dict,
+                        )
+                        and result.get(
+                            "ok"
+                        )
+                    ):
+                        continue
 
-                            if profit > 0:
-                                self.winning_trades += 1
+                    trade_count += 1
+                    self.total_trades += 1
 
-                            signal_message = f"""🚀 <b>MICRO SIGNAL #{trade_count}</b>
+                    print(
+                        "MICRO ENTRY",
+                        symbol,
+                        signal,
+                        "mode=",
+                        result.get(
+                            "execution_mode"
+                        ),
+                        "exchange=",
+                        result.get(
+                            "exchange"
+                        ),
+                        "realized_pnl=PENDING_CLOSE",
+                    )
 
-💰 <b>{symbol}</b>
-🎯 <b>Signal:</b> {signal}
-💵 <b>Price:</b> ${price:.6f}
-📈 <b>Change:</b> {change:+.2f}%
-🔥 <b>Confidence:</b> {confidence}%
-
-<b>💰 MICRO PROFIT:</b> ${profit:.4f}
-<b>📊 TOTAL PROFIT:</b> ${self.total_profit:.4f}
-<b>✅ MICRO TRADE EXECUTED</b>
-
-⏰ {datetime.now().strftime('%H:%M:%S')}"""
-
-                            self.send_telegram(signal_message)
-                            print(
-                                f"🚀 MICRO {symbol}: {signal} @ ${price:.6f} | Profit: ${profit:.4f}"
-                            )
-
-                            time.sleep(60)  # Wait 1 minute between trades
+                    time.sleep(60)
 
                 print(
-                    f"🔄 Micro trading cycle completed - Trades: {trade_count}, Profit: ${self.total_profit:.4f}"
+                    "Micro cycle complete",
+                    "entries=",
+                    trade_count,
+                    "confirmed_realized_pnl=",
+                    self.total_profit,
                 )
-                time.sleep(30)  # 30 second cycles
 
-            except Exception as e:
-                print(f"❌ Error in micro trading cycle: {e}")
+                time.sleep(30)
+
+            except Exception as exc:
+                print(
+                    "Micro cycle error:",
+                    type(exc).__name__,
+                )
                 time.sleep(60)
 
     def run(self):
