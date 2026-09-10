@@ -1,16 +1,41 @@
 import os
 
+import pytest
+
 from order_utils import safe_create_order
 from paper_broker import PaperBroker
 
-def test_safe_create_order_market():
+def test_safe_create_order_market_requires_a_reference_price():
+    """A paper market order with no price must be refused, not filled at zero.
+
+    This previously asserted a successful fill for an order carrying no price.
+    It only passed because the emulator had no zero-price guard: ref_price fell
+    through as 0.0 and the order came back ok=True, status=filled, avg_px=0.0 --
+    a fabricated fill at a fabricated price. The universal execution checkpoint
+    added the guard, so the refusal below is the corrected behaviour.
+    """
     ex = PaperBroker(1000.0)
     res = safe_create_order(ex, "market", "BTC/USDT", "buy", 0.001)
     assert isinstance(res, dict)
-    # PaperBroker returns an object with id/symbol/side
-    assert res.get("symbol") == "BTC/USDT"
-    assert res.get("side") == "buy"
-    assert "id" in res
+    assert res.get("ok") is False
+    assert res.get("executed") is not True
+    assert res.get("error") == "paper_reference_price_unavailable"
+
+
+def test_safe_create_order_market_fills_when_a_price_is_supplied():
+    """The same order succeeds deterministically once priced."""
+    ex = PaperBroker(1000.0)
+    res = safe_create_order(ex, "market", "BTC/USDT", "buy", 0.001, price=50_000.0)
+
+    # safe_create_order flattens the router receipt, so order fields sit at the
+    # top level rather than under an "order" key.
+    assert res.get("ok") is True
+    assert res["side"] == "buy"
+    assert res["status"] == "filled"
+    assert res["id"]
+    assert res["filled"] == pytest.approx(0.001)
+    # buy pays the emulator's 2 bps: 50000 * (1 + 2/10000)
+    assert res["avg_px"] == pytest.approx(50_000.0 * 1.0002)
 
 def test_exchange_router_paper_mode_fetch_and_order():
     # exercise the ExchangeRouter in paper mode: fetch_ohlcv fallback and create_order
@@ -23,9 +48,12 @@ def test_exchange_router_paper_mode_fetch_and_order():
     bars = ex.safe_fetch_ohlcv("BTC/USDT", "1m", limit=5)
     assert isinstance(bars, list)
     # create a paper market order (router.safe_place_order signature: symbol, side, amount, price=None, params=None)
+    # Unpriced market orders are refused rather than filled at zero; see
+    # test_safe_create_order_market_requires_a_reference_price.
     res = ex.safe_place_order("BTC/USDT", "buy", 0.001)
     assert isinstance(res, dict)
-    assert res.get("symbol") == "BTC/USDT"
+    assert res.get("ok") is False
+    assert res.get("error") == "paper_reference_price_unavailable"
 
 def test_tg_notifier_mocked(monkeypatch):
     # ensure notifier will call Telegram endpoints; mock requests.post to avoid network
@@ -58,8 +86,18 @@ def test_tg_notifier_mocked(monkeypatch):
     tn._send("test message")
     assert called.get("url") is not None
 
-def test_fetch_ohlcv_synthetic_fallback():
-    # force the router into 'malformed' mode to exercise the synthetic fallback
+def test_fetch_ohlcv_returns_nothing_rather_than_synthetic_bars():
+    """A router that cannot reach its exchange must return no bars.
+
+    This previously asserted that `limit` bars come back when the exchange
+    never loaded its markets. Those bars were manufactured: open, high, low and
+    close all set to the last ticker price, or to 0.0 when even that was
+    unavailable, which is how 2001 all-zero candles reached the market cache.
+    Callers cannot tell them from real candles, so indicators and backtests were
+    running on fabricated history exactly when the exchange was known
+    unreachable. Returning nothing is the honest answer and callers already
+    handle it.
+    """
     import os
 
     from router import ExchangeRouter
@@ -69,10 +107,7 @@ def test_fetch_ohlcv_synthetic_fallback():
     ex._exchange_malformed = True
     bars = ex.safe_fetch_ohlcv("BTC/USDT", "1m", limit=3)
     assert isinstance(bars, list)
-    assert len(bars) == 3
-    for r in bars:
-        assert isinstance(r, list)
-        assert len(r) >= 6
+    assert bars == [], "no synthetic candles may be manufactured"
 
 def test_place_oco_with_paper_broker():
     from order_utils import place_oco_ccxt
