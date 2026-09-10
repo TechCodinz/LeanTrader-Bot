@@ -1,3 +1,4 @@
+from strategy import TrendBreakoutStrategy
 import argparse  # noqa: F401
 import os  # noqa: F401
 

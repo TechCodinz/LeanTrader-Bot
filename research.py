@@ -1,3 +1,5 @@
+from prometheus_client import REGISTRY
+from strategy import get_strategy
 import argparse
 import json
 import math

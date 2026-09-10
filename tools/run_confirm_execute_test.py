@@ -5,6 +5,7 @@ posts /execute with the PIN. Prints responses and shows tail of persistent logs.
 
 This uses FastAPI TestClient so no external server is required.
 """
+import user_pins
 from pathlib import Path
 
 import json

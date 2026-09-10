@@ -1,3 +1,4 @@
+from tg_utils import send_photo_with_buttons
 photo = r"runtime/charts/BTC_USDT_1757060104.png"
 buttons = [
     [

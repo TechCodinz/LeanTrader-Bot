@@ -753,7 +753,7 @@ class QuantumRiskManager:
             
             # Information ratio
             tracking_error = np.std(returns - benchmark_returns) if benchmark_returns is not None else volatility
-            information_ratio = (mean_return - np.mean(benchmark_returns)) / tracking_error if tracking_returns > 0 else 0
+            information_ratio = (mean_return - np.mean(benchmark_returns)) / tracking_error if tracking_error > 0 else 0
             
             # Treynor ratio
             treynor_ratio = (mean_return - risk_free_rate) / beta if beta != 0 else 0

@@ -1,3 +1,13 @@
+try:
+    from transformers import pipeline
+except Exception:  # transformers is optional; features degrade to CONFIG_REQUIRED
+    pipeline = None
+
+try:
+    import MetaTrader5 as mt5  # type: ignore
+except Exception:  # MetaTrader5 has no Linux wheel; adapter reports CONFIG_REQUIRED
+    mt5 = None
+
 import logging
 
 logger = logging.getLogger(__name__)

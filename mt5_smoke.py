@@ -1,5 +1,6 @@
 # mt5_smoke.py  — drop-in replacement
 
+from mt5_adapter import account_summary_lines, bars_df, mt5_init
 import sys
 
 import pandas as pd  # only used to pretty-print the last few rows

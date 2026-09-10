@@ -1,5 +1,6 @@
 # research_optuna_walk.py
 
+from news_service import build_clean, harvest_rss
 import argparse
 import datetime as dt  # noqa: F401  # intentionally kept
 import json

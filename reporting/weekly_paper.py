@@ -1,6 +1,10 @@
+from jinja2 import Environment, FileSystemLoader
+import datetime as dt
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from pathlib import Path
 import json
+
+from news_adapter import CRYPTO_PATH, _load_json
 import os
 
 def _iso_week_range(iso_week: str) -> Tuple[dt.date, dt.date]:

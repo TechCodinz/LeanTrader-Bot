@@ -2,6 +2,9 @@
 Configuration Validator for Trading Bot
 Validates all configuration settings for production readiness
 """
+import logging
+
+logger = logging.getLogger(__name__)
 from typing import List
 from dataclasses import dataclass
 

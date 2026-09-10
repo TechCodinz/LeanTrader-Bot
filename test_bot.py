@@ -3,6 +3,7 @@
 """
 Test script for the unified trading bot
 """
+from unified_trading_bot import UnifiedTradingBot
 
 import asyncio
 import os

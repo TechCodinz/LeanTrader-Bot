@@ -1,4 +1,5 @@
 # Emulate test order: import ws first, then set env, then proceed
+import user_pins
 from pathlib import Path
 import sys
 import os

@@ -1,6 +1,7 @@
 # smoke_ultra.py
 # Quick dry-run smoke test: instantiate ExchangeRouter+UltraCore and run one god_mode_cycle
 
+from ultra_core import UltraCore
 from dotenv import load_dotenv
 
 from router import ExchangeRouter

@@ -1,6 +1,8 @@
 """Demo runner: generate FX and crypto signals once, publish and optionally place testnet orders.
 Respects ENABLE_LIVE env var; will not place real mainnet orders unless ENABLE_LIVE=true and other guards are set.
 """
+from futures_signals import fut_side_from_ema
+from signals_publisher import publish_signal
 
 import os
 import time

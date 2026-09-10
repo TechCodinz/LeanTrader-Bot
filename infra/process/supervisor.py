@@ -1,3 +1,4 @@
+from prometheus_client import Gauge
 from typing import Any, Dict, Optional
 import argparse
 import json

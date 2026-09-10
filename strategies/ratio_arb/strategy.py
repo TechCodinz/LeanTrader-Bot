@@ -1,3 +1,4 @@
+from decimal import Decimal
 import time
 from services.web3_bias_daemon import bias_map
 

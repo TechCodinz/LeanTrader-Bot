@@ -1,3 +1,4 @@
+from brain_loop import think_once
 import json
 import os
 

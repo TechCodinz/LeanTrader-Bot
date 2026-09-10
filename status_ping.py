@@ -1,5 +1,6 @@
 # status_ping.py
 
+from notifier import TelegramNotifier
 from pathlib import Path
 def tail(path: str, n=20):
     p = Path(path)

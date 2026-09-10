@@ -1,3 +1,4 @@
+from prometheus_client import Gauge
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 from dataclasses import dataclass
 from pathlib import Path

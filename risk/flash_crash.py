@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Deque, Tuple
 from dataclasses import dataclass
 from collections import deque
 import time

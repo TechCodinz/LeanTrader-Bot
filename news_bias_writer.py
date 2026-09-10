@@ -1,4 +1,5 @@
 # news_bias_writer.py
+from news_service import build_clean, filtered_news_for, harvest_rss
 import json  # noqa: F401  # intentionally kept
 import pathlib
 import time

@@ -3,6 +3,8 @@
 Serves Prometheus metrics at /metrics. Run:
     python -m observability.http_metrics --host 0.0.0.0 --port 8000
 """
+from fastapi import FastAPI, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 import argparse
 

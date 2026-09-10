@@ -1,5 +1,6 @@
 # tg_test.py
 # Sends a single test Telegram message using your configured env vars.
+from notifier import TelegramNotifier
 import os
 import time
 

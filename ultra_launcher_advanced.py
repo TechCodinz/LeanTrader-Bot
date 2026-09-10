@@ -10,6 +10,11 @@ Features:
 - November growth strategy for target achievement
 - Complete system orchestration
 """
+from ultra_backtest_engine import integrate_backtest_engine
+from ultra_fluid_mechanics import integrate_fluid_mechanics
+from ultra_multi_platform_scanner import integrate_multi_platform_scanner
+from ultra_swarm_consciousness import integrate_swarm_consciousness
+from ultra_testnet_trader import integrate_testnet_trader
 from typing import Dict, Optional, Any
 
 import asyncio

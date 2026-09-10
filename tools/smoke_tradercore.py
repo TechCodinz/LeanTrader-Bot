@@ -1,3 +1,4 @@
+from trader_core import TraderCore
 import sys
 
 sys.path.append(r"c:\Users\User\Downloads\LeanTrader_ForexPack")

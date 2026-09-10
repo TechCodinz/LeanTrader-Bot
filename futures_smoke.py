@@ -1,5 +1,6 @@
 # futures_smoke.py
 
+from router import ExchangeRouter
 from dotenv import load_dotenv
 
 load_dotenv()

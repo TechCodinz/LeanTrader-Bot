@@ -1,3 +1,4 @@
+from router import ExchangeRouter
 import json
 import os  # noqa: F401  # intentionally kept
 import sys

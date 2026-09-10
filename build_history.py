@@ -1,4 +1,5 @@
 # build_history.py
+from research_optuna import DATA_PATH, build_history_ccxt
 import os
 
 if __name__ == "__main__":

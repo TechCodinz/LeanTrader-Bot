@@ -1,4 +1,6 @@
 # router.py
+from order_utils import place_market, safe_create_order
+from paper_broker import PaperBroker
 from typing import Any, Dict, List
 import os
 from pprint import pprint

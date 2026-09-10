@@ -4,6 +4,7 @@ Usage: python tools/run_demo_train.py
 
 This script is conservative: it only reads public market data and trains locally.
 """
+from data_sources import fetch_ohlcv
 from pathlib import Path
 
 import sys

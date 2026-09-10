@@ -1,3 +1,5 @@
+from divine_intelligence_core import DivineIntelligenceCore
+from real_market_fetcher import RealMarketDataFetcher
 import logging
 
 logger = logging.getLogger(__name__)

@@ -51,7 +51,7 @@ from optuna.integration import LightGBMPruningCallback
 import tensorflow as tf
 from tensorflow.keras.models import Sequential, Model
 from tensorflow.keras.layers import (
-    Dense, LSTM, GRU, Conv1D, MaxPooling1D, Flatten,
+    Dense, LSTM, GRU, Conv1D, MaxPooling1D, GlobalMaxPooling1D, Flatten,
     Dropout, BatchNormalization, Attention, MultiHeadAttention,
     Input, Concatenate, Reshape, TimeDistributed
 )

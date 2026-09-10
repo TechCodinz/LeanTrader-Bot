@@ -1,4 +1,6 @@
 # auto_loop.py
+from traders_core.memory import Memory
+from traders_core.strategist import breakout_signal
 import os
 import time
 

@@ -1,4 +1,5 @@
 # test_all.py
+from router import ExchangeRouter
 import os
 import time
 from pprint import pprint

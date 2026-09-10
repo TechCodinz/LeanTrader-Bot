@@ -4,6 +4,7 @@ ULTRA+ TRADING BUSINESS SYSTEM
 Complete multi-revenue trading platform with subscription management,
 multi-account trading, profit sharing, and automated everything
 """
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 

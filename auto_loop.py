@@ -1,4 +1,5 @@
 # auto_loop.py
+from router import ExchangeRouter
 import json
 import os
 import time

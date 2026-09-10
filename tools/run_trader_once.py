@@ -1,6 +1,7 @@
 """Run a single safe polling loop of TraderCore (no continuous loop).
 This runner respects ENABLE_LIVE and will not place live orders unless ENABLE_LIVE=true
 """
+from trader_core import TraderCore
 
 import os
 

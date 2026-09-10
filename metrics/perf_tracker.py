@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Deque, Dict, Tuple
 from collections import deque
 from pathlib import Path
 import json

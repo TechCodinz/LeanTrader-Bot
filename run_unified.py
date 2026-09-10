@@ -1,5 +1,6 @@
 # run_unified.py
 
+from trader_core import TraderCore
 import argparse
 
 from traders_core.services.web3_bias_daemon import start as start_bias

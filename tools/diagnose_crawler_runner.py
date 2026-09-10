@@ -2,6 +2,7 @@
 
 This avoids shell-level redirection issues in the test harness.
 """
+import diagnose_crawler
 
 import io
 import os
