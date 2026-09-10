@@ -3,15 +3,9 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Optional
 
-from .broker_ccxt import (
-    BrokerCCXT,
-)
-from .broker_emulator import (
-    BrokerEmulator,
-)
-from .broker_fx import (
-    BrokerFX,
-)
+from .broker_ccxt import BrokerCCXT
+from .broker_emulator import BrokerEmulator
+from .broker_fx import BrokerFX
 
 
 EXECUTION_MODES = {
@@ -62,7 +56,9 @@ def _requested_execution_mode(
     payload: Optional[
         Dict[str, Any]
     ] = None,
-    requested: Optional[str] = None,
+    requested: Optional[
+        str
+    ] = None,
 ) -> str:
     payload = payload or {}
 
@@ -101,7 +97,6 @@ def _requested_execution_mode(
             )
         )
 
-    # Legacy compatibility only.
     if (
         os.getenv(
             "CCXT_TESTNET",
@@ -133,7 +128,9 @@ def _requested_backend(
     payload: Optional[
         Dict[str, Any]
     ] = None,
-    requested: Optional[str] = None,
+    requested: Optional[
+        str
+    ] = None,
 ) -> str:
     payload = payload or {}
 
@@ -170,6 +167,34 @@ def _requested_backend(
     return "ccxt"
 
 
+def _client_exchange_id(
+    exchange_client: Any,
+) -> str:
+    if exchange_client is None:
+        return ""
+
+    for attr in (
+        "id",
+        "exchange_id",
+    ):
+        value = getattr(
+            exchange_client,
+            attr,
+            None,
+        )
+
+        if isinstance(
+            value,
+            str,
+        ) and value.strip():
+            return (
+                value.strip()
+                .lower()
+            )
+
+    return ""
+
+
 def _requested_exchange(
     payload: Optional[
         Dict[str, Any]
@@ -177,6 +202,7 @@ def _requested_exchange(
     exchange_id: Optional[
         str
     ] = None,
+    exchange_client: Any = None,
 ) -> str:
     payload = payload or {}
 
@@ -190,6 +216,9 @@ def _requested_exchange(
         )
         or payload.get(
             "venue"
+        )
+        or _client_exchange_id(
+            exchange_client
         )
         or os.getenv(
             "CCXT_EXCHANGE"
@@ -205,6 +234,115 @@ def _requested_exchange(
     ).strip().lower()
 
 
+def _auth_profile(
+    auth_profile: Optional[
+        Dict[str, Any]
+    ] = None,
+    exchange_client: Any = None,
+) -> Dict[str, Any]:
+    """
+    Build a private execution profile.
+
+    Secrets remain local to this call and are
+    never returned by route/status functions.
+    """
+    source = (
+        dict(auth_profile)
+        if isinstance(
+            auth_profile,
+            dict,
+        )
+        else {}
+    )
+
+    output: Dict[
+        str,
+        Any,
+    ] = {}
+
+    aliases = {
+        "api_key": (
+            "api_key",
+            "apiKey",
+            "key",
+        ),
+        "secret": (
+            "secret",
+            "api_secret",
+            "secret_key",
+        ),
+        "password": (
+            "password",
+            "api_password",
+            "passphrase",
+        ),
+        "uid": (
+            "uid",
+            "account_id",
+        ),
+        "market_mode": (
+            "market_mode",
+            "exchange_mode",
+        ),
+    }
+
+    for canonical, names in (
+        aliases.items()
+    ):
+        for name in names:
+            value = source.get(
+                name
+            )
+
+            if value is not None:
+                output[
+                    canonical
+                ] = value
+                break
+
+    if exchange_client is not None:
+        client_aliases = {
+            "api_key": (
+                "apiKey",
+                "api_key",
+            ),
+            "secret": (
+                "secret",
+                "api_secret",
+            ),
+            "password": (
+                "password",
+                "api_password",
+            ),
+            "uid": (
+                "uid",
+            ),
+        }
+
+        for canonical, names in (
+            client_aliases.items()
+        ):
+            if output.get(
+                canonical
+            ):
+                continue
+
+            for name in names:
+                value = getattr(
+                    exchange_client,
+                    name,
+                    None,
+                )
+
+                if value:
+                    output[
+                        canonical
+                    ] = value
+                    break
+
+    return output
+
+
 def resolve_execution_context(
     payload: Optional[
         Dict[str, Any]
@@ -213,6 +351,11 @@ def resolve_execution_context(
     exchange_id: Optional[
         str
     ] = None,
+    *,
+    auth_profile: Optional[
+        Dict[str, Any]
+    ] = None,
+    exchange_client: Any = None,
 ) -> Dict[str, Any]:
     payload = payload or {}
 
@@ -234,7 +377,13 @@ def resolve_execution_context(
         _requested_exchange(
             payload,
             exchange_id,
+            exchange_client,
         )
+    )
+
+    profile = _auth_profile(
+        auth_profile,
+        exchange_client,
     )
 
     if backend == "emu":
@@ -256,6 +405,7 @@ def resolve_execution_context(
                 requested_mode
             ),
             exchange_id=exchange,
+            credentials=profile,
         )
 
         resolved = (
@@ -304,8 +454,7 @@ def resolve_execution_context(
 
             resolved = (
                 hint
-                if hint
-                in {
+                if hint in {
                     "testnet",
                     "live",
                 }
@@ -325,8 +474,7 @@ def resolve_execution_context(
             ),
             "authority": (
                 resolved
-                if resolved
-                in {
+                if resolved in {
                     "paper",
                     "testnet",
                     "live",
@@ -353,23 +501,25 @@ def resolve_execution_context(
 def route_order(
     payload: Dict[str, Any],
     mode: Optional[str] = None,
+    *,
+    auth_profile: Optional[
+        Dict[str, Any]
+    ] = None,
+    exchange_client: Any = None,
 ) -> Dict[str, Any]:
-    """
-    One universal order intent.
+    profile = _auth_profile(
+        auth_profile,
+        exchange_client,
+    )
 
-    Strategy engines submit:
-      symbol
-      side
-      quantity
-      order type
-      target exchange
-
-    Runtime decides paper/testnet/live.
-    """
     context = (
         resolve_execution_context(
             payload,
             mode,
+            auth_profile=profile,
+            exchange_client=(
+                exchange_client
+            ),
         )
     )
 
@@ -405,21 +555,24 @@ def route_order(
         )
     ).strip().lower()
 
-    qty = float(
-        payload.get(
-            "qty",
-            0.0,
+    try:
+        qty = float(
+            payload.get(
+                "qty",
+                0.0,
+            )
+            or payload.get(
+                "quantity",
+                0.0,
+            )
+            or payload.get(
+                "amount",
+                0.0,
+            )
+            or 0.0
         )
-        or payload.get(
-            "quantity",
-            0.0,
-        )
-        or payload.get(
-            "amount",
-            0.0,
-        )
-        or 0.0
-    )
+    except Exception:
+        qty = 0.0
 
     price_value = (
         payload.get(
@@ -465,24 +618,131 @@ def route_order(
         or {}
     )
 
+    if (
+        not symbol
+        or side not in {
+            "buy",
+            "sell",
+        }
+        or qty <= 0.0
+    ):
+        return {
+            "ok": False,
+            "executed": False,
+            "simulated": False,
+            "authority": (
+                context.get(
+                    "authority",
+                    "none",
+                )
+            ),
+            "execution_mode": (
+                execution_mode
+            ),
+            "exchange": exchange,
+            "error": (
+                "invalid_order_request"
+            ),
+        }
+
     if execution_mode == "paper":
-        ref_price = float(
-            price or 0.0
+        emulator = (
+            BrokerEmulator()
         )
 
-        result = (
-            BrokerEmulator()
-            .market(
-                symbol,
-                side,
-                qty,
-                ref_price,
+        if order_type == "market":
+            ref_price = float(
+                price or 0.0
             )
-        )
+
+            if ref_price <= 0.0:
+                try:
+                    ticker = (
+                        BrokerCCXT(
+                            execution_mode=(
+                                "paper"
+                            ),
+                            exchange_id=(
+                                exchange
+                            ),
+                        )
+                        .fetch_ticker(
+                            symbol
+                        )
+                        or {}
+                    )
+
+                    ref_price = float(
+                        ticker.get(
+                            "last"
+                        )
+                        or ticker.get(
+                            "close"
+                        )
+                        or 0.0
+                    )
+
+                except Exception:
+                    ref_price = 0.0
+
+            if ref_price <= 0.0:
+                return {
+                    "ok": False,
+                    "executed": False,
+                    "simulated": True,
+                    "authority": (
+                        "paper"
+                    ),
+                    "execution_mode": (
+                        "paper"
+                    ),
+                    "exchange": (
+                        exchange
+                    ),
+                    "error": (
+                        "paper_reference_"
+                        "price_unavailable"
+                    ),
+                }
+
+            result = (
+                emulator.market(
+                    symbol,
+                    side,
+                    qty,
+                    ref_price,
+                )
+            )
+
+            ok = (
+                result.get(
+                    "status"
+                )
+                == "filled"
+            )
+
+        else:
+            result = (
+                emulator
+                .submit_pending(
+                    symbol,
+                    side,
+                    qty,
+                    order_type,
+                    price,
+                    params,
+                )
+            )
+
+            ok = True
 
         return {
-            "ok": True,
-            "executed": True,
+            "ok": ok,
+            "executed": bool(
+                ok
+                and order_type == "market"
+            ),
+            "submitted": bool(ok),
             "simulated": True,
             "authority": "paper",
             "execution_mode": (
@@ -504,6 +764,7 @@ def route_order(
             exchange_id=(
                 exchange
             ),
+            credentials=profile,
         )
 
         return broker.order(
@@ -573,12 +834,26 @@ def route_balance(
     exchange_id: Optional[
         str
     ] = None,
+    *,
+    auth_profile: Optional[
+        Dict[str, Any]
+    ] = None,
+    exchange_client: Any = None,
 ) -> Dict[str, Any]:
+    profile = _auth_profile(
+        auth_profile,
+        exchange_client,
+    )
+
     context = (
         resolve_execution_context(
             {},
             mode,
             exchange_id,
+            auth_profile=profile,
+            exchange_client=(
+                exchange_client
+            ),
         )
     )
 
@@ -617,9 +892,12 @@ def route_balance(
             ),
         }
 
-    if context[
-        "backend"
-    ] == "ccxt":
+    if (
+        context[
+            "backend"
+        ]
+        == "ccxt"
+    ):
         return (
             BrokerCCXT(
                 execution_mode=(
@@ -630,6 +908,7 @@ def route_balance(
                         "exchange"
                     ]
                 ),
+                credentials=profile,
             )
             .fetch_balance()
         )
@@ -643,12 +922,26 @@ def route_ticker(
     exchange_id: Optional[
         str
     ] = None,
+    *,
+    auth_profile: Optional[
+        Dict[str, Any]
+    ] = None,
+    exchange_client: Any = None,
 ) -> Dict[str, Any]:
+    profile = _auth_profile(
+        auth_profile,
+        exchange_client,
+    )
+
     context = (
         resolve_execution_context(
             {},
             mode,
             exchange_id,
+            auth_profile=profile,
+            exchange_client=(
+                exchange_client
+            ),
         )
     )
 
@@ -664,6 +957,7 @@ def route_ticker(
                     "exchange"
                 ]
             ),
+            credentials=profile,
         )
         .fetch_ticker(
             symbol
@@ -679,12 +973,26 @@ def route_ohlcv(
     exchange_id: Optional[
         str
     ] = None,
+    *,
+    auth_profile: Optional[
+        Dict[str, Any]
+    ] = None,
+    exchange_client: Any = None,
 ):
+    profile = _auth_profile(
+        auth_profile,
+        exchange_client,
+    )
+
     context = (
         resolve_execution_context(
             {},
             mode,
             exchange_id,
+            auth_profile=profile,
+            exchange_client=(
+                exchange_client
+            ),
         )
     )
 
@@ -700,6 +1008,7 @@ def route_ohlcv(
                     "exchange"
                 ]
             ),
+            credentials=profile,
         )
         .fetch_ohlcv(
             symbol,
@@ -716,12 +1025,26 @@ def route_order_book(
     exchange_id: Optional[
         str
     ] = None,
+    *,
+    auth_profile: Optional[
+        Dict[str, Any]
+    ] = None,
+    exchange_client: Any = None,
 ) -> Dict[str, Any]:
+    profile = _auth_profile(
+        auth_profile,
+        exchange_client,
+    )
+
     context = (
         resolve_execution_context(
             {},
             mode,
             exchange_id,
+            auth_profile=profile,
+            exchange_client=(
+                exchange_client
+            ),
         )
     )
 
@@ -737,6 +1060,7 @@ def route_order_book(
                     "exchange"
                 ]
             ),
+            credentials=profile,
         )
         .fetch_order_book(
             symbol,
@@ -750,9 +1074,187 @@ def execution_status(
     exchange_id: Optional[
         str
     ] = None,
+    *,
+    auth_profile: Optional[
+        Dict[str, Any]
+    ] = None,
+    exchange_client: Any = None,
 ) -> Dict[str, Any]:
-    return resolve_execution_context(
-        {},
-        mode,
-        exchange_id,
+    return (
+        resolve_execution_context(
+            {},
+            mode,
+            exchange_id,
+            auth_profile=(
+                auth_profile
+            ),
+            exchange_client=(
+                exchange_client
+            ),
+        )
+    )
+
+
+def route_legacy_order(
+    *,
+    exchange_client: Any = None,
+    symbol: str,
+    order_type: str,
+    side: str,
+    amount: float,
+    price: Optional[float] = None,
+    params: Optional[
+        Dict[str, Any]
+    ] = None,
+    exchange_id: Optional[
+        str
+    ] = None,
+    execution_mode: Optional[
+        str
+    ] = None,
+    auth_profile: Optional[
+        Dict[str, Any]
+    ] = None,
+) -> Dict[str, Any]:
+    """
+    Compatibility entrypoint for historical
+    engines.
+
+    Existing engine code can retain its strategy
+    and exchange/account object while actual order
+    authority remains inside route_order().
+
+    Credentials extracted from exchange_client or
+    auth_profile remain in memory and are never
+    added to the returned receipt.
+    """
+    target_exchange = (
+        exchange_id
+        or _client_exchange_id(
+            exchange_client
+        )
+        or "bybit"
+    )
+
+    result = route_order(
+        {
+            "symbol": symbol,
+            "order_type": (
+                order_type
+                or "market"
+            ),
+            "side": side,
+            "qty": amount,
+            "price": price,
+            "params": dict(
+                params or {}
+            ),
+            "exchange_id": (
+                target_exchange
+            ),
+            "backend": "ccxt",
+        },
+        execution_mode,
+        auth_profile=auth_profile,
+        exchange_client=exchange_client,
+    )
+
+    if not isinstance(
+        result,
+        dict,
+    ):
+        raise RuntimeError(
+            "invalid_execution_receipt"
+        )
+
+    if not result.get(
+        "ok"
+    ):
+        raise RuntimeError(
+            str(
+                result.get(
+                    "error",
+                    "order_rejected",
+                )
+            )
+        )
+
+    order = (
+        result.get("order")
+        or result
+    )
+
+    if not isinstance(
+        order,
+        dict,
+    ):
+        raise RuntimeError(
+            "invalid_order_payload"
+        )
+
+    receipt = dict(
+        order
+    )
+
+    # Safe execution metadata only.
+    for field in (
+        "authority",
+        "execution_mode",
+        "exchange",
+        "simulated",
+        "submitted",
+        "executed",
+        "order_type",
+    ):
+        if (
+            field in result
+            and field
+            not in receipt
+        ):
+            receipt[field] = (
+                result[field]
+            )
+
+    return receipt
+
+
+async def route_legacy_order_async(
+    *,
+    exchange_client: Any = None,
+    symbol: str,
+    order_type: str,
+    side: str,
+    amount: float,
+    price: Optional[float] = None,
+    params: Optional[
+        Dict[str, Any]
+    ] = None,
+    exchange_id: Optional[
+        str
+    ] = None,
+    execution_mode: Optional[
+        str
+    ] = None,
+    auth_profile: Optional[
+        Dict[str, Any]
+    ] = None,
+) -> Dict[str, Any]:
+    """
+    Non-blocking compatibility facade for
+    historical async engines.
+    """
+    import asyncio
+
+    return await asyncio.to_thread(
+        route_legacy_order,
+        exchange_client=exchange_client,
+        symbol=symbol,
+        order_type=order_type,
+        side=side,
+        amount=amount,
+        price=price,
+        params=params,
+        exchange_id=exchange_id,
+        execution_mode=execution_mode,
+        auth_profile=auth_profile,
     )
