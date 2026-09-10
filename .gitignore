@@ -34,3 +34,7 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# Cached market data written at runtime; never source, and a zero-filled
+# cache is how fabricated candles used to reach strategies.
+runtime/market_cache/

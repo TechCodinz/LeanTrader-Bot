@@ -1,6 +1,9 @@
 # router.py
 
 import logging
+
+logger = logging.getLogger(__name__)
+import logging
 import os
 import time
 from typing import Any, Dict, List, Optional
@@ -341,40 +344,20 @@ class ExchangeRouter:
     def fetch_ohlcv(
         self, symbol: str, timeframe: str = "1m", limit: int = 200
     ) -> List[List[float]]:
-        # If exchange failed to load markets previously, avoid calling into it and return synthesized bars
+        # When the exchange never loaded its markets, this used to synthesize
+        # `limit` flat bars at the last ticker price -- or at 0.0 when even that
+        # was unavailable. Callers cannot tell those apart from real candles, so
+        # indicators, regime detection and backtests were being computed over
+        # fabricated price history. A liveness run wrote 2001 all-zero candles
+        # into runtime/market_cache/ this way.
+        #
+        # An empty result is the honest answer: callers already handle "no bars".
         if getattr(self, "_exchange_malformed", False):
-            # synthesize fallback immediately
-            try:
-                t = self.fetch_ticker(symbol)
-                last = None
-                if isinstance(t, dict):
-                    last = t.get("last") or t.get("price") or t.get("close") or t.get("c")
-                elif isinstance(t, (int, float)):
-                    last = t
-                price = float(last) if last is not None else 0.0
-            except Exception:
-                price = 0.0
-
-            def _tf_seconds(tf: str) -> int:
-                try:
-                    tf = tf.strip().lower()
-                    if tf.endswith("m"):
-                        return int(float(tf[:-1]) * 60)
-                    if tf.endswith("h"):
-                        return int(float(tf[:-1]) * 3600)
-                    if tf.endswith("d"):
-                        return int(float(tf[:-1]) * 86400)
-                    return 60
-                except Exception:
-                    return 60
-
-            step_s = _tf_seconds(timeframe)
-            now_ms = int(time.time() * 1000)
-            bars: List[List[float]] = []
-            for i in range(max(1, limit)):
-                ts = now_ms - (max(1, limit) - i) * step_s * 1000
-                bars.append([ts, price, price, price, price, 0.0])
-            return bars
+            logger.warning(
+                f"fetch_ohlcv({symbol}, {timeframe}): exchange markets unavailable; "
+                "returning no bars rather than synthesized flat candles"
+            )
+            return []
 
         # Try to fetch normal OHLCV. Be defensive: exchanges can return lists, dicts or malformed payloads.
         try:
@@ -466,41 +449,15 @@ class ExchangeRouter:
             # Log the original exception for debugging, but fall through to a safe synthetic fallback
             print(f"[router] fetch_ohlcv {symbol} {timeframe} error: {_e}")
 
-        # --- fallback: synthesize OHLCV using last ticker price so callers can continue in dry-run ---
-        t = self.fetch_ticker(symbol)
-        last = None
-        if isinstance(t, dict):
-            last = t.get("last") or t.get("price") or t.get("close") or t.get("c")
-        elif isinstance(t, (int, float)):
-            last = t
-        try:
-            price = float(last) if last is not None else 0.0
-        except Exception:
-            price = 0.0
-
-        # helper: convert timeframe string to seconds (best-effort)
-        def _tf_seconds(tf: str) -> int:
-            try:
-                tf = tf.strip().lower()
-                if tf.endswith("m"):
-                    return int(float(tf[:-1]) * 60)
-                if tf.endswith("h"):
-                    return int(float(tf[:-1]) * 3600)
-                if tf.endswith("d"):
-                    return int(float(tf[:-1]) * 86400)
-                # default 60s
-                return 60
-            except Exception:
-                return 60
-
-        step_s = _tf_seconds(timeframe)
-        now_ms = int(time.time() * 1000)
-        bars: List[List[float]] = []
-        # generate `limit` bars ending at now, spaced by timeframe
-        for i in range(max(1, limit)):
-            ts = now_ms - (max(1, limit) - i) * step_s * 1000
-            bars.append([ts, price, price, price, price, 0.0])
-        return bars
+        # Second synthesis path, same problem as the first: on any fetch error
+        # this manufactured `limit` flat bars at the last ticker price so callers
+        # "could continue". Callers continuing on fabricated candles is the
+        # failure, not the fix. Return nothing and let them handle no data.
+        logger.warning(
+            f"fetch_ohlcv({symbol}, {timeframe}): fetch failed; returning no bars "
+            "rather than synthesized flat candles"
+        )
+        return []
 
     # ---------- simple account view ----------
     def account(self) -> Dict[str, Any]:

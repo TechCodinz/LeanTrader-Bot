@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 from collections import defaultdict
 from pathlib import Path
 import numpy as np
@@ -206,28 +209,19 @@ class StreamingDataManager:
     def _start_stream(self, symbol: str):
         """Start streaming for a symbol."""
 
-        # This would connect to WebSocket in production
-        # For now, simulate with periodic updates
+        # The WebSocket client was never implemented. What stood here fabricated
+        # a tick every 5 seconds -- price from np.random.uniform(40000, 42000),
+        # a BTC-shaped number sent for every symbol -- and delivered it to real
+        # subscriber callbacks, which cannot tell it from a live quote.
+        #
+        # Subscribers now receive nothing until a real feed exists.
         def stream_worker():
-            while self.running:
-                try:
-                    # Simulate new candle every 5 seconds for testing
-                    time.sleep(5)
-
-                    # Generate synthetic tick
-                    tick = {
-                        'symbol': symbol,
-                        'timestamp': datetime.utcnow(),
-                        'price': np.random.uniform(40000, 42000),  # Example for BTC
-                        'volume': np.random.uniform(0.1, 2.0),
-                    }
-
-                    # Notify callbacks
-                    for callback in self.callbacks[symbol]:
-                        callback(tick)
-
-                except Exception as e:
-                    print(f"[Streaming] Error in stream for {symbol}: {e}")
+            logger.warning(
+                f"streaming for {symbol} is not implemented; no ticks will be "
+                "delivered. Fabricated ticks were removed rather than left "
+                "flowing to subscribers as live quotes."
+            )
+            return
 
         thread = threading.Thread(target=stream_worker, daemon=True)
         thread.start()
@@ -256,22 +250,49 @@ class MultiExchangeAggregator:
         default_weights = {'binance': 0.5, 'coinbase': 0.3, 'kraken': 0.2}
         return {ex: default_weights.get(ex, 0.1) for ex in self.exchanges}
 
+    def _fetch_exchange_ticker(self, exchange: str, symbol: str):
+        """Real ticker from one exchange, or None when unavailable.
+
+        Returns None rather than a substitute so get_aggregated_price drops the
+        exchange from the average instead of averaging in an invented quote.
+        """
+        try:
+            import ccxt
+
+            from ccxt_exchange_compat import resolve_exchange_class
+
+            client = resolve_exchange_class(ccxt, exchange)({"enableRateLimit": True})
+            ticker = client.fetch_ticker(symbol) or {}
+        except Exception as exc:
+            logger.debug(f"ticker unavailable from {exchange} for {symbol}: {exc}")
+            return None
+        price = ticker.get("last") or ticker.get("close")
+        volume = ticker.get("quoteVolume") or ticker.get("baseVolume")
+        if not price:
+            return None
+        return {"price": price, "volume": volume or 0.0}
+
     def get_aggregated_price(self, symbol: str) -> Dict[str, float]:
         """Get volume-weighted average price from multiple exchanges."""
         prices = []
         volumes = []
 
+        # Per-exchange prices were drawn from np.random.uniform and then
+        # volume-weighted into a VWAP with a spread-based "confidence", so the
+        # confidence measured the spread of a random sample. Real quotes only.
         for exchange in self.exchanges:
             try:
-                # Fetch latest price from each exchange
-                # This is simplified - in production use actual exchange APIs
-                price = np.random.uniform(40000, 42000)  # Simulated
-                volume = np.random.uniform(100, 1000)
-
-                prices.append(price)
-                volumes.append(volume)
+                ticker = self._fetch_exchange_ticker(exchange, symbol)
             except Exception:
                 continue
+            if not ticker:
+                continue
+            price = ticker.get("price")
+            volume = ticker.get("volume")
+            if not price or volume is None:
+                continue
+            prices.append(float(price))
+            volumes.append(float(volume))
 
         if not prices:
             return {'price': 0, 'volume': 0, 'confidence': 0}
