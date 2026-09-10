@@ -6,6 +6,7 @@ Nobel Prize Hedge Fund System - Simplified Version
 A working version of the Nobel Prize-level trading system
 with all essential features for market domination.
 """
+from ccxt_exchange_compat import resolve_exchange_class
 
 import asyncio
 import ccxt
@@ -296,7 +297,7 @@ class NobelSimpleSystem:
         try:
             for exchange_name, config in self.config['exchanges'].items():
                 if config.get('api_key') and config.get('secret'):
-                    exchange_class = getattr(ccxt, exchange_name)
+                    exchange_class = resolve_exchange_class(ccxt, exchange_name)
                     self.exchanges[exchange_name] = exchange_class({
                         'apiKey': config['api_key'],
                         'secret': config['secret'],

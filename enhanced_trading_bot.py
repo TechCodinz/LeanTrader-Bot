@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from ccxt_exchange_compat import resolve_exchange_class
 import os
 import asyncio
 import ccxt
@@ -68,7 +69,7 @@ class EnhancedTradingBot:
 
             for exchange_name in exchanges_to_init:
                 try:
-                    exchange_class = getattr(ccxt, exchange_name)
+                    exchange_class = resolve_exchange_class(ccxt, exchange_name)
                     self.exchanges[exchange_name] = exchange_class({'enableRateLimit': True})
                     logger.info(f"✅ {exchange_name} initialized")
                 except Exception as e:

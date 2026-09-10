@@ -3,6 +3,7 @@
 EXECUTION ORCHESTRATOR - THE MISSING PIECE
 Smart trade execution with risk management, position sizing, and profit optimization
 """
+from ccxt_exchange_compat import resolve_exchange_class
 
 import asyncio
 import logging
@@ -508,7 +509,7 @@ class ExecutionOrchestrator:
             # Try Gate.io first (user's main exchange)
             if os.getenv('GATE_API_KEY'):
                 try:
-                    exchange = ccxt.gateio({
+                    exchange = resolve_exchange_class(ccxt, "gateio")({
                         'apiKey': os.getenv('GATE_API_KEY'),
                         'secret': os.getenv('GATE_SECRET'),
                         'enableRateLimit': True

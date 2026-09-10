@@ -5,6 +5,8 @@ ALL SYSTEMS INTEGRATED - NOTHING LEFT BEHIND
 Includes: 26 core + UltraScout + WebCrawler + FXTrainer + DeepLearning + Nobel features
 PLUS: Critical Profit Features + Ultra-Rare Goldmine Strategies
 """
+from ccxt_exchange_compat import resolve_exchange_class
+from src.leantrader.execution.router import route_legacy_order_async
 
 import asyncio
 import logging
@@ -225,7 +227,15 @@ except (ImportError, ModuleNotFoundError, AttributeError):
         UltraFluidMechanics = None
 
 try:
-    from ultra_god_mode import QuantumPricePredictor, NeuralPatternMatcher, TimeSeriesTransformer, UltraGodMode
+    # NeuralPatternMatcher and TimeSeriesTransformer are not defined in
+    # ultra_god_mode and never have been in any commit, so importing them
+    # failed the whole statement and nulled UltraGodMode and
+    # QuantumPricePredictor, which do exist. They stay None for any
+    # downstream reference.
+    from ultra_god_mode import QuantumPricePredictor, UltraGodMode
+
+    NeuralPatternMatcher = None
+    TimeSeriesTransformer = None
 except (ImportError, ModuleNotFoundError):
     QuantumPricePredictor = None
     NeuralPatternMatcher = None
@@ -238,7 +248,8 @@ except (ImportError, ModuleNotFoundError, AttributeError):
     MicrostructureDecoder = BlackSwanPredictor = RegimeShiftDetector = QuantumCorrelationEngine = None
 
 try:
-    from ultra_swarm_consciousness import SwarmConsciousnessSystem
+    # The class is SwarmConsciousness; SwarmConsciousnessSystem has never existed.
+    from ultra_swarm_consciousness import SwarmConsciousness as SwarmConsciousnessSystem
 except (ImportError, ModuleNotFoundError):
     SwarmConsciousnessSystem = None
 
@@ -763,7 +774,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         # 9. ULTRA BACKTEST ENGINE
         try:
-            self.backtest_engine = UltraBacktestEngine()
+            self.backtest_engine = UltraBacktestEngine(self.ultra_core, self.risk_engine)
             self.advanced_systems['backtest_engine'] = self.backtest_engine
             logger.info("✅ 📊 ULTRA BACKTEST ENGINE!")
         except Exception as e:
@@ -772,7 +783,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         # 10. ULTRA SCALPING ENGINE
         try:
-            self.ultra_scalping = UltraScalpingEngine()
+            self.ultra_scalping = UltraScalpingEngine(self.ultra_core, self.risk_engine)
             self.advanced_systems['ultra_scalping'] = self.ultra_scalping
             logger.info("✅ ⚡ ULTRA SCALPING ENGINE!")
         except Exception as e:
@@ -781,7 +792,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         # 11. ULTRA ARBITRAGE ENGINE
         try:
-            self.ultra_arbitrage = UltraArbitrageEngine()
+            self.ultra_arbitrage = UltraArbitrageEngine(self.ultra_core, self.risk_engine)
             self.advanced_systems['ultra_arbitrage'] = self.ultra_arbitrage
             logger.info("✅ 💰 ULTRA ARBITRAGE ENGINE!")
         except Exception as e:
@@ -790,7 +801,9 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         # 12-14. Additional ultra systems
         try:
-            self.testnet_trader = UltraTestnetTrader()
+            self.testnet_trader = UltraTestnetTrader(
+                self.ultra_core, self.risk_engine, self.swarm_consciousness
+            )
             self.telegram_bot = UltraTelegramBot()
             self.launcher = UltraLauncher()
             self.advanced_systems['testnet_trader'] = self.testnet_trader
@@ -801,20 +814,44 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f"⚠️  Additional Ultra: {e}")
         
         # 15-20. Ultra Core, Fluid, God Mode, Quantum, Swarm, Advanced
-        try:
-            self.ultra_core = UltraCore()
-            self.ultra_god = UltraGodMode()
-            self.swarm_consciousness = SwarmConsciousnessSystem()
-            self.evolution_engine = ULTIMATE_EVOLUTION_ENGINE()
-            self.bot_450 = UltimateBot450Models()
+        #
+        # This block used to call UltraCore() with no arguments, but UltraCore
+        # requires (router, universe). super().initialize_all_systems() has
+        # already built a correctly wired one at
+        # COMPLETE_UNIFIED_ORCHESTRATOR.py:472, so reconstructing it here both
+        # failed and discarded the good instance. Worse, all five engines
+        # shared one try block, so that first TypeError also prevented
+        # ultra_god, swarm_consciousness, evolution_engine and bot_450 from
+        # ever being constructed -- one wiring bug silently costing five
+        # engines. Each now builds independently.
+        if getattr(self, "ultra_core", None) is None:
+            logger.warning(
+                "⚠️  Ultra Core was not wired by the parent orchestrator; "
+                "dependent ultra engines will report CONFIG_REQUIRED"
+            )
+        else:
             self.advanced_systems['ultra_core'] = self.ultra_core
-            self.advanced_systems['ultra_god'] = self.ultra_god
-            self.advanced_systems['swarm_consciousness'] = self.swarm_consciousness
-            self.advanced_systems['evolution_engine'] = self.evolution_engine
-            self.advanced_systems['bot_450'] = self.bot_450
-            logger.info("✅ 🧠 ULTRA CORE + GOD + SWARM + EVOLUTION + 450 MODELS!")
-        except Exception as e:
-            logger.warning(f"⚠️  Ultra Advanced: {e}")
+
+        for attr, factory, label in (
+            ("ultra_god", lambda: UltraGodMode(), "Ultra God Mode"),
+            ("swarm_consciousness", lambda: SwarmConsciousnessSystem(
+                self.ultra_core, self.risk_engine,
+            ), "Swarm Consciousness"),
+            ("evolution_engine", lambda: ULTIMATE_EVOLUTION_ENGINE(
+                data_hub=getattr(self, "data_hub", None),
+                universe=getattr(self, "trading_universe", None),
+            ), "Evolution Engine"),
+            ("bot_450", lambda: UltimateBot450Models(), "450 Models"),
+        ):
+            try:
+                instance = factory()
+            except Exception as exc:
+                setattr(self, attr, None)
+                logger.warning(f"⚠️  {label}: {exc}")
+                continue
+            setattr(self, attr, instance)
+            self.advanced_systems[attr] = instance
+            logger.info(f"✅ 🧠 {label} ready")
         
         # REVOLUTIONARY AI MANAGER
         try:
@@ -997,7 +1034,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         # NOVEMBER GROWTH STRATEGY - Special strategy (27KB)
         try:
-            self.november_growth = NovemberGrowthStrategy()
+            self.november_growth = NovemberGrowthStrategy(self.ultra_core, self.risk_engine)
             self.advanced_systems['november_growth'] = self.november_growth
             logger.info("✅ 📈 NOVEMBER GROWTH STRATEGY - Special growth!")
         except Exception as e:
@@ -1349,7 +1386,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         }
                     }
                 
-                exchange = ccxt.gateio(gate_config)
+                exchange = resolve_exchange_class(ccxt, "gateio")(gate_config)
                 arb_exchanges['gateio'] = exchange
                 logger.info(f"   ✅ GATE.IO ({gateio_mode}) added to arbitrage")
             except Exception as e:
@@ -1362,7 +1399,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             
             if api_key and secret:
                 try:
-                    exchange_class = getattr(ccxt, exchange_name)
+                    exchange_class = resolve_exchange_class(ccxt, exchange_name)
                     exchange = exchange_class({
                         'apiKey': api_key,
                         'secret': secret,
@@ -2010,13 +2047,27 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                                                 logger.info(f"   Amount: {available_amt:.8f} {coin}")
                                                 logger.info(f"   Value: ${position_value:.2f}")
                                                 
-                                                # Sell FULL available amount
-                                                order = self.micro_wallet_grower.gate.create_market_sell_order(
-                                                    symbol, 
-                                                    available_amt
+                                                # Capital recycling decides what to close;
+                                                # the execution router owns placing it. This
+                                                # runs inside an async method, so the router's
+                                                # own non-blocking facade is used.
+                                                receipt = await route_legacy_order_async(
+                                                    exchange_client=self.micro_wallet_grower.gate,
+                                                    symbol=symbol,
+                                                    order_type='market',
+                                                    side='sell',
+                                                    amount=available_amt,
                                                 )
-                                                
-                                                logger.info(f"   ✅ CLOSED! Order: {order['id']}")
+
+                                                if not receipt.get('ok'):
+                                                    logger.warning(
+                                                        f"   ⚠️  close rejected for {symbol}: "
+                                                        f"{receipt.get('error') or receipt.get('reason')}"
+                                                    )
+                                                    continue
+
+                                                order = receipt.get('order') or receipt
+                                                logger.info(f"   ✅ CLOSED! Order: {order.get('id')}")
                                                 logger.info(f"   💰 Freed ${position_value:.2f}")
                                                 total_freed += position_value
                             

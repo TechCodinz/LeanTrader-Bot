@@ -1,17 +1,28 @@
 #!/usr/bin/env python3
-"""
-OMNISCIENT TRADING MODE
-The final evolution - trade EVERYTHING across ALL markets, timeframes, and exchanges
-with intelligent leverage, margin, and position management.
+"""One-shot generator for the Omniscient execution engine.
 
-Features:
-1. Dynamic leverage (1-10X based on confidence)
-2. Multi-timeframe mastery (1m to 1W)
-3. ALL market types (Spot, Futures, Perpetuals, Forex)
-4. Cross-exchange simultaneous trading
-5. Intelligent margin management
-6. Beyond human/AI vision
+Running this script writes OMNISCIENT_EXECUTION_ENGINE.py and rewrites
+EXECUTION_ORCHESTRATOR.py in place (keeping a .pre_omniscient backup). That is
+its purpose, but it used to happen at *import* time: the whole body sits at
+module scope with no __main__ guard, and COMPLETE_ULTIMATE_ORCHESTRATOR.py:338
+imports from it, so every bot startup silently regenerated one source file and
+patched another.
+
+The import there has in fact never succeeded -- this module defines no
+OmniscientTradingMode -- so it always raised into the caller's except block,
+but only after the rewrites had already happened.
+
+Refusing the import makes that explicit and stops startup from mutating source.
+Run it deliberately instead:
+
+    python OMNISCIENT_TRADING_MODE.py
 """
+
+if __name__ != "__main__":
+    raise ImportError(
+        "OMNISCIENT_TRADING_MODE is a one-shot code generator that rewrites "
+        "source files; run it directly rather than importing it."
+    )
 
 print("╔══════════════════════════════════════════════════════════════════════════════╗")
 print("║                                                                              ║")

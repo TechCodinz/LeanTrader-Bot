@@ -1,3 +1,4 @@
+from ccxt_exchange_compat import resolve_exchange_class
 from dataclasses import dataclass
 """
 Exchange Manager
@@ -98,7 +99,7 @@ class ExchangeManager:
         for exchange_name, config in self.configs.items():
             try:
                 # Initialize synchronous exchange
-                exchange_class = getattr(ccxt, exchange_name)
+                exchange_class = resolve_exchange_class(ccxt, exchange_name)
                 exchange_params = {
                     'apiKey': config.api_key,
                     'secret': config.secret,
@@ -366,8 +367,20 @@ class ExchangeManager:
             self.logger.error(f"Error fetching orders from {exchange_name}: {e}")
             return []
 
+    def _mock_data_enabled(self) -> bool:
+        """Whether the _get_mock_* generators may return fabricated market data.
+
+        These build tickers, order books and trades from random draws. They
+        currently have no callers, and they stay off unless explicitly enabled
+        so they cannot quietly become a data source.
+        """
+        return os.getenv("LEANTRADER_MOCK_EXCHANGE_DATA", "").strip().lower() in ("1", "true", "yes")
+
     def _get_mock_trades(self, symbol: str, limit: int) -> List[Dict[str, Any]]:
         """Generate mock trade data for testing"""
+        if not self._mock_data_enabled():
+            return []
+
         import random
 
         trades = []
@@ -397,6 +410,9 @@ class ExchangeManager:
 
     def _get_mock_orders(self, symbol: str, limit: int) -> List[Dict[str, Any]]:
         """Generate mock order data for testing"""
+        if not self._mock_data_enabled():
+            return []
+
         import random
 
         orders = []
@@ -428,6 +444,9 @@ class ExchangeManager:
 
     def _get_mock_ticker(self, symbol: str) -> Dict[str, Any]:
         """Generate mock ticker data for testing"""
+        if not self._mock_data_enabled():
+            return {}
+
         import random
 
         base_price = 50000 if 'BTC' in symbol else 3000 if 'ETH' in symbol else 500
@@ -446,6 +465,9 @@ class ExchangeManager:
 
     def _get_mock_orderbook(self, symbol: str) -> Dict[str, Any]:
         """Generate mock order book data for testing"""
+        if not self._mock_data_enabled():
+            return {}
+
         import random
 
         base_price = 50000 if 'BTC' in symbol else 3000 if 'ETH' in symbol else 500

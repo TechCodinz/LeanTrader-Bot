@@ -9,6 +9,7 @@ Features:
 - Removes dead/low-volume pairs
 - Updates universe every hour
 """
+from ccxt_exchange_compat import resolve_exchange_class
 
 import asyncio
 import ccxt.async_support as ccxt
@@ -213,7 +214,7 @@ class DynamicMarketScanner:
         # Try Gate.io (user's main exchange)
         if os.getenv('GATE_API_KEY'):
             try:
-                fallback['gateio'] = ccxt.gateio({
+                fallback['gateio'] = resolve_exchange_class(ccxt, "gateio")({
                     'apiKey': os.getenv('GATE_API_KEY'),
                     'secret': os.getenv('GATE_SECRET'),
                     'enableRateLimit': True
@@ -241,7 +242,7 @@ class DynamicMarketScanner:
         for exchange_name, (key_var, secret_var) in exchange_configs.items():
             if os.getenv(key_var):
                 try:
-                    exchange_class = getattr(ccxt, exchange_name)
+                    exchange_class = resolve_exchange_class(ccxt, exchange_name)
                     fallback[exchange_name] = exchange_class({
                         'apiKey': os.getenv(key_var),
                         'secret': os.getenv(secret_var),

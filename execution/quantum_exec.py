@@ -94,6 +94,12 @@ def _solve_qaoa(qp, reps: int = 1, seed: int = 42, use_runtime: bool = True):
     sampler = None
     if use_runtime:
         try:
+            # Stripped by the unused-import pass; without it QiskitRuntimeService
+            # and RuntimeSampler were undefined, so this branch always raised
+            # NameError into the handler below and the IBM runtime path could
+            # never engage even with a token configured.
+            from qiskit_ibm_runtime import QiskitRuntimeService
+            from qiskit_ibm_runtime import Sampler as RuntimeSampler
 
             token = None
             try:

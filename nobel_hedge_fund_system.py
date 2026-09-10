@@ -15,6 +15,7 @@ A quantum-level trading system that combines:
 Author: Nobel Prize Trading System
 Version: 1.0.0
 """
+from ccxt_exchange_compat import resolve_exchange_class
 
 import asyncio
 import ccxt
@@ -465,7 +466,7 @@ class NobelHedgeFundSystem:
         try:
             for exchange_name, config in self.config['exchanges'].items():
                 if config.get('api_key') and config.get('secret'):
-                    exchange_class = getattr(ccxt, exchange_name)
+                    exchange_class = resolve_exchange_class(ccxt, exchange_name)
                     self.exchanges[exchange_name] = exchange_class({
                         'apiKey': config['api_key'],
                         'secret': config['secret'],

@@ -15,6 +15,7 @@ A fully functional, production-ready trading system with:
 Author: Nobel Prize Trading System
 Version: 2.0.0 - Production Ready
 """
+from ccxt_exchange_compat import resolve_exchange_class
 
 import asyncio
 import ccxt
@@ -168,7 +169,7 @@ class DataProvider:
             for exchange_name, exchange_config in config.get('exchanges', {}).items():
                 if exchange_config.get('enabled', False) and exchange_config.get('api_key'):
                     try:
-                        exchange_class = getattr(ccxt, exchange_name)
+                        exchange_class = resolve_exchange_class(ccxt, exchange_name)
                         self.exchanges[exchange_name] = exchange_class({
                             'apiKey': exchange_config['api_key'],
                             'secret': exchange_config['secret'],

@@ -12,6 +12,8 @@ FEATURES:
 7. Payment Gateway - Automatic subscription management
 8. Multi-User Support - Each user trades with their own exchange
 """
+from ccxt_exchange_compat import resolve_exchange_class
+from src.leantrader.execution.router import route_legacy_order_async
 
 import asyncio
 import logging
@@ -510,7 +512,7 @@ Supported exchanges:
         # Test API keys
         test_exchange = None
         try:
-            exchange_class = getattr(ccxt, exchange)
+            exchange_class = resolve_exchange_class(ccxt, exchange)
             test_exchange = exchange_class({
                 'apiKey': api_key,
                 'secret': api_secret,
@@ -857,7 +859,7 @@ Select amount below to execute instantly:
             # Create exchange instance
             # (In production, cache these)
             exchange_name = list(self.user_db.users[user_id]['exchanges'].keys())[0]
-            exchange_class = getattr(ccxt, exchange_name)
+            exchange_class = resolve_exchange_class(ccxt, exchange_name)
             
             exchange = exchange_class({
                 'apiKey': user_exchange_data['api_key'],
@@ -870,11 +872,27 @@ Select amount below to execute instantly:
             price = ticker['last']
             amount = amount_usd / price
             
-            # Execute order
-            if side == 'buy':
-                order = await exchange.create_market_buy_order(symbol, amount)
-            else:
-                order = await exchange.create_market_sell_order(symbol, amount)
+            # Telegram is control/input, not an order executor. The intent goes
+            # to the unified execution authority, which resolves the profile,
+            # backend and account. route_legacy_order_async is the router's own
+            # non-blocking facade, so the event loop is not blocked here.
+            receipt = await route_legacy_order_async(
+                exchange_client=exchange,
+                symbol=symbol,
+                order_type='market',
+                side=side,
+                amount=amount,
+            )
+
+            if not receipt.get('ok'):
+                return {
+                    'success': False,
+                    'error': receipt.get('error') or receipt.get('reason')
+                             or 'execution rejected',
+                    'receipt': receipt,
+                }
+
+            order = receipt.get('order') or receipt
             
             # Record trade
             profit = 0  # Will update on close

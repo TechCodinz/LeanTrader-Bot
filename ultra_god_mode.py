@@ -809,9 +809,23 @@ class MoneyFlowAnalyzer:
         # Simulated order book analysis
         # In production, connect to exchange order book data
 
+        # Bid/ask volumes and the "whale" orders below were drawn from
+        # np.random.uniform and returned as order-book analysis. Without a real
+        # book there is nothing to analyse, so this reports unavailable rather
+        # than inventing depth.
+        book = getattr(self, 'order_book', None) or {}
+        bids = book.get('bids') or []
+        asks = book.get('asks') or []
+        if not bids or not asks:
+            return {
+                'available': False,
+                'reason': 'no order book data connected',
+                'large_orders': [],
+            }
+
         large_orders = []
-        total_bid_volume = np.random.uniform(100000, 1000000)
-        total_ask_volume = np.random.uniform(100000, 1000000)
+        total_bid_volume = sum(float(b[1]) for b in bids)
+        total_ask_volume = sum(float(a[1]) for a in asks)
 
         # Detect large orders (whales)
         for _ in range(np.random.randint(0, 5)):

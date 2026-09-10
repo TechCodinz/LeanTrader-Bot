@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""
-COMPLETE DEX SWAP ENGINE
-Production-ready DEX trading with full implementation
-- Real router contract calls
-- Token approvals
-- Price impact calculation
-- Slippage protection
-- Nonce management
-- Gas estimation
+"""DEX execution adapter: the on-chain counterpart to the CCXT broker.
+
+This module is the *backend implementation layer* for decentralised-exchange
+execution. It owns transaction construction, signing and broadcast --
+send_raw_transaction lives here on purpose, exactly as CCXT's create_order
+lives inside broker_ccxt.
+
+The boundary that matters: strategy, intelligence and orchestration code must
+not build, sign or broadcast a transaction itself. It asks this adapter to
+execute a swap. DEX_ORCHESTRATOR reaches it through get_swap_engine() and never
+touches web3 signing directly; the raw-order audit checks that this stays true.
+
+Web3 transaction broadcast is deliberately not forced through the CCXT order
+abstraction: a swap is not a CEX order, and pretending otherwise would lose the
+path, slippage and approval semantics this adapter exists to handle.
 """
 
 import os

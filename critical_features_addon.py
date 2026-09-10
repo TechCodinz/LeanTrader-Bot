@@ -1,3 +1,4 @@
+from src.leantrader.execution.router import route_legacy_order_async
 import pandas as pd
 from typing import Dict, List, Optional
 
@@ -467,8 +468,18 @@ def integrate_critical_features(bot):
     
     # Check partial TPs
     tp_orders = await bot.partial_tp.check_tp_levels(symbol, current_price)
-    for order in tp_orders:
-        await exchange.create_order(order)
+    for tp in tp_orders:
+        # Partial take-profit intents route through the execution authority
+        # rather than being placed directly on the exchange client.
+        await route_legacy_order_async(
+            exchange_client=exchange,
+            symbol=tp.get('symbol', symbol),
+            order_type=tp.get('type', 'limit'),
+            side=tp.get('side', 'sell'),
+            amount=tp.get('amount'),
+            price=tp.get('price'),
+            params=tp.get('params'),
+        )
     
     # Find funding arbitrage
     arb_opportunities = await bot.funding_arb.find_opportunities(exchanges)

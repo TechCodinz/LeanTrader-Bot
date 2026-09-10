@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 from ultra_scout import UltraScout
 from collections import deque
 import numpy as np

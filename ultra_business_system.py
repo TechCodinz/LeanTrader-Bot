@@ -4,6 +4,10 @@ ULTRA+ TRADING BUSINESS SYSTEM
 Complete multi-revenue trading platform with subscription management,
 multi-account trading, profit sharing, and automated everything
 """
+import logging
+
+logger = logging.getLogger(__name__)
+from src.leantrader.execution.router import route_legacy_order_async
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -445,14 +449,27 @@ class MultiAccountManager:
                 # Calculate position size (risk 2% per trade)
                 position_size = available * 0.02 / signal.get('stop_loss_pct', 0.02)
 
-                # Execute trade
-                order = await account_data['exchange'].create_order(
+                # Managed-account business logic produces the intent; order
+                # authority stays with the unified execution router, which
+                # resolves profile, backend and account per receipt.
+                receipt = await route_legacy_order_async(
+                    exchange_client=account_data['exchange'],
                     symbol=signal['symbol'],
-                    type='market',
+                    order_type='market',
                     side=signal['side'],
                     amount=position_size,
                 )
 
+                if not receipt.get('ok'):
+                    results.append({
+                        'account_id': account_id,
+                        'success': False,
+                        'error': receipt.get('error') or receipt.get('reason')
+                                 or 'execution rejected',
+                    })
+                    continue
+
+                order = receipt.get('order') or receipt
                 results.append({'account_id': account_id, 'success': True, 'order': order})
 
                 # Track for profit sharing
@@ -564,29 +581,66 @@ class UltraTelegramBot:
         self.free_channel = os.getenv('TG_FREE_CHAT_ID', '')
 
     def _setup_handlers(self):
-        """Setup all command and callback handlers."""
+        """Register the command handlers this class actually implements.
 
-        # Public commands
-        self.app.add_handler(CommandHandler("start", self.cmd_start))
-        self.app.add_handler(CommandHandler("subscribe", self.cmd_subscribe))
-        self.app.add_handler(CommandHandler("redeem", self.cmd_redeem))
-        self.app.add_handler(CommandHandler("status", self.cmd_status))
+        Ten handlers were registered here against four implemented methods.
+        `self.cmd_status` raised AttributeError on the fourth line, which the
+        caller caught as "Business System: 'UltraTelegramBot' object has no
+        attribute 'cmd_status'" -- so the whole business system failed to
+        construct and none of its commands worked, including the four that
+        were implemented.
 
-        # VIP commands
-        self.app.add_handler(CommandHandler("add_account", self.cmd_add_account))
-        self.app.add_handler(CommandHandler("accounts", self.cmd_list_accounts))
-        self.app.add_handler(CommandHandler("profit", self.cmd_profit_report))
+        git log -S across all refs shows cmd_status, cmd_add_account,
+        cmd_list_accounts, cmd_profit_report, cmd_revenue_report and
+        cmd_user_stats have never existed in this file in any commit. They are
+        not restorable, and writing subscription, revenue and account-listing
+        behaviour from scratch would be inventing product decisions.
 
-        # Admin commands
-        self.app.add_handler(CommandHandler("generate_token", self.cmd_generate_token))
-        self.app.add_handler(CommandHandler("revenue", self.cmd_revenue_report))
-        self.app.add_handler(CommandHandler("users", self.cmd_user_stats))
+        So the intended command surface is kept as data, each handler is
+        registered only if its method exists, and the unimplemented ones are
+        reported once at startup instead of aborting construction.
+        """
+        commands = [
+            # (command, method name, tier)
+            ("start", "cmd_start", "public"),
+            ("subscribe", "cmd_subscribe", "public"),
+            ("redeem", "cmd_redeem", "public"),
+            ("status", "cmd_status", "public"),
+            ("add_account", "cmd_add_account", "vip"),
+            ("accounts", "cmd_list_accounts", "vip"),
+            ("profit", "cmd_profit_report", "vip"),
+            ("generate_token", "cmd_generate_token", "admin"),
+            ("revenue", "cmd_revenue_report", "admin"),
+            ("users", "cmd_user_stats", "admin"),
+        ]
 
-        # Callback handlers
-        self.app.add_handler(CallbackQueryHandler(self.button_callback))
+        self.unimplemented_commands = []
+        for command, method_name, tier in commands:
+            handler = getattr(self, method_name, None)
+            if callable(handler):
+                self.app.add_handler(CommandHandler(command, handler))
+            else:
+                self.unimplemented_commands.append(f"/{command} ({tier})")
+
+        callback = getattr(self, "button_callback", None)
+        if callable(callback):
+            self.app.add_handler(CallbackQueryHandler(callback))
+        else:
+            self.unimplemented_commands.append("inline button callbacks")
+
+        pre_checkout = getattr(self, "pre_checkout_callback", None)
+        if callable(pre_checkout):
+            self.app.add_handler(PreCheckoutQueryHandler(pre_checkout))
+        else:
+            self.unimplemented_commands.append("Telegram payment pre-checkout")
+
+        if self.unimplemented_commands:
+            logger.warning(
+                "UltraTelegramBot: not implemented, so not registered: "
+                + ", ".join(self.unimplemented_commands)
+            )
 
         # Payment handlers
-        self.app.add_handler(PreCheckoutQueryHandler(self.pre_checkout_callback))
         self.app.add_handler(
             MessageHandler(filters.SUCCESSFUL_PAYMENT, self.successful_payment_callback)
         )
@@ -890,8 +944,17 @@ Leverage: {signal.get('leverage', '2x')}
         """Generate basic chart for signals."""
         fig, ax = plt.subplots(figsize=(10, 6))
 
-        # Simulated price data (would use real data)
-        prices = np.random.randn(100).cumsum() + 100
+        # This drew a random walk and plotted it as "Price" beside the
+        # signal's real entry and target lines, so the chart read as this
+        # instrument's actual history. Only real series are plotted now.
+        prices = signal.get('price_history') or []
+        if len(prices) < 2:
+            ax.text(
+                0.5, 0.5,
+                'price history unavailable',
+                ha='center', va='center', transform=ax.transAxes,
+            )
+            prices = []
 
         ax.plot(prices, label='Price', color='blue')
         ax.axhline(y=signal.get('entry_price', 100), color='green', linestyle='--', label='Entry')
@@ -917,10 +980,19 @@ Leverage: {signal.get('leverage', '2x')}
             3, 1, figsize=(12, 10), gridspec_kw={'height_ratios': [3, 1, 1]}
         )
 
-        # Price chart with more indicators
-        prices = np.random.randn(100).cumsum() + 100
-        sma20 = pd.Series(prices).rolling(20).mean()
-        sma50 = pd.Series(prices).rolling(50).mean()
+        # Same problem as the basic chart: a random walk plotted as "Price",
+        # with SMA20/SMA50 computed over it so the indicators looked derived
+        # from real data. Real series only.
+        prices = signal.get('price_history') or []
+        if len(prices) < 2:
+            ax1.text(
+                0.5, 0.5,
+                'price history unavailable',
+                ha='center', va='center', transform=ax1.transAxes,
+            )
+            prices = []
+        sma20 = pd.Series(prices).rolling(20).mean() if prices else pd.Series(dtype=float)
+        sma50 = pd.Series(prices).rolling(50).mean() if prices else pd.Series(dtype=float)
 
         ax1.plot(prices, label='Price', color='blue', linewidth=2)
         ax1.plot(sma20, label='SMA20', color='orange', alpha=0.7)
@@ -969,7 +1041,8 @@ Leverage: {signal.get('leverage', '2x')}
         ax2.grid(True, alpha=0.3)
 
         # RSI
-        rsi = 50 + np.random.randn(100).cumsum()
+        # RSI was a random walk too; without price history there is no RSI.
+        rsi = signal.get('rsi_history') or []
         rsi = np.clip(rsi, 0, 100)
         ax3.plot(rsi, color='purple', linewidth=2)
         ax3.axhline(y=70, color='r', linestyle='--', alpha=0.5)
