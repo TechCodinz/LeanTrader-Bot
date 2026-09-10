@@ -154,9 +154,49 @@ class BrokerCCXT:
         self,
         execution_mode: Optional[str] = None,
         exchange_id: Optional[str] = None,
+        credentials: Optional[
+            Dict[str, Any]
+        ] = None,
+        market_mode: Optional[str] = None,
     ) -> None:
-        self.exchange_id = (
+        """
+        credentials is an optional in-memory
+        account profile.
+
+        It is never returned by describe(),
+        execution_status(), or order results.
+        """
+        profile = dict(
+            credentials or {}
+        )
+
+        def profile_value(
+            *names: str,
+        ) -> str:
+            for name in names:
+                value = profile.get(
+                    name
+                )
+
+                if value is None:
+                    continue
+
+                value = str(
+                    value
+                ).strip()
+
+                if value:
+                    return value
+
+            return ""
+
+        self.exchange_id = str(
             exchange_id
+            or profile_value(
+                "exchange_id",
+                "exchange",
+                "venue",
+            )
             or os.getenv(
                 "CCXT_EXCHANGE"
             )
@@ -166,8 +206,13 @@ class BrokerCCXT:
             or "bybit"
         ).strip().lower()
 
-        self.market_mode = (
-            os.getenv(
+        self.market_mode = str(
+            market_mode
+            or profile_value(
+                "market_mode",
+                "exchange_mode",
+            )
+            or os.getenv(
                 "EXCHANGE_MODE",
                 "spot",
             )
@@ -189,7 +234,12 @@ class BrokerCCXT:
         )
 
         self.api_key = (
-            os.getenv(
+            profile_value(
+                "apiKey",
+                "api_key",
+                "key",
+            )
+            or os.getenv(
                 f"{prefix}_API_KEY"
             )
             or os.getenv(
@@ -202,7 +252,12 @@ class BrokerCCXT:
         )
 
         self.api_secret = (
-            os.getenv(
+            profile_value(
+                "secret",
+                "api_secret",
+                "secret_key",
+            )
+            or os.getenv(
                 f"{prefix}_API_SECRET"
             )
             or os.getenv(
@@ -218,7 +273,12 @@ class BrokerCCXT:
         )
 
         self.password = (
-            os.getenv(
+            profile_value(
+                "password",
+                "api_password",
+                "passphrase",
+            )
+            or os.getenv(
                 f"{prefix}_API_PASSWORD"
             )
             or os.getenv(
@@ -234,7 +294,11 @@ class BrokerCCXT:
         )
 
         self.uid = (
-            os.getenv(
+            profile_value(
+                "uid",
+                "account_id",
+            )
+            or os.getenv(
                 f"{prefix}_UID"
             )
             or os.getenv(
