@@ -7,6 +7,29 @@
 
 import json
 import sqlite3
+
+from pathlib import Path as _LeanTraderPath
+
+_leantrader_sqlite_raw_connect = sqlite3.connect
+
+def _leantrader_sqlite_connect(database, *args, **kwargs):
+    try:
+        if str(database) != ":memory:":
+            db_path = _LeanTraderPath(database)
+            db_path.parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
+            database = str(db_path)
+    except (TypeError, ValueError):
+        pass
+
+    return _leantrader_sqlite_raw_connect(
+        database,
+        *args,
+        **kwargs,
+    )
+
 import threading
 import time
 try:
@@ -1004,7 +1027,7 @@ class ULTIMATE_EVOLUTION_ENGINE:
     def init_evolution_database(self):
         """Initialize the evolution tracking database"""
         try:
-            self.evo_db = sqlite3.connect('/workspace/evolution_engine.db', check_same_thread=False)
+            self.evo_db = _leantrader_sqlite_connect('/workspace/evolution_engine.db', check_same_thread=False)
             cursor = self.evo_db.cursor()
 
             cursor.execute(

@@ -1,0 +1,31 @@
+FROM leantrader-native-full:1a0076fc9689
+
+USER root
+WORKDIR /app
+
+COPY . /app
+
+RUN python -m pip install \
+      --no-cache-dir \
+      -r requirements-full.txt \
+    && python -m pip check
+
+RUN mkdir -p \
+      /app/data \
+      /app/data/evolution \
+      /app/data/business \
+      /app/data/models \
+      /app/data/memory \
+      /app/runtime \
+      /app/reports \
+      /app/logs \
+      /workspace \
+    && rm -rf /workspace/data \
+    && ln -s /app/data /workspace/data
+
+ENV PYTHONPATH=/app
+ENV LEANTRADER_DATA_DIR=/app/data
+ENV CUDA_VISIBLE_DEVICES=""
+ENV TF_CPP_MIN_LOG_LEVEL=2
+
+WORKDIR /app

@@ -124,7 +124,7 @@ class ExchangeManager:
                 self.exchanges[exchange_name] = exchange
 
                 # Initialize asynchronous exchange
-                async_exchange_class = getattr(ccxt_async, exchange_name)
+                async_exchange_class = resolve_exchange_class(ccxt_async, exchange_name)
                 async_exchange = async_exchange_class(exchange_params)
 
                 # Set sandbox/testnet mode for async exchange too
