@@ -1,3 +1,6 @@
+from typing import Dict, Tuple
+from dataclasses import dataclass, field
+from collections import defaultdict
 import random
 
 @dataclass

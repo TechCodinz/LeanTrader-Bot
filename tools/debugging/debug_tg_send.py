@@ -3,6 +3,7 @@
 
 Only runs when TELEGRAM_DEBUG env var is set to a truthy value.
 """
+from pathlib import Path
 import os
 
 if os.getenv("TELEGRAM_DEBUG", "").strip().lower() not in ("1", "true", "yes"):

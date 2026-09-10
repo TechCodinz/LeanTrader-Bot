@@ -1,4 +1,5 @@
 """Write a small marker file to runtime/logs to confirm write access."""
+from pathlib import Path
 
 def main() -> int:
     p = Path("runtime") / "logs" / "test_fs_write.txt"

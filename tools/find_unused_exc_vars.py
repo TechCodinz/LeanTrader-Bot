@@ -3,6 +3,7 @@ in the except block body. This helps safely renaming unused exception variables 
 
 Usage: python tools/find_unused_exc_vars.py [root]
 """
+from pathlib import Path
 
 import ast
 import sys

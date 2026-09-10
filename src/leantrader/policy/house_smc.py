@@ -1,3 +1,5 @@
+from typing import Dict
+import pandas as pd
 from ..dsl.compiler import compile_strategy, load_strategy
 
 def load_house():

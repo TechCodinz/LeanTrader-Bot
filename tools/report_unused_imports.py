@@ -2,6 +2,7 @@
 Report unused-import (F401) occurrences by running flake8 and saving output.
 Run: python -m tools.report_unused_imports
 """
+from pathlib import Path
 
 import subprocess
 

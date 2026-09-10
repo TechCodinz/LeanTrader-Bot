@@ -1,3 +1,6 @@
+from typing import Dict
+import numpy as np
+import pandas as pd
 import os
 
 def _ema(s: pd.Series, n: int) -> pd.Series:

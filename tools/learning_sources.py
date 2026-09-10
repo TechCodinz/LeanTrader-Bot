@@ -3,6 +3,7 @@
 This file lists safe, public RSS feeds and a conservative set of crawl seed URLs.
 The pipeline uses these defaults unless overridden via environment variables.
 """
+from typing import List
 
 # Public RSS feeds (finance, crypto, tech)
 NEWS_FEEDS: List[str] = [

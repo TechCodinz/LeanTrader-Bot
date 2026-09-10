@@ -5,6 +5,9 @@ by the online learner to produce BUY/SELL/HOLD decisions.
 
 All heavy deps are optional and gated; absence yields graceful defaults.
 """
+from typing import Dict, List, Tuple
+from datetime import timezone
+import pandas as pd
 
 import os
 

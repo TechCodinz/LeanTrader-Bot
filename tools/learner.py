@@ -8,6 +8,8 @@ Usage: .venv/Scripts/python tools/learner.py
 
 This does NOT enable live trading. Models are saved under runtime/models.
 """
+from typing import List
+from pathlib import Path
 
 import json
 

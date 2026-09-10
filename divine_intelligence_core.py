@@ -3,6 +3,7 @@
 DIVINE INTELLIGENCE CORE
 Advanced AI that continuously learns and evolves trading strategies
 """
+import pandas as pd
 
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.neural_network import MLPClassifier

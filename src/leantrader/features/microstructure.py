@@ -1,3 +1,4 @@
+import pandas as pd
 from .ta import adx, fvg_score, rsi
 
 def engineer(df: pd.DataFrame) -> pd.DataFrame:

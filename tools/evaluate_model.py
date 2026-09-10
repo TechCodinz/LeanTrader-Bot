@@ -1,4 +1,6 @@
 """Evaluate a saved model on a CSV of OHLCV or on synthetic data."""
+from typing import List
+from pathlib import Path
 
 import csv
 import sys

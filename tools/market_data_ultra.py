@@ -406,9 +406,9 @@ class UltraMarketData:
         try:
             # Placeholder for news sources
             sources = [
-                f"https://cryptopanic.com/api/v1/posts/?auth_token={
-                    self.api_keys.get(
-                        'cryptopanic', '')}&currencies={symbol}",
+                "https://cryptopanic.com/api/v1/posts/"
+                f"?auth_token={self.api_keys.get('cryptopanic', '')}"
+                f"&currencies={symbol}",
             ]
 
             for source in sources:

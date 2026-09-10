@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 from sklearn.ensemble import RandomForestClassifier
 

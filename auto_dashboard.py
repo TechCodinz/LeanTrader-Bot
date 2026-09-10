@@ -1,6 +1,7 @@
 # auto_dashboard.py
 # Summarize memory.jsonl → show what the bot has learned so far
 
+from collections import defaultdict
 import datetime as dt
 import json
 import pathlib

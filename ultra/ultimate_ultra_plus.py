@@ -3,6 +3,9 @@
 ULTIMATE ULTRA+ BOT - Hedge Fund Grade Trading System
 Complete implementation with all engines and features
 """
+from pathlib import Path
+import numpy as np
+import pandas as pd
 
 from typing import Dict, List, Optional, Any, Tuple
 import os

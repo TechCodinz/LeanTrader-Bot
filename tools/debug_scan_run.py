@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 import json
 import os  # noqa: F401  # intentionally kept
 import sys

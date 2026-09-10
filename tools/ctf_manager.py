@@ -1,3 +1,5 @@
+from typing import Any, Dict, List
+import pandas as pd
 from pathlib import Path
 
 """Cross-timeframe manager (CTF):

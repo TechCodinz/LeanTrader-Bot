@@ -2,6 +2,9 @@
 Risk Management System
 Handles position sizing, risk limits, and safety checks
 """
+from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from enum import Enum
 
 import logging
 from datetime import datetime, timezone

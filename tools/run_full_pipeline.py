@@ -3,6 +3,7 @@
 This script avoids package import quirks by adding the project root to sys.path
 and calling the helper functions directly. It prints step-by-step output.
 """
+from pathlib import Path
 
 import os
 import sys

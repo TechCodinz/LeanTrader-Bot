@@ -5,6 +5,8 @@ for offline review and potential featurization. It does NOT execute or
 directly apply scraped strategies. The collector respects robots.txt by
 requiring the caller to provide allowed URLs or raw text.
 """
+from typing import List
+from pathlib import Path
 
 def store_snippet(source: str, title: str, text: str) -> Path:
     outdir = Path("runtime") / "strategies"

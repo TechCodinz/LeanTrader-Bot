@@ -10,6 +10,7 @@ Features:
 - High-frequency opportunity scanning
 - Multi-asset arbitrage detection
 """
+import numpy as np
 
 import asyncio
 import time

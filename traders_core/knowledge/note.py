@@ -1,3 +1,4 @@
+from pathlib import Path
 from datetime import datetime, timezone
 
 def write_digest(notes_dir: str, symbol: str, body: str):

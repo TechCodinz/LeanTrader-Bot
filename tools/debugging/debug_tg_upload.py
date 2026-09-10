@@ -2,6 +2,7 @@
 
 Set TELEGRAM_DEBUG=1 to enable. This avoids accidental posting to the real bot.
 """
+from pathlib import Path
 
 import os
 

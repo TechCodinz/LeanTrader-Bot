@@ -2,6 +2,7 @@
 ULTRA MOON SPOTTER - The Ultimate Micro Cap Gem Hunter
 Finds 0.00000001 coins before they become 0.01 (1,000,000x potential)
 """
+import numpy as np
 
 import asyncio
 import aiohttp

@@ -1,4 +1,6 @@
 """Simple model registry helpers: list models and read metadata."""
+from typing import Dict, List
+from pathlib import Path
 
 def list_models() -> List[Path]:
     p = Path("runtime") / "models"

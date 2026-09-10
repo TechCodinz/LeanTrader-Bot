@@ -1,3 +1,4 @@
+import pandas as pd
 from leantrader.backtest.engine import backtest
 
 def test_backtest_runs():

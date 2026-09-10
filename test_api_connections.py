@@ -6,7 +6,7 @@ Tests all exchange API connections and functionality
 
 import asyncio
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 # Add workspace to path
 sys.path.append('/workspace')

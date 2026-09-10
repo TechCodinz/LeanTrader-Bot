@@ -1,4 +1,5 @@
 # lightweight runner to call signals_scanner.run_once under programmatic env
+from types import SimpleNamespace
 import os
 import sys
 

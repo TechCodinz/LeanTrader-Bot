@@ -4,6 +4,7 @@ This module centralizes feature gating for heavy or optional libraries.
 Always import these flags instead of importing the libraries at top-level
 in business logic.
 """
+from typing import Optional
 
 def _has(mod: str) -> bool:
     try:

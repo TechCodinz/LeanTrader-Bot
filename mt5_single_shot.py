@@ -1,5 +1,7 @@
 # mt5_single_shot.py
 
+from typing import Any, Dict
+from pathlib import Path
 import argparse
 
 # Lazy import mt5_adapter functions at runtime so importing this module

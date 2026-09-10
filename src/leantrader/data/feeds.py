@@ -1,3 +1,4 @@
+import pandas as pd
 try:
     import ccxt
 except Exception:

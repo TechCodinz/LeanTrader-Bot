@@ -8,6 +8,7 @@ This system implements fluid dynamics principles for trading:
 - Effortless execution with unbeatable results
 - Top-notch analytics with scary good performance
 """
+import numpy as np
 
 import asyncio
 import time

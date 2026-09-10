@@ -10,6 +10,8 @@ Environment:
 Writes brief text snippets to runtime/strategies/twitter_<slug>.txt (one file per query).
 Per run, dedupes by tweet id within the request set.
 """
+from typing import List, Set
+from pathlib import Path
 
 import os
 import time

@@ -4,6 +4,7 @@ This script imports and runs `tools.market_diag.main()` and captures any
 exceptions, writing a persistent `runtime/logs/market_diag.txt` file so the
 results are visible even if shell redirection fails.
 """
+from pathlib import Path
 
 import time
 import traceback

@@ -10,6 +10,7 @@ Features:
 - Compound growth optimization
 - Multi-asset simultaneous scalping
 """
+import numpy as np
 
 import asyncio
 import time

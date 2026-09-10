@@ -3,6 +3,7 @@
 This script forces the router into `paper` backend and attempts a sample order.
 It writes a persistent log to `runtime/logs/smoke_trade.txt` showing the results.
 """
+from pathlib import Path
 
 import os
 import time

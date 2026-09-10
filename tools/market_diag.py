@@ -2,6 +2,8 @@
 
 Writes a small run log to runtime/logs/market_diag.txt so results are persistent.
 """
+from typing import List
+from pathlib import Path
 
 import time
 

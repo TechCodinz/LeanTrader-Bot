@@ -4,6 +4,7 @@ This script promotes MTF-aligned signals, generates branded charts, and sends
 Telegram messages with inline action buttons (trade links). It also writes the
 signals to the NDJSON queue via signals_publisher.publish_batch for audit.
 """
+from PIL import Image, ImageDraw, ImageFont
 
 import json
 import os

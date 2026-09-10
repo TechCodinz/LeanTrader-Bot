@@ -1,3 +1,6 @@
+from typing import Tuple
+from dataclasses import dataclass
+from collections import deque
 import time
 
 @dataclass

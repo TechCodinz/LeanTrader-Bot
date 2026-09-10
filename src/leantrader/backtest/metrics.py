@@ -1,3 +1,5 @@
+import numpy as np
+import pandas as pd
 def sharpe(equity: pd.Series, rf: float = 0.0, period: int = 252):
     rets = equity.pct_change().fillna(0)
     if rets.std() == 0:

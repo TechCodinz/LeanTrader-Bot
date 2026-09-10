@@ -1,3 +1,4 @@
+from typing import Optional
 from storage.kv import get_kv, set_kv
 
 KEY = "ensemble_lambda_cap"

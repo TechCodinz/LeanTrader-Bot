@@ -1,3 +1,4 @@
+from typing import Dict, List
 def _simple_keywords() -> Dict[str, List[str]]:
     return {
         "XAUUSD": ["gold", "xau", "safe haven"],

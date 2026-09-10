@@ -4,6 +4,8 @@ brand_chart(base_path, title, bullets) -> out_path
 - overlays title top-left, bullets bottom-left on a semi-transparent panel
 - overlays repo logo.png at bottom-right if present
 """
+from PIL import Image, ImageDraw, ImageFont
+from pathlib import Path
 
 def brand_chart(base_path: str, title: str, bullets: list[str]) -> str:
     p = Path(base_path)

@@ -1,4 +1,5 @@
 """Run the pipeline.run_pipeline() and print structured output for capture."""
+from pathlib import Path
 
 import os
 import sys

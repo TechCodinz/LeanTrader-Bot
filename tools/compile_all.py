@@ -1,3 +1,4 @@
+from pathlib import Path
 import py_compile
 
 errs = []

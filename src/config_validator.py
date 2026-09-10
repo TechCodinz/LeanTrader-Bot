@@ -2,6 +2,8 @@
 Configuration Validator for Trading Bot
 Validates all configuration settings for production readiness
 """
+from typing import List
+from dataclasses import dataclass
 
 import os
 import re

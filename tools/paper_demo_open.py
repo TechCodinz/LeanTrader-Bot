@@ -1,3 +1,4 @@
+from typing import Any, Dict, List
 from pathlib import Path
 
 """Open several paper trades quickly for demo/testing.

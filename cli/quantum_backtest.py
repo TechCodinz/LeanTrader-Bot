@@ -5,6 +5,7 @@ Usage:
   python -m cli.quantum_backtest --csv data.csv --budget 10 --window 252 --seed 123
 Prints a single-line JSON result and exits 0 on success, 1 on error.
 """
+import pandas as pd
 
 import json
 import os

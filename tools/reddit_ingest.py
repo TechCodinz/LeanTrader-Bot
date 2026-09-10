@@ -6,6 +6,8 @@ Environment:
 
 Writes brief text snippets to runtime/strategies/
 """
+from typing import List
+from pathlib import Path
 
 import os
 import time

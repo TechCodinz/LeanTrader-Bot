@@ -1,4 +1,5 @@
 """Create synthetic OHLCV CSV and run trainer (no network required)."""
+from pathlib import Path
 
 import csv
 import random

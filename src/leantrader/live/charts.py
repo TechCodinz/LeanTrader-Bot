@@ -1,3 +1,4 @@
+import pandas as pd
 import matplotlib.pyplot as plt
 
 def _candlestick_mplfinance(df: pd.DataFrame, out_path: str, title: str):

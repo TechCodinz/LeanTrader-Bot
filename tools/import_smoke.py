@@ -6,6 +6,7 @@ ensure the repository root is on sys.path before importing modules.
 Usage:
     python tools/import_smoke.py
 """
+from pathlib import Path
 
 import importlib
 import sys

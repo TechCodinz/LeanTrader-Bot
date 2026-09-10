@@ -5,6 +5,7 @@ Small script to apply two low-risk repo-wide fixes:
 
 Backs up files with a .bak extension before modifying.
 """
+from pathlib import Path
 
 import re
 

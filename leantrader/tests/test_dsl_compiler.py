@@ -1,3 +1,4 @@
+import pandas as pd
 from leantrader.dsl.compiler import compile_strategy, load_strategy
 
 def test_compile_strategy():

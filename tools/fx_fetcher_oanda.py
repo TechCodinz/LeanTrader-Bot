@@ -9,6 +9,8 @@ Environment:
 Outputs CSV to runtime/data/fx_<SYMBOL>_<TF>.csv
 Supported TF map: M1,M5,M15,M30,H1,H4,D1 -> M1,M5,M15,M30,H1,H4,D
 """
+from typing import Any, Dict, List
+from pathlib import Path
 
 import csv
 import os

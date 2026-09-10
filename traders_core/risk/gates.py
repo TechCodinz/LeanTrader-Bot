@@ -1,3 +1,4 @@
+import pandas as pd
 def compute_metrics(returns: pd.Series) -> dict:
     ret = returns.fillna(0.0)
     mu = ret.mean()

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from loguru import logger
+import numpy as np
 import asyncio
 import ccxt
 import sqlite3

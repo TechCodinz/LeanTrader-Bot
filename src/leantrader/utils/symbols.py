@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 @dataclass(frozen=True)
 class SymbolMeta:
     unified: str  # e.g., 'EUR/USD' or 'BTC/USDT'

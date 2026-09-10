@@ -2,6 +2,9 @@
 """
 Test All APIs - Verify all exchange connections are working
 """
+import logging
+
+logger = logging.getLogger(__name__)
 
 import json
 import ccxt

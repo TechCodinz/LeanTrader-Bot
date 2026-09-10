@@ -1,3 +1,4 @@
+from typing import Any, Dict, Tuple
 from web3.guards import (
     estimate_price_impact,
     is_safe_price_impact,

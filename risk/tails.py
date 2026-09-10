@@ -1,3 +1,5 @@
+from typing import Any, Dict, Tuple
+import numpy as np
 def classical_var_cvar(pnl_series: np.ndarray, alpha: float = 0.95) -> Tuple[float, float]:
     """Compute one-sided VaR and CVaR (Expected Shortfall) from a PnL series.
 

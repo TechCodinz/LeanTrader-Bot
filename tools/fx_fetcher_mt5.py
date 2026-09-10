@@ -6,6 +6,8 @@ Environment:
 
 Outputs CSV to runtime/data/fx_<SYMBOL>_<TF>.csv with columns time,open,high,low,close,volume
 """
+from typing import List
+from pathlib import Path
 
 import os
 

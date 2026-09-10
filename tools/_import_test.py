@@ -1,4 +1,5 @@
 # quick import test for trader_core and risk_guard
+from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]

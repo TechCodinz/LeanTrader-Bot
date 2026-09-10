@@ -1,3 +1,4 @@
+from typing import Any
 def build_tx(slippage_bps: int) -> Any:
     # Replace with real encoder for your DEX
     return {"slippage_bps": int(slippage_bps)}

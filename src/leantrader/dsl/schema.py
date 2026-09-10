@@ -1,3 +1,5 @@
+from typing import Dict, List, Literal, Optional
+from pydantic import BaseModel
 Timeframe = Literal["D1", "H4", "H1", "M15", "M5", "M1"]
 
 class Condition(BaseModel):

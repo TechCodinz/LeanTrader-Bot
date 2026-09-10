@@ -1,4 +1,7 @@
 # Default session windows in UTC
+from typing import Dict
+from dataclasses import dataclass, field
+import pandas as pd
 SESSIONS = {
     "asia": (0, 8),  # 00:00 - 08:00
     "london": (8, 16),  # 08:00 - 16:00

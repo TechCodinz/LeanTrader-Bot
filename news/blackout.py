@@ -1,3 +1,5 @@
+from typing import Optional
+from pathlib import Path
 import csv
 import os
 import time

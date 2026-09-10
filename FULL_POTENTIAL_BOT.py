@@ -6,6 +6,10 @@ FULL POTENTIAL PROFESSIONAL TRADING BOT
 - Advanced AI learning and adaptation
 - All trading features active
 """
+import logging
+
+logger = logging.getLogger(__name__)
+from pathlib import Path
 
 import asyncio
 import ccxt

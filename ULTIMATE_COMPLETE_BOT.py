@@ -1,3 +1,7 @@
+import logging
+
+logger = logging.getLogger(__name__)
+from pathlib import Path
 from sklearn.ensemble import RandomForestClassifier
 
 #!/usr/bin/env python3

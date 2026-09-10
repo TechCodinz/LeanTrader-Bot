@@ -2,6 +2,9 @@
 """
 INSTANT TELEGRAM DEMO - Shows you exactly how to get notifications working!
 """
+import logging
+
+logger = logging.getLogger(__name__)
 
 import asyncio
 from datetime import datetime

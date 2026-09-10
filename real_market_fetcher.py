@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 from typing import Dict, List
 
 #!/usr/bin/env python3

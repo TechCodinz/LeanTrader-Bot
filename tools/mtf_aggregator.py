@@ -12,6 +12,9 @@ Simple strategy:
 This is intentionally conservative: you can configure `REQUIRED_TFS` via env var
 to control the TFs to require (comma-separated, e.g., '1m,5m,1h,4h').
 """
+from typing import Dict, List
+from collections import defaultdict
+from pathlib import Path
 
 import json
 import os

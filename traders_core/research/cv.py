@@ -1,3 +1,5 @@
+from typing import Iterator, Tuple
+import numpy as np
 class PurgedKFold:
     """
     Time-aware CV: no look-ahead, with 'embargo' bars after each test block.

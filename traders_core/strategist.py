@@ -1,5 +1,6 @@
 # strategist.py
 
+from typing import Any, Dict, List
 def ema(vals: List[float], n: int) -> List[float]:
     if not vals:
         return []

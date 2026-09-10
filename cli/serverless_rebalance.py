@@ -6,6 +6,9 @@ Usage:
 Prints a single-line JSON summary on success, and exits 0.
 On failure, prints {"error": "..."} and exits 1.
 """
+from typing import Optional
+import numpy as np
+import pandas as pd
 
 import json
 import os

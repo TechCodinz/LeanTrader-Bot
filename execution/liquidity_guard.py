@@ -1,3 +1,4 @@
+from typing import Any, Dict
 def estimate_price_impact_from_book(orderbook: Dict[str, Any], qty: float) -> float:
     """Estimate price impact in basis points using linearized slope from top-of-book.
 

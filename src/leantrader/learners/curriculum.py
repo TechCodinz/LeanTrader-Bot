@@ -1,3 +1,5 @@
+from typing import Dict
+from dataclasses import dataclass, field
 @dataclass
 class Skill:
     name: str

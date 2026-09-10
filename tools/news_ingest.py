@@ -4,6 +4,8 @@ This module fetches RSS/Atom feeds via `feedparser` when available and stores
 recent items under `runtime/news/` for use by strategies. It is intentionally
 opt-in and conservative.
 """
+from typing import List
+from pathlib import Path
 
 import time
 

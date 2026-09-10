@@ -6,6 +6,7 @@ flake8 until a human review.
 
 Run: python -m tools.auto_mark_f401
 """
+from pathlib import Path
 
 import re
 

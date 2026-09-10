@@ -3,6 +3,8 @@
 Writes `runtime/logs/exchanges_status.txt` with per-exchange results. Use
 `python -m tools.check_exchanges` to run (ensures package imports resolve).
 """
+from typing import List
+from pathlib import Path
 
 import time
 import traceback

@@ -1,3 +1,5 @@
+import numpy as np
+import pandas as pd
 try:
     import click
 except Exception:

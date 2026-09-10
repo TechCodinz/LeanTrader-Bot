@@ -1,3 +1,5 @@
+import numpy as np
+import pandas as pd
 def ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=n, adjust=False).mean()
 

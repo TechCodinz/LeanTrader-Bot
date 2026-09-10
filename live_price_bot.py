@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 from typing import Dict
 from concurrent.futures import ThreadPoolExecutor

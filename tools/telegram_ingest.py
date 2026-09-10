@@ -10,6 +10,8 @@ Writes messages to runtime/strategies/telegram_<chat_id>.txt and runtime/strateg
 and stores offset in runtime/logs/telegram_ingest_state.json
 Requires the bot to be a member of the target chats/channels with permission to read messages.
 """
+from typing import Dict, List
+from pathlib import Path
 
 import json
 import os
