@@ -150,7 +150,7 @@ class NobelSimpleSystem:
                 }
             },
             'telegram': {
-                'bot_token': '8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg',
+                'bot_token': os.getenv("TELEGRAM_BOT_TOKEN", ""),
                 'channels': {
                     'admin': '5329503447',
                     'free': '-1002930953007',

@@ -1,3 +1,4 @@
+import os
 import logging
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ class ContinuousUltraTradingSystem:
         }
 
         # Telegram Bot with REAL credentials
-        self.telegram_bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+        self.telegram_bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN", ""))
         self.telegram_chat_id = "5329503447"
         self.telegram_enabled = True
 

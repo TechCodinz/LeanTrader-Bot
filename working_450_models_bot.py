@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import numpy as np
 import asyncio
 import ccxt
@@ -295,7 +296,7 @@ class UltimateBot450Models:
     async def send_telegram(self, message, channel):
         """Send Telegram message"""
         try:
-            bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+            bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN", ""))
             await bot.send_message(chat_id=self.channels[channel], text=message)
             logger.info(f"Message sent to {channel}")
         except Exception as e:
@@ -304,7 +305,7 @@ class UltimateBot450Models:
     async def send_telegram_with_buttons(self, message, channel, symbol, signal_data):
         """Send Telegram with trading buttons"""
         try:
-            bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+            bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN", ""))
 
             if channel == 'vip' and signal_data:
                 keyboard = [
