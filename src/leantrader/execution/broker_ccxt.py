@@ -292,7 +292,6 @@ class BrokerCCXT:
             raise RuntimeError(
                 "ccxt import failed"
             ) from exc
-            ccxt = None
 
         candidates = [
             self.exchange_id
