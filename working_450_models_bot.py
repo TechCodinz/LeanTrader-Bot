@@ -2,6 +2,9 @@
 
 import os
 import numpy as np
+import pandas as pd
+import yfinance as yf
+import time
 import asyncio
 import ccxt
 import sqlite3
@@ -75,10 +78,8 @@ class UltimateBot450Models:
         # Initialize exchanges
         self.bybit = ccxt.bybit(
             {
-                'apiKey': 'g1mhPqKrOBp9rnqb4G',
-                'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
-                'sandbox': True,
-                'enableRateLimit': True,
+                "enableRateLimit": True,
+                "timeout": 20000,
             }
         )
 
@@ -254,44 +255,240 @@ class UltimateBot450Models:
 
         logger.info(f"SUCCESS: {len(self.ml_models)} AI/ML models initialized (FULL 450+ MODELS)")
 
+
     async def get_price_data(self, symbol, market_type='crypto'):
-        """Get price data"""
+        """Retrieve genuine public market observations."""
+
         price_data = {}
 
-        # Try Bybit first for crypto
         if market_type == 'crypto':
+            clients = [
+                ('bybit', self.bybit),
+                *list(self.exchanges.items()),
+            ]
+
+            for source, client in clients:
+                try:
+                    ticker, bars = await asyncio.gather(
+                        asyncio.to_thread(
+                            client.fetch_ticker,
+                            symbol,
+                        ),
+                        asyncio.to_thread(
+                            client.fetch_ohlcv,
+                            symbol,
+                            '1h',
+                            None,
+                            240,
+                        ),
+                    )
+
+                    closes = [
+                        float(row[4])
+                        for row in bars
+                        if (
+                            isinstance(row, (list, tuple))
+                            and len(row) >= 6
+                            and row[4] is not None
+                        )
+                    ]
+
+                    volumes = [
+                        float(row[5] or 0.0)
+                        for row in bars
+                        if (
+                            isinstance(row, (list, tuple))
+                            and len(row) >= 6
+                        )
+                    ]
+
+                    if len(closes) < 60:
+                        continue
+
+                    price = float(
+                        ticker.get('last')
+                        or closes[-1]
+                    )
+
+                    previous = (
+                        closes[-25]
+                        if len(closes) >= 25
+                        else closes[0]
+                    )
+
+                    change = (
+                        ((price / previous) - 1.0)
+                        * 100.0
+                        if previous > 0
+                        else 0.0
+                    )
+
+                    price_data[source] = {
+                        'price': price,
+                        'volume': float(
+                            ticker.get('baseVolume')
+                            or volumes[-1]
+                            or 0.0
+                        ),
+                        'change_24h': float(
+                            ticker.get('percentage')
+                            if ticker.get('percentage') is not None
+                            else change
+                        ),
+                        'high_24h': float(
+                            ticker.get('high')
+                            or max(closes[-24:])
+                        ),
+                        'low_24h': float(
+                            ticker.get('low')
+                            or min(closes[-24:])
+                        ),
+                    }
+
+                    price_data['_history'] = [
+                        [
+                            int(row[0]),
+                            float(row[1]),
+                            float(row[2]),
+                            float(row[3]),
+                            float(row[4]),
+                            float(row[5] or 0.0),
+                        ]
+                        for row in bars
+                        if (
+                            isinstance(row, (list, tuple))
+                            and len(row) >= 6
+                            and row[4] is not None
+                        )
+                    ]
+
+                    price_data['_source'] = source
+
+                    return price_data
+
+                except Exception as exc:
+                    logger.debug(
+                        "public market source %s unavailable for %s: %s",
+                        source,
+                        symbol,
+                        exc,
+                    )
+
+            return {}
+
+        if market_type == 'forex':
+
+            yahoo_symbols = {
+                'EUR/USD': 'EURUSD=X',
+                'GBP/USD': 'GBPUSD=X',
+                'USD/JPY': 'JPY=X',
+                'USD/CHF': 'CHF=X',
+                'AUD/USD': 'AUDUSD=X',
+                'USD/CAD': 'CAD=X',
+                'NZD/USD': 'NZDUSD=X',
+            }
+
+            ticker_symbol = yahoo_symbols.get(
+                symbol
+            )
+
+            if not ticker_symbol:
+                return {}
+
             try:
-                ticker = self.bybit.fetch_ticker(symbol)
-                price_data['bybit'] = {
-                    'price': float(ticker['last']),
-                    'volume': float(ticker['baseVolume']),
-                    'change_24h': float(ticker['percentage']),
-                    'high_24h': float(ticker['high']),
-                    'low_24h': float(ticker['low']),
+                frame = await asyncio.to_thread(
+                    lambda: yf.Ticker(
+                        ticker_symbol
+                    ).history(
+                        period='1mo',
+                        interval='1h',
+                        auto_adjust=False,
+                    )
+                )
+
+                if frame is None or len(frame) < 60:
+                    return {}
+
+                frame = frame.dropna(
+                    subset=['Close']
+                )
+
+                close = frame['Close'].astype(float)
+                high = frame['High'].astype(float)
+                low = frame['Low'].astype(float)
+
+                volume = (
+                    frame['Volume'].fillna(0).astype(float)
+                    if 'Volume' in frame
+                    else pd.Series(
+                        [0.0] * len(frame),
+                        index=frame.index,
+                    )
+                )
+
+                latest = float(close.iloc[-1])
+
+                previous = float(
+                    close.iloc[-25]
+                    if len(close) >= 25
+                    else close.iloc[0]
+                )
+
+                change = (
+                    ((latest / previous) - 1.0) * 100.0
+                    if previous > 0
+                    else 0.0
+                )
+
+                bars = []
+
+                for index, row in frame.iterrows():
+                    bars.append(
+                        [
+                            int(
+                                pd.Timestamp(index).timestamp()
+                                * 1000
+                            ),
+                            float(row['Open']),
+                            float(row['High']),
+                            float(row['Low']),
+                            float(row['Close']),
+                            float(
+                                row.get('Volume', 0.0)
+                                or 0.0
+                            ),
+                        ]
+                    )
+
+                price_data['yahoo'] = {
+                    'price': latest,
+                    'volume': float(
+                        volume.iloc[-1]
+                    ),
+                    'change_24h': change,
+                    'high_24h': float(
+                        high.iloc[-24:].max()
+                    ),
+                    'low_24h': float(
+                        low.iloc[-24:].min()
+                    ),
                 }
-            except:
-                pass
 
-        # For forex, simulate realistic data
-        if market_type == 'forex' and not price_data:
-            base_prices = {
-                'EUR/USD': 1.0950,
-                'GBP/USD': 1.2750,
-                'USD/JPY': 150.25,
-                'USD/CHF': 0.8750,
-                'AUD/USD': 0.6550,
-            }
+                price_data['_history'] = bars
+                price_data['_source'] = 'yahoo'
 
-            base_price = base_prices.get(symbol, 1.0000)
-            price_data['forex_sim'] = {
-                'price': base_price + np.random.uniform(-0.002, 0.002),
-                'volume': np.random.uniform(1000000, 5000000),
-                'change_24h': np.random.uniform(-1.5, 1.5),
-                'high_24h': base_price + np.random.uniform(0, 0.005),
-                'low_24h': base_price - np.random.uniform(0, 0.005),
-            }
+                return price_data
 
-        return price_data
+            except Exception as exc:
+                logger.warning(
+                    "real forex data unavailable for %s: %s",
+                    symbol,
+                    exc,
+                )
+
+                return {}
+
+        return {}
 
     async def send_telegram(self, message, channel):
         """Send Telegram message"""
@@ -340,143 +537,451 @@ class UltimateBot450Models:
         except Exception as e:
             logger.error(f"Telegram buttons error: {e}")
 
-    def calculate_indicators(self, price_data):
-        """Calculate technical indicators"""
-        primary_data = None
-        for source in ['bybit', 'binance', 'okx', 'coinbase', 'forex_sim']:
-            if source in price_data:
-                primary_data = price_data[source]
-                break
 
-        if not primary_data:
+    def calculate_indicators(self, price_data):
+        """Calculate indicators exclusively from observed price history."""
+
+        history = price_data.get(
+            '_history'
+        ) or []
+
+        if len(history) < 60:
             return {}
 
-        price = primary_data['price']
-        change_24h = primary_data['change_24h']
-        volume = primary_data['volume']
+        frame = pd.DataFrame(
+            history,
+            columns=[
+                'timestamp',
+                'open',
+                'high',
+                'low',
+                'close',
+                'volume',
+            ],
+        )
 
-        # Advanced RSI calculation
-        rsi = 50 + (change_24h * 2.5)
-        rsi = max(0, min(100, rsi))
+        close = frame['close'].astype(float)
+        volume = frame['volume'].astype(float)
 
-        # Advanced MACD calculation
-        macd = change_24h * 0.8
-        signal = change_24h * 0.5
+        delta = close.diff()
 
-        # Volume ratio
-        volume_ratio = volume / 1000000 if volume > 0 else 1
+        gain = (
+            delta.clip(lower=0)
+            .rolling(14)
+            .mean()
+        )
 
-        # Volatility
-        volatility = abs(change_24h) / 100
+        loss = (
+            -delta.clip(upper=0)
+            .rolling(14)
+            .mean()
+        )
+
+        rs = gain / loss.replace(
+            0,
+            np.nan,
+        )
+
+        rsi_series = (
+            100
+            - (100 / (1 + rs))
+        ).fillna(50)
+
+        ema12 = close.ewm(
+            span=12,
+            adjust=False,
+        ).mean()
+
+        ema26 = close.ewm(
+            span=26,
+            adjust=False,
+        ).mean()
+
+        macd_series = ema12 - ema26
+
+        signal_series = macd_series.ewm(
+            span=9,
+            adjust=False,
+        ).mean()
+
+        returns = close.pct_change()
+
+        volatility = float(
+            returns.tail(24).std()
+            or 0.0
+        )
+
+        baseline_volume = float(
+            volume.tail(24).mean()
+            or 0.0
+        )
+
+        current_volume = float(
+            volume.iloc[-1]
+        )
+
+        volume_ratio = (
+            current_volume / baseline_volume
+            if baseline_volume > 0
+            else 1.0
+        )
 
         return {
-            'rsi': rsi,
-            'macd': macd,
-            'signal': signal,
-            'volume_ratio': volume_ratio,
+            'rsi': float(
+                rsi_series.iloc[-1]
+            ),
+            'macd': float(
+                macd_series.iloc[-1]
+            ),
+            'signal': float(
+                signal_series.iloc[-1]
+            ),
+            'volume_ratio': float(
+                volume_ratio
+            ),
             'volatility': volatility,
-            'price': price,
+            'price': float(
+                close.iloc[-1]
+            ),
         }
 
-    def generate_signal_with_450_models(self, symbol, price_data, indicators, market_type='crypto'):
-        """Generate AI signal using ALL 450+ models"""
+
+    def generate_signal_with_450_models(
+        self,
+        symbol,
+        price_data,
+        indicators,
+        market_type='crypto',
+    ):
+        """
+        Run the complete model ensemble using features learned from
+        genuine OHLCV. Random scores are forbidden.
+        """
+
         if not indicators:
             return None
 
-        price = indicators['price']
+        history = price_data.get(
+            '_history'
+        ) or []
 
-        # Get primary data
-        primary_data = None
-        for source in ['bybit', 'binance', 'okx', 'coinbase', 'forex_sim']:
-            if source in price_data:
-                primary_data = price_data[source]
-                break
-
-        if not primary_data:
+        if len(history) < 80:
             return None
 
-        change_24h = primary_data['change_24h']
-        volume_ratio = indicators['volume_ratio']
-        rsi = indicators['rsi']
-        volatility = indicators['volatility']
+        frame = pd.DataFrame(
+            history,
+            columns=[
+                'timestamp',
+                'open',
+                'high',
+                'low',
+                'close',
+                'volume',
+            ],
+        )
 
-        # Use ALL 450+ models for comprehensive analysis
-        total_score = 0
-        model_count = 0
+        close = frame['close'].astype(float)
+        high = frame['high'].astype(float)
+        low = frame['low'].astype(float)
+        volume = frame['volume'].astype(float)
 
-        # Simulate using all models
+        returns = close.pct_change()
+
+        feature_frame = pd.DataFrame({
+            'ret1': returns,
+            'ret3': close.pct_change(3),
+            'ret5': close.pct_change(5),
+            'ret10': close.pct_change(10),
+            'range': (
+                (high - low)
+                / close.replace(0, np.nan)
+            ),
+            'sma5': (
+                close
+                / close.rolling(5).mean()
+                - 1.0
+            ),
+            'sma20': (
+                close
+                / close.rolling(20).mean()
+                - 1.0
+            ),
+            'vol5': returns.rolling(5).std(),
+            'vol20': returns.rolling(20).std(),
+            'volume_change': (
+                volume
+                .replace(0, np.nan)
+                .pct_change()
+            ),
+        }).replace(
+            [np.inf, -np.inf],
+            np.nan,
+        )
+
+        target = (
+            close.shift(-1) > close
+        ).astype(int)
+
+        dataset = feature_frame.copy()
+        dataset['target'] = target
+        dataset = dataset.dropna()
+
+        if len(dataset) < 50:
+            return None
+
+        X = dataset.drop(
+            columns=['target']
+        ).to_numpy(
+            dtype=np.float64
+        )
+
+        y = dataset['target'].to_numpy(
+            dtype=np.int64
+        )
+
+        if len(np.unique(y)) < 2:
+            return None
+
+        latest = (
+            feature_frame
+            .dropna()
+            .iloc[-1:]
+            .to_numpy(
+                dtype=np.float64
+            )
+        )
+
+        # Training is expensive; retrain the entire population at a
+        # bounded cadence using genuine observations.
+        bucket = int(
+            time.time() // 900
+        )
+
+        if getattr(
+            self,
+            '_ensemble_fit_bucket',
+            None,
+        ) != bucket:
+
+            trained = 0
+
+            for model_name, model in self.ml_models.items():
+                try:
+                    model.fit(
+                        X,
+                        y,
+                    )
+
+                    setattr(
+                        model,
+                        '_leantrader_real_fitted',
+                        True,
+                    )
+
+                    trained += 1
+
+                except Exception as exc:
+                    logger.debug(
+                        'Model training failed %s: %s',
+                        model_name,
+                        exc,
+                    )
+
+            self._ensemble_fit_bucket = bucket
+            self.stats[
+                'models_trained'
+            ] += trained
+
+            logger.info(
+                'REAL_DATA_MODEL_TRAINING=%s/%s',
+                trained,
+                len(self.ml_models),
+            )
+
+        scores = []
+
         for model_name, model in self.ml_models.items():
+
+            if not getattr(
+                model,
+                '_leantrader_real_fitted',
+                False,
+            ):
+                continue
+
             try:
-                # Simulate model prediction
-                model_score = np.random.uniform(-100, 100) * (volatility + 0.01)
-                total_score += model_score
-                model_count += 1
+                if hasattr(
+                    model,
+                    'predict_proba',
+                ):
+                    probabilities = model.predict_proba(
+                        latest
+                    )[0]
 
-                # Update model training (continuous learning)
-                self.stats['models_trained'] += 1
+                    classes = list(
+                        getattr(
+                            model,
+                            'classes_',
+                            [0, 1],
+                        )
+                    )
 
-            except Exception as e:
-                logger.error(f"Model {model_name} error: {e}")
+                    if 1 in classes:
+                        p_up = float(
+                            probabilities[
+                                classes.index(1)
+                            ]
+                        )
+                    else:
+                        p_up = float(
+                            probabilities[-1]
+                        )
 
-        # Average score from all models
-        if model_count > 0:
-            average_score = total_score / model_count
-        else:
-            average_score = 0
+                elif hasattr(
+                    model,
+                    'decision_function',
+                ):
+                    decision = float(
+                        np.asarray(
+                            model.decision_function(
+                                latest
+                            )
+                        ).reshape(-1)[0]
+                    )
 
-        # Market-specific adjustments
-        if market_type == 'forex':
-            average_score = average_score * 0.8
-            min_threshold = 60
-        else:
-            min_threshold = 70
+                    p_up = float(
+                        1.0
+                        / (
+                            1.0
+                            + np.exp(
+                                -np.clip(
+                                    decision,
+                                    -30,
+                                    30,
+                                )
+                            )
+                        )
+                    )
 
-        # Determine signal based on ensemble of ALL models
-        if average_score >= 90:
-            action = "BUY"
-            confidence = min(98, 80 + (average_score - 90))
-        elif average_score <= -90:
-            action = "SELL"
-            confidence = min(98, 80 + abs(average_score + 90))
-        elif average_score >= min_threshold:
-            action = "BUY"
-            confidence = min(85, 70 + (average_score - min_threshold))
-        elif average_score <= -min_threshold:
-            action = "SELL"
-            confidence = min(85, 70 + abs(average_score + min_threshold))
+                else:
+                    prediction = int(
+                        np.asarray(
+                            model.predict(
+                                latest
+                            )
+                        ).reshape(-1)[0]
+                    )
+
+                    p_up = (
+                        1.0
+                        if prediction == 1
+                        else 0.0
+                    )
+
+                scores.append(
+                    (p_up - 0.5)
+                    * 200.0
+                )
+
+            except Exception as exc:
+                logger.debug(
+                    'Model prediction failed %s: %s',
+                    model_name,
+                    exc,
+                )
+
+        if not scores:
+            return None
+
+        average_score = float(
+            np.mean(scores)
+        )
+
+        model_count = len(scores)
+
+        threshold = (
+            12.0
+            if market_type == 'forex'
+            else 15.0
+        )
+
+        if average_score >= threshold:
+            action = 'BUY'
+
+        elif average_score <= -threshold:
+            action = 'SELL'
+
         else:
             return None
 
-        if confidence >= self.min_confidence:
-            # Calculate TP/SL
-            if market_type == 'forex':
-                base_tp1 = 0.005 * confidence / 100
-                base_tp2 = 0.010 * confidence / 100
-                base_tp3 = 0.020 * confidence / 100
-                base_sl = 0.008 * confidence / 100
-            else:
-                base_tp1 = 0.015 * confidence / 100
-                base_tp2 = 0.035 * confidence / 100
-                base_tp3 = 0.070 * confidence / 100
-                base_sl = 0.025 * confidence / 100
+        confidence = float(
+            np.clip(
+                50.0
+                + abs(average_score) / 2.0,
+                50.0,
+                99.0,
+            )
+        )
 
-            tp1 = price * (1 + base_tp1 if action == "BUY" else 1 - base_tp1)
-            tp2 = price * (1 + base_tp2 if action == "BUY" else 1 - base_tp2)
-            tp3 = price * (1 + base_tp3 if action == "BUY" else 1 - base_tp3)
-            stop_loss = price * (1 - base_sl if action == "BUY" else 1 + base_sl)
+        price = float(
+            indicators['price']
+        )
 
-            return {
-                'action': action,
-                'confidence': confidence,
-                'tp1': tp1,
-                'tp2': tp2,
-                'tp3': tp3,
-                'stop_loss': stop_loss,
-                'ai_score': average_score,
-                'models_used': model_count,
-            }
+        observed_volatility = max(
+            float(
+                indicators.get(
+                    'volatility',
+                    0.0,
+                )
+            ),
+            0.001,
+        )
 
-        return None
+        tp1_pct = max(
+            observed_volatility,
+            0.0025,
+        )
+
+        tp2_pct = tp1_pct * 2.0
+        tp3_pct = tp1_pct * 3.0
+
+        sl_pct = max(
+            observed_volatility * 1.25,
+            0.003,
+        )
+
+        direction = (
+            1.0
+            if action == 'BUY'
+            else -1.0
+        )
+
+        return {
+            'action': action,
+            'confidence': confidence,
+            'tp1': price * (
+                1.0
+                + direction * tp1_pct
+            ),
+            'tp2': price * (
+                1.0
+                + direction * tp2_pct
+            ),
+            'tp3': price * (
+                1.0
+                + direction * tp3_pct
+            ),
+            'stop_loss': price * (
+                1.0
+                - direction * sl_pct
+            ),
+            'ai_score': average_score,
+            'models_used': model_count,
+            'market_data_source': price_data.get(
+                '_source'
+            ),
+            'evidence': 'real_ohlcv_model_ensemble',
+        }
 
     async def analyze_markets(self):
         """Analyze ALL markets with 450+ models"""

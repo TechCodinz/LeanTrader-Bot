@@ -132,7 +132,10 @@ class ExchangeRouter:
             "timeout": _env_int("CCXT_TIMEOUT_MS", 15000),
             "options": {},
         }
-        if api_key and api_sec:
+        # Public market-data reads must remain unauthenticated.
+        # Credentials belong only to an explicitly authorized
+        # order-capable execution profile.
+        if self.live and api_key and api_sec:
             opts["apiKey"] = api_key
             opts["secret"] = api_sec
         # store credential presence for runtime safety checks
@@ -237,16 +240,12 @@ class ExchangeRouter:
                 except Exception as _e2:
                     print(f"[router] fetch_markets fallback failed: {_e2}")
             if mkts is None:
-                # Do not raise here; provide a minimal safe default so scanners can proceed.
-                _log.error("[router] load_markets failed; using safe default market list")
+                _log.error(
+                    "[router] no real markets available; "
+                    "exchange marked unavailable"
+                )
                 self._exchange_malformed = True
-                self.markets = {
-                    "BTC/USDT": {},
-                    "ETH/USDT": {},
-                    "SOL/USDT": {},
-                    "XRP/USDT": {},
-                    "DOGE/USDT": {},
-                }
+                self.markets = {}
                 return
             # ccxt should return a dict { "BTC/USDT": {...}, ... }
             if isinstance(mkts, dict):

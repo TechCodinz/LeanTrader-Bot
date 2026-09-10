@@ -12,7 +12,7 @@ print("🚨 EMERGENCY: Closing ALL Gate.io positions...")
 print("="*60)
 
 # Connect to Gate.io
-gate = ccxt.gateio({
+gate = ccxt.gate({
     'apiKey': os.getenv('GATEIO_API_KEY'),
     'secret': os.getenv('GATEIO_SECRET'),
     'options': {'defaultType': 'spot'}

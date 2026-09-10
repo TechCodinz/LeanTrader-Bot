@@ -189,7 +189,7 @@ class UltimateCompleteTradingBot:
                                 }
                             )
                         elif exchange_name == 'gateio':
-                            self.exchanges['gateio'] = ccxt.gateio(
+                            self.exchanges['gateio'] = ccxt.gate(
                                 {
                                     'apiKey': config['api_key'],
                                     'secret': config['secret'],
@@ -235,7 +235,7 @@ class UltimateCompleteTradingBot:
 
             # Gate.io
             try:
-                self.exchanges['gateio'] = ccxt.gateio({'enableRateLimit': True})
+                self.exchanges['gateio'] = ccxt.gate({'enableRateLimit': True})
             except Exception:
                 pass
 

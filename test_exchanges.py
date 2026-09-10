@@ -36,7 +36,7 @@ async def test_all():
     # Test Gate.io
     print('\nTesting Gate.io...')
     try:
-        exchange = ccxt.gateio({
+        exchange = ccxt.gate({
             'apiKey': os.getenv('GATE_API_KEY'),
             'secret': os.getenv('GATE_SECRET'),
             'enableRateLimit': True

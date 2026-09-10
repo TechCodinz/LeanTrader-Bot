@@ -54,6 +54,22 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
+def _leantrader_json_default(value):
+    if isinstance(value, datetime):
+        return value.isoformat()
+
+    if isinstance(value, np.generic):
+        return value.item()
+
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+
+    raise TypeError(
+        f"Object of type {type(value).__name__} "
+        "is not JSON serializable"
+    )
+
+
 # Claude 4.1 Opus Advanced Features Integration
 try:
     from langchain_core.tools import Tool
@@ -1576,34 +1592,56 @@ class ULTIMATE_EVOLUTION_ENGINE:
                 print(f"❌ Testnet training error: {e}")
                 time.sleep(60)
 
+
     def learn_from_live_data(self):
-        """Learn from live trading bot data"""
-        try:
-            # Simulate learning from live bot
-            current_time = datetime.now()
+        """Learn only from actual recorded trade outcomes."""
 
-            # Update learning data
-            learning_data = {
-                'timestamp': current_time,
-                'market_conditions': self.get_current_market_conditions(),
-                'bot_performance': self.get_bot_performance(),
-                'trading_patterns': self.analyze_trading_patterns(),
-            }
+        performance = (
+            self.get_bot_performance()
+        )
 
-            self.live_bot_connection['learning_data'].append(learning_data)
-
-            # Keep only last 1000 learning points
-            if len(self.live_bot_connection['learning_data']) > 1000:
-                self.live_bot_connection['learning_data'] = self.live_bot_connection[
-                    'learning_data'
-                ][-1000:]
-
+        if not performance.get(
+            'available'
+        ):
             print(
-                f"🧠 Learned from live data - {len(self.live_bot_connection['learning_data'])} data points"
+                "🧠 No new authenticated/recorded "
+                "trade outcomes available for evolution"
             )
+            return
 
-        except Exception as e:
-            print(f"❌ Live data learning error: {e}")
+        market_conditions = (
+            self.get_current_market_conditions()
+        )
+
+        learning_data = {
+            'timestamp':
+                datetime.now(),
+            'market_conditions':
+                market_conditions,
+            'bot_performance':
+                performance,
+            'trading_patterns':
+                self.analyze_trading_patterns(),
+            'evidence':
+                'recorded_trade_outcomes',
+        }
+
+        rows = self.live_bot_connection.setdefault(
+            'learning_data',
+            [],
+        )
+
+        rows.append(
+            learning_data
+        )
+
+        if len(rows) > 1000:
+            del rows[:-1000]
+
+        print(
+            f"🧠 Learned from real outcomes - "
+            f"{performance['samples']} samples"
+        )
 
     def spawn_new_models(self):
         """Spawn new models based on learning and market conditions"""
@@ -1757,7 +1795,7 @@ class ULTIMATE_EVOLUTION_ENGINE:
                     model['spawn_time'],
                     json.dumps(model.get('parent_models', [])),
                     json.dumps(self.get_current_market_conditions()),
-                    json.dumps(model),
+                    json.dumps(model, default=_leantrader_json_default),
                 ),
             )
             self.evo_db.commit()
@@ -1785,24 +1823,276 @@ class ULTIMATE_EVOLUTION_ENGINE:
 
         return total + self.models_spawned
 
+
     def get_current_market_conditions(self):
-        """Get current market conditions for evolution"""
-        return {
-            'volatility': random.uniform(0.3, 0.9),
-            'volume': random.uniform(0.4, 0.95),
-            'momentum': random.uniform(0.2, 0.8),
-            'trend': random.uniform(-1.0, 1.0),
-            'market_sentiment': random.uniform(0.1, 0.9),
-        }
+        """Derive current conditions from actual public OHLCV."""
+
+        try:
+            import ccxt
+
+            ex = getattr(
+                self,
+                '_condition_exchange',
+                None,
+            )
+
+            if ex is None:
+                ex = ccxt.bybit({
+                    'enableRateLimit': True,
+                    'timeout': 20000,
+                })
+
+                self._condition_exchange = ex
+
+            rows = ex.fetch_ohlcv(
+                'BTC/USDT',
+                timeframe='1m',
+                limit=180,
+            )
+
+            if not rows or len(rows) < 60:
+                raise RuntimeError(
+                    'insufficient public OHLCV'
+                )
+
+            close = np.asarray(
+                [
+                    float(row[4])
+                    for row in rows
+                ],
+                dtype=np.float64,
+            )
+
+            volume = np.asarray(
+                [
+                    float(row[5] or 0.0)
+                    for row in rows
+                ],
+                dtype=np.float64,
+            )
+
+            returns = np.diff(
+                close
+            ) / close[:-1]
+
+            short_return = (
+                close[-1] / close[-6]
+                - 1.0
+            )
+
+            trend_return = (
+                close[-1] / close[-31]
+                - 1.0
+            )
+
+            volatility_raw = float(
+                np.std(
+                    returns[-60:]
+                )
+            )
+
+            recent_volume = float(
+                np.mean(
+                    volume[-10:]
+                )
+            )
+
+            baseline_volume = float(
+                np.mean(
+                    volume[-60:]
+                )
+            )
+
+            volume_ratio = (
+                recent_volume
+                / baseline_volume
+                if baseline_volume > 0
+                else 1.0
+            )
+
+            return {
+                'available': True,
+                'source': 'bybit_public_ohlcv',
+                'volatility': float(
+                    np.clip(
+                        volatility_raw
+                        / 0.02,
+                        0.0,
+                        1.0,
+                    )
+                ),
+                'volume': float(
+                    np.clip(
+                        volume_ratio / 2.0,
+                        0.0,
+                        1.0,
+                    )
+                ),
+                'momentum': float(
+                    np.clip(
+                        0.5
+                        + short_return * 25.0,
+                        0.0,
+                        1.0,
+                    )
+                ),
+                'trend': float(
+                    np.clip(
+                        trend_return * 20.0,
+                        -1.0,
+                        1.0,
+                    )
+                ),
+                # Price-derived directional pressure.
+                # It is explicitly not labelled social sentiment.
+                'market_sentiment': float(
+                    np.clip(
+                        0.5
+                        + trend_return * 10.0,
+                        0.0,
+                        1.0,
+                    )
+                ),
+                'market_sentiment_source':
+                    'price_direction_proxy',
+            }
+
+        except Exception as exc:
+            return {
+                'available': False,
+                'source': None,
+                'reason': str(exc),
+                'volatility': 0.0,
+                'volume': 0.0,
+                'momentum': 0.0,
+                'trend': 0.0,
+                'market_sentiment': 0.5,
+                'market_sentiment_source': None,
+            }
+
 
     def get_bot_performance(self):
-        """Get current bot performance metrics"""
+        """Compute performance solely from recorded completed outcomes."""
+
+        rows = []
+
+        if self.data_hub is not None:
+            rows = list(
+                getattr(
+                    self.data_hub,
+                    'recent_trades',
+                    [],
+                )
+                or []
+            )
+
+        rows = [
+            row
+            for row in rows
+            if isinstance(
+                row,
+                dict,
+            )
+        ]
+
+        pnls = []
+
+        for row in rows:
+
+            value = None
+
+            for key in (
+                'realized_pnl',
+                'realized_pnl_usd',
+                'net_pnl',
+                'pnl',
+            ):
+                if row.get(key) is not None:
+                    value = row.get(key)
+                    break
+
+            try:
+                if value is not None:
+                    pnls.append(
+                        float(value)
+                    )
+            except (TypeError, ValueError):
+                pass
+
+        if not pnls:
+            return {
+                'available': False,
+                'samples': 0,
+                'total_trades': 0,
+                'win_rate': 0.0,
+                'profit_factor': 0.0,
+                'sharpe_ratio': 0.0,
+                'max_drawdown': 0.0,
+            }
+
+        arr = np.asarray(
+            pnls,
+            dtype=np.float64,
+        )
+
+        wins = arr[
+            arr > 0
+        ]
+
+        losses = -arr[
+            arr < 0
+        ]
+
+        gross_loss = float(
+            losses.sum()
+        )
+
+        equity = np.cumsum(
+            arr
+        )
+
+        peaks = np.maximum.accumulate(
+            equity
+        )
+
+        drawdown = equity - peaks
+
+        std = float(
+            arr.std()
+        )
+
         return {
-            'total_trades': random.randint(50, 200),
-            'win_rate': random.uniform(0.6, 0.85),
-            'profit_factor': random.uniform(1.2, 2.5),
-            'sharpe_ratio': random.uniform(1.0, 3.0),
-            'max_drawdown': random.uniform(0.05, 0.15),
+            'available': True,
+            'samples': int(
+                len(arr)
+            ),
+            'total_trades': int(
+                len(arr)
+            ),
+            'win_rate': float(
+                len(wins)
+                / len(arr)
+            ),
+            'profit_factor': float(
+                wins.sum()
+                / gross_loss
+                if gross_loss > 0
+                else (
+                    float('inf')
+                    if len(wins)
+                    else 0.0
+                )
+            ),
+            'sharpe_ratio': float(
+                arr.mean() / std
+                if std > 0
+                else 0.0
+            ),
+            'max_drawdown': float(
+                drawdown.min()
+                if len(drawdown)
+                else 0.0
+            ),
         }
 
     def analyze_trading_patterns(self):
@@ -1825,7 +2115,7 @@ class ULTIMATE_EVOLUTION_ENGINE:
 
             # Evolve technical models
             for model_name in self.technical_models:
-                self.technical_models[model_name]['performance'] += random.uniform(0.001, 0.01)
+                self.technical_models[model_name]['performance'] = self.technical_models[model_name].get('performance', 0.0)
                 print(f"🔧 Evolving {model_name}")
 
             print(f"🔄 Evolution cycle {self.evolution_cycle} completed")
@@ -1861,43 +2151,224 @@ class ULTIMATE_EVOLUTION_ENGINE:
         except Exception as e:
             print(f"❌ Collective intelligence update error: {e}")
 
+
     def train_on_testnet_data(self):
-        """Train models on testnet data"""
-        try:
-            print("🧪 Training on testnet data...")
+        """
+        Train the evolution population using real observed market features.
+        Testnet outcomes are used separately for performance attribution.
+        """
 
-            # Simulate testnet training
-            training_pairs = self.crypto_pairs[:10]  # Train on first 10 pairs
+        print(
+            "🧪 Training models on real market observations..."
+        )
 
-            for pair in training_pairs:
-                # Simulate training data
-                training_data = self.generate_testnet_data(pair)
+        trained = 0
 
-                # Train models
-                for model_name, model in self.prediction_models.items():
-                    if hasattr(model, 'fit'):
-                        try:
-                            # Simulate training
-                            X = np.random.random((100, 10))
-                            y = np.random.random(100)
-                            model.fit(X, y)
-                            print(f"🧪 Trained {model_name} on {pair}")
-                        except:
-                            pass
+        for pair in self.crypto_pairs[:10]:
 
-            print("✅ Testnet training completed")
+            dataset = self.generate_testnet_data(
+                pair
+            )
 
-        except Exception as e:
-            print(f"❌ Testnet training error: {e}")
+            if not dataset.get(
+                'available'
+            ):
+                continue
+
+            X = dataset['X']
+            y = dataset['y']
+
+            if (
+                len(X) < 50
+                or len(
+                    np.unique(y)
+                ) < 2
+            ):
+                continue
+
+            for model_name, model in self.prediction_models.items():
+
+                if not hasattr(
+                    model,
+                    'fit',
+                ):
+                    continue
+
+                try:
+                    model.fit(
+                        X,
+                        y.astype(
+                            np.float64
+                        ),
+                    )
+
+                    trained += 1
+
+                    print(
+                        f"🧪 Trained {model_name} "
+                        f"on real {pair} observations"
+                    )
+
+                except Exception as exc:
+                    print(
+                        f"⚠️ Training {model_name} "
+                        f"on {pair} failed: {exc}"
+                    )
+
+        print(
+            f"✅ Real-observation training complete: "
+            f"{trained} model fits"
+        )
 
     def generate_testnet_data(self, pair):
-        """Generate testnet training data"""
-        return {
-            'pair': pair,
-            'price_data': np.random.random(100),
-            'volume_data': np.random.random(100),
-            'technical_indicators': np.random.random((100, 10)),
-        }
+        """
+        Build model-training features from genuine public history.
+        Testnet remains the execution venue; observations are not synthesized.
+        """
+
+        try:
+            import ccxt
+
+            ex = getattr(
+                self,
+                '_training_exchange',
+                None,
+            )
+
+            if ex is None:
+                ex = ccxt.bybit({
+                    'enableRateLimit': True,
+                    'timeout': 20000,
+                })
+
+                self._training_exchange = ex
+
+            bars = ex.fetch_ohlcv(
+                pair,
+                timeframe='5m',
+                limit=300,
+            )
+
+            if not bars or len(bars) < 80:
+                return {
+                    'available': False,
+                    'pair': pair,
+                    'reason':
+                        'insufficient_real_ohlcv',
+                }
+
+            arr = np.asarray(
+                [
+                    [
+                        float(row[1]),
+                        float(row[2]),
+                        float(row[3]),
+                        float(row[4]),
+                        float(row[5] or 0.0),
+                    ]
+                    for row in bars
+                ],
+                dtype=np.float64,
+            )
+
+            o = arr[:, 0]
+            h = arr[:, 1]
+            l = arr[:, 2]
+            c = arr[:, 3]
+            v = arr[:, 4]
+
+            returns = np.zeros_like(c)
+
+            returns[1:] = (
+                c[1:] / c[:-1]
+                - 1.0
+            )
+
+            rows = []
+            labels = []
+
+            for i in range(
+                20,
+                len(c) - 1,
+            ):
+                window = returns[
+                    i - 19:i + 1
+                ]
+
+                vol_window = v[
+                    i - 19:i + 1
+                ]
+
+                mean_volume = float(
+                    np.mean(
+                        vol_window
+                    )
+                )
+
+                rows.append([
+                    returns[i],
+                    c[i] / c[i - 3] - 1.0,
+                    c[i] / c[i - 5] - 1.0,
+                    c[i] / c[i - 10] - 1.0,
+                    (h[i] - l[i])
+                    / max(c[i], 1e-12),
+                    c[i]
+                    / np.mean(c[i - 4:i + 1])
+                    - 1.0,
+                    c[i]
+                    / np.mean(c[i - 19:i + 1])
+                    - 1.0,
+                    float(
+                        np.std(
+                            window[-5:]
+                        )
+                    ),
+                    float(
+                        np.std(
+                            window
+                        )
+                    ),
+                    (
+                        v[i] / mean_volume
+                        if mean_volume > 0
+                        else 1.0
+                    ),
+                ])
+
+                labels.append(
+                    1
+                    if c[i + 1] > c[i]
+                    else 0
+                )
+
+            X = np.asarray(
+                rows,
+                dtype=np.float64,
+            )
+
+            y = np.asarray(
+                labels,
+                dtype=np.int64,
+            )
+
+            return {
+                'available': True,
+                'pair': pair,
+                'source':
+                    'bybit_public_ohlcv',
+                'X': X,
+                'y': y,
+                'samples': int(
+                    len(X)
+                ),
+            }
+
+        except Exception as exc:
+            return {
+                'available': False,
+                'pair': pair,
+                'reason': str(exc),
+            }
 
     def validate_testnet_strategies(self):
         """Validate strategies on testnet"""
@@ -1951,7 +2422,7 @@ class ULTIMATE_EVOLUTION_ENGINE:
                 for model_name, model_data in model_dict.items():
                     if isinstance(model_data, dict) and 'performance' in model_data:
                         # Simulate performance improvement
-                        model_data['performance'] += random.uniform(0.001, 0.005)
+                        model_data['performance'] = model_data.get('performance', 0.0)
 
             print("✅ Model performance updated")
 

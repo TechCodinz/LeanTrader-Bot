@@ -66,7 +66,7 @@ class APITester:
                             }
                         )
                     elif exchange_name == 'gateio':
-                        self.exchanges['gateio'] = ccxt.gateio(
+                        self.exchanges['gateio'] = ccxt.gate(
                             {
                                 'apiKey': config['api_key'],
                                 'secret': config['secret'],
