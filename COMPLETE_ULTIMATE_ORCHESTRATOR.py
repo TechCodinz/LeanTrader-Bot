@@ -1597,8 +1597,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         # START DEX ORCHESTRATOR - Moon Spotting & DEX Trading!
         if 'dex' in self.advanced_orchestrators:
-            await self.advanced_orchestrators['dex'].start()
-            logger.info("✅ 🌙 DEX ORCHESTRATOR STARTED - Moon spotting across 5 chains!")
+            tasks.append(
+                asyncio.create_task(self.advanced_orchestrators['dex'].start())
+            )
+            logger.info("✅ 🌙 DEX ORCHESTRATOR STARTING - Moon spotting across 5 chains!")
         
         # START ARBITRAGE ENGINE - Risk-free profits!
         if getattr(self, 'arbitrage_engine', None):
@@ -1652,8 +1654,12 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ ⚡ SMART SCALPING LOOP STARTED - Micro-profits accumulating!")
         
         # Start enhanced main loop
-        tasks.append(asyncio.create_task(self.enhanced_trading_loop()))
-        logger.info("✅ Enhanced trading loop started")
+        if not getattr(self, "_enhanced_trading_loop_scheduled", False):
+            self._enhanced_trading_loop_scheduled = True
+            tasks.append(asyncio.create_task(self.enhanced_trading_loop()))
+            logger.info("✅ Enhanced trading loop started")
+        else:
+            logger.info("↩️  Enhanced trading loop already scheduled by start(); not duplicating")
         
         # ====================================================================
         # AUTO-START ALL 20 ULTRA SYSTEMS - THEY ALL WORK TOGETHER!
@@ -2156,9 +2162,11 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             all_tasks.append(
                 asyncio.create_task(self.orchestrators['decision'].run_decision_loop())
             )
-        all_tasks.append(
-            asyncio.create_task(self.enhanced_trading_loop())
-        )
+        if not getattr(self, "_enhanced_trading_loop_scheduled", False):
+            self._enhanced_trading_loop_scheduled = True
+            all_tasks.append(
+                asyncio.create_task(self.enhanced_trading_loop())
+            )
         
         # OUR NEW TASK LOOPS (MICRO, execution, signals, etc.)
         new_tasks = await self.start_all_orchestrators()
