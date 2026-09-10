@@ -30,7 +30,10 @@ import time
 import threading
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
-import talib
+try:
+    import talib
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    talib = None
 import schedule
 try:
     from qiskit_aer import Aer
@@ -45,9 +48,18 @@ import redis
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 import feedparser
-import xgboost as xgb
-import lightgbm as lgb
-from catboost import CatBoostClassifier
+try:
+    import xgboost as xgb
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    xgb = None
+try:
+    import lightgbm as lgb
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    lgb = None
+try:
+    from catboost import CatBoostClassifier
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    CatBoostClassifier = None
 import warnings
 
 warnings.filterwarnings('ignore')

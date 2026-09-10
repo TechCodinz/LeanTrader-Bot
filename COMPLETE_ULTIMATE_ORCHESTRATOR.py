@@ -41,6 +41,12 @@ except Exception as e:
     logger.error("   Install dependencies: pip3 install numpy pandas")
     logger.error("   Or run: bash INSTALL_ALL_DEPENDENCIES.sh")
     CRITICAL_FEATURES_AVAILABLE = False
+    TrailingStopManager = None
+    CompoundEngine = None
+    PartialTPManager = None
+    FundingArbitrage = None
+    VolumeProfileAnalyzer = None
+    EmergencyStop = None
 
 # ============================================================================
 # ULTRA-RARE GOLDMINE FEATURES - REQUIRED FOR CUTTING-EDGE ADVANTAGE
@@ -66,6 +72,17 @@ except Exception as e:
     logger.error("   Install dependencies: pip3 install numpy pandas scipy scikit-learn")
     logger.error("   Or run: bash INSTALL_ALL_DEPENDENCIES.sh")
     ULTRA_FEATURES_AVAILABLE = False
+    GammaSqueezeDetector = None
+    WhaleTracker = None
+    OrderBookToxicityScanner = None
+    LatencyArbitrageEngine = None
+    MEVProtectionLayer = None
+    FuturesBasisArbitrage = None
+    AdaptiveRegimeSizer = None
+    MultiTimeframeConfluence = None
+    SocialMomentumPredictor = None
+    NetworkEffectAnalyzer = None
+    UltraGoldmineManager = None
 
 # ============================================================================
 # DIVINE INTELLIGENCE FEATURES - CONSCIOUSNESS-LEVEL TRADING ENTITY
@@ -86,6 +103,12 @@ except Exception as e:
     logger.error("   These features use advanced physics & mathematics")
     logger.error("   Expected +300-1000% additional profit potential")
     DIVINE_FEATURES_AVAILABLE = False
+    QuantumEntanglementCorrelator = None
+    FractalDimensionAnalyzer = None
+    InformationEntropyTracker = None
+    NashEquilibriumPredictor = None
+    ChaosTheoryAttractorMapper = None
+    DivineIntelligenceManager = None
 
 # Warn if features are missing
 if not CRITICAL_FEATURES_AVAILABLE:
@@ -333,6 +356,7 @@ try:
 except ImportError:
     PROFIT_OPTIMIZER_AVAILABLE = False
     logger.debug("FINAL_PROFIT_OPTIMIZATION not available")
+    ProfitOptimizer = None
 
 # Optional advanced features
 try:
@@ -1193,6 +1217,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("   → Expected +300-800% edge boost!")
         except Exception as e:
             logger.warning(f"⚠️  ULTRASONIC not available: {e}")
+            UltrasonicStrategiesManager = None
         
         # 8. UTILITY INTEGRATION LAYER - All utility functions!
         self.advanced_orchestrators['utilities'] = UtilityIntegrationLayer()
@@ -1486,6 +1511,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.error(f"❌ Smart Scalping Engine failed to wire: {e}")
             self.smart_scalping = None
+            UltraCore = None
         
         # ========================================================================
         # 💧 ULTRA FLUID MECHANICS - SENTINEL BRILLIANCE SYSTEM
@@ -1507,6 +1533,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.error(f"❌ Fluid Mechanics failed to wire: {e}")
             self.fluid_mechanics = None
+            FluidMechanicsEngine = None
         
         logger.info("\n" + "=" * 80)
         logger.info("✅ ALL ADVANCED SYSTEMS WIRED!")
@@ -1525,15 +1552,36 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("      → Cross-exchange arbitrage | P2P arbitrage")
         logger.info("=" * 80)
     
+    def _schedule_once(self, key: str, factory):
+        """Create a task for a continuous loop at most once per orchestrator.
+
+        start() and start_all_orchestrators() are both entry points -- RUN_BOT.py
+        calls the latter directly -- and several loops are scheduled from both.
+        Returns the task, or None if this loop is already scheduled.
+        """
+        scheduled = getattr(self, "_scheduled_loops", None)
+        if scheduled is None:
+            scheduled = set()
+            self._scheduled_loops = scheduled
+        if key in scheduled:
+            logger.info(f"↩️  {key} already scheduled; not duplicating")
+            return None
+        scheduled.add(key)
+        return asyncio.create_task(factory())
+
     async def start_all_orchestrators(self):
         """Start ALL orchestrators including advanced ones"""
         
         tasks = []
+
+        def _add_task(task):
+            if task is not None:
+                tasks.append(task)
         
         # Start base orchestrators
         if 'learning' in self.orchestrators:
-            tasks.append(
-                asyncio.create_task(self.orchestrators['learning'].run_learning_loop())
+            _add_task(
+                self._schedule_once('learning.run_learning_loop', self.orchestrators['learning'].run_learning_loop)
             )
             logger.info("✅ Learning loop started")
         
@@ -1544,8 +1592,8 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ Scouting loop started")
         
         if 'decision' in self.orchestrators:
-            tasks.append(
-                asyncio.create_task(self.orchestrators['decision'].run_decision_loop())
+            _add_task(
+                self._schedule_once('decision.run_decision_loop', self.orchestrators['decision'].run_decision_loop)
             )
             logger.info("✅ Decision loop started")
         
@@ -1654,12 +1702,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ ⚡ SMART SCALPING LOOP STARTED - Micro-profits accumulating!")
         
         # Start enhanced main loop
-        if not getattr(self, "_enhanced_trading_loop_scheduled", False):
-            self._enhanced_trading_loop_scheduled = True
-            tasks.append(asyncio.create_task(self.enhanced_trading_loop()))
-            logger.info("✅ Enhanced trading loop started")
-        else:
-            logger.info("↩️  Enhanced trading loop already scheduled by start(); not duplicating")
+        _add_task(self._schedule_once('enhanced_trading_loop', self.enhanced_trading_loop))
         
         # ====================================================================
         # AUTO-START ALL 20 ULTRA SYSTEMS - THEY ALL WORK TOGETHER!
@@ -2152,21 +2195,21 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         # Collect ALL tasks (parent's + our new ones)
         all_tasks = []
+
+        def _add(task):
+            if task is not None:
+                all_tasks.append(task)
         
         # Parent's background tasks
         if self.orchestrators.get('learning'):
-            all_tasks.append(
-                asyncio.create_task(self.orchestrators['learning'].run_learning_loop())
+            _add(
+                self._schedule_once('learning.run_learning_loop', self.orchestrators['learning'].run_learning_loop)
             )
         if self.orchestrators.get('decision'):
-            all_tasks.append(
-                asyncio.create_task(self.orchestrators['decision'].run_decision_loop())
+            _add(
+                self._schedule_once('decision.run_decision_loop', self.orchestrators['decision'].run_decision_loop)
             )
-        if not getattr(self, "_enhanced_trading_loop_scheduled", False):
-            self._enhanced_trading_loop_scheduled = True
-            all_tasks.append(
-                asyncio.create_task(self.enhanced_trading_loop())
-            )
+        _add(self._schedule_once('enhanced_trading_loop', self.enhanced_trading_loop))
         
         # OUR NEW TASK LOOPS (MICRO, execution, signals, etc.)
         new_tasks = await self.start_all_orchestrators()

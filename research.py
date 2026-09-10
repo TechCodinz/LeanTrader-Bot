@@ -363,6 +363,7 @@ def main():
             raise Exception("router mismatch")
     except Exception:
         ex = getattr(ccxt, args.exchange)({"enableRateLimit": True})
+        ExchangeRouter = None
     best_across = []
     for sym in [s.strip() for s in args.symbols.split(",") if s.strip()]:
         print(f"=== Optimizing {sym} ===")

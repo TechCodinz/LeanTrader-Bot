@@ -15,8 +15,14 @@ from pathlib import Path
 import csv
 import os
 
-import oandapyV20
-from oandapyV20.endpoints.instruments import InstrumentsCandles
+try:
+    import oandapyV20
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    oandapyV20 = None
+try:
+    from oandapyV20.endpoints.instruments import InstrumentsCandles
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    InstrumentsCandles = None
 
 _TF_MAP = {"M1": "M1", "M5": "M5", "M15": "M15", "M30": "M30", "H1": "H1", "H4": "H4", "D1": "D"}
 
@@ -62,6 +68,7 @@ def fetch_fx(symbol: str, tf: str, count: int = 400) -> List[List[float]]:
             out.append([ms, float(o), float(h), float(l), float(cl), float(v)])
         except Exception:
             continue
+            _dt = None
     return out
 
 def fetch_fx_full(symbol: str, tf: str, total: int = 2000) -> List[List[float]]:
@@ -122,6 +129,7 @@ def fetch_fx_full(symbol: str, tf: str, total: int = 2000) -> List[List[float]]:
                 break
     except Exception:
         pass
+        _dt = None
     return out
 
 def save_csv(symbol: str, tf: str, rows: List[List[float]]) -> str:

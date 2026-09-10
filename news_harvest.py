@@ -82,6 +82,8 @@ try:
         VADER_READY = True
 except Exception as _e:
     log.warning("NLTK/VADER unavailable (%s). Sentiment will be zero.", _e)
+    nltk = None
+    SentimentIntensityAnalyzer = None
 
 if VADER_READY:
     SIA = SentimentIntensityAnalyzer()

@@ -184,6 +184,8 @@ class BrokerFX:
                     "not installed"
                 ),
             }
+            orders = None
+            API = None
 
         account = os.getenv(
             "OANDA_ACCOUNT",
@@ -315,6 +317,7 @@ class BrokerFX:
                     "not installed"
                 ),
             }
+            mt5 = None
 
         path = os.getenv(
             "MT5_PATH"

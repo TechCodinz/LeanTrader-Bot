@@ -940,6 +940,7 @@ class NobelSimpleSystem:
             
         except Exception as e:
             logger.error(f"Signal alert error: {e}")
+            Bot = None
 
     async def execute_trades(self):
         """Execute trading signals"""
@@ -1059,6 +1060,7 @@ class NobelSimpleSystem:
             
         except Exception as e:
             logger.error(f"Execution alert error: {e}")
+            Bot = None
 
     async def manage_all_positions(self):
         """Manage all open positions"""
@@ -1221,6 +1223,7 @@ class NobelSimpleSystem:
             
         except Exception as e:
             logger.error(f"Close alert error: {e}")
+            Bot = None
 
     async def update_performance_metrics(self):
         """Update performance metrics"""

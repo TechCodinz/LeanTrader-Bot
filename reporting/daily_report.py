@@ -44,6 +44,7 @@ def _render_chart_base64(pnl_q: List[float] | None, pnl_c: List[float] | None, s
         return f"data:image/png;base64,{b64}"
     except Exception:
         pass
+        go = None
 
     # Fallback matplotlib
     try:
@@ -63,6 +64,7 @@ def _render_chart_base64(pnl_q: List[float] | None, pnl_c: List[float] | None, s
         return f"data:image/png;base64,{b64}"
     except Exception:
         return ""
+        plt = None
 
 def build_report_payload(
     date: str,
@@ -112,6 +114,7 @@ def build_report_payload(
         attribution = load_daily_attribution(date)
     except Exception:
         attribution = None
+        load_daily_attribution = None
 
     # Scenario stress (optional): load inputs from reports/scenario_input.json
     scenario_stress = None
@@ -132,6 +135,8 @@ def build_report_payload(
                 scenario_stress = run_scenarios(w, Sigma, scens)
     except Exception:
         scenario_stress = None
+        _json = None
+        run_scenarios = None
 
     return {
         "date": date,
@@ -162,6 +167,8 @@ def render_html(payload: Dict[str, Any]) -> str:
             return tmpl.render(**payload)
     except Exception:
         pass
+        Environment = None
+        FileSystemLoader = None
 
     # Fallback minimal HTML
     # Precompute explanations list HTML to avoid complex nested f-strings
@@ -234,3 +241,4 @@ def save_pdf(html: str, out_path: str) -> bool:
         return True
     except Exception:
         return False
+        HTML = None

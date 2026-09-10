@@ -10,6 +10,9 @@ try:
     from .trainer import featurize_rows, load_model
 except Exception as e:
     raise SystemExit(f"dependencies missing: {e}")
+    read_meta = None
+    featurize_rows = None
+    load_model = None
 
 def load_csv(path: str) -> List[List[float]]:
     out = []

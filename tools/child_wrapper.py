@@ -106,6 +106,7 @@ def main():
         except Exception:
             # dotenv optional; continue
             pass
+            load_dotenv = None
 
         # check key module resolution and attempt a diagnostic import for risk_guard to capture errors
         try:
@@ -140,9 +141,11 @@ def main():
                 except Exception:
                     # ignore importlib errors; already printed
                     pass
+                    importlib = None
         except Exception:
             # If writing diag file fails, continue; we already printed to stdout
             pass
+            importlib = None
 
         # Set sys.argv for the module and run it as __main__.
         sys.argv = [target] + args
@@ -181,6 +184,8 @@ def main():
     except Exception as _e:
         print(f"[child_wrapper] exception before module exec: {_e}", file=sys.stderr)
         raise
+        load_dotenv = None
+        importlib = None
 
 if __name__ == "__main__":
     raise SystemExit(main())

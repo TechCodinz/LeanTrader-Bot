@@ -23,6 +23,8 @@ def main(loop_minutes: int | None = None):
         print(f"[diag] cwd={os.getcwd()} sys.path[0]={sys.path[0]}")
     except Exception:
         pass
+        os = None
+        sys = None
     from tools import demo_run
 
     end = None if loop_minutes is None else time.time() + loop_minutes * 60

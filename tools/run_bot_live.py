@@ -70,6 +70,7 @@ def main(symbol: str = None, timeframe: str = "1m", limit: int = 200):
         out["errors"].append(f"import error: {e}")
         print(json.dumps(out, indent=2))
         return
+        resolve_strategy_and_params = None
 
     # safety gates
     enable_live = os.getenv("ENABLE_LIVE", "false").strip().lower() in (

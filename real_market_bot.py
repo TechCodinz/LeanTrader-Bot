@@ -30,6 +30,10 @@ try:
 except ImportError:
     TELEGRAM_AVAILABLE = False
     logger.warning("Telegram package not available")
+    Bot = None
+    InlineKeyboardButton = None
+    InlineKeyboardMarkup = None
+    TelegramError = None
 
 class RealMarketUltraTradingSystem:
     """ULTRA TRADING SYSTEM - REAL MARKET DATA VERSION"""
@@ -535,6 +539,7 @@ class RealMarketUltraTradingSystem:
 
         except Exception as e:
             logger.error(f"Error detecting arbitrage: {e}")
+            random = None
 
         return arbitrage_ops
 
@@ -634,6 +639,7 @@ class RealMarketUltraTradingSystem:
 
         except Exception as e:
             logger.error(f"Error in real forex analysis: {e}")
+            random = None
 
         return forex_signals
 
@@ -676,6 +682,7 @@ class RealMarketUltraTradingSystem:
 
         except Exception as e:
             logger.error(f"Error in real market news analysis: {e}")
+            random = None
 
     async def run_continuous_training(self):
         """Run continuous model training - ADMIN ONLY"""

@@ -699,6 +699,7 @@ class UltraTradingSystem:
 
         except Exception as e:
             logger.error(f"Error in quantum analysis: {e}")
+            random = None
 
     async def trading_loop(self):
         """Main trading loop"""

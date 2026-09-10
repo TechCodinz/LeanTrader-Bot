@@ -24,7 +24,10 @@ import requests
 import time
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
-import talib
+try:
+    import talib
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    talib = None
 
 class CompleteLearntraderBot:
     """Complete professional trading system with all advanced features"""

@@ -37,6 +37,7 @@ def main() -> int:
     except Exception as e:
         out['router_ok'] = False
         out['router_error'] = str(e)
+        ExchangeRouter = None
 
     print(json.dumps(out, indent=2))
     return 0

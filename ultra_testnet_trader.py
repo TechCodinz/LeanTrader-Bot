@@ -474,6 +474,7 @@ class TestnetTradingEngine:
                 "execution error: %s",
                 exc,
             )
+            route_order = None
 
     async def _trade_management_loop(self):
         """Manage open trades and check for exit conditions"""
@@ -651,6 +652,7 @@ class TestnetTradingEngine:
                 trade_id,
                 exc,
             )
+            route_order = None
 
     def _update_performance_metrics(self, trade: TestnetTrade):
         """Update performance metrics with new trade"""

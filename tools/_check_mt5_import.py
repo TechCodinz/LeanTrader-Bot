@@ -14,3 +14,4 @@ try:
     print("has min_stop_distance_points=", hasattr(mt5_adapter, "min_stop_distance_points"))
 except Exception:
     traceback.print_exc()
+    mt5_adapter = None

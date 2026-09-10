@@ -48,6 +48,7 @@ try:
     print(f"\n   💰 Gate.io USDT: ${balance:.2f}")
 except Exception as e:
     print(f"\n   ❌ Gate.io error: {e}")
+    REAL_PROFIT_BOT = None
 
 print("\n" + "="*80)
 print("\n💎 TOTAL AVAILABLE FOR TRADING:")

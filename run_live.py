@@ -261,6 +261,7 @@ def place_oco_ccxt(
                         )
                     except Exception:
                         notified["sl"] = {"ok": False, "error": "sl create failed"}
+                        safe_create_order = None
             elif hasattr(ex, "create_order"):
                 try:
                     # prefer centralized safe_create_order wrapper
@@ -276,10 +277,12 @@ def place_oco_ccxt(
                 notified["sl_err"] = "no sl order method"
         except Exception as _e:
             notified["sl_err"] = str(_e)
+            safe_create_order = None
 
         return {"ok": True, "orders": notified}
     except Exception as _e:
         return {"ok": False, "error": str(_e)}
+        safe_create_order = None
 
 def handle_cmds_ccxt(cmds, router, tg, live: bool):
     """Process a small set of telegram commands safely.
@@ -327,9 +330,11 @@ def handle_cmds_ccxt(cmds, router, tg, live: bool):
                                         RuntimeError("place_market is not available")
                                     ),
                                 )(router, sym, "sell", amt)
+                                order_utils = None
                         tg.note(f"flattened {sym} {amt}")
                     except Exception as _e:
                         tg.note(f"flatten failed: {_e}")
+                        order_utils = None
                 else:
                     tg.note(f"(paper) flat {sym} free={amt}")
             else:
@@ -339,6 +344,7 @@ def handle_cmds_ccxt(cmds, router, tg, live: bool):
                 tg.note(f"cmd error: {text} -> {_e}")
             except Exception:
                 pass
+            order_utils = None
 
 # -------- main --------
 def main():
@@ -540,3 +546,4 @@ def _maybe_onchain_swap():
         _maybe_onchain_swap()
 
         time.sleep(5)
+        importlib = None

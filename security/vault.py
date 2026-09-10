@@ -13,6 +13,8 @@ try:
     _NACL = True
 except Exception:  # pragma: no cover
     _NACL = False
+    SecretBox = None
+    nacl_random = None
 
 RUNTIME = Path(os.getenv("VAULT_RUNTIME", "runtime"))
 RUNTIME.mkdir(parents=True, exist_ok=True)
@@ -29,6 +31,7 @@ def _kv_get(k: str) -> Optional[str]:
             return r.get(k)
     except Exception:
         pass
+        redis = None
     try:
         data = json.loads(KV_FILE.read_text(encoding="utf-8")) if KV_FILE.exists() else {}
         v = data.get(k)
@@ -46,6 +49,7 @@ def _kv_set(k: str, v: str) -> None:
             return
     except Exception:
         pass
+        redis = None
     try:
         data = json.loads(KV_FILE.read_text(encoding="utf-8")) if KV_FILE.exists() else {}
         data[k] = v

@@ -155,6 +155,7 @@ def attach_plan(sig: Dict[str, Any], equity: Any) -> Dict[str, Any]:
                 pass
     except Exception:
         pass
+        ExchangeRouter = None
 
     # leverage hint for futures
     lev = FUT_DEFAULT_LEVERAGE if EXCHANGE_MODE != "spot" else None
@@ -276,11 +277,13 @@ def place_oco_ccxt_safe(
                         out["entry"] = safe_create_order(ex, "market", symbol, side, qty)
                     except Exception:
                         out["entry"] = {"ok": False, "error": "create_order failed"}
+                        safe_create_order = None
             return out
         out["entry"] = {"ok": False, "error": "no order method available"}
         return out
     except Exception:
         pass
+        safe_create_order = None
 
     # 2) fallback: market + separate orders (exchange must support post-only TP/SL)
     try:
@@ -349,10 +352,12 @@ def place_oco_ccxt_safe(
                     out["tp"] = safe_create_order(ex, "limit", symbol, tp_side, qty, float(take_px))
                 except Exception:
                     out["tp"] = {"ok": False, "error": "tp create failed"}
+                    safe_create_order = None
         else:
             out["tp"] = {"ok": False, "error": "no order method available"}
     except Exception:
         out["tp"] = "tp_unsupported"
+        safe_create_order = None
 
     try:
         # SL via stop-market if available
@@ -389,9 +394,11 @@ def place_oco_ccxt_safe(
                     out["sl"] = safe_create_order(ex, "stop", symbol, sl_side, qty, float(stop_px))
                 except Exception:
                     out["sl"] = {"ok": False, "error": "sl create failed"}
+                    safe_create_order = None
         else:
             out["sl"] = {"ok": False, "error": "no order method available"}
     except Exception:
         out["sl"] = "sl_unsupported"
+        safe_create_order = None
 
     return out

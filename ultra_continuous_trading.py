@@ -660,6 +660,7 @@ class UltraContinuousTradingOrchestrator:
 
         except Exception as e:
             self.logger.error(f"Error closing position: {e}")
+            random = None
 
     async def _manage_compound_growth(self) -> None:
         """Manage compound growth acceleration"""

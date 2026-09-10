@@ -44,6 +44,20 @@ try:
     TELEGRAM_AVAILABLE = True
 except ImportError:
     TELEGRAM_AVAILABLE = False
+    Update = None
+    InlineKeyboardButton = None
+    InlineKeyboardMarkup = None
+    Bot = None
+    LabeledPrice = None
+    PreCheckoutQuery = None
+    Application = None
+    CommandHandler = None
+    CallbackQueryHandler = None
+    ContextTypes = None
+    MessageHandler = None
+    filters = None
+    PreCheckoutQueryHandler = None
+    ccxt = None
 
 logger = logging.getLogger(__name__)
 

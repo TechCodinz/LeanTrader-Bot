@@ -23,6 +23,7 @@ try:
 except ImportError:
     Web3 = None
     Account = None
+    ContractLogicError = None
 
 from dex_contracts import (
     UNISWAP_V2_ROUTER_ABI,

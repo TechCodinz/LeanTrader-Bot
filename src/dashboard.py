@@ -3,7 +3,10 @@ from datetime import datetime
 
 import plotly.express as px
 import plotly.graph_objects as go
-import streamlit as st
+try:
+    import streamlit as st
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    st = None
 import pandas as pd
 from typing import Dict
 import logging

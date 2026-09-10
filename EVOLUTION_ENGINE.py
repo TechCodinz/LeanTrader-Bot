@@ -9,7 +9,10 @@ import json
 import sqlite3
 import threading
 import time
-import tensorflow as tf
+try:
+    import tensorflow as tf
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    tf = None
 from datetime import datetime
 import random
 import numpy as np
@@ -32,7 +35,10 @@ warnings.filterwarnings('ignore')
 try:
     from langchain_core.tools import Tool
 except ImportError:
-    from langchain.tools import Tool
+    try:
+        from langchain.tools import Tool
+    except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+        Tool = None
 try:
     from langchain.memory import ConversationBufferMemory
 except ImportError:
@@ -280,9 +286,11 @@ class ULTIMATE_EVOLUTION_ENGINE:
             except ImportError:
                 self.network_analysis = None
                 print("🕸️ Network analysis skipped (networkx not available)")
+                nx = None
 
         except Exception as e:
             print(f"❌ Network analysis error: {e}")
+            nx = None
 
     def initialize_advanced_security(self):
         """Initialize advanced security features"""
@@ -1253,6 +1261,9 @@ class ULTIMATE_EVOLUTION_ENGINE:
             
         except Exception as e:
             print(f"⚠️ Dynamic discovery failed: {e}, using universe fallback")
+            get_discovery_engine = None
+            threading = None
+            asyncio = None
         
         # USE UNIVERSE FROM ORCHESTRATOR if provided (as initial seed)
         if self.universe:

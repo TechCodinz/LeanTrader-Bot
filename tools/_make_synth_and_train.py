@@ -36,6 +36,7 @@ try:
 except Exception as e:
     print("trainer import error", e)
     raise SystemExit(2)
+    train_dummy_classifier = None
 
 try:
     out = train_dummy_classifier(str(csv_path))

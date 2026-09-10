@@ -4,7 +4,10 @@ Advanced ML models for price prediction and signal generation
 """
 
 from sklearn.ensemble import RandomForestClassifier
-import tensorflow as tf
+try:
+    import tensorflow as tf
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    tf = None
 
 import asyncio
 import os
@@ -21,13 +24,33 @@ from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout, Conv1D, MaxPooling1D
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+try:
+    from tensorflow.keras.models import Sequential
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    Sequential = None
+try:
+    from tensorflow.keras.layers import LSTM, Dense, Dropout, Conv1D, MaxPooling1D
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    LSTM = None
+    Dense = None
+    Dropout = None
+    Conv1D = None
+    MaxPooling1D = None
+try:
+    from tensorflow.keras.optimizers import Adam
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    Adam = None
+try:
+    from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    EarlyStopping = None
+    ModelCheckpoint = None
 
 # Technical Analysis
-import talib
+try:
+    import talib
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    talib = None
 
 if TYPE_CHECKING:
     from src.bot import TradeSignal  # for type hints only

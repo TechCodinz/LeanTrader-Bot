@@ -54,6 +54,7 @@ def _fetch_orderbook(venue: str, symbol: str) -> Dict[str, Any]:
         }
     except Exception:
         return {"bid": 0.0, "bid_size": 0.0, "ask": 0.0, "ask_size": 0.0}
+        mk_ex = None
 
 def guard_order(symbol: str, venue: str, qty: float, bps_cap: float = 30.0) -> float:
     """Return a possibly reduced qty that respects the impact cap.

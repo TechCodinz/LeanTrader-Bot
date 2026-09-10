@@ -27,6 +27,8 @@ try:
     TELEGRAM_AVAILABLE = True
 except ImportError:
     TELEGRAM_AVAILABLE = False
+    Bot = None
+    TelegramError = None
 
 class WorkingTelegramBot:
     """ULTRA TRADING SYSTEM with IMMEDIATE Telegram notifications"""
@@ -409,6 +411,7 @@ class WorkingTelegramBot:
 
         except Exception as e:
             logger.error(f"Error in quantum analysis: {e}")
+            random = None
 
     async def trading_loop(self):
         """Main trading loop"""

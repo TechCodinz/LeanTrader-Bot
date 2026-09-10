@@ -82,6 +82,8 @@ def signal(pair: str = Query("EURUSD"), post: bool = Query(False), preview: bool
             )
         except Exception:
             pass
+            hashlib = None
+            _t = None
     return {"pair": pair, "signal": last}
 
 @app.post("/telegram/callback")
@@ -252,6 +254,9 @@ def _maybe_init_prom():
         _G_AVG_R = Gauge("lt_learn_avg_r", "Average R", registry=_PROM_REG)
     except Exception:
         _PROM_REG = None
+        CollectorRegistry = None
+        Counter = None
+        Gauge = None
 
 def _publish_signal(
     *,
@@ -306,6 +311,7 @@ def _publish_signal(
                 r.publish(os.getenv("SIGNAL_REDIS_CHANNEL", "lt:signal"), json.dumps(payload))
         except Exception:
             pass
+            redis = None
     return ok
 
 @app.post("/run/scan")
@@ -340,6 +346,8 @@ def run_scan(
                 )
             except Exception:
                 pass
+                hashlib = None
+                _t = None
         out[pair] = last
     return out
 
@@ -420,8 +428,10 @@ def _scheduler_loop():
                     )
                 except Exception:
                     pass
+                    hashlib = None
         except Exception:
             pass
+            hashlib = None
         _time.sleep(max(5, interval))
 
 @app.on_event("startup")
@@ -477,12 +487,16 @@ def metrics():
                     _G_AVG_R.set(float(avg_r))
             except Exception:
                 pass
+                csv = None
             from prometheus_client import CONTENT_TYPE_LATEST, generate_latest  # type: ignore
 
             data = generate_latest()  # default registry + our custom may be enough
             return PlainTextResponse(data.decode("utf-8"), media_type=CONTENT_TYPE_LATEST)
     except Exception:
         pass
+        CONTENT_TYPE_LATEST = None
+        generate_latest = None
+        csv = None
     # Basic text format exposition
     lines = []
     # signals published counters
@@ -523,6 +537,7 @@ def metrics():
         lines.append("lt_learn_winrate 0")
         lines.append("lt_learn_avg_r 0")
         lines.append("lt_learn_expectancy 0")
+        csv = None
     return "\n".join(lines) + "\n"
 
 # Ensure route registration in environments with aggressive import timing
@@ -559,6 +574,7 @@ def _redis_subscriber_loop():
                 continue
     except Exception:
         return
+        redis = None
 
 @app.on_event("startup")
 def _maybe_start_redis_subscriber():

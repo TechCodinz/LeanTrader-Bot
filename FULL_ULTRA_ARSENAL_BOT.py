@@ -9,7 +9,10 @@ from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.svm import SVR
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
-import talib
+try:
+    import talib
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    talib = None
 import warnings
 
 warnings.filterwarnings('ignore')

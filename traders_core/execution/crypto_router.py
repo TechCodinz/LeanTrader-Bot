@@ -39,6 +39,10 @@ except Exception:
     should_halt_trading = None  # type: ignore
     HaltTrading = Exception  # type: ignore
     _GUARD_STATE = None
+    RISK_MAX_LOSS_PER_SYMBOL = None
+    RISK_MAX_DAILY_LOSS = None
+    RISK_MAX_ACCOUNT_DD = None
+    RISK_LIMITS_PCT = None
 
 load_dotenv()
 TRADING_MODE = os.getenv("TRADING_MODE", "paper").lower()
@@ -112,6 +116,7 @@ def decide_and_execute_crypto(
                 return {"status": "flash_hedge", "hedge": res}
     except Exception:
         pass
+        _fetch_orderbook = None
     if side == 0:
         METRICS.last_signal.labels(venue="crypto", symbol=symbol).set(0)
         METRICS.latest_prob.labels(venue="crypto", symbol=symbol).set(prob)
@@ -158,6 +163,9 @@ def decide_and_execute_crypto(
         amount = amt_safe
     except Exception:
         pass
+        os = None
+        guard_order = None
+        LIQUIDITY_BLOCKS = None
 
     sl = price - cfg["risk"]["atr_stop_mult"] * latest_atr
     tp = price + cfg["risk"]["atr_tp_mult"] * latest_atr
@@ -244,8 +252,11 @@ def decide_and_execute_crypto(
                 secure_write(f"runtime/trade_logs/{symbol.replace('/', '_')}_{int(time.time())}.enc", trade_log)
             except Exception:
                 pass
+                secure_write = None
         except Exception:
             pass
+            write_explanation_markdown = None
+            secure_write = None
         return result
 
     # LIVE: send market buy; emulate OCO client-side by watching price and sending market sell on trigger.
@@ -311,13 +322,18 @@ def decide_and_execute_crypto(
                 secure_write(f"runtime/trade_logs/{symbol.replace('/', '_')}_{int(time.time())}.enc", trade_log)
             except Exception:
                 pass
+                secure_write = None
         except Exception:
             pass
+            write_explanation_markdown = None
+            secure_write = None
         return result
     except Exception as e:
         METRICS.orders_total.labels(venue="crypto", symbol=symbol, status="live_error").inc()
         record_order_reject(1)
         return {"status": "live_error", "error": str(e), "regime": regime_now}
+        write_explanation_markdown = None
+        secure_write = None
 
 try:
     from risk.flash_crash import FlashCrashGuard, FlashCrashParams, emergency_hedge
@@ -329,3 +345,6 @@ except Exception:
     FLASH_HEDGE_COUNT = None
     def slack_warn(title: str, reasons=None):
         return False
+    FlashCrashGuard = None
+    FlashCrashParams = None
+    emergency_hedge = None

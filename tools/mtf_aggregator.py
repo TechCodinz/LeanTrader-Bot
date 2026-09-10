@@ -27,6 +27,7 @@ try:
     load_dotenv()
 except Exception:
     pass
+    load_dotenv = None
 
 ROOT = Path(__file__).resolve().parent.parent
 RUNTIME = ROOT / "runtime"

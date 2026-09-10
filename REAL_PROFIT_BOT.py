@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import ccxt
+
+from ccxt_exchange_compat import resolve_exchange_class
 import os
 import time
 import requests
@@ -20,15 +22,11 @@ class REAL_PROFIT_BOT:
             "enableRateLimit": True,
         }
 
-        exchange_name = (
-            "gateio"
-            if self.exchange_id in {"gate", "gateio"}
-            else self.exchange_id
-        )
-
-        exchange_class = getattr(
+        # ccxt renamed gateio to gate; resolve against the installed build so
+        # either id works and the operator's exchange selection is preserved.
+        exchange_class = resolve_exchange_class(
             ccxt,
-            exchange_name,
+            self.exchange_id,
         )
 
         self.gate = exchange_class(

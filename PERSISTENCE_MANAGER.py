@@ -145,6 +145,7 @@ class PersistenceManager:
                 logger.info(f"  ✅ pattern_memory.csv: {len(df)} learned patterns")
             except Exception as e:
                 logger.warning(f"  ⚠️  pattern_memory.csv: {e}")
+                pd = None
         
         # Pattern scores JSON
         scores_json = self.data_dir / 'pattern_scores.json'
@@ -181,6 +182,7 @@ class PersistenceManager:
                 logger.info(f"  ✅ history.csv: {len(df)} historical trades ({history['csv']['size_mb']:.1f} MB)")
             except Exception as e:
                 logger.warning(f"  ⚠️  history.csv: {e}")
+                pd = None
         
         logger.info(f"📈 Loaded trading history")
         return history

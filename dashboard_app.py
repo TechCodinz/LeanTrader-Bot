@@ -1,5 +1,8 @@
 from pathlib import Path
-import streamlit as st
+try:
+    import streamlit as st
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    st = None
 
 #!/usr/bin/env python3
 """

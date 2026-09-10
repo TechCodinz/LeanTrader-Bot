@@ -251,6 +251,7 @@ def execute_hedge(
             router = ExchangeRouter()
         except Exception:
             router = None
+            ExchangeRouter = None
 
     for it in plan:
         sym = str(it.get("symbol"))
@@ -308,6 +309,7 @@ def hedge_plan_greeks(
         import numpy as np  # type: ignore
     except Exception:  # pragma: no cover
         return hedge_plan(exposures_usd, instruments, min_usd=min_usd)
+        np = None
 
     plan: List[Dict[str, Any]] = []
     for asset, usd in exposures_usd.items():
@@ -391,6 +393,7 @@ def hedge_plan_qp(
         import numpy as _np  # type: ignore
     except Exception:  # pragma: no cover
         return hedge_plan_greeks(exposures_usd, instruments, min_usd=min_usd)
+        _np = None
     plan: List[Dict[str, Any]] = []
     bounds = bounds or {}
     for asset, usd in exposures_usd.items():

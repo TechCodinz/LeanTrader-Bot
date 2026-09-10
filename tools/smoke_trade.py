@@ -44,6 +44,7 @@ def main() -> int:
     except Exception as e:
         lines.append(f"smoke failed: {e}")
         lines.append(traceback.format_exc())
+        ExchangeRouter = None
 
     ts2 = time.strftime("%Y-%m-%d %H:%M:%S")
     lines.append(f"smoke_trade done {ts2}")

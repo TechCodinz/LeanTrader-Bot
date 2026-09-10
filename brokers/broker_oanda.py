@@ -1,9 +1,17 @@
 import os
 import time  # noqa: F401
 
-import oandapyV20
+try:
+    import oandapyV20
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    oandapyV20 = None
 from dotenv import load_dotenv
-from oandapyV20.endpoints import instruments, orders, pricing
+try:
+    from oandapyV20.endpoints import instruments, orders, pricing
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    instruments = None
+    orders = None
+    pricing = None
 
 class OandaBroker:
     def __init__(self):

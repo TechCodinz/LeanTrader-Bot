@@ -23,6 +23,7 @@ def read_meta(model_path: Path) -> Dict[str, object]:
             return json.load(f)
     except Exception:
         return {}
+        json = None
 
 if __name__ == "__main__":
     for m in list_models():

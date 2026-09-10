@@ -25,6 +25,7 @@ try:
     from web3.middleware import geth_poa_middleware
 except ImportError:
     Web3 = None
+    geth_poa_middleware = None
 
 logger = logging.getLogger(__name__)
 

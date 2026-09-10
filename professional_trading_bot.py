@@ -34,6 +34,11 @@ try:
 except ImportError:
     TELEGRAM_AVAILABLE = False
     logger.warning("Telegram package not available")
+    Bot = None
+    InlineKeyboardButton = None
+    InlineKeyboardMarkup = None
+    Update = None
+    ContextTypes = None
 
 class ProfessionalTradingBot:
     """Professional Trading Bot with Divine Intelligence"""

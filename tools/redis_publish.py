@@ -28,6 +28,7 @@ def _redis():
     except Exception as e:
         print("redis import/connection failed:", e, file=sys.stderr)
         sys.exit(2)
+        redis = None
 
 def pub_scan(args):
     r = _redis()

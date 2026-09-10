@@ -38,6 +38,8 @@ try:
 except ImportError:
     TELEGRAM_AVAILABLE = False
     logger.warning("Telegram package not available")
+    Bot = None
+    TelegramError = None
 
 class UltraTradingSystemWithTelegram:
     """ULTRA TRADING SYSTEM with WORKING TELEGRAM NOTIFICATIONS"""
@@ -838,6 +840,7 @@ Your professional trading system is now live! 🚀📈"""
 
         except Exception as e:
             logger.error(f"Error in quantum analysis: {e}")
+            random = None
 
     async def trading_loop(self):
         """Main trading loop"""

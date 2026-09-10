@@ -14,3 +14,4 @@ try:
     print("app symbol present?", hasattr(app_mod, "app"))
 except Exception as e:
     print("IMPORT ERROR:", type(e).__name__, str(e))
+    importlib = None

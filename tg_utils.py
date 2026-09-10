@@ -19,6 +19,7 @@ try:
     load_dotenv()
 except Exception:
     pass
+    load_dotenv = None
 
 # --- ENV ---
 ENABLED = os.getenv("TELEGRAM_ENABLED", "true").strip().lower() in (
@@ -204,6 +205,7 @@ def send_photo(caption: str, photo_url: str) -> bool:
             "parse_mode": "Markdown",
         }
         return _post_json("sendPhoto", payload)
+        _up = None
 
 def debug_send_photo(caption: str, photo_url: str):
     """Debug helper: attempt to upload and return (ok: bool, details: str).
@@ -487,6 +489,7 @@ def send_photo_with_buttons(caption: str, photo_path: str, buttons: list) -> boo
             return _post_json("sendPhoto", payload)
     except Exception:
         return False
+        _up = None
 
 def build_confirm_buttons(
     signal_id: str, include_simulate: bool = True, include_subscribe: bool = False

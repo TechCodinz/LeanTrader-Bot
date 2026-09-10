@@ -16,6 +16,8 @@ try:
     from sklearn.model_selection import train_test_split  # type: ignore
 except Exception:
     RandomForestClassifier = None
+    accuracy_score = None
+    train_test_split = None
 
 def _model_dir() -> Path:
     p = Path("runtime") / "models"
@@ -72,6 +74,7 @@ def _save_model_and_meta(clf, meta: Dict[str, object]) -> Dict[str, object]:
                 continue
     except Exception:
         pass
+        os = None
     return {"model_path": str(p), "meta_path": str(meta_path)}
 
 def train_dummy_classifier(candles_csv_path: str) -> Dict[str, object]:

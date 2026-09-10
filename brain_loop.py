@@ -69,6 +69,7 @@ try:
     xgb_model = xgb.XGBRegressor()
 except Exception:
     xgb_model = None
+    xgb = None
 
 try:
     from news_bias import news_bias  # Assuming this exists or fallback
@@ -128,6 +129,8 @@ def _attach_feats(sig: Dict[str, Any]) -> None:
                 sig.setdefault("context", []).append(f"feat_err:{_e}")
             except Exception:
                 pass
+            FEATS = None
+            features = None
 
 def _blend_confidence(sig: Dict[str, Any]) -> float:
     # Enhanced: ML-based blending with XGBoost
@@ -138,6 +141,8 @@ def _blend_confidence(sig: Dict[str, Any]) -> float:
         prior = get_score(sig)
     except Exception:
         prior = {"winrate": 0.5, "avg_out": 0.0, "n": 0}
+        get_score = None
+        recall = None
     if xgb_model and sig.get("feats"):
         try:
             X = np.array(list(sig["feats"].values())).reshape(1, -1)
@@ -426,8 +431,10 @@ def think_once() -> List[Dict[str, Any]]:
                     )
                 except Exception:
                     pass
+                    _pm_record = None
         except Exception:
             pass
+            _pm_record = None
 
     # optional live autotrade (CCXT, with OCO)
     if AUTO_TRADE and planned:
@@ -453,6 +460,7 @@ def think_once() -> List[Dict[str, Any]]:
                     s.setdefault("context", []).append(f"news_bias:{nb.get('reason', '')}")
             except Exception:
                 pass
+                news_bias = None
             normalized.append(_normalize_for_publisher(s))
         except Exception as _e:
             try:
@@ -460,6 +468,7 @@ def think_once() -> List[Dict[str, Any]]:
             except Exception:
                 pass
             continue
+            news_bias = None
 
     # filter out obviously non-executable plans (missing entry or zero qty)
     filtered = []
@@ -484,6 +493,7 @@ def think_once() -> List[Dict[str, Any]]:
             publish_batch(filtered)
         except Exception:
             pass
+            publish_batch = None
 
     # notify via Telegram (safe module-level helper)
     if filtered:
@@ -500,6 +510,7 @@ def beautiful_telegram_notification(signals: List[Dict[str, Any]]):
         from tg_utils import send_text as tg_send
     except Exception:
         return
+        tg_send = None
     for sig in signals:
         try:
             emoji = "🚀" if str(sig.get("side", "")).lower() == "buy" else "📉"
@@ -545,6 +556,7 @@ def profit_summary_notification(trades: List[Dict[str, Any]]):
         from tg_utils import send_text as tg_send
     except Exception:
         return
+        tg_send = None
     total_pnl = sum(float(t.get("pnl", 0) or 0) for t in trades)
     msg = f"💰 Profit Summary: ${total_pnl:.2f} | Trades: {len(trades)}"
     try:

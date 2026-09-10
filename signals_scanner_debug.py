@@ -24,6 +24,7 @@ def publish_batch(payload):  # type: ignore
             return fn(payload)
     except Exception:
         pass
+        importlib = None
     return None
 
 # Fallback analysis helpers (light stubs to satisfy lints/tests when full stack absent)
@@ -41,6 +42,7 @@ def analyze_symbol_ccxt(bars: List[List[float]], tf: str, symbol: str, market: s
         return {"symbol": symbol, "side": "BUY", "confidence": score, "tf": tf, "market": market}
     except Exception:
         return None
+        _np = None
 
 
 def analyze_symbol_mt5(bars: List[List[float]], tf: str, symbol: str):
@@ -74,6 +76,9 @@ def _lazy_mt5_helpers():
                 return getattr(mod, "bars_df", None), getattr(mod, "mt5_init", None)
         except Exception:
             pass
+            importlib = None
+            sys = None
+            Path = None
 
     def mt5_bars(symbol, timeframe, limit=300):
         import pandas as _pd

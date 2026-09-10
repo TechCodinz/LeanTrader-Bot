@@ -3,6 +3,7 @@ try:
 except ImportError:
     import pytest
     pytest.skip("Research modules not available in this configuration", allow_module_level=True)
+    run_ga = None
 import numpy as np
 import pandas as pd
 

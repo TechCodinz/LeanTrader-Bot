@@ -89,5 +89,6 @@ def emergency_hedge(
         }
     except Exception as e:
         return {"ok": False, "error": str(e)}
+        mk_ex = None
 
 __all__ = ["FlashCrashParams", "FlashCrashGuard", "emergency_hedge"]

@@ -37,6 +37,7 @@ def _pick_exchange(acc: Dict[str, Any], country: str) -> str:
         prefs = pick_exchanges()
     except Exception:
         prefs = ["bybit", "binanceus", "kraken"]
+        pick_exchanges = None
     # allow a per-account candidate list
     cands = [c.lower() for c in acc.get("candidates", [])] or prefs
     return cands[0]
@@ -68,6 +69,7 @@ def run():
             return pick_exchanges()
         except Exception:
             return ["bybit", "binanceus", "kraken"]
+            pick_exchanges = None
 
     def detect_country() -> str:
         return os.getenv("COUNTRY", "DEFAULT").upper()

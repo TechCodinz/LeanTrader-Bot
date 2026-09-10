@@ -686,6 +686,7 @@ class QuantumRiskManager:
         except Exception as e:
             logger.error(f"Extreme value VaR error: {e}")
             return self.parametric_var(returns, confidence)
+            genpareto = None
     
     def calculate_cvar(self, returns: np.ndarray, confidence: float = 0.95) -> float:
         """Calculate Conditional Value at Risk (Expected Shortfall)"""

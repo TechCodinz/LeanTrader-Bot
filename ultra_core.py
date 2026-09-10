@@ -35,12 +35,18 @@ try:
     lstm_model.compile(loss="mean_squared_error", optimizer="adam")
 except Exception:
     lstm_model = None
+    LSTM = None
+    Dense = None
+    Sequential = None
 
 # Quantum-inspired imports (optional)
 try:
     from qiskit import Aer, QuantumCircuit, execute  # type: ignore
 except Exception:
     Aer, execute, QuantumCircuit = None, None, None  # type: ignore
+    Aer = None
+    QuantumCircuit = None
+    execute = None
 
 class UltraCore:
     def ultra_advanced_cycle(self):
@@ -121,6 +127,8 @@ class UltraCore:
             print("📡 Copy signals ingestor activated")
         except Exception as e:
             print(f"⚠️ Copy signals disabled: {e}")
+            load_all = None
+            merge_to_store = None
         self.universe = universe
         self.logger = logger
         self.knowledge_base = {}
@@ -142,6 +150,8 @@ class UltraCore:
             self.gnn_model = GCNConv(10, 1)  # Placeholder GNN
         except Exception:
             self.gnn_model = None
+            torch = None
+            GCNConv = None
         self.anomaly_detector = None  # Will be set in scout_all if available
         try:
             from qiskit import Aer, QuantumCircuit, execute  # noqa: F401  # intentionally kept
@@ -149,6 +159,9 @@ class UltraCore:
             self.quantum_backend = Aer.get_backend("qasm_simulator")
         except ImportError:
             self.quantum_backend = None
+            Aer = None
+            QuantumCircuit = None
+            execute = None
         self.retrade_count = 0
         self.max_retrades = 3
         # Force demo mode
@@ -672,6 +685,7 @@ class UltraCore:
                 import torch
             except Exception:
                 return 0.0
+                torch = None
             # Simulate graph data
             edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)
             x = torch.randn(2, 10)  # Node features
@@ -679,6 +693,7 @@ class UltraCore:
             return pred.mean().item()
         except Exception:
             return 0.0
+            torch = None
 
     def auto_healing_anomalies(self, signals: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Detect and heal anomalies in signals."""
@@ -734,6 +749,7 @@ def integrate_god_mode(ultra_core: UltraCore):
         return UltraGodMode(ultra_core)
     except Exception:
         return None
+        UltraGodMode = None
 
 
 def integrate_moon_spotter(ultra_core: UltraCore):
@@ -743,6 +759,7 @@ def integrate_moon_spotter(ultra_core: UltraCore):
         return UltraMoonSpotter(ultra_core)
     except Exception:
         return None
+        UltraMoonSpotter = None
 
 
 def integrate_forex_master(ultra_core: UltraCore):
@@ -752,6 +769,7 @@ def integrate_forex_master(ultra_core: UltraCore):
         return UltraForexMaster(ultra_core)
     except Exception:
         return None
+        UltraForexMaster = None
 
 
 def integrate_telegram_master(ultra_core: UltraCore):
@@ -761,6 +779,7 @@ def integrate_telegram_master(ultra_core: UltraCore):
         return UltraTelegramMaster(ultra_core)
     except Exception:
         return None
+        UltraTelegramMaster = None
 
 # New advanced trading engines
 
@@ -771,6 +790,7 @@ def integrate_ultra_scalping_engine(ultra_core: UltraCore, risk_engine):
         return UltraScalpingEngine(ultra_core, risk_engine)
     except Exception:
         return None
+        UltraScalpingEngine = None
 
 
 def integrate_ultra_arbitrage_engine(ultra_core: UltraCore, risk_engine):
@@ -780,6 +800,7 @@ def integrate_ultra_arbitrage_engine(ultra_core: UltraCore, risk_engine):
         return UltraArbitrageEngine(ultra_core, risk_engine)
     except Exception:
         return None
+        UltraArbitrageEngine = None
 
 
 def integrate_ultra_continuous_trading(ultra_core: UltraCore, risk_engine):
@@ -789,6 +810,7 @@ def integrate_ultra_continuous_trading(ultra_core: UltraCore, risk_engine):
         return UltraContinuousTradingOrchestrator(ultra_core, risk_engine)
     except Exception:
         return None
+        UltraContinuousTradingOrchestrator = None
 
 
 def integrate_november_growth_strategy(ultra_core: UltraCore, risk_engine):
@@ -798,3 +820,4 @@ def integrate_november_growth_strategy(ultra_core: UltraCore, risk_engine):
         return NovemberGrowthStrategy(ultra_core, risk_engine)
     except Exception:
         return None
+        NovemberGrowthStrategy = None

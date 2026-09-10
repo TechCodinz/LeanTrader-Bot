@@ -22,6 +22,7 @@ def main() -> int:
         tg_send = send_telegram_message
     except Exception:
         tg_send = None
+        send_telegram_message = None
 
     # Announce startup
     try:

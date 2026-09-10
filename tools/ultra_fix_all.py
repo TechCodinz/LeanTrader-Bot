@@ -1,7 +1,10 @@
 from typing import Dict, List
 from datetime import datetime
 from datetime import timedelta
-import torch
+try:
+    import torch
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    torch = None
 import requests
 import sqlite3
 import hashlib
@@ -36,7 +39,10 @@ import html
 import urllib3
 import websocket
 import ccxt
-import talib
+try:
+    import talib
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    talib = None
 from sklearn.ensemble import RandomForestClassifier
 import plotly.graph_objects as go
 from fastapi import FastAPI
@@ -69,7 +75,10 @@ import jwt
 from passlib.context import CryptContext
 from twilio.rest import Client
 from telegram import Bot
-import discord
+try:
+    import discord
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    discord = None
 from slack_sdk import WebClient
 import boto3
 from google.cloud import storage

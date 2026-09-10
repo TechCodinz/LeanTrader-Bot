@@ -32,6 +32,15 @@ try:
 except ImportError:
     TELEGRAM_AVAILABLE = False
     logger.warning("Telegram package not available")
+    Bot = None
+    InlineKeyboardButton = None
+    InlineKeyboardMarkup = None
+    Update = None
+    Application = None
+    CommandHandler = None
+    CallbackQueryHandler = None
+    ContextTypes = None
+    TelegramError = None
 
 class LivePriceProfessionalBot:
     """Live Price Professional Trading Bot - REAL MARKET DATA ONLY"""

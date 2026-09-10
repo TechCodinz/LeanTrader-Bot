@@ -37,7 +37,10 @@ import hashlib
 import hmac
 import base64
 from urllib.parse import urlencode
-import talib
+try:
+    import talib
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    talib = None
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
@@ -49,9 +52,18 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 import re
-import tweepy
-import praw
-import discord
+try:
+    import tweepy
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    tweepy = None
+try:
+    import praw
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    praw = None
+try:
+    import discord
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    discord = None
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 import schedule

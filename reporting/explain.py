@@ -189,6 +189,7 @@ def write_explanation_markdown(
             secure_write(str(folder / f"{oid}.sensitive.enc"), sensitive)
         except Exception:
             pass
+            secure_write = None
         try:
             EXPL_FILES_WRITTEN.inc()
         except Exception:
@@ -196,6 +197,7 @@ def write_explanation_markdown(
         return str(path)
     except Exception:
         return None
+        secure_write = None
 
 def scan_explanations_for_date(date: str, base_dir: str = "out/explanations") -> List[str]:
     d = Path(base_dir) / date

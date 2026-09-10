@@ -41,6 +41,12 @@ except Exception as e:
     logger.error("   Install dependencies: pip3 install numpy pandas")
     logger.error("   Or run: bash INSTALL_ALL_DEPENDENCIES.sh")
     CRITICAL_FEATURES_AVAILABLE = False
+    TrailingStopManager = None
+    CompoundEngine = None
+    PartialTPManager = None
+    FundingArbitrage = None
+    VolumeProfileAnalyzer = None
+    EmergencyStop = None
 
 # ============================================================================
 # ULTRA-RARE GOLDMINE FEATURES - REQUIRED FOR CUTTING-EDGE ADVANTAGE
@@ -66,6 +72,17 @@ except Exception as e:
     logger.error("   Install dependencies: pip3 install numpy pandas scipy scikit-learn")
     logger.error("   Or run: bash INSTALL_ALL_DEPENDENCIES.sh")
     ULTRA_FEATURES_AVAILABLE = False
+    GammaSqueezeDetector = None
+    WhaleTracker = None
+    OrderBookToxicityScanner = None
+    LatencyArbitrageEngine = None
+    MEVProtectionLayer = None
+    FuturesBasisArbitrage = None
+    AdaptiveRegimeSizer = None
+    MultiTimeframeConfluence = None
+    SocialMomentumPredictor = None
+    NetworkEffectAnalyzer = None
+    UltraGoldmineManager = None
 
 # ============================================================================
 # DIVINE INTELLIGENCE FEATURES - CONSCIOUSNESS-LEVEL TRADING ENTITY
@@ -86,6 +103,12 @@ except Exception as e:
     logger.error("   These features use advanced physics & mathematics")
     logger.error("   Expected +300-1000% additional profit potential")
     DIVINE_FEATURES_AVAILABLE = False
+    QuantumEntanglementCorrelator = None
+    FractalDimensionAnalyzer = None
+    InformationEntropyTracker = None
+    NashEquilibriumPredictor = None
+    ChaosTheoryAttractorMapper = None
+    DivineIntelligenceManager = None
 
 # Warn if features are missing
 if not CRITICAL_FEATURES_AVAILABLE:

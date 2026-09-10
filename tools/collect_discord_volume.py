@@ -13,6 +13,7 @@ async def _collect(
         import discord  # type: ignore
     except Exception:
         return {}
+        discord = None
 
     intents = discord.Intents.default()
     intents.guilds = True

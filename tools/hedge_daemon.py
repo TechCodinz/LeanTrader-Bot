@@ -68,6 +68,7 @@ def main() -> int:
                 os.environ["EXCHANGE_ID"] = orig_id
     except Exception:
         pass
+        ExchangeRouter = None
 
     inst_map = _load_instruments(args.instruments)
     if not inst_map:
@@ -88,6 +89,7 @@ def main() -> int:
                     plan = hedge_plan_greeks(expo, inst_map)
                 except Exception:
                     plan = hedge_plan(expo, inst_map)
+                    hedge_plan_greeks = None
             else:
                 plan = hedge_plan(expo, inst_map)
             if args.execute or os.getenv("HEDGE_LIVE", "false").lower() == "true":
@@ -98,6 +100,7 @@ def main() -> int:
             )
         except Exception:
             pass
+            hedge_plan_greeks = None
         time.sleep(max(60, int(args.interval)))
 
 if __name__ == "__main__":

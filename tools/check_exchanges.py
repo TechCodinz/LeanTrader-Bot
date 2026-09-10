@@ -24,6 +24,7 @@ def probe_exchange(ex_id: str) -> str:
         import ccxt  # type: ignore
     except Exception as e:
         return f"{ex_id}: SKIP (ccxt missing: {e})"
+        ccxt = None
 
     # map alias to ccxt id if needed
     eid = ex_id

@@ -25,6 +25,7 @@ class _KV:
                 self._use_mem = False
             except Exception:
                 self._use_mem = True
+                redis = None
 
     def _gc(self) -> None:
         now = time.time()

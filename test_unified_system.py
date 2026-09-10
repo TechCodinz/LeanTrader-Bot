@@ -99,6 +99,7 @@ async def test_orchestrator():
         print(f"  ❌ Orchestrator test failed: {e}")
         print("\n📊 Orchestrator test: FAILED")
         return False
+        UnifiedTradingSystem = None
 
 
 def test_key_components():
@@ -117,6 +118,7 @@ def test_key_components():
     except Exception as e:
         print(f"  ❌ EnhancedTradingBot failed: {e}")
         tests_failed += 1
+        EnhancedTradingBot = None
     
     # Test UltraArbitrageEngine
     try:
@@ -130,6 +132,7 @@ def test_key_components():
     except Exception as e:
         print(f"  ❌ UltraArbitrageEngine failed: {e}")
         tests_failed += 1
+        UltraArbitrageEngine = None
     
     # Test UltraScalpingEngine
     try:
@@ -143,6 +146,7 @@ def test_key_components():
     except Exception as e:
         print(f"  ❌ UltraScalpingEngine failed: {e}")
         tests_failed += 1
+        UltraScalpingEngine = None
     
     print(f"\n📊 Component Results: {tests_passed} passed, {tests_failed} failed")
     return tests_failed == 0

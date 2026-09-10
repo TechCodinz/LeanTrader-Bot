@@ -36,156 +36,182 @@ try:
     test_result("ExchangeRouter", True)
 except Exception as e:
     test_result("ExchangeRouter", False, str(e))
+    ExchangeRouter = None
 
 try:
     from risk_engine import RiskEngine
     test_result("RiskEngine", True)
 except Exception as e:
     test_result("RiskEngine", False, str(e))
+    RiskEngine = None
 
 try:
     from brain import Brain
     test_result("Brain", True)
 except Exception as e:
     test_result("Brain", False, str(e))
+    Brain = None
 
 try:
     from pattern_memory import PatternMemory
     test_result("PatternMemory", True)
 except Exception as e:
     test_result("PatternMemory", False, str(e))
+    PatternMemory = None
 
 try:
     from ledger import Ledger
     test_result("Ledger", True)
 except Exception as e:
     test_result("Ledger", False, str(e))
+    Ledger = None
 
 try:
     from ultra_core import UltraCore
     test_result("UltraCore", True)
 except Exception as e:
     test_result("UltraCore", False, str(e))
+    UltraCore = None
 
 try:
     from awareness import SituationalAwareness
     test_result("SituationalAwareness", True)
 except Exception as e:
     test_result("SituationalAwareness", False, str(e))
+    SituationalAwareness = None
 
 try:
     from hivemind import HiveCoordinator
     test_result("HiveCoordinator", True)
 except Exception as e:
     test_result("HiveCoordinator", False, str(e))
+    HiveCoordinator = None
 
 try:
     from gloaware import GlobalAwareness
     test_result("GlobalAwareness", True)
 except Exception as e:
     test_result("GlobalAwareness", False, str(e))
+    GlobalAwareness = None
 
 try:
     from ultra_arbitrage_engine import UltraArbitrageEngine
     test_result("UltraArbitrageEngine", True)
 except Exception as e:
     test_result("UltraArbitrageEngine", False, str(e))
+    UltraArbitrageEngine = None
 
 try:
     from ultra_scalping_engine import UltraScalpingEngine
     test_result("UltraScalpingEngine", True)
 except Exception as e:
     test_result("UltraScalpingEngine", False, str(e))
+    UltraScalpingEngine = None
 
 try:
     from ultra_moon_spotter import UltraMoonSpotter
     test_result("UltraMoonSpotter", True)
 except Exception as e:
     test_result("UltraMoonSpotter", False, str(e))
+    UltraMoonSpotter = None
 
 try:
     from REAL_PROFIT_BOT import RealProfitBot
     test_result("RealProfitBot", True)
 except Exception as e:
     test_result("RealProfitBot", False, str(e))
+    RealProfitBot = None
 
 try:
     from enhanced_trading_bot import EnhancedTradingBot
     test_result("EnhancedTradingBot", True)
 except Exception as e:
     test_result("EnhancedTradingBot", False, str(e))
+    EnhancedTradingBot = None
 
 try:
     from EVOLUTION_ENGINE import ULTIMATE_EVOLUTION_ENGINE
     test_result("ULTIMATE_EVOLUTION_ENGINE", True)
 except Exception as e:
     test_result("ULTIMATE_EVOLUTION_ENGINE", False, str(e))
+    ULTIMATE_EVOLUTION_ENGINE = None
 
 try:
     from working_450_models_bot import working_450_models_bot
     test_result("working_450_models_bot", True)
 except Exception as e:
     test_result("working_450_models_bot", False, str(e))
+    working_450_models_bot = None
 
 try:
     from ultra_swarm_consciousness import UltraSwarmConsciousness
     test_result("UltraSwarmConsciousness", True)
 except Exception as e:
     test_result("UltraSwarmConsciousness", False, str(e))
+    UltraSwarmConsciousness = None
 
 try:
     from divine_intelligence_core import DivineIntelligence
     test_result("DivineIntelligence", True)
 except Exception as e:
     test_result("DivineIntelligence", False, str(e))
+    DivineIntelligence = None
 
 try:
     from ml_strategy_engine import MLStrategyEngine
     test_result("MLStrategyEngine", True)
 except Exception as e:
     test_result("MLStrategyEngine", False, str(e))
+    MLStrategyEngine = None
 
 try:
     from online_learner import OnlineLearner
     test_result("OnlineLearner", True)
 except Exception as e:
     test_result("OnlineLearner", False, str(e))
+    OnlineLearner = None
 
 try:
     from ultra_quantum_intelligence import UltraQuantumIntelligence
     test_result("UltraQuantumIntelligence", True)
 except Exception as e:
     test_result("UltraQuantumIntelligence", False, str(e))
+    UltraQuantumIntelligence = None
 
 try:
     from ultra_fluid_mechanics import UltraFluidMechanics
     test_result("UltraFluidMechanics", True)
 except Exception as e:
     test_result("UltraFluidMechanics", False, str(e))
+    UltraFluidMechanics = None
 
 try:
     from ultra_backtest_engine import UltraBacktestEngine
     test_result("UltraBacktestEngine", True)
 except Exception as e:
     test_result("UltraBacktestEngine", False, str(e))
+    UltraBacktestEngine = None
 
 try:
     from ultra_business_system import UltraBusinessSystem
     test_result("UltraBusinessSystem", True)
 except Exception as e:
     test_result("UltraBusinessSystem", False, str(e))
+    UltraBusinessSystem = None
 
 try:
     from november_growth_strategy import NovemberGrowthStrategy
     test_result("NovemberGrowthStrategy", True)
 except Exception as e:
     test_result("NovemberGrowthStrategy", False, str(e))
+    NovemberGrowthStrategy = None
 
 try:
     from paper_broker import PaperBroker
     test_result("PaperBroker", True)
 except Exception as e:
     test_result("PaperBroker", False, str(e))
+    PaperBroker = None
 
 # Test advanced systems
 print("\n🌟 Testing Advanced Imports (8 additional systems)...")
@@ -194,30 +220,35 @@ try:
     test_result("UltraScout", True)
 except Exception as e:
     test_result("UltraScout", False, str(e))
+    UltraScout = None
 
 try:
     from COMPLETE_ULTIMATE_ORCHESTRATOR import CompleteUltimateOrchestrator
     test_result("CompleteUltimateOrchestrator", True)
 except Exception as e:
     test_result("CompleteUltimateOrchestrator", False, str(e))
+    CompleteUltimateOrchestrator = None
 
 try:
     from COMPLETE_ULTIMATE_ORCHESTRATOR import AdvancedScoutingOrchestrator
     test_result("AdvancedScoutingOrchestrator", True)
 except Exception as e:
     test_result("AdvancedScoutingOrchestrator", False, str(e))
+    AdvancedScoutingOrchestrator = None
 
 try:
     from COMPLETE_ULTIMATE_ORCHESTRATOR import ForexTradingOrchestrator
     test_result("ForexTradingOrchestrator", True)
 except Exception as e:
     test_result("ForexTradingOrchestrator", False, str(e))
+    ForexTradingOrchestrator = None
 
 try:
     from COMPLETE_ULTIMATE_ORCHESTRATOR import DeepLearningOrchestrator
     test_result("DeepLearningOrchestrator", True)
 except Exception as e:
     test_result("DeepLearningOrchestrator", False, str(e))
+    DeepLearningOrchestrator = None
 
 # Test orchestration
 print("\n🔌 Testing Data Flows...")
@@ -226,24 +257,28 @@ try:
     test_result("RealTimeLearningPipeline", True)
 except Exception as e:
     test_result("RealTimeLearningPipeline", False, str(e))
+    RealTimeLearningPipeline = None
 
 try:
     from ENHANCED_DATA_FLOWS import UnifiedScoutingPipeline
     test_result("UnifiedScoutingPipeline", True)
 except Exception as e:
     test_result("UnifiedScoutingPipeline", False, str(e))
+    UnifiedScoutingPipeline = None
 
 try:
     from ENHANCED_DATA_FLOWS import CollectiveIntelligenceCoordinator
     test_result("CollectiveIntelligenceCoordinator", True)
 except Exception as e:
     test_result("CollectiveIntelligenceCoordinator", False, str(e))
+    CollectiveIntelligenceCoordinator = None
 
 try:
     from ENHANCED_DATA_FLOWS import UnifiedReportingSystem
     test_result("UnifiedReportingSystem", True)
 except Exception as e:
     test_result("UnifiedReportingSystem", False, str(e))
+    UnifiedReportingSystem = None
 
 # Test initialization
 print("\n🚀 Testing System Initialization...")
@@ -290,6 +325,7 @@ async def test_initialization():
     except Exception as e:
         test_result("System Initialization", False, str(e))
         return False
+        CompleteUltimateOrchestrator = None
 
 # Run async test
 loop = asyncio.get_event_loop()

@@ -61,6 +61,7 @@ try:
     PANDAS_AVAILABLE = True
 except ImportError:
     PANDAS_AVAILABLE = False
+    pd = None
     # Pandas not required for basic functionality
 
 logger = logging.getLogger(__name__)

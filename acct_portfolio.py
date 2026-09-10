@@ -72,6 +72,7 @@ def _ensure_ccxt_exchange(exchange=None, exchange_id: Optional[str] = None):
             }
         )
         return ex
+        ExchangeRouter = None
 
 def _estimate_in_quote(ex, asset: str, amount: float, quote: str = "USD") -> float:
     """

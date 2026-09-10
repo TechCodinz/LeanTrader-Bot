@@ -45,6 +45,7 @@ def main():
                 start_ratio_arb()
     except Exception:
         pass
+        os = None
 
     core = TraderCore(
         fx,

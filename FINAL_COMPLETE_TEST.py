@@ -40,6 +40,15 @@ try:
     test("Core Infrastructure (9)", True)
 except Exception as e:
     test("Core Infrastructure", False, str(e))
+    ExchangeRouter = None
+    RiskEngine = None
+    Brain = None
+    PatternMemory = None
+    Ledger = None
+    UltraCore = None
+    SituationalAwareness = None
+    HiveCoordinator = None
+    GlobalAwareness = None
 
 try:
     from ultra_arbitrage_engine import UltraArbitrageEngine
@@ -50,6 +59,11 @@ try:
     test("Trading Engines (5)", True)
 except Exception as e:
     test("Trading Engines", False, str(e))
+    UltraArbitrageEngine = None
+    UltraScalpingEngine = None
+    UltraMoonSpotter = None
+    RealProfitBot = None
+    EnhancedTradingBot = None
 
 try:
     from EVOLUTION_ENGINE import ULTIMATE_EVOLUTION_ENGINE
@@ -61,6 +75,12 @@ try:
     test("AI/ML Systems (6)", True)
 except Exception as e:
     test("AI/ML Systems", False, str(e))
+    ULTIMATE_EVOLUTION_ENGINE = None
+    working_450_models_bot = None
+    UltraSwarmConsciousness = None
+    DivineIntelligence = None
+    MLStrategyEngine = None
+    OnlineLearner = None
 
 try:
     from ultra_quantum_intelligence import UltraQuantumIntelligence
@@ -69,6 +89,9 @@ try:
     test("Advanced Intelligence (3)", True)
 except Exception as e:
     test("Advanced Intelligence", False, str(e))
+    UltraQuantumIntelligence = None
+    UltraFluidMechanics = None
+    UltraBacktestEngine = None
 
 try:
     from ultra_business_system import UltraBusinessSystem
@@ -77,6 +100,9 @@ try:
     test("Business Systems (3)", True)
 except Exception as e:
     test("Business Systems", False, str(e))
+    UltraBusinessSystem = None
+    NovemberGrowthStrategy = None
+    PaperBroker = None
 
 # Advanced systems
 try:
@@ -84,6 +110,7 @@ try:
     test("UltraScout (news, social, on-chain)", True)
 except Exception as e:
     test("UltraScout", False, str(e))
+    UltraScout = None
 
 # NEW integrations
 try:
@@ -92,6 +119,9 @@ try:
     test("Execution Orchestrator (Smart Logic)", True)
 except Exception as e:
     test("Execution Orchestrator", False, str(e))
+    ExecutionOrchestrator = None
+    SmartPositionSizer = None
+    SmartRiskManager = None
 
 try:
     from SMART_SCALPING_ENGINE import SmartScalpingEngine
@@ -99,6 +129,9 @@ try:
     test("Smart Scalping (MTF + Session)", True)
 except Exception as e:
     test("Smart Scalping", False, str(e))
+    SmartScalpingEngine = None
+    MultiTimeframeAnalyzer = None
+    SessionPerformanceTracker = None
 
 try:
     from TELEGRAM_ORCHESTRATOR import TelegramOrchestrator
@@ -106,6 +139,8 @@ try:
     test("Telegram Orchestrator (Admin + VIP + Free)", True)
 except Exception as e:
     test("Telegram Orchestrator", False, str(e))
+    TelegramOrchestrator = None
+    ChartGenerator = None
 
 # Data flows
 try:
@@ -118,6 +153,10 @@ try:
     test("Data Flow Pipelines (4)", True)
 except Exception as e:
     test("Data Flow Pipelines", False, str(e))
+    RealTimeLearningPipeline = None
+    UnifiedScoutingPipeline = None
+    CollectiveIntelligenceCoordinator = None
+    UnifiedReportingSystem = None
 
 # Main orchestrator
 try:
@@ -125,6 +164,7 @@ try:
     test("Complete Ultimate Orchestrator", True)
 except Exception as e:
     test("Complete Ultimate Orchestrator", False, str(e))
+    CompleteUltimateOrchestrator = None
 
 # Test initialization
 print("\n🚀 Testing Complete System Initialization...")
@@ -177,6 +217,7 @@ try:
     test("Execution - Auto SL/TP", True)
 except:
     test("Execution Features", False)
+    ExecutionOrchestrator = None
 
 try:
     from SMART_SCALPING_ENGINE import SmartScalpingEngine
@@ -185,6 +226,7 @@ try:
     test("Scalping - Performance Learning", True)
 except:
     test("Scalping Features", False)
+    SmartScalpingEngine = None
 
 try:
     from TELEGRAM_ORCHESTRATOR import TelegramOrchestrator
@@ -195,6 +237,7 @@ try:
     test("Telegram - Remote Trading", True)
 except:
     test("Telegram Features", False)
+    TelegramOrchestrator = None
 
 # Final results
 print("\n" + "=" * 80)

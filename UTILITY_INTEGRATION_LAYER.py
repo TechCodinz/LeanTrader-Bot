@@ -14,24 +14,29 @@ try:
     SKILLBOOK_AVAILABLE = True
 except:
     SKILLBOOK_AVAILABLE = False
+    skillbook = None
 
 try:
     import sizer
     SIZER_AVAILABLE = True
 except:
     SIZER_AVAILABLE = False
+    sizer = None
 
 try:
     from guardrails import TradeGuard, GuardConfig
     GUARDRAILS_AVAILABLE = True
 except:
     GUARDRAILS_AVAILABLE = False
+    TradeGuard = None
+    GuardConfig = None
 
 try:
     import indicators
     INDICATORS_AVAILABLE = True
 except:
     INDICATORS_AVAILABLE = False
+    indicators = None
 
 logger = logging.getLogger(__name__)
 

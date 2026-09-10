@@ -9,18 +9,21 @@ try:
     builtins.np = _np
 except Exception:
     pass
+    _np = None
 
 try:
     import pandas as _pd  # type: ignore
     builtins.pd = _pd
 except Exception:
     pass
+    _pd = None
 
 try:
     from types import SimpleNamespace as _SimpleNamespace
     builtins.SimpleNamespace = _SimpleNamespace  # type: ignore[attr-defined]
 except Exception:
     pass
+    _SimpleNamespace = None
 
 # Provide awareness classes as globals for tests that reference them directly
 try:
@@ -29,6 +32,8 @@ try:
     builtins.SituationalAwareness = _SituationalAwareness  # type: ignore[attr-defined]
 except Exception:
     pass
+    _AwarenessConfig = None
+    _SituationalAwareness = None
 
 # Provide a short alias `sp` pointing to strategies.pipeline for tests using it as a global
 try:
@@ -36,6 +41,7 @@ try:
     builtins.sp = _sp  # type: ignore[attr-defined]
 except Exception:
     pass
+    _sp = None
 
 # Minimal Ultra helpers for tests expecting publish_signal and confirm buttons
 try:

@@ -46,6 +46,8 @@ def _import_mt5_helpers():
                 )
         except Exception:
             pass
+            importlib = None
+            sys = None
 
         def account_summary_lines():
             return []

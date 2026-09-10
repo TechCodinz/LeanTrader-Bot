@@ -36,6 +36,8 @@ def _lazy_mt5_helpers():
                 return getattr(mod, "bars_df", None), getattr(mod, "mt5_init", None)
         except Exception:
             pass
+            importlib = None
+            sys = None
 
     def mt5_bars(symbol, timeframe, limit=300):
         import pandas as _pd
@@ -212,6 +214,7 @@ def run_once(args) -> List[Dict[str, Any]]:
                     s["hype_score"] = float(scores[sym])
     except Exception:
         pass
+        _hype_score = None
 
     # Optional: when publishing, send Telegram messages with small chart images
     try:
@@ -300,6 +303,8 @@ def run_once(args) -> List[Dict[str, Any]]:
                         continue
     except Exception:
         pass
+        charting = None
+        TelegramNotifier = None
 
     return out[: args.top]
 

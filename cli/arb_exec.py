@@ -33,6 +33,7 @@ def main():
             ARB_FILL_MS.observe(float(dt_ms))
     except Exception:
         pass
+        ARB_FILL_MS = None
     print(json.dumps(plan))
 
 if __name__ == "__main__":

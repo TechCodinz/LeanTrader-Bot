@@ -26,6 +26,7 @@ def _candlestick_mplfinance(df: pd.DataFrame, out_path: str, title: str):
         return out_path
     except Exception:
         return None
+        mpf = None
 
 def render_signal_chart(df: pd.DataFrame, out_path: str, title: str):
     # Prefer a candlestick chart with overlays; fallback to line chart
@@ -113,6 +114,7 @@ def render_signal_illustration(
             return img_out
         except Exception:
             return out_path
+            plt = None
     # fallback to line chart
     try:
         import matplotlib.pyplot as plt
@@ -136,4 +138,5 @@ def render_signal_illustration(
         plt.close()
     except Exception:
         pass
+        plt = None
     return out_path

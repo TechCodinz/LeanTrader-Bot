@@ -38,12 +38,14 @@ def main() -> int:
                     msg += f"\n🧠 Training: {ok}/{len(results)} models today"
             except Exception:
                 pass
+                _json = None
             try:
                 send_signal(msg, vip=False)
             except Exception:
                 pass
         except Exception as e:
             print(f"[status_daemon] send error: {e}")
+            _json = None
         time.sleep(max(10, PERIOD_SEC))
 
 if __name__ == "__main__":

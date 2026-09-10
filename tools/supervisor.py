@@ -36,6 +36,7 @@ try:
 except Exception:
     # dotenv is optional; if missing we continue
     pass
+    load_dotenv = None
 
 logging.basicConfig(
     level=logging.INFO,

@@ -11,6 +11,7 @@ def _reload_quantum_modules(enable: bool):
         importlib.reload(_cfg)
     except Exception:
         pass
+        _cfg = None
     # reload risk.pricing and allocators.portfolio to pick up updated config
     try:
         import risk.pricing as rp  # type: ignore
@@ -18,12 +19,14 @@ def _reload_quantum_modules(enable: bool):
         importlib.reload(rp)
     except Exception:
         pass
+        rp = None
     try:
         import allocators.portfolio as ap  # type: ignore
 
         importlib.reload(ap)
     except Exception:
         pass
+        ap = None
 
 def test_choose_assets_binary_within_budget():
     _reload_quantum_modules(enable=False)

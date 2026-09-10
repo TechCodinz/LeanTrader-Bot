@@ -22,6 +22,10 @@ def main():
     except Exception as e:
         print("[bybit_smoke] bybit_adapter not available:", e)
         return
+        account_summary_lines = None
+        bybit_init = None
+        fetch_ohlcv = None
+        order_market = None
 
     ex = bybit_init()
     # tolerate both raw ccxt exchange and router.ExchangeRouter

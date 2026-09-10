@@ -38,6 +38,7 @@ def fetch_rss(urls: List[str]) -> List[NewsItem]:
     except Exception:
         check_or_raise("feedparser", False, extra="feedparser")
         return []
+        feedparser = None
 
     seen = _load_seen()
     out: List[NewsItem] = []

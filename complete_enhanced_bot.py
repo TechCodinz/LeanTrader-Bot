@@ -31,6 +31,15 @@ try:
 except ImportError:
     TELEGRAM_AVAILABLE = False
     logger.warning("Telegram package not available")
+    Bot = None
+    InlineKeyboardButton = None
+    InlineKeyboardMarkup = None
+    Update = None
+    Application = None
+    CommandHandler = None
+    CallbackQueryHandler = None
+    ContextTypes = None
+    TelegramError = None
 
 class CompleteEnhancedUltraTradingSystem:
     """ULTRA TRADING SYSTEM - COMPLETE ENHANCED VERSION"""
@@ -699,6 +708,7 @@ class CompleteEnhancedUltraTradingSystem:
         except Exception as e:
             logger.error(f"Error analyzing {pair}: {e}")
             return None
+            random = None
 
     async def execute_bybit_trade(self, symbol, side, amount):
         """Execute trade on Bybit testnet"""

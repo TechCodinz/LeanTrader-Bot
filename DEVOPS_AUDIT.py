@@ -132,6 +132,7 @@ class DevOpsAuditor:
                         'error': str(e)
                     })
                     print(f"  ❌ {filename}: {e}")
+                    importlib = None
     
     def generate_report(self):
         """Generate audit report"""

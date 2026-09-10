@@ -34,6 +34,7 @@ def main():
     except Exception:
         print("crawl exception:")
         traceback.print_exc()
+        crawl_urls = None
 
 if __name__ == "__main__":
     main()

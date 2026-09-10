@@ -59,6 +59,7 @@ def execute_signal_by_id(signal_id: str, user_id: str | int, live: bool = False)
     except Exception:
         # best-effort continue; the webhook verifies PIN explicitly via user_pins
         pass
+        verify_pin = None
 
     # Live execution path: if EXCHANGE_ID=paper -> use PaperBroker; else TODO: ccxt/MT5
     ex = os.getenv("EXCHANGE_ID", "paper").strip()
@@ -75,6 +76,7 @@ def execute_signal_by_id(signal_id: str, user_id: str | int, live: bool = False)
             return {"ok": True, "live": True, "order": ord}
         except Exception as _e:
             return {"ok": False, "error": f"paper execution failed: {_e}"}
+            PaperBroker = None
 
     # Non-paper live execution placeholder: integrate ccxt or MT5 here with secure credentials
     return {"ok": False, "error": "live execution for exchange not implemented"}

@@ -15,7 +15,10 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from collections import defaultdict
 import sqlite3
-import stripe
+try:
+    import stripe
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    stripe = None
 import ccxt.async_support as ccxt
 from cryptography.fernet import Fernet
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup

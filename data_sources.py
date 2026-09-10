@@ -51,6 +51,7 @@ def _build_ex(ex_id: str):
             return router
     except Exception:
         pass
+        ExchangeRouter = None
 
     klass = getattr(ccxt, ex_id)
     cfg = {

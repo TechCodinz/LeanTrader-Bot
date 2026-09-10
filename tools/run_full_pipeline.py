@@ -38,6 +38,12 @@ def main():
         print("import error:", _e)
         traceback.print_exc()
         return 2
+        evaluate = None
+        DEFAULT_CRAWL_SEEDS = None
+        NEWS_FEEDS = None
+        fetch_feeds = None
+        train_dummy_classifier = None
+        crawl_urls = None
 
     # 1) News
     try:
@@ -80,6 +86,7 @@ def main():
     except Exception as _e:
         print("  ohlcv fetch failed:", _e)
         _append_log(f"  ohlcv fetch failed: {_e}")
+        fetch_ohlcv_multi = None
 
     # 4) Train
     csv_path = Path("runtime") / "data" / "binance_BTC_USDT_1m.csv"

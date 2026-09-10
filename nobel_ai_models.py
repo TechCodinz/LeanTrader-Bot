@@ -41,23 +41,54 @@ from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
 
 # Advanced ML
-import xgboost as xgb
-import lightgbm as lgb
-from catboost import CatBoostRegressor, CatBoostClassifier
+try:
+    import xgboost as xgb
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    xgb = None
+try:
+    import lightgbm as lgb
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    lgb = None
+try:
+    from catboost import CatBoostRegressor, CatBoostClassifier
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    CatBoostRegressor = None
+    CatBoostClassifier = None
 import optuna
 from optuna.integration import LightGBMPruningCallback
 
 # Deep Learning
-import tensorflow as tf
-from tensorflow.keras.models import Sequential, Model
+try:
+    import tensorflow as tf
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    tf = None
+try:
+    from tensorflow.keras.models import Sequential, Model
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    Sequential = None
+    Model = None
 from tensorflow.keras.layers import (
     Dense, LSTM, GRU, Conv1D, MaxPooling1D, GlobalMaxPooling1D, Flatten,
     Dropout, BatchNormalization, Attention, MultiHeadAttention,
     Input, Concatenate, Reshape, TimeDistributed
 )
-from tensorflow.keras.optimizers import Adam, RMSprop, Nadam
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
-from tensorflow.keras.regularizers import l1, l2
+try:
+    from tensorflow.keras.optimizers import Adam, RMSprop, Nadam
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    Adam = None
+    RMSprop = None
+    Nadam = None
+try:
+    from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    EarlyStopping = None
+    ReduceLROnPlateau = None
+    ModelCheckpoint = None
+try:
+    from tensorflow.keras.regularizers import l1, l2
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    l1 = None
+    l2 = None
 
 # Time Series
 from statsmodels.tsa.arima.model import ARIMA
@@ -67,7 +98,10 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.stats.diagnostic import acorr_ljungbox
 
 # Feature Engineering
-import talib
+try:
+    import talib
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    talib = None
 from ta import add_all_ta_features
 from ta.utils import dropna
 import ta

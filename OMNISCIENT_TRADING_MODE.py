@@ -347,6 +347,7 @@ try:
     print("   ✅ OMNISCIENT_EXECUTION_ENGINE imports OK")
 except Exception as e:
     print(f"   ❌ OMNISCIENT_EXECUTION_ENGINE: {e}")
+    get_omniscient_engine = None
 
 try:
     from EXECUTION_ORCHESTRATOR import ExecutionOrchestrator
@@ -354,6 +355,7 @@ try:
 except Exception as e:
     print(f"   ❌ EXECUTION_ORCHESTRATOR: {e}")
     sys.exit(1)
+    ExecutionOrchestrator = None
 
 # ============================================================================
 # SUCCESS!

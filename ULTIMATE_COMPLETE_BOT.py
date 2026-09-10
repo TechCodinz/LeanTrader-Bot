@@ -495,6 +495,7 @@ class UltimateCompleteTradingBot:
             logger.info(f"📱 Message sent to {channel}")
         except Exception as e:
             logger.error(f"Telegram error: {e}")
+            Bot = None
 
     def calculate_advanced_technical_indicators(self, price_data):
         """Calculate comprehensive technical indicators"""
@@ -1218,6 +1219,7 @@ class NewsSentimentAnalyzer:
             return sentiment
         except Exception:
             return 0
+            random = None
 
 class SocialMediaMonitor:
     def __init__(self):
@@ -1233,6 +1235,7 @@ class SocialMediaMonitor:
             return sentiment
         except Exception:
             return 0
+            random = None
 
 class AdvancedBacktester:
     def __init__(self):

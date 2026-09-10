@@ -77,6 +77,8 @@ class ExchangeRouter:
                     print_intel_summary(self.ex)
                 except Exception as e:
                     _log.warning(f"Failed to apply guard hook to paper broker: {e}")
+                    enable_guard = None
+                    print_intel_summary = None
                 # Awareness for paper as well (opt-in)
                 try:
                     self._aw_enabled = _env_bool("AWARENESS_ENABLED", False)
@@ -88,11 +90,17 @@ class ExchangeRouter:
                         self._aw = None
                 except Exception:
                     self._aw = None
+                    AwarenessConfig = None
+                    SituationalAwareness = None
                 # Paper broker is always dry-run even if ENABLE_LIVE was set
                 self.live = False
                 return
             except Exception as _e:
                 raise RuntimeError(f"failed to init PaperBroker: {_e}") from _e
+                enable_guard = None
+                print_intel_summary = None
+                AwarenessConfig = None
+                SituationalAwareness = None
 
         if self.live and not self.allow_live:
             # avoid silently performing live trading unless explicitly allowed
@@ -163,9 +171,14 @@ class ExchangeRouter:
                 print_intel_summary(self.ex)
             except Exception as e:
                 _log.warning(f"Failed to apply guard hook: {e}")
+                enable_guard = None
+                print_intel_summary = None
                 
         except Exception as _e:
             raise RuntimeError(f"failed to initialize ccxt exchange '{self.id}': {_e}") from _e
+            _ccxt = None
+            enable_guard = None
+            print_intel_summary = None
 
         self.markets: Dict[str, Dict[str, Any]] = {}
         # If load_markets fails repeatedly we mark the exchange as malformed and avoid calling it.
@@ -991,3 +1004,5 @@ if __name__ == "__main__":  # simple CLI for quick scanning
         print(_json.dumps(out, indent=2))
     except Exception as _e:
         print(f"[router.scan] error: {_e}")
+        _json = None
+        sys = None

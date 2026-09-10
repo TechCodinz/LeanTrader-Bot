@@ -1,6 +1,9 @@
 import os  # noqa: F401
 
-import MetaTrader5 as mt5
+try:
+    import MetaTrader5 as mt5
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    mt5 = None
 from dotenv import load_dotenv
 
 class MT5Broker:

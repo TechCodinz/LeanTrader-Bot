@@ -99,6 +99,7 @@ class UltraLauncherAdvanced:
                     return ticker.get('price', 0)
                 except Exception:
                     return 50000 if 'BTC' in symbol else 3000 if 'ETH' in symbol else 500
+                    asyncio = None
 
         self.router = RouterWrapper(self.exchange_manager)
 

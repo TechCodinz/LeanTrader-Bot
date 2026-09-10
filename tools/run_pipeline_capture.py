@@ -31,6 +31,7 @@ def main():
         except Exception:
             pass
         return 2
+        run_pipeline = None
 
     lp = Path("runtime") / "logs" / "pipeline_run.txt"
     lp.parent.mkdir(parents=True, exist_ok=True)
@@ -54,6 +55,7 @@ def main():
                 lf.write(_tb.format_exc())
         except Exception:
             pass
+            _tb = None
         return 3
 
 if __name__ == "__main__":

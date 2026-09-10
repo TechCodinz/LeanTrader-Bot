@@ -594,6 +594,7 @@ class AutoSniper:
         except Exception as e:
             print(f"⚠️ Web3 not available: {e}")
             self.web3_connections = {}
+            Web3 = None
 
         # Router addresses for swaps
         self.routers = {

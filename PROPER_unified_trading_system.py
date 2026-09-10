@@ -62,6 +62,7 @@ class ProperUnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Failed to initialize UltraCore: {e}")
             return False
+            UltraCore = None
         
         try:
             from risk_engine import RiskEngine
@@ -70,6 +71,7 @@ class ProperUnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Failed to initialize RiskEngine: {e}")
             return False
+            RiskEngine = None
         
         try:
             from pattern_memory import PatternMemory
@@ -78,6 +80,7 @@ class ProperUnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Failed to initialize PatternMemory: {e}")
             return False
+            PatternMemory = None
         
         try:
             from brain import Brain
@@ -86,6 +89,7 @@ class ProperUnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Failed to initialize Brain: {e}")
             return False
+            Brain = None
         
         return True
     
@@ -106,6 +110,7 @@ class ProperUnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Arbitrage Engine failed: {e}")
             return False
+            UltraArbitrageEngine = None
     
     def initialize_scalping_engine(self):
         """Initialize scalping engine with proper dependencies"""
@@ -124,6 +129,7 @@ class ProperUnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Scalping Engine failed: {e}")
             return False
+            UltraScalpingEngine = None
     
     def initialize_moon_spotter(self):
         """Initialize moon spotter (standalone, no dependencies needed)"""
@@ -138,6 +144,7 @@ class ProperUnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Moon Spotter failed: {e}")
             return False
+            MicroMoonSpotter = None
     
     def initialize_real_profit_bot(self):
         """Initialize REAL_PROFIT_BOT (Gate.io, standalone)"""
@@ -152,6 +159,7 @@ class ProperUnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ REAL_PROFIT_BOT failed: {e}")
             return False
+            REAL_PROFIT_BOT = None
     
     def initialize_enhanced_bot(self):
         """Initialize enhanced trading bot (Bybit testnet)"""
@@ -166,6 +174,7 @@ class ProperUnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Enhanced Bot failed: {e}")
             return False
+            EnhancedTradingBot = None
     
     async def start(self):
         """Start the unified trading system"""

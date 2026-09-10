@@ -19,6 +19,7 @@ def get_ticker(exchange: str, symbol: str) -> Dict[str, float]:
         }
     except Exception:
         return {"bid": 0.0, "ask": 0.0, "last": 0.0}
+        mk_ex = None
 
 def get_orderbook(exchange: str, symbol: str) -> Dict[str, Any]:
     """Top-of-book snapshot for quick sizing (best bid/ask and sizes)."""
@@ -37,6 +38,7 @@ def get_orderbook(exchange: str, symbol: str) -> Dict[str, Any]:
         }
     except Exception:
         return {"bid": 0.0, "bid_size": 0.0, "ask": 0.0, "ask_size": 0.0}
+        mk_ex = None
 
 def cross_exchange_spreads(
     symbols: List[str], venues: List[str], min_bps: float = 10.0

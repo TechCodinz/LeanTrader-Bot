@@ -49,6 +49,7 @@ try:
 except Exception as e:
     print(f"❌ Failed to load systems: {e}")
     sys.exit(1)
+    CompleteUltimateOrchestrator = None
 
 # Get mode from args
 mode = 'testnet'

@@ -12,6 +12,7 @@ try:
     import uvicorn  # type: ignore
 except Exception as e:  # pragma: no cover
     raise SystemExit(f"Required deps missing for metrics server: {e}")
+    uvicorn = None
 
 from observability.metrics import set_canary_up
 

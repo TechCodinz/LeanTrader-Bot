@@ -111,6 +111,7 @@ def setup_logger():
                 print(*a)
 
         return _L()
+        _sl = None
 
 def get_exchange(exchange_id: str):
     # Prefer the project's ExchangeRouter wrapper to inherit safety guards.
@@ -125,6 +126,7 @@ def get_exchange(exchange_id: str):
             return router
     except Exception:
         pass
+        ExchangeRouter = None
 
     # Fallback to plain ccxt exchange construction
     import ccxt
@@ -235,6 +237,7 @@ def compute_vol_metric(ex, df_liq: pd.DataFrame, timeframe: str, limit: int, log
             vals.append(max(0.0, 0.7 * volp + 0.3 * st))
         except Exception:
             vals.append(0.0)
+            ExchangeRouter = None
         time.sleep(0.05)
     df = df_liq.copy()
     df["vol_metric"] = vals
@@ -498,3 +501,4 @@ class Universe:
             return [o.get("symbol") for o in ops if o.get("symbol")]
         except Exception:
             return []
+            open_positions = None

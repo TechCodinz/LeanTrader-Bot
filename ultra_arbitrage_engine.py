@@ -401,6 +401,7 @@ class UltraArbitrageEngine:
         except Exception as e:
             self.logger.error(f"Error simulating arbitrage execution: {e}")
             return False
+            random = None
 
     async def _monitor_arbitrage_positions(self) -> None:
         """Monitor active arbitrage positions"""

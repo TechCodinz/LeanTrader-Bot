@@ -21,13 +21,22 @@ import time
 import threading
 import schedule
 from telegram import Bot
-from qiskit import QuantumCircuit, transpile, Aer, execute
+try:
+    from qiskit import QuantumCircuit, transpile, Aer, execute
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    QuantumCircuit = None
+    transpile = None
+    Aer = None
+    execute = None
 import joblib
 import sqlite3
 import feedparser
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.preprocessing import StandardScaler
-import talib
+try:
+    import talib
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    talib = None
 import warnings
 
 warnings.filterwarnings('ignore')

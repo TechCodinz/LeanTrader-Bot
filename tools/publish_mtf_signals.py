@@ -243,8 +243,11 @@ def main() -> int:
                 print(f"Sent premium signal photo for {symbol}: {ok}")
             except Exception as e:
                 print("Failed to send photo with buttons:", e)
+                send_photo_rich = None
         except Exception as e:
             print("Error processing promoted signal:", e)
+            build_confirm_buttons = None
+            send_photo_rich = None
 
     return 0
 

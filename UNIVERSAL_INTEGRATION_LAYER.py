@@ -52,6 +52,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ ExchangeRouter")
         except Exception as e:
             logger.warning(f"  ⚠️  ExchangeRouter: {e}")
+            ExchangeRouter = None
         
         try:
             from risk_engine import RiskEngine
@@ -59,6 +60,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ RiskEngine")
         except Exception as e:
             logger.warning(f"  ⚠️  RiskEngine: {e}")
+            RiskEngine = None
         
         try:
             from brain import Brain
@@ -66,6 +68,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ Brain")
         except Exception as e:
             logger.warning(f"  ⚠️  Brain: {e}")
+            Brain = None
         
         try:
             from pattern_memory import PatternMemory
@@ -73,6 +76,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ PatternMemory")
         except Exception as e:
             logger.warning(f"  ⚠️  PatternMemory: {e}")
+            PatternMemory = None
         
         try:
             from ledger import Ledger
@@ -80,6 +84,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ Ledger")
         except Exception as e:
             logger.warning(f"  ⚠️  Ledger: {e}")
+            Ledger = None
         
         try:
             from ultra_core import UltraCore
@@ -87,6 +92,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ UltraCore")
         except Exception as e:
             logger.warning(f"  ⚠️  UltraCore: {e}")
+            UltraCore = None
         
         try:
             from awareness import SituationalAwareness
@@ -94,6 +100,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ SituationalAwareness")
         except Exception as e:
             logger.warning(f"  ⚠️  SituationalAwareness: {e}")
+            SituationalAwareness = None
         
         try:
             from hivemind import HiveCoordinator
@@ -101,6 +108,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ HiveCoordinator")
         except Exception as e:
             logger.warning(f"  ⚠️  HiveCoordinator: {e}")
+            HiveCoordinator = None
         
         try:
             from gloaware import GlobalAwareness
@@ -108,6 +116,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ GlobalAwareness")
         except Exception as e:
             logger.warning(f"  ⚠️  GlobalAwareness: {e}")
+            GlobalAwareness = None
         
         logger.info(f"✅ Loaded {len(self.systems)}/9 core infrastructure systems")
     
@@ -121,6 +130,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ UltraArbitrageEngine")
         except Exception as e:
             logger.warning(f"  ⚠️  UltraArbitrageEngine: {e}")
+            UltraArbitrageEngine = None
         
         try:
             from ultra_scalping_engine import UltraScalpingEngine
@@ -128,6 +138,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ UltraScalpingEngine")
         except Exception as e:
             logger.warning(f"  ⚠️  UltraScalpingEngine: {e}")
+            UltraScalpingEngine = None
         
         try:
             from ultra_moon_spotter import UltraMoonSpotter
@@ -135,6 +146,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ UltraMoonSpotter")
         except Exception as e:
             logger.warning(f"  ⚠️  UltraMoonSpotter: {e}")
+            UltraMoonSpotter = None
         
         try:
             from REAL_PROFIT_BOT import RealProfitBot
@@ -142,6 +154,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ RealProfitBot")
         except Exception as e:
             logger.warning(f"  ⚠️  RealProfitBot: {e}")
+            RealProfitBot = None
         
         try:
             from enhanced_trading_bot import EnhancedTradingBot
@@ -149,6 +162,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ EnhancedTradingBot")
         except Exception as e:
             logger.warning(f"  ⚠️  EnhancedTradingBot: {e}")
+            EnhancedTradingBot = None
         
         logger.info(f"✅ Loaded {len(self.engines)}/5 trading engines")
     
@@ -162,6 +176,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ EvolutionEngine")
         except Exception as e:
             logger.warning(f"  ⚠️  EvolutionEngine: {e}")
+            ULTIMATE_EVOLUTION_ENGINE = None
         
         try:
             from working_450_models_bot import working_450_models_bot
@@ -169,6 +184,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ 450+ Models Bot")
         except Exception as e:
             logger.warning(f"  ⚠️  450+ Models: {e}")
+            working_450_models_bot = None
         
         try:
             from ultra_swarm_consciousness import UltraSwarmConsciousness
@@ -176,6 +192,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ UltraSwarmConsciousness")
         except Exception as e:
             logger.warning(f"  ⚠️  SwarmConsciousness: {e}")
+            UltraSwarmConsciousness = None
         
         try:
             from divine_intelligence_core import DivineIntelligence
@@ -183,6 +200,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ DivineIntelligence")
         except Exception as e:
             logger.warning(f"  ⚠️  DivineIntelligence: {e}")
+            DivineIntelligence = None
         
         try:
             from ml_strategy_engine import MLStrategyEngine
@@ -190,6 +208,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ MLStrategyEngine")
         except Exception as e:
             logger.warning(f"  ⚠️  MLStrategyEngine: {e}")
+            MLStrategyEngine = None
         
         try:
             from online_learner import OnlineLearner
@@ -197,6 +216,7 @@ class UniversalIntegrationLayer:
             logger.info("  ✅ OnlineLearner")
         except Exception as e:
             logger.warning(f"  ⚠️  OnlineLearner: {e}")
+            OnlineLearner = None
         
         logger.info(f"✅ Loaded {len(self.ai_systems)}/6 AI/ML systems")
     

@@ -21,6 +21,7 @@ def build(exchange_id: str, quotes=("USDT", "USD"), min_cost_usd: float = 5.0):
         import ccxt
 
         ex = getattr(ccxt, exchange_id)({"enableRateLimit": True, "timeout": 15000})
+        ExchangeRouter = None
     markets = ex.load_markets()
     syms = []
     bad = re.compile(r"(UP|DOWN|3L|3S|BULL|BEAR|PERP|^[A-Z]+_[A-Z]+)$", re.I)

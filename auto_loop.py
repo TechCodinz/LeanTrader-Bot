@@ -97,6 +97,8 @@ def _import_mt5_helpers():
                 )
         except Exception:
             pass
+            importlib = None
+            sys = None
 
     def mt5_init():
         return None

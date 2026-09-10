@@ -39,6 +39,14 @@ try:
 except ImportError as e:
     print(f"⚠️  Core infrastructure import error: {e}")
     print("Some modules may not be available")
+    UltraCore = None
+    RiskEngine = None
+    Brain = None
+    PatternMemory = None
+    Ledger = None
+    SituationalAwareness = None
+    HiveCoordinator = None
+    GlobalAwareness = None
 
 # Trading Engines
 try:
@@ -49,6 +57,11 @@ try:
     from enhanced_trading_bot import EnhancedTradingBot
 except ImportError as e:
     print(f"⚠️  Trading engine import error: {e}")
+    UltraArbitrageEngine = None
+    UltraScalpingEngine = None
+    UltraMoonSpotter = None
+    RealProfitBot = None
+    EnhancedTradingBot = None
 
 # AI/ML Systems
 try:
@@ -60,6 +73,12 @@ try:
     from online_learner import OnlineLearner
 except ImportError as e:
     print(f"⚠️  AI/ML systems import error: {e}")
+    EvolutionEngine = None
+    AI450ModelsBot = None
+    UltraSwarmConsciousness = None
+    DivineIntelligence = None
+    MLStrategyEngine = None
+    OnlineLearner = None
 
 # Advanced Intelligence
 try:
@@ -68,6 +87,9 @@ try:
     from ultra_backtest_engine import UltraBacktestEngine
 except ImportError as e:
     print(f"⚠️  Advanced intelligence import error: {e}")
+    UltraQuantumIntelligence = None
+    UltraFluidMechanics = None
+    UltraBacktestEngine = None
 
 # Nobel Prize Systems
 try:
@@ -76,6 +98,9 @@ try:
     from nobel_ai_models import NobelAIModels
 except ImportError as e:
     print(f"⚠️  Nobel systems import error: {e}")
+    NobelHedgeFundSystem = None
+    NobelCompleteSystem = None
+    NobelAIModels = None
 
 # Business & Monetization
 try:
@@ -83,6 +108,8 @@ try:
     from november_growth_strategy import NovemberGrowthStrategy
 except ImportError as e:
     print(f"⚠️  Business systems import error: {e}")
+    UltraBusinessSystem = None
+    NovemberGrowthStrategy = None
 
 # Utilities
 try:
@@ -93,6 +120,11 @@ try:
     from strategy_zoo import StrategyZoo
 except ImportError as e:
     print(f"⚠️  Utility systems import error: {e}")
+    ExchangeRouter = None
+    PaperBroker = None
+    Notifier = None
+    AlphaRouter = None
+    StrategyZoo = None
 
 logging.basicConfig(
     level=logging.INFO,

@@ -38,6 +38,7 @@ def main():
             print(logger.daily_pnl_report(day))
         except Exception:
             print("Daily summary unavailable.")
+            OutcomeLogger = None
         return
 
     df = _load()

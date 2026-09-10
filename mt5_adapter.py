@@ -25,6 +25,7 @@ def _placeholder_bars_df(symbol: str, timeframe_str: str, limit: int = 200):
         return pd.DataFrame()
     except Exception:
         return None
+        pd = None
 
 def _placeholder_ensure_symbol(symbol: str) -> None:
     return None
@@ -126,6 +127,8 @@ try:
         pass
 except Exception:
     pass
+    importlib = None
+    sys = None
 
 def _live_trading_allowed() -> bool:
     """Return True only when explicit environment gates permit live trading.
@@ -304,6 +307,7 @@ def symbol_trade_specs(symbol: str) -> Dict[str, Any]:
             "trade_contract_size": float(getattr(info, "trade_contract_size", 0.0)),
             "trade_tick_value": float(getattr(info, "trade_tick_value", 0.0)),
         }
+        core_mt5 = None
 
 def order_send_market(
     mt5mod,
@@ -334,3 +338,4 @@ def order_send_market(
     except Exception:
         # If delegation fails, provide a safe failure payload
         return {"ok": False, "retcode": -1, "comment": "order_send_market shim failed", "deal": 0}
+        core_mt5 = None

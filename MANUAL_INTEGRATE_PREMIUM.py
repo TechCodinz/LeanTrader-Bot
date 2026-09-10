@@ -100,6 +100,7 @@ except Exception as e:
             out.write(f.read())
     print()
     sys.exit(1)
+    ExecutionOrchestrator = None
 
 # ==============================================================================
 # PART 2: ULTRA RARE ENGINES - Manual Integration  
@@ -164,6 +165,7 @@ except Exception as e:
             out.write(f.read())
     print()
     sys.exit(1)
+    CompleteUltimateOrchestrator = None
 
 # ==============================================================================
 # SUCCESS!

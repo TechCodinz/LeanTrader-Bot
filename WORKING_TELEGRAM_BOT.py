@@ -24,6 +24,8 @@ try:
 except ImportError:
     TELEGRAM_AVAILABLE = False
     logger.warning("⚠️  python-telegram-bot not installed. Install: pip install python-telegram-bot")
+    Bot = None
+    TelegramError = None
 
 
 class WorkingTelegramBot:

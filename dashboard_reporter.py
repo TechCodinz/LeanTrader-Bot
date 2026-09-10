@@ -50,6 +50,7 @@ class DashboardReporter:
                 def note(self, *a, **k):
                     return None
             self._tg = _Noop()
+            TelegramNotifier = None
 
     def update(self, symbol: str, timeframe: str, prob: float, side: str | None, price: float):
         sym = symbol.upper()
@@ -87,6 +88,7 @@ class DashboardReporter:
                 cx = cross_examine(frame_probs, frame_sides, tf)
             except Exception:
                 cx = {"headline": ""}
+                cross_examine = None
             emoji = _side_emoji(views[tf].side)
             p = _fmt_prob(views[tf].prob)
             lines.append(f"`{tf:>3}` {emoji} p={p}  {cx['headline']}")

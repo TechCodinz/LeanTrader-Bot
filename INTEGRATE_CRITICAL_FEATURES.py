@@ -372,6 +372,8 @@ def verify_integration():
             
     except Exception as e:
         print(f"⚠️  Could not verify: {e}")
+        CompleteUltimateOrchestrator = None
+        orch_module = None
     
     print("\nResults:")
     for feature, status in checks.items():

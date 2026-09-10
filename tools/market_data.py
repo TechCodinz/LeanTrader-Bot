@@ -23,6 +23,7 @@ try:
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
+    redis = None
 
 class MarketDataManager:
     """Ultra-advanced market data management with caching and streaming."""
@@ -114,6 +115,7 @@ class MarketDataManager:
                 df['timestamp'] = pd.to_datetime(df['timestamp'])
                 return df
             return pd.DataFrame(columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            ExchangeRouter = None
 
     def get_multi_timeframe(
         self, symbol: str, timeframes: List[str] = None

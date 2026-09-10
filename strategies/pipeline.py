@@ -32,6 +32,8 @@ try:
     from config import Q_ENABLE_QUANTUM, Q_USE_RUNTIME  # type: ignore
 except Exception:
     Q_ENABLE_QUANTUM, Q_USE_RUNTIME = False, True
+    Q_ENABLE_QUANTUM = None
+    Q_USE_RUNTIME = None
 import logging
 try:
     from observability.metrics import record_pnl_quantum, record_pnl_classical
@@ -116,6 +118,8 @@ def daily_rebalance_job(market_df: pd.DataFrame, latest_regime: str | None = Non
             return {"ok": False, "error": "blocked_by_calendar", "reasons": gate.get("reasons", [])}
     except Exception:
         gate = {"throttle": {}}
+        datetime = None
+        timezone = None
     # Feature validation
     pre_df = market_df[symbols]
     try:
@@ -231,6 +235,7 @@ def daily_rebalance_job(market_df: pd.DataFrame, latest_regime: str | None = Non
             lam = min(1.0, max(0.0, lam * lb))
     except Exception:
         pass
+        json = None
     # apply lambda throttle if present
     try:
         lam_max = float(gate.get("throttle", {}).get("lambda_max", lam))
@@ -345,6 +350,8 @@ def daily_rebalance_job(market_df: pd.DataFrame, latest_regime: str | None = Non
         kv.set(prev_key, cur.tolist())
     except Exception:
         pass
+        kv = None
+        FusionModel = None
 
     selected_final = [symbols[i] for i in range(len(symbols)) if (i < len(w_final) and w_final[i] > 0)]
     return {

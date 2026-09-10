@@ -247,6 +247,7 @@ def _render_for_telegram2(s: Dict[str, Any]) -> Tuple[str, List[str]]:
         lines.append(f"_Published: {_dt.utcfromtimestamp(ts).isoformat()}Z_")
     except Exception:
         pass
+        _dt = None
 
     return title, lines
 
@@ -351,6 +352,7 @@ def publish_signal(sig: Dict[str, Any]) -> Dict[str, Any]:
             )
         except Exception:
             pass
+            _get_prior = None
     if s["confidence"] < eff_minconf:
         return {"ok": False, "id": None, "skipped_reason": f"conf<{eff_minconf}"}
 
@@ -422,6 +424,7 @@ def publish_signal(sig: Dict[str, Any]) -> Dict[str, Any]:
         chart_url = chart_path
     except Exception:
         chart_url = None
+        plot_candlestick = None
 
     if _BUCKET.allow():
         try:
@@ -451,6 +454,7 @@ def publish_signal(sig: Dict[str, Any]) -> Dict[str, Any]:
                         ohlcv = rows
                     except Exception:
                         ohlcv = []
+                        fetch_ohlcv_multi = None
                 snap = analyze_ohlcv(ohlcv)
                 if snap:
                     lines.insert(0, "*Market Snapshot*")
@@ -463,6 +467,8 @@ def publish_signal(sig: Dict[str, Any]) -> Dict[str, Any]:
                     )
             except Exception:
                 pass
+                analyze_ohlcv = None
+                fetch_ohlcv_multi = None
 
             sent_ok = False
             if ultra_mode and ultra_inline and _build_confirm_buttons is not None:
@@ -511,8 +517,16 @@ def publish_signal(sig: Dict[str, Any]) -> Dict[str, Any]:
                         notified["telegram_chart"] = bool(send_photo(caption, chart_url))
                 except Exception as _e:
                     print("[telegram chart] error:", _e)
+                    send_photo = None
+                    _up = None
         except Exception as _e:
             print("[telegram] error:", _e)
+            analyze_ohlcv = None
+            send_message_with_buttons = None
+            send_photo_with_buttons = None
+            send_photo = None
+            fetch_ohlcv_multi = None
+            _up = None
         notified["webhook"] = _post_webhook(s)
     else:
         notified["rate_limited"] = True

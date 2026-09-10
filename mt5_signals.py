@@ -17,6 +17,7 @@ try:
     print(f"[diag mt5_signals] file={__file__} sys.path[0]={sys.path[0]}")
 except Exception:
     pass
+    sys = None
 
 # Avoid hard top-level imports from mt5_adapter which can raise during
 # import and cause ImportError at module-import time for downstream
@@ -106,6 +107,9 @@ def _import_mt5_helpers():
                     }
         except Exception:
             pass
+            importlib = None
+            sys = None
+            Path = None
 
         # Provide safe no-op fallbacks so the demo/crawler keep running in
         # environments without MetaTrader5 or where the adapter partially
@@ -134,6 +138,7 @@ def _import_mt5_helpers():
             "order_send_market": _order_send_market,
             "symbol_trade_specs": _symbol_trade_specs,
         }
+        os = None
 
 def ema(series: pd.Series, n: int) -> pd.Series:
     return series.ewm(span=n, adjust=False).mean()
@@ -206,6 +211,7 @@ def place_mt5_signal(
             }
     except Exception:
         pass
+        os = None
     try:
         min_pts = helpers["min_stop_distance_points"](symbol)
         info = helpers["symbol_trade_specs"](symbol)

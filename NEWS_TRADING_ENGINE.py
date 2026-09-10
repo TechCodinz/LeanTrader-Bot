@@ -23,6 +23,7 @@ try:
 except ImportError:
     AIOHTTP_AVAILABLE = False
     logging.warning("aiohttp not available - news trading will use fallback")
+    aiohttp = None
 
 logger = logging.getLogger(__name__)
 

@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
@@ -27,6 +30,10 @@ try:
 except ImportError:
     TELEGRAM_AVAILABLE = False
     logger.warning("Telegram package not available")
+    Bot = None
+    InlineKeyboardButton = None
+    InlineKeyboardMarkup = None
+    TelegramError = None
 
 class MultiChannelUltraTradingSystem:
     """ULTRA TRADING SYSTEM - MULTI-CHANNEL VERSION"""
@@ -407,6 +414,7 @@ class MultiChannelUltraTradingSystem:
 
         except Exception as e:
             logger.error(f"Error detecting arbitrage: {e}")
+            random = None
 
         return arbitrage_ops
 
@@ -474,6 +482,7 @@ class MultiChannelUltraTradingSystem:
 
         except Exception as e:
             logger.error(f"Error spotting micro moons: {e}")
+            random = None
 
         return micro_moons
 
@@ -604,6 +613,7 @@ class MultiChannelUltraTradingSystem:
 
         except Exception as e:
             logger.error(f"Error in forex analysis: {e}")
+            random = None
 
         return forex_signals
 
@@ -634,6 +644,7 @@ class MultiChannelUltraTradingSystem:
 
         except Exception as e:
             logger.error(f"Error in quantum analysis: {e}")
+            random = None
 
     async def run_web_crawling(self):
         """Run web crawling for news and strategies"""
@@ -669,6 +680,7 @@ class MultiChannelUltraTradingSystem:
 
         except Exception as e:
             logger.error(f"Error in web crawling: {e}")
+            random = None
 
     async def run_continuous_training(self):
         """Run continuous model training - ADMIN ONLY"""

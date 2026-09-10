@@ -7,8 +7,15 @@ import sqlite3
 import logging
 from datetime import datetime
 from pathlib import Path
-from aiogram import Bot
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+try:
+    from aiogram import Bot
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    Bot = None
+try:
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    InlineKeyboardButton = None
+    InlineKeyboardMarkup = None
 from sklearn.ensemble import (
     RandomForestClassifier,
     GradientBoostingClassifier,

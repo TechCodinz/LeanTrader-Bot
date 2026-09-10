@@ -14,10 +14,12 @@ def _ensure_deps() -> None:
         import yaml  # type: ignore
     except Exception:
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", "pyyaml"], check=False)
+        yaml = None
     try:
         import ccxt  # type: ignore
     except Exception:
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", "ccxt"], check=False)
+        ccxt = None
 
 
 def _load_yaml(path: pathlib.Path) -> Dict[str, Any]:
@@ -46,6 +48,7 @@ def _probe_balance_usd(env: Dict[str, str]) -> float:
         import ccxt  # type: ignore
     except Exception:
         return -1.0
+        ccxt = None
 
     ex_id = (env.get("EXCHANGE_ID") or "").lower().replace("gate.io", "gateio")
     if not hasattr(ccxt, ex_id):

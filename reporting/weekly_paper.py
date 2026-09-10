@@ -181,6 +181,7 @@ def write_weekly_report(
         payload['ideas'] = ideas
     except Exception:
         payload['ideas'] = None
+        generate_ideas = None
     # Always write HTML
     html = render_weekly_html(payload)
     out_dir = Path(out_prefix).parent
@@ -212,6 +213,8 @@ def write_weekly_report(
                 pdf_ok = True
         except Exception:
             pdf_ok = False
+            subprocess = None
+        HTML = None
 
     return {'html': out_html, 'pdf': out_pdf if pdf_ok else None}
 

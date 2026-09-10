@@ -24,6 +24,7 @@ def main(argv=None):
         report["full_project"] = scan_full_project(args.root)
     except Exception as _e:
         report["full_project_error"] = str(_e)
+        scan_full_project = None
     # run strategy + model scan
     try:
         from strategy import scan_project_with_model
@@ -31,6 +32,7 @@ def main(argv=None):
         report["strategy_scan"] = scan_project_with_model(args.root)
     except Exception as _e:
         report["strategy_scan_error"] = str(_e)
+        scan_project_with_model = None
 
     # Detect requirements-like files in project root (catch misspellings like 'require,ents.fx.txt')
     try:

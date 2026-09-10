@@ -165,6 +165,7 @@ class UnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Failed to initialize enhanced bot: {e}")
             self.status.errors.append(f"Enhanced bot init: {e}")
+            EnhancedTradingBot = None
     
     async def _init_exchange_router(self):
         """Initialize exchange router"""
@@ -182,6 +183,7 @@ class UnifiedTradingSystem:
         except Exception as e:
             logger.warning(f"⚠️  Exchange router not available: {e}")
             self.status.errors.append(f"Exchange router: {e}")
+            ExchangeRouter = None
     
     async def _init_arbitrage_engine(self):
         """Initialize arbitrage engine"""
@@ -197,6 +199,7 @@ class UnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Failed to initialize arbitrage engine: {e}")
             self.status.errors.append(f"Arbitrage engine: {e}")
+            UltraArbitrageEngine = None
     
     async def _init_scalping_engine(self):
         """Initialize scalping engine"""
@@ -212,6 +215,7 @@ class UnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Failed to initialize scalping engine: {e}")
             self.status.errors.append(f"Scalping engine: {e}")
+            UltraScalpingEngine = None
     
     async def _init_moon_spotter(self):
         """Initialize moon spotter"""
@@ -226,6 +230,7 @@ class UnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Failed to initialize moon spotter: {e}")
             self.status.errors.append(f"Moon spotter: {e}")
+            UltraMoonSpotter = None
     
     async def _init_evolution_engine(self):
         """Initialize evolution engine"""
@@ -237,6 +242,7 @@ class UnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Failed to initialize evolution engine: {e}")
             self.status.errors.append(f"Evolution engine: {e}")
+            ULTIMATE_EVOLUTION_ENGINE = None
     
     async def _init_online_learner(self):
         """Initialize online learner"""
@@ -248,6 +254,7 @@ class UnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Failed to initialize online learner: {e}")
             self.status.errors.append(f"Online learner: {e}")
+            OnlineLearner = None
     
     async def _init_risk_manager(self):
         """Initialize risk management"""
@@ -257,6 +264,8 @@ class UnifiedTradingSystem:
             logger.info("✅ Risk manager initialized")
         except Exception as e:
             logger.warning(f"⚠️  Risk manager not available, using defaults: {e}")
+            GuardState = None
+            RiskLimits = None
     
     async def _init_portfolio_manager(self):
         """Initialize portfolio manager"""
@@ -265,6 +274,7 @@ class UnifiedTradingSystem:
             logger.info("✅ Portfolio manager initialized")
         except Exception as e:
             logger.warning(f"⚠️  Portfolio manager not available: {e}")
+            choose_assets = None
     
     async def _init_telegram_bot(self):
         """Initialize Telegram notifications"""

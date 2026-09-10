@@ -192,6 +192,7 @@ def scan_moon_radar() -> Dict[str, Any]:
     except Exception:
         early_entry_filter = None  # type: ignore
         thr = None  # type: ignore
+        EntryThresholds = None
 
     ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
     watch: List[Dict[str, Any]] = []
@@ -241,6 +242,7 @@ def propose_pilots_from_moon(
         )
     except Exception:
         return []
+        propose_pilots = None
 
 def main() -> int:
     p = argparse.ArgumentParser(

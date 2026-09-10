@@ -4,6 +4,8 @@ try:
 except Exception:
     # Safe defaults if config is not importable in some environments
     Q_ENABLE_QUANTUM, Q_USE_RUNTIME = False, True
+    Q_ENABLE_QUANTUM = None
+    Q_USE_RUNTIME = None
 
 # Try to import a quantum optimizer if present
 quantum_portfolio_optimize = None

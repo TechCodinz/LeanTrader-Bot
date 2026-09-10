@@ -173,6 +173,7 @@ except Exception as e:
         with open('EXECUTION_ORCHESTRATOR.py', 'w') as out:
             out.write(f.read())
     sys.exit(1)
+    ExecutionOrchestrator = None
 
 try:
     from COMPLETE_ULTIMATE_ORCHESTRATOR import CompleteUltimateOrchestrator
@@ -184,6 +185,7 @@ except Exception as e:
         with open('COMPLETE_ULTIMATE_ORCHESTRATOR.py', 'w') as out:
             out.write(f.read())
     sys.exit(1)
+    CompleteUltimateOrchestrator = None
 
 # ============================================================================
 # SUCCESS!

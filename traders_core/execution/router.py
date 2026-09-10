@@ -143,8 +143,12 @@ def decide_and_execute_mt5(
                 secure_write(f"runtime/trade_logs/MT5_{symbol}_{int(_t.time())}.enc", trade_log)
             except Exception:
                 pass
+                secure_write = None
         except Exception:
             pass
+            write_explanation_markdown = None
+            _t = None
+            secure_write = None
         return result
 
     record_order_sent(1)
@@ -199,6 +203,10 @@ def decide_and_execute_mt5(
             secure_write(f"runtime/trade_logs/MT5_{symbol}_{int(_t.time())}.enc", trade_log)
         except Exception:
             pass
+            secure_write = None
     except Exception:
         pass
+        write_explanation_markdown = None
+        _t = None
+        secure_write = None
     return result

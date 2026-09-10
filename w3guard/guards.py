@@ -89,8 +89,10 @@ def load_mempool_tuning_from_file(path: str) -> int:
             data = yaml.safe_load(raw) or {}
         except Exception:
             data = _json.loads(raw)
+            yaml = None
     except Exception:
         return 0
+        yaml = None
 
     count = 0
     try:

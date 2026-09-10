@@ -21,6 +21,7 @@ def run():
         out["errors"].append(f"import ExchangeRouter failed: {e}")
         print(json.dumps(out, indent=2))
         return
+        ExchangeRouter = None
 
     try:
         ex = ExchangeRouter()

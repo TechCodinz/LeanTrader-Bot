@@ -41,6 +41,14 @@ except ImportError:
     Session = None
     Sampler = None
     Estimator = None
+    QuantumCircuit = None
+    QuantumRegister = None
+    ClassicalRegister = None
+    transpile = None
+    AerSimulator = None
+    RealAmplitudes = None
+    ZZFeatureMap = None
+    SparsePauliOp = None
 
 logger = logging.getLogger(__name__)
 

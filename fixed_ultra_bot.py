@@ -29,6 +29,8 @@ try:
 except ImportError:
     TELEGRAM_AVAILABLE = False
     logger.warning("Telegram package not available")
+    Bot = None
+    TelegramError = None
 
 class FixedUltraTradingSystem:
     """ULTRA TRADING SYSTEM - FIXED VERSION"""
@@ -410,6 +412,7 @@ class FixedUltraTradingSystem:
 
         except Exception as e:
             logger.error(f"Error in quantum analysis: {e}")
+            random = None
 
     async def run_web_crawling(self):
         """Run web crawling for news and strategies"""

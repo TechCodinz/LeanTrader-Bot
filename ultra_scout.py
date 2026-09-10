@@ -75,6 +75,7 @@ class UltraScout:
                 self._sentiment_analyzer = pipeline("sentiment-analysis")
             except Exception:
                 self._sentiment_analyzer = None
+                pipeline = None
         return self._sentiment_analyzer
 
     def _get_anomaly_detector(self):
@@ -85,6 +86,7 @@ class UltraScout:
                 self._anomaly_detector = IsolationForest(contamination=0.05, random_state=0)
             except Exception:
                 self._anomaly_detector = None
+                IsolationForest = None
         return self._anomaly_detector
 
     def _get_rl_model(self):
@@ -108,6 +110,7 @@ class UltraScout:
                     self._gpt_client = _openai
             except Exception:
                 self._gpt_client = None
+                _openai = None
         return self._gpt_client
 
     # -------------------------
@@ -252,6 +255,7 @@ class UltraScout:
                 'error': str(e),
                 'score': random.uniform(-1, 2),  # Fallback
             }
+            get_strategy = None
 
         return results
 
@@ -821,6 +825,7 @@ class UltraScout:
                 return "bear"
         except Exception:
             pass
+            KMeans = None
         fast = float(np.mean(prices[-5:])) if len(prices) >= 5 else float(np.mean(prices))
         slow = float(np.mean(prices[-20:])) if len(prices) >= 20 else fast
         if fast > slow:

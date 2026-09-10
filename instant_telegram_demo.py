@@ -17,6 +17,8 @@ try:
     TELEGRAM_AVAILABLE = True
 except ImportError:
     TELEGRAM_AVAILABLE = False
+    Bot = None
+    TelegramError = None
 
 async def send_instant_notifications():
     """Send instant notifications to show you it's working"""

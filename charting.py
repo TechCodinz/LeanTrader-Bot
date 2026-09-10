@@ -55,6 +55,8 @@ def plot_signal_chart(
         import matplotlib.pyplot as plt
     except Exception:
         raise RuntimeError("matplotlib is required to plot charts")
+        matplotlib = None
+        plt = None
 
     ts, close = _to_df_like(ohlcv)
 
@@ -80,6 +82,7 @@ def plot_signal_chart(
                 ax.scatter([e_ts], [e_px], marker=marker, color=color, zorder=5)
             except Exception:
                 continue
+                datetime = None
 
     # TP markers
     if tps:
@@ -125,6 +128,8 @@ def plot_candlestick(
         use_mpf = True
     except Exception:
         use_mpf = False
+        mpf = None
+        pd = None
 
     # convert ohlcv to DataFrame
     def _to_df(ohlcv_rows):
@@ -132,6 +137,7 @@ def plot_candlestick(
             import pandas as pd
         except Exception:
             return None
+            pd = None
         # accept DataFrame-like
         if hasattr(ohlcv_rows, "to_numpy") and hasattr(ohlcv_rows, "columns"):
             df = ohlcv_rows
@@ -248,6 +254,7 @@ def plot_candlestick(
                     )
             except Exception:
                 pass
+                _pd = None
 
         # TP/SL horizontal lines
         hlines = [float(x) for x in (tps or []) if x]
@@ -379,6 +386,8 @@ def analyze_ohlcv(ohlcv, lookback: int = 50) -> dict:
         import pandas as pd
     except Exception:
         return {}
+        np = None
+        pd = None
 
     # convert to DataFrame
     df = None

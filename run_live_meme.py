@@ -78,6 +78,7 @@ def make_exchange(exchange_id: str, api_key=None, api_secret=None):
             return router
     except Exception:
         pass
+        ExchangeRouter = None
 
     import ccxt
 
@@ -163,6 +164,7 @@ def live_loop(
             return cmds
         except Exception:
             return []
+            json = None
 
     # helper: preflight self-check to validate environment & markets
     def preflight_self_check(router, symbols_list):

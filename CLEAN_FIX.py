@@ -78,6 +78,7 @@ except Exception as e:
         with open('EXECUTION_ORCHESTRATOR.py', 'w') as out:
             out.write(f.read())
     sys.exit(1)
+    ExecutionOrchestrator = None
 
 print("═══════════════════════════════════════════════════════════════")
 print("✅ DIVISION ERRORS FIXED!")

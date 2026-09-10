@@ -12,3 +12,5 @@ except Exception as e:
 
     traceback.print_exc()
     print("ERR", e)
+    risk_guard = None
+    trader_core = None

@@ -148,6 +148,7 @@ class NotificationManager:
 
             except Exception as e:
                 logger.warning(f"⚠️ SMS configuration failed: {e}")
+                Client = None
 
     async def _check_webhook_config(self):
         """Check webhook configuration"""
@@ -298,6 +299,7 @@ class NotificationManager:
 
         except Exception as e:
             logger.error(f"Error sending SMS notification: {e}")
+            Client = None
 
     async def _send_webhook(self, title: str, message: str, level: str):
         """Send webhook notification"""

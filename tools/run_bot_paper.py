@@ -47,6 +47,8 @@ def run_once(symbol=None, timeframe="1m", limit=200):
         out["errors"].append(f"import error: {e}")
         print(json.dumps(out, indent=2))
         return
+        get_strategy = None
+        resolve_strategy_and_params = None
 
     try:
         ex = ExchangeRouter()

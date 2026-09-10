@@ -531,6 +531,8 @@ class ExecutionOrchestrator:
             
         except Exception as e:
             logger.error(f"All price fetch attempts failed for {symbol}: {e}")
+            ccxt = None
+            os = None
         
         return None
     

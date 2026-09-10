@@ -76,6 +76,7 @@ def _news_score_for(symbol: str) -> float:
         return float(scores.get(symbol.replace("/", ""), 0.5))
     except Exception:
         return 0.5
+        _t = None
 
 def fuse_confluence(symbol: str, row: pd.Series, ts: pd.Timestamp) -> Tuple[float, List[str]]:
     notes: List[str] = []

@@ -32,6 +32,9 @@ def _import_mt5_init():
                 return getattr(mod, "mt5_init", lambda: None)
         except Exception:
             pass
+            importlib = None
+            sys = None
+            Path = None
 
     def _noop_mt5_init():
         return None
@@ -58,6 +61,8 @@ def _import_risk_components():
     except Exception:
         # continue to file-based import
         pass
+        RiskConfig = None
+        RiskManager = None
 
     try:
         import importlib.util
@@ -77,6 +82,8 @@ def _import_risk_components():
             return getattr(mod, "RiskConfig"), getattr(mod, "RiskManager")
     except Exception:
         pass
+        importlib = None
+        sys = None
 
     # Fallback shims
     class RiskConfig:  # type: ignore
@@ -214,6 +221,9 @@ def _lazy_mt5_signals():
                 )
         except Exception:
             pass
+            importlib = None
+            sys = None
+            Path = None
 
     # fallbacks
     def _fb(*a, **k):
@@ -245,6 +255,7 @@ try:
         pass
 except Exception:
     pass
+    sys = None
 
 ENABLE_LIVE = (os.getenv("ENABLE_LIVE") or "false").strip().lower() in (
     "1",
@@ -505,6 +516,9 @@ class TraderCore:
             print("🧠 Meta-brain activated for ensemble learning")
         except Exception as e:
             print(f"⚠️ Meta-brain disabled: {e}")
+            compute_weights = None
+            log_weights = None
+            write_metrics = None
         
         loop_count = 0
         while True:

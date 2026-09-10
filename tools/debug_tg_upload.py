@@ -20,6 +20,7 @@ try:
 except Exception as e:
     print("failed to import tg_utils:", e)
     raise
+    debug_send_photo = None
 
 ok, details = debug_send_photo(f"Debug upload {chart.name}", str(chart))
 print("ok:", ok)

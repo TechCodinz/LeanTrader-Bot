@@ -91,6 +91,8 @@ class UltraMarketData:
             logger.info("Initialized ML components")
         except ImportError:
             logger.warning("scikit-learn not installed, ML features disabled")
+            IsolationForest = None
+            StandardScaler = None
 
     def _init_news_components(self):
         """Initialize news and sentiment analysis components."""
@@ -102,6 +104,7 @@ class UltraMarketData:
         except ImportError:
             logger.warning("transformers not installed, using basic sentiment")
             self._sentiment_analyzer = None
+            pipeline = None
 
     def fetch_ohlcv_ultra(
         self,
@@ -542,6 +545,7 @@ class UltraMarketData:
 
         except ImportError:
             logger.error("ccxt.pro not installed, WebSocket streaming unavailable")
+            ccxtpro = None
 
     def validate_data(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Validate data quality."""

@@ -65,6 +65,7 @@ def main():
                 write_daily_attribution(args.date, pnl_series, components)
         except Exception:
             pass
+            write_daily_attribution = None
         html = render_html(payload)
         out_html = f"{args.out}.html"
         out_pdf = f"{args.out}.pdf"
@@ -77,6 +78,7 @@ def main():
     except Exception as e:
         print(json.dumps({"error": str(e)}))
         sys.exit(1)
+        write_daily_attribution = None
 
 if __name__ == "__main__":
     main()

@@ -65,6 +65,9 @@ def run_ibm_check(
             "error": "qiskit-ibm-runtime not installed",
         }
         return res, 1
+        QiskitRuntimeService = None
+        Session = None
+        Sampler = None
 
     # Try import for building the test circuit
     try:

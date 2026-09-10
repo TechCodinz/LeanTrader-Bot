@@ -118,6 +118,7 @@ def save_csv(symbol: str, tf: str, rows: List[List[float]]) -> str:
                 w.writerow(r)
     except Exception:
         pass
+        csv = None
     return str(path)
 
 if __name__ == "__main__":

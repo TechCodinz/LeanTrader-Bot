@@ -301,3 +301,5 @@ if __name__ == "__main__":  # quick CLI for strategy + codebase checks
         print(_json.dumps(scan_project_with_model(root), indent=2))
     except Exception as _e:
         print(f"[strategy.scan] error: {_e}")
+        _json = None
+        sys = None

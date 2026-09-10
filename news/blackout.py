@@ -51,10 +51,13 @@ def is_high_impact_soon(symbol: str, minutes: int = 15) -> bool:
                                 ts = _dt.datetime.fromisoformat(ts_raw).timestamp()
                             except Exception:
                                 continue
+                                _dt = None
                         if cc == cur and imp in ("high", "3", "red") and 0 <= ts - now <= window:
                             return True
                     except Exception:
                         continue
+                        _dt = None
         except Exception:
             continue
+            _dt = None
     return False

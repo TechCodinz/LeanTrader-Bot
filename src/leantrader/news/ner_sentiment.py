@@ -26,6 +26,7 @@ def sentiment_score(text: str) -> float:
         return float(s.get("compound", 0.0))
     except Exception:
         pass
+        SentimentIntensityAnalyzer = None
     text = text.lower()
     pos = sum(text.count(w) for w in ("beat", "bull", "up", "gain", "surge", "strong"))
     neg = sum(text.count(w) for w in ("miss", "bear", "down", "drop", "weak"))

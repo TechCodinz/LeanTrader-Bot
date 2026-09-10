@@ -91,6 +91,7 @@ except Exception as e:
     except:
         pass
     sys.exit(1)
+    CompleteUnifiedOrchestrator = None
 
 print()
 print("═══════════════════════════════════════════════════════════════")

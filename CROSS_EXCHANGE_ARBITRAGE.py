@@ -94,6 +94,7 @@ class CrossExchangeArbitrage:
         except ImportError:
             symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'ADA/USDT']
             logger.warning(f"⚠️  Using fallback 5 pairs only")
+            ARBITRAGE_SAFE_PAIRS = None
         
         while self.enabled:
             try:

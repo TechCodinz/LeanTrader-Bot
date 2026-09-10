@@ -9,6 +9,7 @@ def reload_all():
         importlib.reload(_cfg)
     except Exception:
         pass
+        _cfg = None
     import features.pipeline as fp
     import research.regime as rr
 

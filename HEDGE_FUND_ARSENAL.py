@@ -25,6 +25,7 @@ try:
 except ImportError:
     NUMPY_AVAILABLE = False
     logging.warning("numpy not available - hedge fund features using fallback")
+    np = None
 
 logger = logging.getLogger(__name__)
 

@@ -102,6 +102,7 @@ def _solve_qaoa(qp, reps: int = 1, seed: int = 42, use_runtime: bool = True):
                 token = os.getenv("IBM_QUANTUM_API_KEY", "").strip() or None
             except Exception:
                 token = None
+                os = None
             if token:
                 _ = QiskitRuntimeService(channel="ibm_quantum", token=token)
             else:
@@ -109,6 +110,7 @@ def _solve_qaoa(qp, reps: int = 1, seed: int = 42, use_runtime: bool = True):
             sampler = RuntimeSampler()  # default account/session
         except Exception:
             sampler = None
+            os = None
     if sampler is None:
         sampler = Sampler()
 

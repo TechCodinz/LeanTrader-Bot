@@ -66,6 +66,8 @@ def main():
     except Exception as e:
         print(json.dumps({"error": str(e)}))
         sys.exit(1)
+        default_rng = None
+        np = None
 
 if __name__ == "__main__":
     main()

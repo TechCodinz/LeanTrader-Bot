@@ -120,6 +120,11 @@ async def test_bot():
 
     except Exception as e:
         print(f"❌ Paper trading test error: {e}")
+        OrderSide = None
+        OrderType = None
+        MarketData = None
+        pd = None
+        np = None
 
     # Test risk management
     print("🛡️  Testing risk management...")
@@ -144,6 +149,8 @@ async def test_bot():
 
     except Exception as e:
         print(f"❌ Risk management test error: {e}")
+        OrderSide = None
+        OrderType = None
 
     print("\n🎉 Bot testing completed!")
     print(f"📊 Final Status: {bot.get_status()}")

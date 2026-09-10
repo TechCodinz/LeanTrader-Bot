@@ -30,6 +30,12 @@ try:
 except ImportError as e:
     print(f"[UltraML] Warning: Some modules not available: {e}")
     ULTRA_MODULES_AVAILABLE = False
+    UltraFeatureEngine = None
+    MarketRegimeDetector = None
+    UltraTrainer = None
+    MarketDataManager = None
+    StreamingDataManager = None
+    MultiExchangeAggregator = None
 
 # Import existing system components
 try:
@@ -41,6 +47,9 @@ try:
 except ImportError as e:
     print(f"[UltraML] Warning: System modules not available: {e}")
     SYSTEM_MODULES_AVAILABLE = False
+    recall = None
+    ExchangeRouter = None
+    Memory = None
 
 class UltraMLPipeline:
     """The Ultra-Brilliant ML Pipeline that evolves and learns."""
@@ -652,6 +661,7 @@ class UltraMLPipeline:
 
         except Exception as e:
             print(f"Error closing position: {e}")
+            set_outcome = None
 
     async def _trail_stop_loss(
         self, symbol: str, position: Dict[str, Any], analysis: Dict[str, Any]

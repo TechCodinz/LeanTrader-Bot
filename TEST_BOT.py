@@ -22,36 +22,42 @@ try:
     print(f"   ✅ ccxt {ccxt.__version__}")
 except Exception as e:
     print(f"   ❌ ccxt: {e}")
+    ccxt = None
 
 try:
     import pandas as pd
     print(f"   ✅ pandas {pd.__version__}")
 except Exception as e:
     print(f"   ❌ pandas: {e}")
+    pd = None
 
 try:
     import numpy as np
     print(f"   ✅ numpy {np.__version__}")
 except Exception as e:
     print(f"   ❌ numpy: {e}")
+    np = None
 
 try:
     import tensorflow as tf
     print(f"   ✅ tensorflow {tf.__version__}")
 except Exception as e:
     print(f"   ❌ tensorflow: {e}")
+    tf = None
 
 try:
     import torch
     print(f"   ✅ torch {torch.__version__}")
 except Exception as e:
     print(f"   ❌ torch: {e}")
+    torch = None
 
 try:
     import web3
     print(f"   ✅ web3 {web3.__version__}")
 except Exception as e:
     print(f"   ❌ web3: {e}")
+    web3 = None
 
 print()
 
@@ -96,6 +102,7 @@ try:
     print(f"   ✅ CCXT exchange initialized: {exchange.id}")
 except Exception as e:
     print(f"   ⚠️  CCXT test: {str(e)[:80]}")
+    ccxt = None
 
 print()
 

@@ -250,6 +250,7 @@ class FullPotentialTradingBot:
             logger.info(f"📱 Message sent to {channel}")
         except Exception as e:
             logger.error(f"Telegram error: {e}")
+            Bot = None
 
     def calculate_technical_indicators(self, price_data):
         """Calculate advanced technical indicators"""

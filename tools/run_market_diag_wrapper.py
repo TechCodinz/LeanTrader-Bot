@@ -35,6 +35,7 @@ def main() -> int:
     except Exception as e:
         lines.append(f"failed to import diagnostic: {e}")
         lines.append(traceback.format_exc())
+        diag_main = None
 
     ts2 = time.strftime("%Y-%m-%d %H:%M:%S")
     lines.append(f"market_diag wrapper done {ts2}")

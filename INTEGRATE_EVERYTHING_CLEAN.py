@@ -138,6 +138,7 @@ except Exception as e:
     print("   ❌ Adaptive Confidence integration FAILED")
     print()
     sys.exit(1)
+    ExecutionOrchestrator = None
 
 # ============================================================================
 # PART 2: INTEGRATE ULTRA RARE ENGINES INTO COMPLETE_ULTIMATE_ORCHESTRATOR
@@ -268,6 +269,7 @@ except Exception as e:
     print("   ❌ Ultra Rare Engines integration FAILED")
     print()
     sys.exit(1)
+    CompleteUltimateOrchestrator = None
 
 # ============================================================================
 # FINAL TEST

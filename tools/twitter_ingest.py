@@ -30,6 +30,7 @@ def _sleep(ms: int) -> None:
         _t.sleep(max(0.0, ms) / 1000.0)
     except Exception:
         pass
+        _t = None
 
 def _ingest_query(bearer: str, query: str, max_results: int, pages: int, sleep_ms: int) -> int:
     query = query.strip()

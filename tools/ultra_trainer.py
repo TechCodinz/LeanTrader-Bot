@@ -5,7 +5,10 @@ import random
 from sklearn.ensemble import RandomForestClassifier
 import numpy as np
 import pandas as pd
-import tensorflow as tf
+try:
+    import tensorflow as tf
+except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
+    tf = None
 
 """Ultra Advanced AI Training System.
 
@@ -65,6 +68,41 @@ try:
 except Exception:
     SKLEARN_AVAILABLE = False
     print("[UltraTrainer] Scikit-learn not available, basic mode only")
+    RandomForestClassifier = None
+    RandomForestRegressor = None
+    GradientBoostingClassifier = None
+    GradientBoostingRegressor = None
+    ExtraTreesClassifier = None
+    ExtraTreesRegressor = None
+    VotingClassifier = None
+    VotingRegressor = None
+    AdaBoostClassifier = None
+    AdaBoostRegressor = None
+    MLPClassifier = None
+    MLPRegressor = None
+    SVC = None
+    SVR = None
+    accuracy_score = None
+    precision_score = None
+    recall_score = None
+    f1_score = None
+    mean_squared_error = None
+    mean_absolute_error = None
+    r2_score = None
+    confusion_matrix = None
+    classification_report = None
+    train_test_split = None
+    cross_val_score = None
+    GridSearchCV = None
+    TimeSeriesSplit = None
+    StratifiedKFold = None
+    StandardScaler = None
+    RobustScaler = None
+    MinMaxScaler = None
+    PCA = None
+    SelectKBest = None
+    f_classif = None
+    mutual_info_classif = None
 
 # Advanced ML libraries
 try:
@@ -73,6 +111,7 @@ try:
     XGBOOST_AVAILABLE = True
 except ImportError:
     XGBOOST_AVAILABLE = False
+    xgb = None
 
 try:
     import lightgbm as lgb
@@ -80,6 +119,7 @@ try:
     LIGHTGBM_AVAILABLE = True
 except ImportError:
     LIGHTGBM_AVAILABLE = False
+    lgb = None
 
 try:
     import tensorflow as tf
@@ -90,6 +130,12 @@ try:
     tf.config.set_visible_devices([], 'GPU')  # CPU only for stability
 except ImportError:
     TENSORFLOW_AVAILABLE = False
+    tf = None
+    keras = None
+    layers = None
+    models = None
+    optimizers = None
+    callbacks = None
 
 try:
     import torch
@@ -99,6 +145,9 @@ try:
     PYTORCH_AVAILABLE = True
 except ImportError:
     PYTORCH_AVAILABLE = False
+    torch = None
+    nn = None
+    optim = None
 
 # Technical indicators
 try:
@@ -107,6 +156,7 @@ try:
     TALIB_AVAILABLE = True
 except ImportError:
     TALIB_AVAILABLE = False
+    talib = None
 
 class UltraFeatureEngine:
     """Ultra-advanced feature engineering for market data."""
@@ -1085,6 +1135,7 @@ class UltraTrainer:
         except Exception as e:
             print(f"Error loading data: {e}")
             return None
+            fetch_ohlcv = None
 
     def _save_models(self, symbol: str, metadata: Dict[str, Any]) -> str:
         """Save all trained models."""
@@ -1218,6 +1269,7 @@ def train_ultra_model(symbol: str, timeframe: str = '5m', days: int = 30) -> Dic
 
     except Exception as e:
         return {'error': str(e)}
+        save_training_data = None
 
 def get_ultra_prediction(symbol: str, timeframe: str = '5m') -> Dict[str, Any]:
     """Get ultra-intelligent prediction for a symbol."""
@@ -1236,6 +1288,7 @@ def get_ultra_prediction(symbol: str, timeframe: str = '5m') -> Dict[str, Any]:
 
     except Exception as e:
         return {'error': str(e)}
+        fetch_ohlcv = None
 
 if __name__ == "__main__":
     # Example usage

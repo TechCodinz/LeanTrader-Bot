@@ -142,6 +142,7 @@ try:
 except Exception as e:
     print(f"   ❌ COMPLETE_ULTIMATE_ORCHESTRATOR: {e}")
     sys.exit(1)
+    CompleteUltimateOrchestrator = None
 
 try:
     from COMPLETE_UNIFIED_ORCHESTRATOR import CompleteUnifiedOrchestrator
@@ -149,6 +150,7 @@ try:
 except Exception as e:
     print(f"   ❌ COMPLETE_UNIFIED_ORCHESTRATOR: {e}")
     sys.exit(1)
+    CompleteUnifiedOrchestrator = None
 
 # ============================================================================
 # SUCCESS!

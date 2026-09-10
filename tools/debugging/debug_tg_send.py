@@ -34,6 +34,7 @@ try:
 except Exception as e:
     print("[debug_tg_send] failed to import tg_utils:", e)
     sys.exit(3)
+    debug_send_photo = None
 
 try:
     ok, details = debug_send_photo("Debug upload from repo", chart)

@@ -37,6 +37,12 @@ except Exception:
     except Exception as e:
         print("pipeline import error", e)
         sys.exit(2)
+        evaluate = None
+        fetch_ohlcv = None
+        fetch_feeds = None
+        train_dummy_classifier = None
+        crawl_urls = None
+    load_dotenv = None
 
 def _env_true(k: str) -> bool:
     return os.getenv(k, "").strip().lower() in ("1", "true", "yes", "y", "on")
@@ -72,6 +78,7 @@ def run_pipeline():
         atexit.register(_release_lock)
     except Exception:
         pass
+        atexit = None
 
     # 1) News ingestion (opt-in feeds). Use curated defaults unless overridden.
     try:
@@ -122,6 +129,7 @@ def run_pipeline():
             print("reddit items stored:", rc)
         except Exception as e:
             print("reddit ingest failed:", e)
+            reddit_ingest = None
 
     # Optional Twitter/X ingestion
     if os.getenv("ENABLE_TWITTER_INGEST", "false").strip().lower() in ("1", "true", "yes", "on"):
@@ -133,6 +141,7 @@ def run_pipeline():
             print("twitter items stored:", rc)
         except Exception as e:
             print("twitter ingest failed:", e)
+            twitter_ingest_once = None
 
     # Optional Telegram ingestion
     if os.getenv("ENABLE_TELEGRAM_INGEST", "false").strip().lower() in ("1", "true", "yes", "on"):
@@ -144,6 +153,7 @@ def run_pipeline():
             print("telegram items stored:", rc)
         except Exception as e:
             print("telegram ingest failed:", e)
+            telegram_ingest_once = None
 
     # 2) Market data fetch
     # Support multiple markets/symbols/timeframes via env lists
@@ -199,6 +209,9 @@ def run_pipeline():
                 print("MT5 init failed; skipping FX learning via MT5")
         except Exception as e:
             print("fx mt5 fetch failed:", e)
+            init_mt5 = None
+            fetch_fx = None
+            save_csv = None
     # Fallback: OANDA
     if (not fx_csv_ready) and os.getenv("ENABLE_FX_LEARNING_OANDA", "false").strip().lower() in (
         "1",
@@ -228,6 +241,8 @@ def run_pipeline():
                         pass
         except Exception as e:
             print("fx oanda fetch failed:", e)
+            fetch_fx_oa_full = None
+            save_csv_oa = None
 
     # 3) Train on CSV produced by market_data.fetch_ohlcv (persisted at runtime/data)
     # 3) Train + evaluate for every fetched crypto CSV

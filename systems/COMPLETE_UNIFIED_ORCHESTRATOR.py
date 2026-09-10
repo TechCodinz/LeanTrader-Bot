@@ -387,6 +387,7 @@ class CompleteUnifiedOrchestrator:
             logger.info("🎯 Smart Scalping Engine initialized (MTF + Session aware)")
         except Exception as e:
             logger.warning(f"Smart scalping: {e}")
+            SmartScalpingEngine = None
         
         self.trading_engines['moon_spotter'] = UltraMoonSpotter()
         self.trading_engines['real_profit'] = RealProfitBot()

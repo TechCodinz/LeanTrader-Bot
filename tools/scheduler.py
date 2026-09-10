@@ -34,6 +34,7 @@ try:
     from apscheduler.triggers.interval import IntervalTrigger
 except Exception:
     BlockingScheduler = None  # handled below
+    IntervalTrigger = None
 
 ROOT = Path(__file__).resolve().parent.parent
 RUNTIME = ROOT / "runtime"
@@ -96,6 +97,7 @@ def _process_is_running(pid: int) -> bool:
             return True
     except Exception:
         return False
+        _sp = None
 
 def _write_last_run(job_name: str, success: bool, details: dict | None = None) -> None:
     now = datetime.utcnow().isoformat() + "Z"

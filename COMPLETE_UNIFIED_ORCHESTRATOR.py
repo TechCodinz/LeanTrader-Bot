@@ -96,6 +96,10 @@ try:
 except ImportError:
     CRITICAL_FEATURES_AVAILABLE = False
     logger.warning("⚠️  Critical profit features not available")
+    TrailingStopManager = None
+    CompoundEngine = None
+    PartialTPManager = None
+    EmergencyStop = None
 
 
 class CentralDataHub:
@@ -490,6 +494,7 @@ class CompleteUnifiedOrchestrator:
             logger.info("🎯 Smart Scalping Engine initialized (MTF + Session aware + Full Universe)")
         except Exception as e:
             logger.warning(f"Smart scalping: {e}")
+            SmartScalpingEngine = None
         
         self.trading_engines['moon_spotter'] = UltraMoonSpotter()
         self.trading_engines['real_profit'] = RealProfitBot(universe=universe)
@@ -677,6 +682,7 @@ class CompleteUnifiedOrchestrator:
             logger.info("💰 LIVE TRADING executor started")
         except Exception as e:
             logger.warning(f"⚠️ Live trading not enabled: {e}")
+            enable_live_trading = None
         
         logger.info("\n" + "=" * 80)
         logger.info("🎉 ALL ORCHESTRATORS RUNNING:")

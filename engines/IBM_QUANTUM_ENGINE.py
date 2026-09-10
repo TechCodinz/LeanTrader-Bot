@@ -41,6 +41,14 @@ except ImportError:
     Session = None
     Sampler = None
     Estimator = None
+    QuantumCircuit = None
+    QuantumRegister = None
+    ClassicalRegister = None
+    transpile = None
+    AerSimulator = None
+    RealAmplitudes = None
+    ZZFeatureMap = None
+    SparsePauliOp = None
 
 logger = logging.getLogger(__name__)
 
@@ -524,7 +532,7 @@ class IBMQuantumEngine:
         result = await self.portfolio_optimizer.optimize_quantum(returns, risks, budget)
         
         # Add asset names
-        result['assets'] = [a.get('symbol', f'Asset_{i}') for i in range(len(assets))]
+        result['assets'] = [a.get('symbol', f'Asset_{i}') for i, a in enumerate(assets)]
         result['timestamp'] = datetime.now()
         
         logger.info(f"💎 Quantum portfolio: {result['expected_return']:.2%} expected return")

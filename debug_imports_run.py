@@ -30,3 +30,5 @@ try:
         print(inspect.getsource(mt5_adapter.min_stop_distance_points))
 except Exception:
     traceback.print_exc()
+    mt5_adapter = None
+    inspect = None

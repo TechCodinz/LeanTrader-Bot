@@ -4,6 +4,9 @@ except ImportError:
     # Fallback for different project structure
     import pytest
     pytest.skip("risk.guards module not available in this configuration", allow_module_level=True)
+    GuardState = None
+    RiskLimits = None
+    should_halt_trading = None
 
 def test_no_breach():
     st = GuardState()

@@ -36,6 +36,7 @@ async def test_core_infrastructure():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 1/9 - ExchangeRouter: {e}")
+        ExchangeRouter = None
     
     # Test 2: RiskEngine
     try:
@@ -47,6 +48,7 @@ async def test_core_infrastructure():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 2/9 - RiskEngine: {e}")
+        RiskEngine = None
     
     # Test 3: Brain
     try:
@@ -57,6 +59,7 @@ async def test_core_infrastructure():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 3/9 - Brain: {e}")
+        Brain = None
     
     # Test 4: PatternMemory
     try:
@@ -67,6 +70,7 @@ async def test_core_infrastructure():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 4/9 - PatternMemory: {e}")
+        PatternMemory = None
     
     # Test 5: Ledger
     try:
@@ -77,6 +81,7 @@ async def test_core_infrastructure():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 5/9 - Ledger: {e}")
+        Ledger = None
     
     # Test 6: UltraCore
     try:
@@ -87,6 +92,7 @@ async def test_core_infrastructure():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 6/9 - UltraCore: {e}")
+        UltraCore = None
     
     # Test 7: SituationalAwareness
     try:
@@ -98,6 +104,8 @@ async def test_core_infrastructure():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 7/9 - SituationalAwareness: {e}")
+        SituationalAwareness = None
+        AwarenessConfig = None
     
     # Test 8: HiveCoordinator
     try:
@@ -108,6 +116,7 @@ async def test_core_infrastructure():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 8/9 - HiveCoordinator: {e}")
+        HiveCoordinator = None
     
     # Test 9: GlobalAwareness
     try:
@@ -119,6 +128,8 @@ async def test_core_infrastructure():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 9/9 - GlobalAwareness: {e}")
+        GlobalAwareness = None
+        GloConfig = None
     
     logger.info(f"\nPhase 1 Result: {tests_passed}/{tests_total} systems operational")
     return tests_passed, tests_total
@@ -150,6 +161,7 @@ async def test_trading_engines():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 1/5 - UltraArbitrageEngine: {e}")
+        UltraArbitrageEngine = None
     
     # Test 2: UltraScalpingEngine
     try:
@@ -160,6 +172,7 @@ async def test_trading_engines():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 2/5 - UltraScalpingEngine: {e}")
+        UltraScalpingEngine = None
     
     # Test 3: UltraMoonSpotter
     try:
@@ -170,6 +183,7 @@ async def test_trading_engines():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 3/5 - UltraMoonSpotter: {e}")
+        UltraMoonSpotter = None
     
     # Test 4: RealProfitBot
     try:
@@ -180,6 +194,7 @@ async def test_trading_engines():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 4/5 - RealProfitBot: {e}")
+        RealProfitBot = None
     
     # Test 5: EnhancedTradingBot
     try:
@@ -191,6 +206,7 @@ async def test_trading_engines():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 5/5 - EnhancedTradingBot: {e}")
+        EnhancedTradingBot = None
     
     logger.info(f"\nPhase 2 Result: {tests_passed}/{tests_total} systems operational")
     return tests_passed, tests_total
@@ -222,6 +238,7 @@ async def test_ai_ml_systems():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 1/6 - EvolutionEngine: {e}")
+        ULTIMATE_EVOLUTION_ENGINE = None
     
     # Test 2: 450+ Models Bot
     try:
@@ -232,6 +249,7 @@ async def test_ai_ml_systems():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 2/6 - 450+ Models Bot: {e}")
+        working_450_models_bot = None
     
     # Test 3: SwarmConsciousness
     try:
@@ -242,6 +260,7 @@ async def test_ai_ml_systems():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 3/6 - SwarmConsciousness: {e}")
+        UltraSwarmConsciousness = None
     
     # Test 4: DivineIntelligence
     try:
@@ -252,6 +271,7 @@ async def test_ai_ml_systems():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 4/6 - DivineIntelligence: {e}")
+        DivineIntelligence = None
     
     # Test 5: MLStrategyEngine
     try:
@@ -262,6 +282,7 @@ async def test_ai_ml_systems():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 5/6 - MLStrategyEngine: {e}")
+        MLStrategyEngine = None
     
     # Test 6: OnlineLearner
     try:
@@ -272,6 +293,7 @@ async def test_ai_ml_systems():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 6/6 - OnlineLearner: {e}")
+        OnlineLearner = None
     
     logger.info(f"\nPhase 3 Result: {tests_passed}/{tests_total} systems operational")
     return tests_passed, tests_total
@@ -303,6 +325,7 @@ async def test_advanced_intelligence():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 1/3 - QuantumIntelligence: {e}")
+        UltraQuantumIntelligence = None
     
     # Test 2: FluidMechanics
     try:
@@ -313,6 +336,7 @@ async def test_advanced_intelligence():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 2/3 - FluidMechanics: {e}")
+        UltraFluidMechanics = None
     
     # Test 3: BacktestEngine
     try:
@@ -323,6 +347,7 @@ async def test_advanced_intelligence():
         tests_passed += 1
     except Exception as e:
         logger.error(f"❌ 3/3 - BacktestEngine: {e}")
+        UltraBacktestEngine = None
     
     logger.info(f"\nPhase 4 Result: {tests_passed}/{tests_total} systems operational")
     return tests_passed, tests_total

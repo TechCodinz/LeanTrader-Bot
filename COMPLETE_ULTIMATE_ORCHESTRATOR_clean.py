@@ -41,6 +41,12 @@ except Exception as e:
     logger.error("   Install dependencies: pip3 install numpy pandas")
     logger.error("   Or run: bash INSTALL_ALL_DEPENDENCIES.sh")
     CRITICAL_FEATURES_AVAILABLE = False
+    TrailingStopManager = None
+    CompoundEngine = None
+    PartialTPManager = None
+    FundingArbitrage = None
+    VolumeProfileAnalyzer = None
+    EmergencyStop = None
 
 # ============================================================================
 # ULTRA-RARE GOLDMINE FEATURES - REQUIRED FOR CUTTING-EDGE ADVANTAGE
@@ -66,6 +72,17 @@ except Exception as e:
     logger.error("   Install dependencies: pip3 install numpy pandas scipy scikit-learn")
     logger.error("   Or run: bash INSTALL_ALL_DEPENDENCIES.sh")
     ULTRA_FEATURES_AVAILABLE = False
+    GammaSqueezeDetector = None
+    WhaleTracker = None
+    OrderBookToxicityScanner = None
+    LatencyArbitrageEngine = None
+    MEVProtectionLayer = None
+    FuturesBasisArbitrage = None
+    AdaptiveRegimeSizer = None
+    MultiTimeframeConfluence = None
+    SocialMomentumPredictor = None
+    NetworkEffectAnalyzer = None
+    UltraGoldmineManager = None
 
 # ============================================================================
 # DIVINE INTELLIGENCE FEATURES - CONSCIOUSNESS-LEVEL TRADING ENTITY
@@ -86,6 +103,12 @@ except Exception as e:
     logger.error("   These features use advanced physics & mathematics")
     logger.error("   Expected +300-1000% additional profit potential")
     DIVINE_FEATURES_AVAILABLE = False
+    QuantumEntanglementCorrelator = None
+    FractalDimensionAnalyzer = None
+    InformationEntropyTracker = None
+    NashEquilibriumPredictor = None
+    ChaosTheoryAttractorMapper = None
+    DivineIntelligenceManager = None
 
 # Warn if features are missing
 if not CRITICAL_FEATURES_AVAILABLE:
@@ -518,6 +541,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f'⚠️  Ultra Moon System: {e}')
             self.advanced_systems['ultra_moon'] = None
+            UltraMoonSystem = None
         
         # 2. Ultra God Mode
         try:
@@ -528,6 +552,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f'⚠️  Ultra God Mode: {e}')
             self.advanced_systems['god_mode'] = None
+            UltraGodMode = None
         
         # 3. Ultra Forex Master
         try:
@@ -538,6 +563,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f'⚠️  Ultra Forex Master: {e}')
             self.advanced_systems['forex_master'] = None
+            UltraForexMaster = None
         
         # 4. Ultra Continuous Trading
         try:
@@ -549,6 +575,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f'⚠️  Ultra Continuous Trading: {e}')
             self.advanced_systems['continuous_trading'] = None
+            UltraContinuousTradingOrchestrator = None
         
         # 5. Ultra Multi-Platform Scanner
         try:
@@ -560,6 +587,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f'⚠️  Ultra Multi-Platform Scanner: {e}')
             self.advanced_systems['multi_platform_scanner'] = None
+            UltraMultiPlatformScanner = None
         
         # 6. 450+ Models Bot
         try:
@@ -570,6 +598,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f'⚠️  450+ Models Bot: {e}')
             self.advanced_systems['models_450'] = None
+            UltimateBot450Models = None
         
         # 7. Trade Planner
         try:
@@ -580,6 +609,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f'⚠️  Trade Planner: {e}')
             self.trade_planner = None
+            tp_module = None
         
         logger.info('🎉 ALL 7 NEW SYSTEMS INITIALIZED!')
         
@@ -594,6 +624,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f'⚠️  Dynamic Pair Discovery: {e}')
             self.advanced_systems['pair_discovery'] = None
+            get_discovery_engine = None
         
         # ================================================================
         # 9. ULTRA RARE ENGINES - 10 advanced profit engines
@@ -606,6 +637,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f'⚠️  Ultra Rare Engines: {e}')
             self.advanced_systems['ultra_rare'] = None
+            UltraRareEnginesOrchestrator = None
         
         # ================================================================
         # 10. ADVANCED TRADING ACTIONS - 15 professional strategies
@@ -621,6 +653,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f'⚠️  Ultra Rare Engines: {e}')
             self.advanced_systems['ultra_rare'] = None
+            get_advanced_actions = None
         
         logger.info('🎉 ALL 10 ADVANCED SYSTEMS INITIALIZED!')
     

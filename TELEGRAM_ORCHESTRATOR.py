@@ -45,6 +45,21 @@ try:
     TELEGRAM_AVAILABLE = True
 except ImportError:
     TELEGRAM_AVAILABLE = False
+    Update = None
+    InlineKeyboardButton = None
+    InlineKeyboardMarkup = None
+    Bot = None
+    LabeledPrice = None
+    PreCheckoutQuery = None
+    telegram = None
+    Application = None
+    CommandHandler = None
+    CallbackQueryHandler = None
+    ContextTypes = None
+    MessageHandler = None
+    filters = None
+    PreCheckoutQueryHandler = None
+    ccxt = None
 
 logger = logging.getLogger(__name__)
 
@@ -926,6 +941,8 @@ Free Users: {user_count - vip_count}
         except Exception as e:
             logger.error(f"❌ Failed to fetch price for {symbol}: {e}")
             return 0
+            ccxt = None
+            os = None
     
     async def send_admin_notification(self, message: str, level: str = "info"):
         """Send notification to admin"""

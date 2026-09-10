@@ -62,6 +62,11 @@ if __name__ == "__main__":
             TradingApp().run()
         except Exception:
             print("Kivy not available; mobile app cannot run in this environment.")
+            kivy = None
+            App = None
+            BoxLayout = None
+            Button = None
+            Label = None
 
     _run_kivy_app()
 

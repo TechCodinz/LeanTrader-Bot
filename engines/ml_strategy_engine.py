@@ -24,7 +24,14 @@ try:
     from tensorflow.keras.layers import LSTM, Dense, Dropout  # type: ignore
     from tensorflow.keras.models import Sequential  # type: ignore
 except Exception:  # pragma: no cover
-    LSTM = Dense = Dropout = object  # type: ignore
+    class _UnavailableLayer:  # optional dependency absent; construction is a no-op
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, *args, **kwargs):
+            return None
+
+    LSTM = Dense = Dropout = _UnavailableLayer
 
     class Sequential:  # type: ignore
         def __init__(self, *_a, **_k):

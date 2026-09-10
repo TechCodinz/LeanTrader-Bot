@@ -24,6 +24,7 @@ async def enable_live_trading(orchestrator):
         logger.error(f"❌ Failed to initialize executor: {e}")
         logger.info("⚠️ Trading in SIMULATION mode only")
         return
+        get_executor = None
     
     executed_count = 0
     

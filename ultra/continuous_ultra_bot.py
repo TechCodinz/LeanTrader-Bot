@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
@@ -26,6 +29,8 @@ try:
 except ImportError:
     TELEGRAM_AVAILABLE = False
     logger.warning("Telegram package not available")
+    Bot = None
+    TelegramError = None
 
 class ContinuousUltraTradingSystem:
     """ULTRA TRADING SYSTEM - CONTINUOUS VERSION"""
@@ -427,6 +432,7 @@ class ContinuousUltraTradingSystem:
 
         except Exception as e:
             logger.error(f"Error in forex analysis: {e}")
+            random = None
 
         return forex_signals
 
@@ -457,6 +463,7 @@ class ContinuousUltraTradingSystem:
 
         except Exception as e:
             logger.error(f"Error in quantum analysis: {e}")
+            random = None
 
     async def run_web_crawling(self):
         """Run web crawling for news and strategies"""
@@ -492,6 +499,7 @@ class ContinuousUltraTradingSystem:
 
         except Exception as e:
             logger.error(f"Error in web crawling: {e}")
+            random = None
 
     async def run_continuous_training(self):
         """Run continuous model training"""

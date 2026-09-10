@@ -279,6 +279,7 @@ def _merge_onchain_fusion(bias: Dict[str, int]) -> Dict[str, int]:
         from signals.onchain_flows import sentiment_fusion  # type: ignore
     except Exception:
         return bias
+        sentiment_fusion = None
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except Exception:

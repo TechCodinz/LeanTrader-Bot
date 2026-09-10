@@ -14,6 +14,7 @@ async def _collect_with_telethon(
         from telethon import TelegramClient  # type: ignore
     except Exception:
         return out
+        TelegramClient = None
 
     api_id = int(os.getenv('TELEGRAM_API_ID', '0') or 0)
     api_hash = os.getenv('TELEGRAM_API_HASH', '')

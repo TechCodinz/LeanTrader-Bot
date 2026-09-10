@@ -23,6 +23,7 @@ try:
     load_dotenv()
 except Exception:
     pass
+    load_dotenv = None
 
 PY = sys.executable or "python"
 

@@ -75,6 +75,7 @@ def guarded_swap(
         set_mempool_risk(risk)
     except Exception:
         pass
+        set_mempool_risk = None
     adj_slip = dynamic_slippage(int(slippage_bps), risk)
 
     # Consider private route on high risk or large amount

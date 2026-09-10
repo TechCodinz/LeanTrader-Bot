@@ -33,6 +33,7 @@ def _mk_exchange(name: str, testnet: bool) -> Any:
     except Exception:
         # if router isn't available or fails, fall back to direct ccxt exchange
         pass
+        ExchangeRouter = None
 
     # Fallback: construct a plain ccxt exchange instance (unchanged behavior)
     klass = getattr(ccxt, name)

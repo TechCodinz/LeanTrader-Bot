@@ -22,6 +22,7 @@ async def test_integration():
     except Exception as e:
         print(f"   ❌ Failed to import discovery engine: {e}")
         return False
+        get_discovery_engine = None
     
     # Test 2: Import complete orchestrator
     print("\n2️⃣  Testing Complete Ultimate Orchestrator import...")
@@ -31,6 +32,7 @@ async def test_integration():
     except Exception as e:
         print(f"   ❌ Failed to import orchestrator: {e}")
         return False
+        CompleteUltimateOrchestrator = None
     
     # Test 3: Quick discovery test
     print("\n3️⃣  Testing pair discovery (scanning markets)...")

@@ -28,6 +28,8 @@ def make_fx_signal(sym: str, tf: str, core: Any):
             df = fetch_bars_safe(sym, tf, limit=250)
         except Exception:
             return None
+            fetch_bars_safe = None
+        importlib = None
     if df is None or getattr(df, "empty", True):
         return None
     try:
@@ -67,6 +69,7 @@ def make_crypto_signal(sym: str, tf: str, core: Any):
         df["time"] = pd.to_datetime(df["time"], unit="ms")
     except Exception:
         return None
+        pd = None
     side = fut_side_from_ema(df)
     if not side:
         return None
@@ -104,6 +107,7 @@ def main():
                 self.router = None
 
         TraderCore = TraderCore
+        fut_side_from_ema = None
 
     core = TraderCore(fx_syms, fx_tfs, crypto_syms, crypto_tfs, [], [], loop_sec=1)
     # short pause to ensure router/mt5 initialized
@@ -154,9 +158,13 @@ def main():
                             )
                         except Exception:
                             out = {"ok": False, "comment": "mt5_signals not available"}
+                            place_mt5_signal = None
+                        importlib = None
                     print("mt5 order:", out)
             except Exception as e:
                 print("order error:", e)
+                importlib = None
+                place_mt5_signal = None
     else:
         print("ENABLE_LIVE not true; skipping order placement (dry-run demo only)")
 
