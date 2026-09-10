@@ -447,7 +447,9 @@ class ContinuousUltraTradingSystem:
             quantum_signals = random.randint(1, 2)
 
             for i in range(quantum_signals):
-                confidence = random.randint(75, 95)
+                confidence = None  # was random.randint(75, 95): a fabricated
+        # confidence presented as analysis output. Left unset so callers
+        # skip the signal rather than acting on an invented score.
                 signal = f"""⚛️ QUANTUM SIGNAL #{i+1}
 
 🔬 Advanced optimization detected!

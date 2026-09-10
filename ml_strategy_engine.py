@@ -119,15 +119,29 @@ class MLStrategyEngine:
 
     def backtest_strategy(self, historical_data: pd.DataFrame) -> Dict[str, float]:
         """Walk-forward backtesting with Monte Carlo."""
-        results = []
-        for _ in range(100):  # Monte Carlo simulations
-            # Simulate trades with RL actions
-            pnl = random.uniform(-0.1, 0.1)  # Placeholder
-            results.append(pnl)
+        # This previously ignored historical_data entirely and returned
+        # statistics computed from random draws, which is fabricated backtest
+        # evidence rather than a Monte Carlo over real returns.
+        if historical_data is None or len(historical_data) < 2:
+            return {"available": False, "reason": "no historical data supplied"}
+
+        close = historical_data.get("close")
+        if close is None:
+            return {"available": False, "reason": "historical data has no close column"}
+
+        returns = pd.Series(close).pct_change().dropna()
+        if returns.empty:
+            return {"available": False, "reason": "insufficient price history"}
+
+        equity = (1.0 + returns).cumprod()
+        drawdown = (equity / equity.cummax()) - 1.0
+        std = float(returns.std())
         return {
-            "avg_pnl": np.mean(results),
-            "sharpe_ratio": (np.mean(results) / np.std(results) if np.std(results) > 0 else 0),
-            "max_drawdown": min(results),
+            "available": True,
+            "samples": int(len(returns)),
+            "avg_pnl": float(returns.mean()),
+            "sharpe_ratio": float(returns.mean() / std) if std > 0 else 0.0,
+            "max_drawdown": float(drawdown.min()),
         }
 
 # Usage: Integrate into UltraCore or BrainLoop for predictions and strategy calls.

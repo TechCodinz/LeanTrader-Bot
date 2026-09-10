@@ -523,11 +523,48 @@ class UltraMLPipeline:
         # Cap at maximum
         final_risk = min(final_risk, 0.05)  # Max 5% per trade
 
-        # Convert to position size (simplified - in production use proper sizing)
-        account_balance = 10000  # Placeholder - get from router
-        position_value = account_balance * final_risk
+        # Position size must come from real account equity. A fabricated
+        # fallback balance would silently size real orders off a made-up
+        # number, so an unavailable balance sizes to zero instead.
+        account_balance = self._resolve_account_balance()
+        if account_balance is None or account_balance <= 0:
+            logger.warning(
+                "position sizing skipped: account balance unavailable from router"
+            )
+            return 0.0
 
-        return position_value
+        return account_balance * final_risk
+
+    def _resolve_account_balance(self):
+        """Free quote balance from the router, or None when unavailable.
+
+        _calculate_position_size is synchronous, so only synchronous balance
+        lookups are used. An async-only router reports unavailable, which sizes
+        to zero rather than to a fabricated number.
+        """
+        router = getattr(self, "router", None) or getattr(self, "exchange_router", None)
+        if router is None:
+            return None
+        for attr in ("get_free_balance", "get_balance", "fetch_balance"):
+            fn = getattr(router, attr, None)
+            if not callable(fn):
+                continue
+            try:
+                result = fn()
+                if hasattr(result, "__await__"):
+                    result.close()
+                    return None
+            except Exception as exc:
+                logger.warning(f"balance lookup via {attr} failed: {exc}")
+                return None
+            if isinstance(result, dict):
+                free = result.get("free")
+                if isinstance(free, dict):
+                    return float(free.get("USDT") or 0.0) or None
+                return float(result.get("USDT") or result.get("total") or 0.0) or None
+            if isinstance(result, (int, float)):
+                return float(result) or None
+        return None
 
     async def _place_order_async(
         self, symbol: str, side: str, size: float, analysis: Dict[str, Any]

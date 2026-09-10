@@ -1885,13 +1885,22 @@ class ULTIMATE_EVOLUTION_ENGINE:
             strategies = ['momentum', 'mean_reversion', 'breakout', 'arbitrage']
 
             for strategy in strategies:
-                # Simulate validation
-                success_rate = random.uniform(0.6, 0.9)
-                profit_factor = random.uniform(1.2, 2.8)
-
+                # Validation statistics must come from recorded testnet
+                # outcomes. These were previously drawn at random and printed
+                # as if they were measured results.
+                stats = self._recorded_strategy_stats(strategy)
+                if not stats:
+                    print(
+                        f"🧪 Strategy {strategy}: no recorded testnet outcomes yet "
+                        "(validation pending)"
+                    )
+                    continue
                 print(
-                    f"🧪 Strategy {strategy}: {success_rate:.2%} success, {profit_factor:.2f} profit factor"
+                    f"🧪 Strategy {strategy}: {stats['success_rate']:.2%} success, "
+                    f"{stats['profit_factor']:.2f} profit factor "
+                    f"({stats['samples']} recorded cycles)"
                 )
+
 
             print("✅ Strategy validation completed")
 
@@ -1979,6 +1988,25 @@ class ULTIMATE_EVOLUTION_ENGINE:
                 'workflow_automation': self.workflow_automation,
                 'multi_step_problem_solving': self.multi_step_problem_solving,
             },
+        }
+    def _recorded_strategy_stats(self, strategy):
+        """Success rate and profit factor from recorded testnet outcomes.
+
+        Returns None when no outcomes have been recorded, so callers report
+        "validation pending" rather than an invented figure.
+        """
+        history = getattr(self, "strategy_outcomes", None) or {}
+        rows = [r for r in history.get(strategy, []) if isinstance(r, dict)]
+        if not rows:
+            return None
+        pnls = [float(r.get("realized_pnl", 0.0)) for r in rows]
+        wins = [p for p in pnls if p > 0]
+        losses = [-p for p in pnls if p < 0]
+        gross_loss = sum(losses)
+        return {
+            "samples": len(pnls),
+            "success_rate": len(wins) / len(pnls),
+            "profit_factor": (sum(wins) / gross_loss) if gross_loss > 0 else float("inf"),
         }
 
 def main():

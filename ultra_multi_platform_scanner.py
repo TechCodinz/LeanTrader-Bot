@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from dataclasses import dataclass
 from typing import Dict, List, Any
@@ -76,6 +77,18 @@ class DeFiYieldOpportunity:
 class DEXScanner:
     """Scanner for Decentralized Exchanges"""
 
+
+    def _synthetic_opportunities_enabled(self) -> bool:
+        """Whether to emit generated opportunities instead of scanning.
+
+        These generators fabricate price, volume, liquidity, apy and confidence
+        from random draws. They are development scaffolding, not scan results,
+        so they stay off unless explicitly enabled and are labelled as
+        synthetic when they are.
+        """
+        return os.getenv("LEANTRADER_SYNTHETIC_SCANNER", "").strip().lower() in ("1", "true", "yes")
+
+
     def __init__(self, ultra_core: UltraCore):
         self.ultra_core = ultra_core
         self.logger = logging.getLogger("dex_scanner")
@@ -119,6 +132,10 @@ class DEXScanner:
 
     async def _scan_platform(self, blockchain: str, platform: str) -> List[PlatformOpportunity]:
         """Scan a specific DEX platform"""
+        # These rows are generated, not scanned: price, volume, liquidity,
+        # apy and confidence are random draws. Off unless explicitly enabled.
+        if not self._synthetic_opportunities_enabled():
+            return []
         opportunities = []
 
         try:
@@ -130,6 +147,8 @@ class DEXScanner:
 
             for symbol in symbols:
                 # Simulate opportunity detection
+                if not self._synthetic_opportunities_enabled():
+                    continue
                 if np.random.random() < 0.3:  # 30% chance of opportunity
                     opportunity = PlatformOpportunity(
                         platform_type='dex',
@@ -160,6 +179,10 @@ class DEXScanner:
 
     async def scan_liquidity_pools(self, symbol: str) -> List[Dict[str, Any]]:
         """Scan liquidity pools for a specific symbol"""
+        # These rows are generated, not scanned: price, volume, liquidity,
+        # apy and confidence are random draws. Off unless explicitly enabled.
+        if not self._synthetic_opportunities_enabled():
+            return []
         pools = []
 
         try:
@@ -238,6 +261,10 @@ class CEXScanner:
 
     async def _scan_cex_platform(self, platform: str) -> List[PlatformOpportunity]:
         """Scan a specific CEX platform"""
+        # These rows are generated, not scanned: price, volume, liquidity,
+        # apy and confidence are random draws. Off unless explicitly enabled.
+        if not self._synthetic_opportunities_enabled():
+            return []
         opportunities = []
 
         try:
@@ -248,6 +275,8 @@ class CEXScanner:
 
             for symbol in symbols:
                 # Simulate opportunity detection
+                if not self._synthetic_opportunities_enabled():
+                    continue
                 if np.random.random() < 0.25:  # 25% chance of opportunity
                     opportunity = PlatformOpportunity(
                         platform_type='cex',
@@ -281,6 +310,10 @@ class CEXScanner:
 
     async def scan_arbitrage_opportunities(self) -> List[CrossPlatformArbitrage]:
         """Scan for arbitrage opportunities between CEX platforms"""
+        # These rows are generated, not scanned: price, volume, liquidity,
+        # apy and confidence are random draws. Off unless explicitly enabled.
+        if not self._synthetic_opportunities_enabled():
+            return []
         arbitrage_opportunities = []
 
         try:
@@ -370,6 +403,10 @@ class DeFiScanner:
 
     async def _scan_defi_protocol(self, category: str, protocol: str) -> List[PlatformOpportunity]:
         """Scan a specific DeFi protocol"""
+        # These rows are generated, not scanned: price, volume, liquidity,
+        # apy and confidence are random draws. Off unless explicitly enabled.
+        if not self._synthetic_opportunities_enabled():
+            return []
         opportunities = []
 
         try:
@@ -378,6 +415,8 @@ class DeFiScanner:
 
             for symbol in symbols:
                 # Simulate opportunity detection
+                if not self._synthetic_opportunities_enabled():
+                    continue
                 if np.random.random() < 0.2:  # 20% chance of opportunity
                     opportunity = PlatformOpportunity(
                         platform_type='defi',
@@ -409,6 +448,10 @@ class DeFiScanner:
 
     async def scan_yield_opportunities(self) -> List[DeFiYieldOpportunity]:
         """Scan for yield farming opportunities"""
+        # These rows are generated, not scanned: price, volume, liquidity,
+        # apy and confidence are random draws. Off unless explicitly enabled.
+        if not self._synthetic_opportunities_enabled():
+            return []
         yield_opportunities = []
 
         try:
@@ -485,6 +528,10 @@ class OtherPlatformScanner:
 
     async def _scan_other_platform(self, category: str, platform: str) -> List[PlatformOpportunity]:
         """Scan a specific other platform"""
+        # These rows are generated, not scanned: price, volume, liquidity,
+        # apy and confidence are random draws. Off unless explicitly enabled.
+        if not self._synthetic_opportunities_enabled():
+            return []
         opportunities = []
 
         try:

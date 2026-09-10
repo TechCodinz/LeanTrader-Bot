@@ -621,17 +621,26 @@ class UltraContinuousTradingOrchestrator:
     async def _close_position(self, session_id: str, session: TradingSession) -> None:
         """Close trading position"""
         try:
-            # Calculate profit (simulate)
-            import random
+            # Realized profit must come from actual fills. Fabricating it here
+            # contaminated session accounting -- final_balance, profit and
+            # win_rate were all derived from a random draw.
+            profit = await self._realized_profit_for_session(session_id, session)
 
-            profit = random.uniform(-0.01, 0.05)  # -$0.01 to $0.05 profit
-
-            # Update session
             session.end_time = time.time()
-            session.final_balance = session.initial_balance + profit
-            session.profit = profit
-            session.trades_count = 1
-            session.win_rate = 1.0 if profit > 0 else 0.0
+            if profit is None:
+                session.profit = None
+                session.final_balance = None
+                session.win_rate = None
+                session.trades_count = 0
+                self.logger.warning(
+                    f"session {session_id}: realized PnL unavailable; "
+                    "session accounting left unset rather than estimated"
+                )
+            else:
+                session.final_balance = session.initial_balance + profit
+                session.profit = profit
+                session.trades_count = 1
+                session.win_rate = 1.0 if profit > 0 else 0.0
             session.status = 'completed'
 
             # Update balances
