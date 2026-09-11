@@ -7,7 +7,6 @@ import asyncio
 import os
 from datetime import datetime
 import ccxt
-import yfinance as yf
 import websocket
 import json
 from dataclasses import dataclass
@@ -204,52 +203,119 @@ class DataCollector:
             except Exception as e:
                 logger.error(f"Error loading historical data for {symbol}: {e}")
 
-    async def _fetch_historical_data(self, symbol: str) -> Optional[pd.DataFrame]:
-        """Fetch historical data from exchanges"""
-        for exchange_name, exchange in (self.exchanges.items() if self.config['enable_exchanges'] else []):
+    async def _fetch_historical_data(
+        self,
+        symbol: str,
+    ) -> Optional[pd.DataFrame]:
+        """
+        Fetch genuine historical observations.
+
+        Exchange feeds are preferred.
+        Yahoo public-chart API is the bounded fallback.
+        """
+
+        exchanges = (
+            self.exchanges.items()
+            if self.config[
+                "enable_exchanges"
+            ]
+            else []
+        )
+
+        for (
+            exchange_name,
+            exchange,
+        ) in exchanges:
+
             try:
-                # Convert symbol format if needed
-                exchange_symbol = symbol
-                if exchange_name == 'bybit' and '/' in symbol:
-                    exchange_symbol = symbol.replace('/', '')
-
-                # Fetch OHLCV data
-                ohlcv = await exchange.fetch_ohlcv(exchange_symbol, '1h', limit=1000)
-
-                if ohlcv:
-                    df = pd.DataFrame(
-                        ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume']
+                ohlcv = (
+                    await asyncio.wait_for(
+                        exchange.fetch_ohlcv(
+                            symbol,
+                            "1h",
+                            limit=1000,
+                        ),
+                        timeout=25,
                     )
-                    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-                    df['symbol'] = symbol
-                    df['source'] = exchange_name
-
-                    return df
-
-            except Exception as e:
-                logger.warning(
-                    f"Failed to fetch historical data from {exchange_name} for {symbol}: {e}"
                 )
-                continue
 
-        # Fallback to Yahoo Finance
-        try:
-            if not self.config['enable_yfinance']:
-                return None
-            yf_symbol = symbol.replace('/', '-')
-            ticker = yf.Ticker(yf_symbol)
-            data = ticker.history(period=f"{self.config['historical_days']}d", interval='1h')
+                if not ohlcv:
+                    continue
 
-            if not data.empty:
-                df = data.reset_index()
-                df['symbol'] = symbol
-                df['source'] = 'yfinance'
-                df = df.rename(columns={'Datetime': 'timestamp'})
+                df = pd.DataFrame(
+                    ohlcv,
+                    columns=[
+                        "timestamp",
+                        "open",
+                        "high",
+                        "low",
+                        "close",
+                        "volume",
+                    ],
+                )
+
+                df[
+                    "timestamp"
+                ] = pd.to_datetime(
+                    df["timestamp"],
+                    unit="ms",
+                    utc=True,
+                )
+
+                df["symbol"] = symbol
+                df[
+                    "source"
+                ] = exchange_name
 
                 return df
 
-        except Exception as e:
-            logger.warning(f"Yahoo Finance fallback failed for {symbol}: {e}")
+            except Exception as exc:
+                logger.warning(
+                    "Historical exchange data "
+                    "unavailable from %s for %s: %s",
+                    exchange_name,
+                    symbol,
+                    type(exc).__name__,
+                )
+
+        if not self.config[
+            "enable_yfinance"
+        ]:
+            return None
+
+        try:
+            from real_yahoo_adapter import (
+                fetch_yahoo_dataframe,
+            )
+
+            data = (
+                await asyncio.wait_for(
+                    asyncio.to_thread(
+                        fetch_yahoo_dataframe,
+                        symbol,
+                        (
+                            f"{self.config['historical_days']}d"
+                        ),
+                        "1h",
+                        12,
+                    ),
+                    timeout=15,
+                )
+            )
+
+            if (
+                data is not None
+                and not data.empty
+            ):
+                return data
+
+        except Exception as exc:
+            logger.warning(
+                "Yahoo chart fallback "
+                "unavailable for %s: %s",
+                symbol,
+                type(exc).__name__,
+            )
 
         return None
 

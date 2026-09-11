@@ -292,8 +292,8 @@ class UltimateLearntraderBot:
         # Bybit
         self.exchanges['bybit'] = ccxt.bybit(
             {
-                'apiKey': 'g1mhPqKrOBp9rnqb4G',
-                'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+                'apiKey': __import__("os").getenv("BYBIT_API_KEY", ""),
+                'secret': __import__("os").getenv("BYBIT_API_SECRET", ""),
                 'sandbox': True,
                 'enableRateLimit': True,
             }
@@ -505,7 +505,7 @@ class UltimateLearntraderBot:
             'smtp_server': 'smtp.gmail.com',
             'smtp_port': 587,
             'username': 'your_email@gmail.com',
-            'password': 'your_app_password',
+            'password': __import__("os").getenv("ULTIMATE_LEARNTRADER_PASSWORD", ""),
             'recipient': 'your_email@gmail.com',
         }
 

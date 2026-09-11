@@ -54,6 +54,31 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
+def _leantrader_yahoo_chart(
+    symbol,
+    range_="10d",
+    interval="1h",
+    timeout=10,
+):
+    """
+    Retrieve genuine public Yahoo chart data.
+
+    Uses a fixed supported curl-cffi fingerprint
+    to avoid moving browser-alias drift.
+    """
+
+    from real_yahoo_adapter import (
+        fetch_yahoo_rows,
+    )
+
+    return fetch_yahoo_rows(
+        symbol,
+        range_=range_,
+        interval=interval,
+        timeout=timeout,
+    )
+
+
 def _leantrader_json_default(value):
     if isinstance(value, datetime):
         return value.isoformat()
@@ -940,105 +965,552 @@ class ULTIMATE_EVOLUTION_ENGINE:
                 print(f"❌ FX Trader Engine error: {e}")
                 time.sleep(60)
     
+
+    def _real_public_signal_snapshot(
+        self,
+        symbol,
+        timeframe='5m',
+        limit=120,
+    ):
+        """Real OHLCV-derived signal features; no fabricated observations."""
+
+        try:
+            import ccxt
+
+            cache = getattr(
+                self,
+                '_real_signal_exchanges',
+                None,
+            )
+
+            if cache is None:
+                cache = {}
+                self._real_signal_exchanges = cache
+
+            ex = cache.get(
+                'bybit'
+            )
+
+            if ex is None:
+                ex = ccxt.bybit({
+                    'enableRateLimit': True,
+                    'timeout': 15000,
+                })
+
+                cache['bybit'] = ex
+
+            rows = ex.fetch_ohlcv(
+                symbol,
+                timeframe=timeframe,
+                limit=limit,
+            )
+
+            if not rows or len(rows) < 30:
+                return None
+
+            close = np.asarray(
+                [
+                    float(row[4])
+                    for row in rows
+                ],
+                dtype=np.float64,
+            )
+
+            volume = np.asarray(
+                [
+                    float(row[5] or 0.0)
+                    for row in rows
+                ],
+                dtype=np.float64,
+            )
+
+            returns = np.diff(
+                close
+            ) / close[:-1]
+
+            fast = (
+                close[-1] / close[-6]
+                - 1.0
+            )
+
+            slow = (
+                close[-1] / close[-21]
+                - 1.0
+            )
+
+            volatility = float(
+                np.std(
+                    returns[-30:]
+                )
+            )
+
+            recent_volume = float(
+                np.mean(
+                    volume[-5:]
+                )
+            )
+
+            base_volume = float(
+                np.mean(
+                    volume[-30:]
+                )
+            )
+
+            volume_ratio = (
+                recent_volume / base_volume
+                if base_volume > 0
+                else 1.0
+            )
+
+            score = (
+                fast * 35.0
+                + slow * 15.0
+            )
+
+            confidence = float(
+                np.clip(
+                    0.5
+                    + abs(score),
+                    0.5,
+                    0.99,
+                )
+            )
+
+            if score > 0.002:
+                action = 'BUY'
+
+            elif score < -0.002:
+                action = 'SELL'
+
+            else:
+                action = 'HOLD'
+
+            return {
+                'symbol': symbol,
+                'price': float(close[-1]),
+                'fast_return': float(fast),
+                'slow_return': float(slow),
+                'volatility': volatility,
+                'volume_ratio': float(volume_ratio),
+                'action': action,
+                'confidence': confidence,
+                'source': 'bybit_public_ohlcv',
+                'timestamp': datetime.now(),
+            }
+
+        except Exception:
+            return None
+
+
+
     def generate_fx_signals(self):
-        """Generate forex and commodity signals"""
+        """
+        Generate FX and commodity signals from genuine Yahoo
+        public chart observations.
+
+        Network calls are bounded and executed concurrently.
+        """
+
+        from concurrent.futures import (
+            ThreadPoolExecutor,
+            as_completed,
+        )
+
         signals = []
-        
-        # Get forex and commodity pairs
-        all_pairs = []
-        if self.forex_pairs:
-            all_pairs.extend(self.forex_pairs)
-        if self.commodity_symbols:
-            all_pairs.extend(self.commodity_symbols)
-        
-        if not all_pairs:
-            return signals
-        
-        # Generate signals for forex/commodities (similar to scalper)
-        for pair in all_pairs:
-            if random.random() > 0.85:  # 15% chance per pair
-                signal = {
-                    'pair': pair,
-                    'action': random.choice(['BUY', 'SELL']),
-                    'confidence': random.uniform(0.70, 0.95),
-                    'target_profit': random.uniform(0.1, 0.3),
-                    'timestamp': datetime.now(),
-                }
-                signals.append(signal)
-        
+
+        mappings = {
+            "EUR/USD": "EURUSD=X",
+            "GBP/USD": "GBPUSD=X",
+            "USD/JPY": "JPY=X",
+            "USD/CHF": "CHF=X",
+            "AUD/USD": "AUDUSD=X",
+            "USD/CAD": "CAD=X",
+            "NZD/USD": "NZDUSD=X",
+            "EUR/GBP": "EURGBP=X",
+            "EUR/JPY": "EURJPY=X",
+            "GBP/JPY": "GBPJPY=X",
+            "GOLD": "GC=F",
+            "SILVER": "SI=F",
+            "OIL": "CL=F",
+            "GAS": "NG=F",
+            "COPPER": "HG=F",
+            "PLATINUM": "PL=F",
+            "PALLADIUM": "PA=F",
+        }
+
+        requested = list(
+            dict.fromkeys(
+                list(
+                    getattr(
+                        self,
+                        "forex_pairs",
+                        [],
+                    )
+                )
+                + list(
+                    getattr(
+                        self,
+                        "commodity_symbols",
+                        [],
+                    )
+                )
+            )
+        )
+
+        jobs = {}
+
+        with ThreadPoolExecutor(
+            max_workers=6
+        ) as pool:
+
+            for pair in requested:
+
+                ticker = mappings.get(
+                    pair
+                )
+
+                if not ticker:
+                    continue
+
+                future = pool.submit(
+                    _leantrader_yahoo_chart,
+                    ticker,
+                    "10d",
+                    "1h",
+                    10,
+                )
+
+                jobs[future] = (
+                    pair,
+                    ticker,
+                )
+
+            for future in as_completed(
+                jobs
+            ):
+
+                pair, ticker = jobs[
+                    future
+                ]
+
+                try:
+                    rows = future.result()
+
+                except Exception as exc:
+                    print(
+                        f"⚠️ Real FX/commodity data "
+                        f"unavailable for {pair}: {exc}"
+                    )
+                    continue
+
+                close = np.asarray(
+                    [
+                        float(row[4])
+                        for row in rows
+                    ],
+                    dtype=np.float64,
+                )
+
+                if len(close) < 30:
+                    continue
+
+                returns = np.diff(
+                    close
+                ) / close[:-1]
+
+                fast = (
+                    close[-1]
+                    / close[-6]
+                    - 1.0
+                )
+
+                slow = (
+                    close[-1]
+                    / close[-21]
+                    - 1.0
+                )
+
+                volatility = float(
+                    np.std(
+                        returns[-24:]
+                    )
+                )
+
+                score = (
+                    fast * 25.0
+                    + slow * 12.0
+                )
+
+                threshold = max(
+                    volatility * 2.0,
+                    0.0015,
+                )
+
+                if score > threshold:
+                    action = "BUY"
+
+                elif score < -threshold:
+                    action = "SELL"
+
+                else:
+                    continue
+
+                strength = (
+                    abs(score)
+                    / max(
+                        volatility,
+                        0.0001,
+                    )
+                )
+
+                confidence = float(
+                    np.clip(
+                        0.50
+                        + strength * 0.04,
+                        0.50,
+                        0.98,
+                    )
+                )
+
+                target_profit = max(
+                    volatility * 1.5,
+                    0.001,
+                )
+
+                signals.append(
+                    {
+                        "pair": pair,
+                        "ticker": ticker,
+                        "action": action,
+                        "confidence": confidence,
+                        "target_profit":
+                            target_profit,
+                        "current_price":
+                            float(close[-1]),
+                        "fast_return":
+                            float(fast),
+                        "slow_return":
+                            float(slow),
+                        "volatility":
+                            volatility,
+                        "source":
+                            "yahoo_chart_api",
+                        "timestamp":
+                            datetime.now(),
+                    }
+                )
+
         return signals
 
     def generate_scalping_signals(self):
-        """Generate scalping signals"""
-        try:
-            signals = []
+        """Generate scalping signals from observed public OHLCV."""
 
-            # Simulate scalping signal generation
-            pairs = self.active_engines.get('scalper_engine', {}).get('pairs', [])
+        signals = []
 
-            for pair in pairs:
-                # Simulate signal generation
-                if random.random() > 0.8:  # 20% chance of signal
-                    signal = {
-                        'pair': pair,
-                        'action': random.choice(['BUY', 'SELL']),
-                        'confidence': random.uniform(0.7, 0.95),
-                        'target_profit': random.uniform(0.05, 0.15),
-                        'timestamp': datetime.now(),
-                    }
-                    signals.append(signal)
+        pairs = (
+            self.active_engines
+            .get(
+                'scalper_engine',
+                {},
+            )
+            .get(
+                'pairs',
+                [],
+            )
+        )
 
-            return signals
+        for pair in pairs:
 
-        except Exception as e:
-            print(f"❌ Scalping signal generation error: {e}")
-            return []
+            snapshot = (
+                self._real_public_signal_snapshot(
+                    pair,
+                    timeframe='1m',
+                    limit=120,
+                )
+            )
+
+            if (
+                not snapshot
+                or snapshot['action'] == 'HOLD'
+            ):
+                continue
+
+            signals.append({
+                'pair': pair,
+                'action': snapshot['action'],
+                'confidence': snapshot['confidence'],
+                'target_profit': max(
+                    snapshot['volatility'] * 1.5,
+                    0.001,
+                ),
+                'source': snapshot['source'],
+                'timestamp': snapshot['timestamp'],
+            })
+
+        return signals
+
 
     def scan_for_moon_gems(self):
-        """Scan for potential 100x moon gems"""
-        try:
-            gems = []
+        """Rank dynamically discovered assets using observed price/volume momentum."""
 
-            # Simulate moon gem scanning
-            if random.random() > 0.95:  # 5% chance of finding gem
-                gem = {
-                    'symbol': f"MOON{random.randint(1000, 9999)}",
-                    'current_price': random.uniform(0.001, 0.01),
-                    'target_price': random.uniform(0.1, 1.0),
-                    'potential_multiplier': random.uniform(50, 500),
-                    'confidence': random.uniform(0.6, 0.9),
-                    'scan_time': datetime.now(),
-                }
-                gems.append(gem)
+        gems = []
 
-            return gems
+        for pair in list(
+            dict.fromkeys(
+                self.crypto_pairs
+            )
+        )[:100]:
 
-        except Exception as e:
-            print(f"❌ Moon gem scanning error: {e}")
-            return []
+            snapshot = (
+                self._real_public_signal_snapshot(
+                    pair,
+                    timeframe='5m',
+                    limit=120,
+                )
+            )
+
+            if not snapshot:
+                continue
+
+            if (
+                snapshot['fast_return'] > 0.02
+                and snapshot['volume_ratio'] > 1.5
+            ):
+                gems.append({
+                    'symbol': pair,
+                    'current_price':
+                        snapshot['price'],
+                    'observed_momentum':
+                        snapshot['fast_return'],
+                    'volume_ratio':
+                        snapshot['volume_ratio'],
+                    'confidence':
+                        snapshot['confidence'],
+                    'source':
+                        snapshot['source'],
+                    'scan_time':
+                        snapshot['timestamp'],
+                })
+
+        return sorted(
+            gems,
+            key=lambda item: (
+                item['observed_momentum'],
+                item['volume_ratio'],
+            ),
+            reverse=True,
+        )[:20]
+
 
     def find_arbitrage_opportunities(self):
-        """Find arbitrage opportunities"""
+        """Compare simultaneously observed public CEX quotes."""
+
+        opportunities = []
+
         try:
-            opportunities = []
+            import ccxt
 
-            # Simulate arbitrage opportunity detection
-            if random.random() > 0.9:  # 10% chance of opportunity
-                opportunity = {
-                    'pair': random.choice(['BTC/USDT', 'ETH/USDT', 'BNB/USDT']),
-                    'buy_exchange': random.choice(['binance', 'bybit', 'gate']),
-                    'sell_exchange': random.choice(['mexc', 'bitget', 'okx']),
-                    'profit_percentage': random.uniform(0.2, 1.0),
-                    'volume_available': random.uniform(1000, 10000),
-                    'detection_time': datetime.now(),
-                }
-                opportunities.append(opportunity)
+            exchanges = {
+                'bybit': ccxt.bybit({
+                    'enableRateLimit': True,
+                    'timeout': 12000,
+                }),
+                'binance': ccxt.binance({
+                    'enableRateLimit': True,
+                    'timeout': 12000,
+                }),
+                'okx': ccxt.okx({
+                    'enableRateLimit': True,
+                    'timeout': 12000,
+                }),
+            }
 
-            return opportunities
+            for pair in [
+                'BTC/USDT',
+                'ETH/USDT',
+                'SOL/USDT',
+            ]:
 
-        except Exception as e:
-            print(f"❌ Arbitrage opportunity detection error: {e}")
+                quotes = []
+
+                for name, exchange in exchanges.items():
+
+                    try:
+                        ticker = (
+                            exchange.fetch_ticker(
+                                pair
+                            )
+                        )
+
+                        bid = float(
+                            ticker.get(
+                                'bid'
+                            )
+                            or 0.0
+                        )
+
+                        ask = float(
+                            ticker.get(
+                                'ask'
+                            )
+                            or 0.0
+                        )
+
+                        if bid > 0 and ask > 0:
+                            quotes.append(
+                                (
+                                    name,
+                                    bid,
+                                    ask,
+                                )
+                            )
+
+                    except Exception:
+                        continue
+
+                if len(quotes) < 2:
+                    continue
+
+                buy = min(
+                    quotes,
+                    key=lambda row: row[2],
+                )
+
+                sell = max(
+                    quotes,
+                    key=lambda row: row[1],
+                )
+
+                if sell[1] <= buy[2]:
+                    continue
+
+                gross = (
+                    sell[1] / buy[2]
+                    - 1.0
+                )
+
+                # Evidence only. Actual fee/slippage economics
+                # are handled by execution/risk layers.
+                opportunities.append({
+                    'pair': pair,
+                    'buy_exchange': buy[0],
+                    'sell_exchange': sell[0],
+                    'buy_ask': buy[2],
+                    'sell_bid': sell[1],
+                    'gross_spread':
+                        gross,
+                    'profit_percentage':
+                        gross * 100.0,
+                    'source':
+                        'public_cex_quotes',
+                    'detection_time':
+                        datetime.now(),
+                })
+
+        except Exception:
             return []
+
+        return opportunities
 
     def execute_fx_trades(self):
         """Execute FX trades"""

@@ -356,8 +356,17 @@ class SubscriptionManager:
 
     def _generate_crypto_address(self) -> str:
         """Generate crypto payment address."""
-        # In production, integrate with payment processor
-        return "0x" + secrets.token_hex(20)  # Example address
+        address = os.getenv(
+            "CRYPTO_PAYMENT_ADDRESS",
+            "",
+        ).strip()
+
+        if not address:
+            raise RuntimeError(
+                "CONFIG_REQUIRED: CRYPTO_PAYMENT_ADDRESS"
+            )
+
+        return address
 
 # ===============================
 # MULTI-ACCOUNT TRADING MANAGER
@@ -643,6 +652,177 @@ class UltraTelegramBot:
         # Payment handlers
         self.app.add_handler(
             MessageHandler(filters.SUCCESSFUL_PAYMENT, self.successful_payment_callback)
+        )
+
+
+    async def pre_checkout_callback(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+    ):
+        """Validate Telegram checkout payload before payment."""
+
+        query = update.pre_checkout_query
+
+        payload = (
+            query.invoice_payload
+            or ""
+        )
+
+        valid = payload.startswith(
+            "vip_"
+        )
+
+        await query.answer(
+            ok=valid,
+            error_message=(
+                None
+                if valid
+                else "Unknown subscription invoice."
+            ),
+        )
+
+
+    async def successful_payment_callback(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+    ):
+        """Persist a confirmed Telegram payment."""
+
+        payment = (
+            update.message.successful_payment
+            if update.message
+            else None
+        )
+
+        if payment is None:
+            return
+
+        user_id = str(
+            update.effective_user.id
+        )
+
+        payload = (
+            payment.invoice_payload
+            or ""
+        )
+
+        plan = payload.removeprefix(
+            "vip_"
+        )
+
+        durations = {
+            "monthly": 30,
+            "quarterly": 90,
+            "yearly": 365,
+            "lifetime": 9999,
+        }
+
+        days = durations.get(
+            plan
+        )
+
+        if days is None:
+            await update.message.reply_text(
+                "Payment received but invoice plan is unknown. "
+                "Administrator review required."
+            )
+            return
+
+        conn = sqlite3.connect(
+            self.subscription_manager.db_path
+        )
+
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT user_id
+            FROM users
+            WHERE telegram_id = ?
+            """,
+            (user_id,),
+        )
+
+        row = cursor.fetchone()
+
+        expiration = (
+            datetime.now()
+            + timedelta(days=days)
+        )
+
+        if row:
+
+            internal_user_id = row[0]
+
+            cursor.execute(
+                """
+                UPDATE users
+                SET subscription_tier = 'vip',
+                    subscription_expires = ?,
+                    total_paid = total_paid + ?
+                WHERE user_id = ?
+                """,
+                (
+                    expiration,
+                    payment.total_amount / 100.0,
+                    internal_user_id,
+                ),
+            )
+
+        else:
+
+            cursor.execute(
+                """
+                INSERT INTO users
+                (
+                    telegram_id,
+                    subscription_tier,
+                    subscription_expires,
+                    total_paid
+                )
+                VALUES (?, 'vip', ?, ?)
+                """,
+                (
+                    user_id,
+                    expiration,
+                    payment.total_amount / 100.0,
+                ),
+            )
+
+            internal_user_id = (
+                cursor.lastrowid
+            )
+
+        cursor.execute(
+            """
+            INSERT INTO payments
+            (
+                user_id,
+                amount,
+                currency,
+                method,
+                status,
+                stripe_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                internal_user_id,
+                payment.total_amount / 100.0,
+                payment.currency,
+                "telegram",
+                "confirmed",
+                payment.telegram_payment_charge_id,
+            ),
+        )
+
+        conn.commit()
+        conn.close()
+
+        await update.message.reply_text(
+            f"✅ VIP activated for {days} days."
         )
 
     async def cmd_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1144,7 +1324,10 @@ Leverage: {signal.get('leverage', '2x')}
                 title=f"Ultra+ VIP Subscription ({plan.title()})",
                 description="Get VIP access to Ultra+ Trading System",
                 payload=f"vip_{plan}",
-                provider_token="YOUR_PAYMENT_PROVIDER_TOKEN",
+                provider_token=os.getenv(
+                    "TELEGRAM_PAYMENT_PROVIDER_TOKEN",
+                    "",
+                ),
                 currency="USD",
                 prices=[{"label": f"VIP {plan.title()}", "amount": price * 100}],
                 start_parameter=f"vip-{plan}",

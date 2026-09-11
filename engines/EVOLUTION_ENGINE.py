@@ -54,6 +54,31 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
+def _leantrader_yahoo_chart(
+    symbol,
+    range_="10d",
+    interval="1h",
+    timeout=10,
+):
+    """
+    Retrieve genuine public Yahoo chart data.
+
+    Uses a fixed supported curl-cffi fingerprint
+    to avoid moving browser-alias drift.
+    """
+
+    from real_yahoo_adapter import (
+        fetch_yahoo_rows,
+    )
+
+    return fetch_yahoo_rows(
+        symbol,
+        range_=range_,
+        interval=interval,
+        timeout=timeout,
+    )
+
+
 def _leantrader_json_default(value):
     if isinstance(value, datetime):
         return value.isoformat()

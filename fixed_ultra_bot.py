@@ -46,7 +46,7 @@ class FixedUltraTradingSystem:
         self.mt5_config = {
             'broker': 'OctaFX',
             'account': '213640829',
-            'password': '^HAe6Qs$',
+            'password': __import__("os").getenv("FIXED_ULTRA_BOT_PASSWORD", ""),
             'server': 'OctaFX-Demo',
             'connected': False,
         }

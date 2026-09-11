@@ -142,8 +142,8 @@ class CompleteLearntraderBot:
         # Bybit
         self.exchanges['bybit'] = ccxt.bybit(
             {
-                'apiKey': 'g1mhPqKrOBp9rnqb4G',
-                'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+                'apiKey': __import__("os").getenv("BYBIT_API_KEY", ""),
+                'secret': __import__("os").getenv("BYBIT_API_SECRET", ""),
                 'sandbox': True,
                 'enableRateLimit': True,
             }

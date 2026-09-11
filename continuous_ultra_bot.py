@@ -43,19 +43,38 @@ class ContinuousUltraTradingSystem:
         self.exchanges = {}
         self.active_exchanges = []
 
-        # MT5 Configuration (OctaFX Demo)
+        # MT5 runtime configuration
         self.mt5_config = {
-            'broker': 'OctaFX',
-            'account': '213640829',
-            'password': '^HAe6Qs$',
-            'server': 'OctaFX-Demo',
-            'connected': False,
+            "broker": os.getenv("MT5_BROKER", "").strip(),
+            "account": os.getenv("MT5_ACCOUNT", "").strip(),
+            "password": os.getenv("MT5_PASSWORD", ""),
+            "server": os.getenv("MT5_SERVER", "").strip(),
+            "bridge_url": os.getenv("MT5_BRIDGE_URL", "").strip(),
+            "connected": False,
+            "status": "CONFIG_REQUIRED",
         }
 
-        # Telegram Bot with REAL credentials
-        self.telegram_bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN", ""))
-        self.telegram_chat_id = "5329503447"
-        self.telegram_enabled = True
+        _telegram_token = os.getenv(
+            "TELEGRAM_BOT_TOKEN",
+            "",
+        ).strip()
+
+        self.telegram_chat_id = os.getenv(
+            "TG_ADMIN_CHAT_ID",
+            "",
+        ).strip()
+
+        self.telegram_enabled = bool(
+            TELEGRAM_AVAILABLE
+            and _telegram_token
+            and self.telegram_chat_id
+        )
+
+        self.telegram_bot = (
+            Bot(token=_telegram_token)
+            if self.telegram_enabled
+            else None
+        )
 
         # Performance tracking
         self.performance = {
@@ -160,42 +179,308 @@ class ContinuousUltraTradingSystem:
         self.db.commit()
         logger.info("✅ Database initialized!")
 
-    async def initialize_exchanges(self):
-        """Initialize all trading exchanges"""
-        logger.info("🔌 Initializing exchanges...")
 
-        # OKX (most reliable)
-        self.exchanges['okx'] = ccxt.okx(
-            {
-                'sandbox': True,
-                'enableRateLimit': True,
-            }
+    async def initialize_exchanges(self):
+        '''Initialize genuine unauthenticated public market-data feeds.'''
+
+        logger.info(
+            "🔌 Initializing real public exchange feeds..."
         )
 
-        # Test connections
-        for name, exchange in self.exchanges.items():
+        self.exchanges = {
+            "bybit": ccxt.bybit({
+                "enableRateLimit": True,
+                "timeout": 15000,
+            }),
+            "binance": ccxt.binance({
+                "enableRateLimit": True,
+                "timeout": 15000,
+            }),
+            "okx": ccxt.okx({
+                "enableRateLimit": True,
+                "timeout": 15000,
+            }),
+            "kucoin": ccxt.kucoin({
+                "enableRateLimit": True,
+                "timeout": 15000,
+            }),
+        }
+
+        self.active_exchanges = []
+
+        async def probe(name, exchange):
             try:
-                markets = exchange.load_markets()
-                logger.info(f"✅ {name.upper()} connected - {len(markets)} markets")
+                markets = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        exchange.load_markets
+                    ),
+                    timeout=25,
+                )
+
+                return name, len(markets), None
+
+            except Exception as exc:
+                return name, 0, exc
+
+        results = await asyncio.gather(
+            *[
+                probe(name, exchange)
+                for name, exchange
+                in self.exchanges.items()
+            ]
+        )
+
+        for name, count, error in results:
+            if error is None:
                 self.active_exchanges.append(name)
-            except Exception as e:
-                logger.warning(f"⚠️ {name.upper()} connection failed: {e}")
+
+                logger.info(
+                    f"✅ {name.upper()} public feed connected "
+                    f"- {count} markets"
+                )
+
+            else:
+                logger.warning(
+                    f"⚠️ {name.upper()} public feed unavailable: "
+                    f"{error}"
+                )
+
+    async def _fetch_yahoo_history(
+        self,
+        ticker,
+        range_="10d",
+        interval="1h",
+    ):
+        '''Retrieve real Yahoo chart data with bounded network latency.'''
+
+        def fetch():
+            from urllib.parse import quote
+            from curl_cffi import requests as curl_requests
+
+            symbol = quote(
+                ticker,
+                safe="",
+            )
+
+            url = (
+                "https://query1.finance.yahoo.com/"
+                f"v8/finance/chart/{symbol}"
+                f"?range={range_}"
+                f"&interval={interval}"
+                "&includePrePost=false"
+            )
+
+            session = curl_requests.Session(
+                impersonate="chrome136"
+            )
+
+            try:
+                response = session.get(
+                    url,
+                    timeout=10,
+                )
+
+                response.raise_for_status()
+
+                payload = response.json()
+
+            finally:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+
+            result = (
+                payload.get("chart", {})
+                .get("result")
+                or []
+            )
+
+            if not result:
+                return []
+
+            result = result[0]
+
+            timestamps = (
+                result.get("timestamp")
+                or []
+            )
+
+            quotes = (
+                result.get("indicators", {})
+                .get("quote")
+                or []
+            )
+
+            if not quotes:
+                return []
+
+            quote_data = quotes[0]
+
+            opens = quote_data.get("open") or []
+            highs = quote_data.get("high") or []
+            lows = quote_data.get("low") or []
+            closes = quote_data.get("close") or []
+            volumes = quote_data.get("volume") or []
+
+            rows = []
+
+            for i in range(
+                min(
+                    len(timestamps),
+                    len(closes),
+                )
+            ):
+                close = closes[i]
+
+                if close is None:
+                    continue
+
+                open_ = (
+                    opens[i]
+                    if i < len(opens)
+                    and opens[i] is not None
+                    else close
+                )
+
+                high = (
+                    highs[i]
+                    if i < len(highs)
+                    and highs[i] is not None
+                    else close
+                )
+
+                low = (
+                    lows[i]
+                    if i < len(lows)
+                    and lows[i] is not None
+                    else close
+                )
+
+                volume = (
+                    volumes[i]
+                    if i < len(volumes)
+                    and volumes[i] is not None
+                    else 0.0
+                )
+
+                rows.append([
+                    int(timestamps[i]) * 1000,
+                    float(open_),
+                    float(high),
+                    float(low),
+                    float(close),
+                    float(volume),
+                ])
+
+            return rows
+
+        return await asyncio.wait_for(
+            asyncio.to_thread(fetch),
+            timeout=15,
+        )
+
 
     async def initialize_mt5(self):
-        """Initialize MT5 connection (simulated for Linux)"""
-        logger.info("📈 Initializing MT5 connection...")
+        '''
+        Activate MT5 only when an actual bridge exists.
+        Never report a simulated Linux adapter as connected.
+        '''
+
+        logger.info(
+            "📈 Initializing MT5 adapter..."
+        )
+
+        bridge = os.getenv(
+            "MT5_BRIDGE_URL",
+            "",
+        ).strip()
+
+        self.mt5_config.update({
+            "broker": os.getenv(
+                "MT5_BROKER",
+                "",
+            ).strip(),
+            "account": os.getenv(
+                "MT5_ACCOUNT",
+                "",
+            ).strip(),
+            "password": os.getenv(
+                "MT5_PASSWORD",
+                "",
+            ),
+            "server": os.getenv(
+                "MT5_SERVER",
+                "",
+            ).strip(),
+            "bridge_url": bridge,
+            "connected": False,
+            "status": "CONFIG_REQUIRED",
+        })
+
+        if not bridge:
+            logger.warning(
+                "⚠️ MT5 CONFIG_REQUIRED: no real MT5 bridge configured; "
+                "engine remains loaded without MT5 execution authority."
+            )
+            return False
+
+        def healthcheck():
+            import requests
+
+            response = requests.get(
+                bridge.rstrip("/")
+                + "/health",
+                timeout=6,
+            )
+
+            return response
 
         try:
-            logger.info("✅ MT5 Simulated Connection Established")
-            logger.info(f"📊 Broker: {self.mt5_config['broker']}")
-            logger.info(f"📊 Account: {self.mt5_config['account']}")
-            logger.info(f"📊 Server: {self.mt5_config['server']}")
-            logger.info("💰 Demo Account Ready for Trading")
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    healthcheck
+                ),
+                timeout=8,
+            )
 
-            self.mt5_config['connected'] = True
+            if not (
+                200
+                <= response.status_code
+                < 300
+            ):
+                raise RuntimeError(
+                    f"HTTP {response.status_code}"
+                )
 
-        except Exception as e:
-            logger.warning(f"⚠️ MT5 simulation failed: {e}")
+            self.mt5_config[
+                "connected"
+            ] = True
+
+            self.mt5_config[
+                "status"
+            ] = "CONNECTED"
+
+            logger.info(
+                "✅ Real MT5 bridge connected"
+            )
+
+            return True
+
+        except Exception as exc:
+            self.mt5_config[
+                "connected"
+            ] = False
+
+            self.mt5_config[
+                "status"
+            ] = "UNAVAILABLE"
+
+            logger.warning(
+                f"⚠️ MT5 bridge unavailable: {exc}"
+            )
+
+            return False
 
     async def send_telegram_message(self, message: str):
         """Send Telegram message"""
@@ -222,308 +507,618 @@ class ContinuousUltraTradingSystem:
         except Exception as e:
             logger.error(f"❌ Error sending Telegram message: {e}")
 
+
     async def detect_arbitrage_opportunities(self):
-        """Detect arbitrage opportunities"""
-        arbitrage_ops = []
+        '''Detect genuine cross-exchange bid/ask differences.'''
 
-        try:
-            if not self.active_exchanges:
-                logger.warning("⚠️ No exchanges connected for arbitrage detection")
-                return arbitrage_ops
+        opportunities = []
 
-            # Use demo data for demonstration
-            demo_arbitrage = {
-                'symbol': 'BTC/USDT',
-                'buy_exchange': 'OKX',
-                'sell_exchange': 'BINANCE',
-                'buy_price': 42150.50,
-                'sell_price': 42175.80,
-                'profit_pct': 0.60,
-                'timestamp': datetime.now(),
-            }
-
-            arbitrage_ops.append(demo_arbitrage)
-
-            # Save to database
-            cursor = self.db.cursor()
-            cursor.execute(
-                '''
-                INSERT INTO arbitrage_opportunities 
-                (symbol, buy_exchange, sell_exchange, buy_price, sell_price, profit_pct)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''',
-                (
-                    demo_arbitrage['symbol'],
-                    demo_arbitrage['buy_exchange'],
-                    demo_arbitrage['sell_exchange'],
-                    demo_arbitrage['buy_price'],
-                    demo_arbitrage['sell_price'],
-                    demo_arbitrage['profit_pct'],
-                ),
+        active = [
+            (
+                name,
+                self.exchanges[name],
             )
-            self.db.commit()
+            for name
+            in self.active_exchanges
+            if name in self.exchanges
+        ]
 
-            # Send Telegram signal
-            signal = f"""💰 ARBITRAGE OPPORTUNITY DETECTED!
+        if len(active) < 2:
+            return opportunities
 
-🪙 Symbol: {demo_arbitrage['symbol']}
-📈 Buy: {demo_arbitrage['buy_exchange']} @ ${demo_arbitrage['buy_price']:.2f}
-📉 Sell: {demo_arbitrage['sell_exchange']} @ ${demo_arbitrage['sell_price']:.2f}
-💎 Profit: {demo_arbitrage['profit_pct']:.2f}%
-⏰ Time: {datetime.now().strftime('%H:%M:%S')}
+        for symbol in (
+            "BTC/USDT",
+            "ETH/USDT",
+            "SOL/USDT",
+        ):
 
-⚠️ Execute quickly - opportunities expire fast!
-🚀 Generated by ULTRA TRADING SYSTEM"""
+            async def quote(name, exchange):
+                try:
+                    ticker = await asyncio.wait_for(
+                        asyncio.to_thread(
+                            exchange.fetch_ticker,
+                            symbol,
+                        ),
+                        timeout=12,
+                    )
 
-            await self.send_telegram_message(signal)
+                    bid = float(
+                        ticker.get("bid")
+                        or 0.0
+                    )
 
-            logger.info(
-                f"💰 ARBITRAGE: {demo_arbitrage['symbol']} | Buy {demo_arbitrage['buy_exchange']} @ ${demo_arbitrage['buy_price']:.2f} | Sell {demo_arbitrage['sell_exchange']} @ ${demo_arbitrage['sell_price']:.2f} | Profit: {demo_arbitrage['profit_pct']:.2f}%"
-            )
+                    ask = float(
+                        ticker.get("ask")
+                        or 0.0
+                    )
 
-        except Exception as e:
-            logger.error(f"Error detecting arbitrage: {e}")
+                    if bid <= 0 or ask <= 0:
+                        return None
 
-        return arbitrage_ops
+                    return {
+                        "exchange": name,
+                        "bid": bid,
+                        "ask": ask,
+                    }
 
-    async def spot_micro_moons(self):
-        """Spot micro moons"""
-        micro_moons = []
+                except Exception:
+                    return None
 
-        try:
-            # Demo micro moon for demonstration
-            demo_micro_moon = {
-                'symbol': 'MOON',
-                'name': 'TokenMoon',
-                'price': 0.000123,
-                'market_cap': 8500000,
-                'change_24h': 45.2,
-                'volume': 125000,
-                'timestamp': datetime.now(),
-            }
-
-            micro_moons.append(demo_micro_moon)
-
-            # Send Telegram signal
-            signal = f"""🌙 MICRO MOON DETECTED!
-
-🚀 {demo_micro_moon['name']} ({demo_micro_moon['symbol']})
-💰 Price: ${demo_micro_moon['price']:.6f}
-📈 Change 24h: {demo_micro_moon['change_24h']:.1f}%
-🏆 Market Cap: ${demo_micro_moon['market_cap']:,.0f}
-📊 Volume: ${demo_micro_moon['volume']:,.0f}
-⭐ Potential: HIGH
-
-⚠️ High risk, high reward opportunity!
-🔍 Spotted by ULTRA TRADING SYSTEM"""
-
-            await self.send_telegram_message(signal)
-
-            logger.info(
-                f"🌙 MICRO MOON: {demo_micro_moon['name']} ({demo_micro_moon['symbol']}) - {demo_micro_moon['change_24h']:.1f}%"
+            quotes = await asyncio.gather(
+                *[
+                    quote(name, exchange)
+                    for name, exchange
+                    in active
+                ]
             )
 
-            self.performance['micro_moons_found'] += 1
-
-        except Exception as e:
-            logger.error(f"Error spotting micro moons: {e}")
-
-        return micro_moons
-
-    async def run_forex_analysis(self):
-        """Run forex analysis with MT5"""
-        forex_signals = []
-
-        try:
-            logger.info("💱 Running forex analysis with MT5...")
-
-            # Forex pairs to analyze
-            forex_pairs = [
-                {
-                    'pair': 'EUR/USD',
-                    'action': 'BUY',
-                    'entry': 1.0850,
-                    'target': 1.0920,
-                    'stop_loss': 1.0800,
-                    'confidence': 85,
-                },
-                {
-                    'pair': 'GBP/USD',
-                    'action': 'SELL',
-                    'entry': 1.2650,
-                    'target': 1.2580,
-                    'stop_loss': 1.2700,
-                    'confidence': 78,
-                },
-                {
-                    'pair': 'USD/JPY',
-                    'action': 'BUY',
-                    'entry': 149.50,
-                    'target': 150.20,
-                    'stop_loss': 149.00,
-                    'confidence': 82,
-                },
-                {
-                    'pair': 'AUD/USD',
-                    'action': 'SELL',
-                    'entry': 0.6580,
-                    'target': 0.6520,
-                    'stop_loss': 0.6620,
-                    'confidence': 75,
-                },
-                {
-                    'pair': 'USD/CAD',
-                    'action': 'BUY',
-                    'entry': 1.3620,
-                    'target': 1.3680,
-                    'stop_loss': 1.3580,
-                    'confidence': 80,
-                },
+            quotes = [
+                item
+                for item in quotes
+                if item
             ]
 
-            # Select 1-2 random signals per analysis
-            import random
+            if len(quotes) < 2:
+                continue
 
-            selected_pairs = random.sample(forex_pairs, random.randint(1, 2))
+            buy = min(
+                quotes,
+                key=lambda row: row["ask"],
+            )
 
-            for signal_data in selected_pairs:
-                forex_signals.append(signal_data)
+            sell = max(
+                quotes,
+                key=lambda row: row["bid"],
+            )
 
-                # Save to database
+            if sell["bid"] <= buy["ask"]:
+                continue
+
+            gross_spread = (
+                sell["bid"]
+                / buy["ask"]
+                - 1.0
+            )
+
+            observation = {
+                "symbol": symbol,
+                "buy_exchange":
+                    buy["exchange"],
+                "sell_exchange":
+                    sell["exchange"],
+                "buy_price":
+                    buy["ask"],
+                "sell_price":
+                    sell["bid"],
+                "profit_pct":
+                    gross_spread * 100.0,
+                "gross_spread":
+                    gross_spread,
+                "source":
+                    "real_public_cex_quotes",
+                "timestamp":
+                    datetime.now(),
+            }
+
+            opportunities.append(
+                observation
+            )
+
+            if self.db is not None:
                 cursor = self.db.cursor()
+
                 cursor.execute(
-                    '''
-                    INSERT INTO forex_signals 
-                    (pair, action, entry_price, target_price, stop_loss, confidence)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''',
+                    "INSERT INTO arbitrage_opportunities "
+                    "(symbol,buy_exchange,sell_exchange,"
+                    "buy_price,sell_price,profit_pct) "
+                    "VALUES (?,?,?,?,?,?)",
                     (
-                        signal_data['pair'],
-                        signal_data['action'],
-                        signal_data['entry'],
-                        signal_data['target'],
-                        signal_data['stop_loss'],
-                        signal_data['confidence'],
+                        observation["symbol"],
+                        observation["buy_exchange"],
+                        observation["sell_exchange"],
+                        observation["buy_price"],
+                        observation["sell_price"],
+                        observation["profit_pct"],
                     ),
                 )
+
                 self.db.commit()
 
-                # Send Telegram signal
-                signal = f"""💱 FOREX SIGNAL - {signal_data['pair']}
+            logger.info(
+                f"💰 REAL ARBITRAGE OBSERVATION: "
+                f"{symbol} "
+                f"{buy['exchange']} ask={buy['ask']} "
+                f"{sell['exchange']} bid={sell['bid']} "
+                f"gross={gross_spread:.4%}"
+            )
 
-📊 Action: {signal_data['action']}
-💰 Entry: {signal_data['entry']}
-🎯 Target: {signal_data['target']}
-🛡️ Stop Loss: {signal_data['stop_loss']}
-📈 Confidence: {signal_data['confidence']}%
-⏰ Time: {datetime.now().strftime('%H:%M:%S')}
+        return opportunities
 
-📊 Broker: OctaFX Demo (213640829)
-🔍 Analysis: MT5 + Technical Indicators
-⚠️ Risk Management: Always use stop loss!
 
-🚀 ULTRA TRADING SYSTEM"""
+    async def spot_micro_moons(self):
+        '''Rank genuine high-momentum USDT markets.'''
 
-                await self.send_telegram_message(signal)
-                self.performance['forex_signals'] += 1
+        preferred = next(
+            (
+                name
+                for name in (
+                    "bybit",
+                    "okx",
+                    "binance",
+                    "kucoin",
+                )
+                if name
+                in self.active_exchanges
+            ),
+            None,
+        )
 
-                logger.info(
-                    f"💱 FOREX: {signal_data['pair']} {signal_data['action']} @ {signal_data['entry']} | Target: {signal_data['target']} | Confidence: {signal_data['confidence']}%"
+        if preferred is None:
+            return []
+
+        exchange = self.exchanges[
+            preferred
+        ]
+
+        try:
+            tickers = await asyncio.wait_for(
+                asyncio.to_thread(
+                    exchange.fetch_tickers
+                ),
+                timeout=30,
+            )
+
+        except Exception as exc:
+            logger.warning(
+                f"⚠️ Moon scanner feed unavailable: {exc}"
+            )
+            return []
+
+        candidates = []
+
+        for symbol, ticker in tickers.items():
+
+            if not (
+                isinstance(symbol, str)
+                and symbol.endswith(
+                    "/USDT"
+                )
+            ):
+                continue
+
+            try:
+                price = float(
+                    ticker.get("last")
+                    or 0.0
                 )
 
-        except Exception as e:
-            logger.error(f"Error in forex analysis: {e}")
-            random = None
+                change = float(
+                    ticker.get("percentage")
+                    or 0.0
+                )
+
+                volume = float(
+                    ticker.get("quoteVolume")
+                    or 0.0
+                )
+
+            except Exception:
+                continue
+
+            if (
+                price <= 0
+                or volume < 100000
+                or change < 5.0
+            ):
+                continue
+
+            candidates.append({
+                "symbol": symbol,
+                "name": symbol,
+                "price": price,
+                "market_cap": None,
+                "change_24h": change,
+                "volume": volume,
+                "source": preferred,
+                "timestamp":
+                    datetime.now(),
+            })
+
+        candidates.sort(
+            key=lambda row: (
+                row["change_24h"],
+                row["volume"],
+            ),
+            reverse=True,
+        )
+
+        output = candidates[:20]
+
+        self.performance[
+            "micro_moons_found"
+        ] += len(output)
+
+        logger.info(
+            f"🌙 REAL MOON SCANNER: "
+            f"{len(output)} candidates "
+            f"from {preferred}"
+        )
+
+        return output
+
+
+    async def run_forex_analysis(self):
+        '''Create FX signals from genuine hourly market history.'''
+
+        import statistics
+
+        mapping = {
+            "EUR/USD": "EURUSD=X",
+            "GBP/USD": "GBPUSD=X",
+            "USD/JPY": "JPY=X",
+            "USD/CHF": "CHF=X",
+            "AUD/USD": "AUDUSD=X",
+            "USD/CAD": "CAD=X",
+            "NZD/USD": "NZDUSD=X",
+        }
+
+        async def analyze(
+            pair,
+            ticker,
+        ):
+            try:
+                rows = await self._fetch_yahoo_history(
+                    ticker,
+                    "10d",
+                    "1h",
+                )
+
+            except Exception as exc:
+                logger.warning(
+                    f"⚠️ FX feed unavailable "
+                    f"for {pair}: {exc}"
+                )
+                return None
+
+            if len(rows) < 40:
+                return None
+
+            closes = [
+                float(row[4])
+                for row in rows
+            ]
+
+            returns = [
+                closes[index]
+                / closes[index - 1]
+                - 1.0
+                for index in range(
+                    1,
+                    len(closes),
+                )
+                if closes[
+                    index - 1
+                ] > 0
+            ]
+
+            if len(returns) < 20:
+                return None
+
+            fast = (
+                closes[-1]
+                / closes[-6]
+                - 1.0
+            )
+
+            slow = (
+                closes[-1]
+                / closes[-21]
+                - 1.0
+            )
+
+            volatility = (
+                statistics.pstdev(
+                    returns[-24:]
+                )
+                if len(
+                    returns[-24:]
+                ) > 1
+                else 0.0
+            )
+
+            score = (
+                fast * 30.0
+                + slow * 12.0
+            )
+
+            threshold = max(
+                volatility * 2.0,
+                0.001,
+            )
+
+            if score > threshold:
+                action = "BUY"
+
+            elif score < -threshold:
+                action = "SELL"
+
+            else:
+                return None
+
+            direction = (
+                1.0
+                if action == "BUY"
+                else -1.0
+            )
+
+            entry = closes[-1]
+
+            target_distance = max(
+                volatility * 1.8,
+                0.0015,
+            )
+
+            stop_distance = max(
+                volatility * 1.2,
+                0.001,
+            )
+
+            strength = (
+                abs(score)
+                / max(
+                    volatility,
+                    0.0001,
+                )
+            )
+
+            confidence = min(
+                98.0,
+                50.0
+                + strength * 4.0,
+            )
+
+            return {
+                "pair": pair,
+                "action": action,
+                "entry": entry,
+                "target":
+                    entry
+                    * (
+                        1.0
+                        + direction
+                        * target_distance
+                    ),
+                "stop_loss":
+                    entry
+                    * (
+                        1.0
+                        - direction
+                        * stop_distance
+                    ),
+                "confidence":
+                    confidence,
+                "volatility":
+                    volatility,
+                "source":
+                    "yahoo_chart_api",
+            }
+
+        results = await asyncio.gather(
+            *[
+                analyze(pair, ticker)
+                for pair, ticker
+                in mapping.items()
+            ]
+        )
+
+        forex_signals = [
+            item
+            for item in results
+            if item
+        ]
+
+        for signal in forex_signals:
+
+            if self.db is not None:
+                cursor = self.db.cursor()
+
+                cursor.execute(
+                    "INSERT INTO forex_signals "
+                    "(pair,action,entry_price,"
+                    "target_price,stop_loss,confidence) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (
+                        signal["pair"],
+                        signal["action"],
+                        signal["entry"],
+                        signal["target"],
+                        signal["stop_loss"],
+                        signal["confidence"],
+                    ),
+                )
+
+                self.db.commit()
+
+            logger.info(
+                f"💱 REAL FX SIGNAL: "
+                f"{signal['pair']} "
+                f"{signal['action']} "
+                f"entry={signal['entry']} "
+                f"confidence="
+                f"{signal['confidence']:.1f}%"
+            )
+
+        self.performance[
+            "forex_signals"
+        ] += len(
+            forex_signals
+        )
 
         return forex_signals
 
+
     async def run_quantum_analysis(self):
-        """Run quantum analysis (simulated)"""
-        try:
-            logger.info("⚛️ Running quantum analysis...")
+        '''
+        The native quantum engine is managed by the master orchestrator.
+        Do not manufacture standalone quantum signals here.
+        '''
 
-            # Simulate quantum analysis
-            import random
+        logger.info(
+            "⚛️ Native quantum coordinator available; "
+            "no synthetic quantum recommendation emitted."
+        )
 
-            quantum_signals = random.randint(1, 2)
+        return []
 
-            for i in range(quantum_signals):
-                confidence = None  # was random.randint(75, 95): a fabricated
-        # confidence presented as analysis output. Left unset so callers
-        # skip the signal rather than acting on an invented score.
-                signal = f"""⚛️ QUANTUM SIGNAL #{i+1}
-
-🔬 Advanced optimization detected!
-📊 Portfolio rebalancing recommended
-🎯 Confidence: {confidence}%
-⏰ Valid for: Next 15 minutes
-💡 Generated by quantum algorithms
-
-🚀 ULTRA TRADING SYSTEM"""
-
-                await self.send_telegram_message(signal)
-                self.performance['quantum_signals'] += 1
-
-        except Exception as e:
-            logger.error(f"Error in quantum analysis: {e}")
-            random = None
 
     async def run_web_crawling(self):
-        """Run web crawling for news and strategies"""
-        try:
-            logger.info("🕷️ Running web crawling...")
+        '''Retrieve current public market-news RSS observations.'''
 
-            # Simulate web crawling results
-            news_items = [
-                "Bitcoin breaks $42,000 resistance level",
-                "Ethereum 2.0 upgrade shows promising results",
-                "New DeFi protocol launches with 1000% APY",
-                "Federal Reserve hints at rate cuts",
-                "Major bank announces crypto custody services",
+        import feedparser
+        from curl_cffi import requests as curl_requests
+
+        configured = os.getenv(
+            "NEWS_RSS_FEEDS",
+            "",
+        ).strip()
+
+        feeds = (
+            [
+                item.strip()
+                for item
+                in configured.split(",")
+                if item.strip()
             ]
+            if configured
+            else [
+                "https://www.coindesk.com/arc/outboundfeeds/rss/",
+                "https://cointelegraph.com/rss",
+                "https://www.theblock.co/rss.xml",
+            ]
+        )
 
-            # Send 1-2 news items per analysis
-            import random
+        async def fetch_feed(url):
 
-            selected_news = random.sample(news_items, random.randint(1, 2))
+            def fetch():
+                session = curl_requests.Session(
+                    impersonate="chrome136"
+                )
 
-            for news in selected_news:
-                signal = f"""📰 MARKET NEWS ALERT!
+                try:
+                    response = session.get(
+                        url,
+                        timeout=10,
+                    )
 
-{news}
+                    response.raise_for_status()
 
-📊 Impact: Medium to High
-⏰ Time: {datetime.now().strftime('%H:%M:%S')}
-🔍 Source: Web Crawler Analysis
+                    parsed = feedparser.loads(
+                        response.text
+                    )
 
-🚀 ULTRA TRADING SYSTEM"""
+                    return [
+                        {
+                            "title":
+                                entry.get(
+                                    "title",
+                                    "",
+                                ).strip(),
+                            "link":
+                                entry.get(
+                                    "link",
+                                    "",
+                                ).strip(),
+                            "source": url,
+                        }
+                        for entry
+                        in parsed.entries[:5]
+                        if entry.get("title")
+                    ]
 
-                await self.send_telegram_message(signal)
+                finally:
+                    try:
+                        session.close()
+                    except Exception:
+                        pass
 
-        except Exception as e:
-            logger.error(f"Error in web crawling: {e}")
-            random = None
+            try:
+                return await asyncio.wait_for(
+                    asyncio.to_thread(fetch),
+                    timeout=15,
+                )
+
+            except Exception as exc:
+                logger.warning(
+                    f"⚠️ News feed unavailable "
+                    f"{url}: {exc}"
+                )
+                return []
+
+        groups = await asyncio.gather(
+            *[
+                fetch_feed(url)
+                for url in feeds
+            ]
+        )
+
+        output = []
+        seen = set()
+
+        for group in groups:
+            for item in group:
+                title = item["title"]
+
+                if title in seen:
+                    continue
+
+                seen.add(title)
+                output.append(item)
+
+        logger.info(
+            f"📰 REAL NEWS CRAWLER: "
+            f"{len(output)} current headlines"
+        )
+
+        return output[:10]
+
 
     async def run_continuous_training(self):
-        """Run continuous model training"""
-        try:
-            logger.info("🧠 Running continuous model training...")
+        '''
+        Actual fitting belongs to the native ML/evolution engines.
+        This coordinator must report measured state only.
+        '''
 
-            # Simulate model training
-            signal = """🧠 MODEL TRAINING UPDATE
+        logger.info(
+            "🧠 Continuous training coordinator active; "
+            "no fabricated accuracy values."
+        )
 
-📊 Training Status: In Progress
-🎯 Models: LSTM, Random Forest, XGBoost
-📈 Accuracy: 87.5% (improving)
-⏰ Next Training: 30 minutes
-💡 Performance: Above baseline
-
-🚀 ULTRA TRADING SYSTEM"""
-
-            await self.send_telegram_message(signal)
-
-        except Exception as e:
-            logger.error(f"Error in continuous training: {e}")
+        return {
+            "status": "ACTIVE",
+            "source":
+                "native_evolution_ml_pipeline",
+            "fabricated_accuracy": False,
+        }
 
     async def trading_loop(self):
         """Main trading loop - CONTINUOUS VERSION"""
@@ -536,24 +1131,24 @@ class ContinuousUltraTradingSystem:
 
 🎯 Complete Professional Trading System
 📊 Features: Web Crawling, ML, Quantum Computing, Arbitrage
-📈 MT5 Demo: OctaFX - 213640829
+📈 MT5: runtime-configured real bridge
 
-✅ All systems operational:
+✅ Native subsystems initialized:
 • 🪙 Multi-Asset Trading (Crypto, Forex)
 • 💰 Arbitrage Detection Across Exchanges
 • 🧠 Advanced ML Models with Continuous Training
 • ⚛️ Quantum Computing for Optimization
 • 📱 Telegram Signals and Notifications
 • 🕷️ Web Crawling for News and Strategies
-• 📈 MT5 Integration (OctaFX Demo)
+• 📈 MT5 Integration (real bridge when configured)
 • 🗄️ Database Storage and Performance Tracking
 • 🔍 Micro Moon Spotter for Early Opportunities
 
 🕐 Started: {datetime.now().strftime('%H:%M:%S')}
 🔄 Running CONTINUOUSLY on VPS
-📱 Telegram notifications ENABLED
+📱 Telegram notifications use runtime configuration
 
-Your professional trading system is now LIVE! 🚀📈"""
+Continuous native intelligence runtime is active. 🚀📈"""
 
         await self.send_telegram_message(startup_message)
 
@@ -692,7 +1287,7 @@ if __name__ == "__main__":
     logger.info("⚛️ Quantum Computing for Optimization")
     logger.info("📱 Telegram Signals and Notifications")
     logger.info("🕷️ Web Crawling for News and Strategies")
-    logger.info("📈 MT5 Integration (OctaFX Demo)")
+    logger.info("📈 MT5 Integration (real bridge when configured)")
     logger.info("🗄️ Database Storage and Performance Tracking")
     logger.info("🔍 Micro Moon Spotter for Early Opportunities")
     logger.info("🔄 RUNNING CONTINUOUSLY ON VPS")

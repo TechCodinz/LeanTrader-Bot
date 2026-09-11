@@ -87,3 +87,41 @@ def minutes_to_next_open(symbol: str, now_utc: Optional[datetime] = None) -> int
             start = start + timedelta(days=1)
             mins_list.append(int((start - now_local).total_seconds() // 60))
     return min(mins_list) if mins_list else 60
+
+
+
+class SessionClock:
+    """
+    Object facade around the native
+    session-clock functions.
+    """
+
+    def is_active(
+        self,
+        symbol,
+        now_utc=None,
+    ):
+        return fx_session_active(
+            symbol,
+            now_utc,
+        )
+
+    def fx_session_active(
+        self,
+        symbol,
+        now_utc=None,
+    ):
+        return fx_session_active(
+            symbol,
+            now_utc,
+        )
+
+    def minutes_to_next_open(
+        self,
+        symbol,
+        now_utc=None,
+    ):
+        return minutes_to_next_open(
+            symbol,
+            now_utc,
+        )

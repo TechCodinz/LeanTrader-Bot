@@ -144,8 +144,8 @@ class NobelSimpleSystem:
         return {
             'exchanges': {
                 'bybit': {
-                    'api_key': 'g1mhPqKrOBp9rnqb4G',
-                    'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+                    'api_key': __import__("os").getenv("NOBEL_SIMPLE_SYSTEM_API_KEY", ""),
+                    'secret': __import__("os").getenv("NOBEL_SIMPLE_SYSTEM_API_SECRET", ""),
                     'sandbox': True,
                     'testnet': True
                 }

@@ -50,8 +50,8 @@ class LivePriceProfessionalBot:
 
         # Bybit Testnet Configuration
         self.bybit_config = {
-            'api_key': 'g1mhPqKrOBp9rnqb4G',
-            'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+            'api_key': __import__("os").getenv("LIVE_PRICE_BOT_API_KEY", ""),
+            'secret': __import__("os").getenv("LIVE_PRICE_BOT_API_SECRET", ""),
             'sandbox': True,
             'testnet': True,
         }

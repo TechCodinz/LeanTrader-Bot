@@ -3,7 +3,6 @@
 import os
 import numpy as np
 import pandas as pd
-import yfinance as yf
 import time
 import asyncio
 import ccxt
@@ -256,57 +255,85 @@ class UltimateBot450Models:
         logger.info(f"SUCCESS: {len(self.ml_models)} AI/ML models initialized (FULL 450+ MODELS)")
 
 
-    async def get_price_data(self, symbol, market_type='crypto'):
-        """Retrieve genuine public market observations."""
+
+    async def get_price_data(
+        self,
+        symbol,
+        market_type='crypto',
+    ):
+        """Get genuine observable market data."""
 
         price_data = {}
 
         if market_type == 'crypto':
+
             clients = [
                 ('bybit', self.bybit),
-                *list(self.exchanges.items()),
+                *list(
+                    self.exchanges.items()
+                ),
             ]
 
             for source, client in clients:
+
                 try:
-                    ticker, bars = await asyncio.gather(
-                        asyncio.to_thread(
-                            client.fetch_ticker,
-                            symbol,
-                        ),
-                        asyncio.to_thread(
-                            client.fetch_ohlcv,
-                            symbol,
-                            '1h',
-                            None,
-                            240,
-                        ),
+                    ticker, bars = (
+                        await asyncio.gather(
+                            asyncio.to_thread(
+                                client.fetch_ticker,
+                                symbol,
+                            ),
+                            asyncio.to_thread(
+                                client.fetch_ohlcv,
+                                symbol,
+                                '1h',
+                                None,
+                                240,
+                            ),
+                        )
                     )
 
                     closes = [
                         float(row[4])
                         for row in bars
                         if (
-                            isinstance(row, (list, tuple))
+                            isinstance(
+                                row,
+                                (list, tuple),
+                            )
                             and len(row) >= 6
-                            and row[4] is not None
-                        )
-                    ]
-
-                    volumes = [
-                        float(row[5] or 0.0)
-                        for row in bars
-                        if (
-                            isinstance(row, (list, tuple))
-                            and len(row) >= 6
+                            and row[4]
+                            is not None
                         )
                     ]
 
                     if len(closes) < 60:
                         continue
 
-                    price = float(
-                        ticker.get('last')
+                    rows = [
+                        [
+                            int(row[0]),
+                            float(row[1]),
+                            float(row[2]),
+                            float(row[3]),
+                            float(row[4]),
+                            float(
+                                row[5]
+                                or 0.0
+                            ),
+                        ]
+                        for row in bars
+                        if (
+                            len(row) >= 6
+                            and row[4]
+                            is not None
+                        )
+                    ]
+
+                    latest = float(
+                        ticker.get(
+                            'last'
+                        )
                         or closes[-1]
                     )
 
@@ -317,58 +344,72 @@ class UltimateBot450Models:
                     )
 
                     change = (
-                        ((price / previous) - 1.0)
+                        (
+                            latest
+                            / previous
+                            - 1.0
+                        )
                         * 100.0
                         if previous > 0
                         else 0.0
                     )
 
-                    price_data[source] = {
-                        'price': price,
+                    price_data[
+                        source
+                    ] = {
+                        'price': latest,
                         'volume': float(
-                            ticker.get('baseVolume')
-                            or volumes[-1]
+                            ticker.get(
+                                'baseVolume'
+                            )
+                            or rows[-1][5]
                             or 0.0
                         ),
-                        'change_24h': float(
-                            ticker.get('percentage')
-                            if ticker.get('percentage') is not None
-                            else change
-                        ),
-                        'high_24h': float(
-                            ticker.get('high')
-                            or max(closes[-24:])
-                        ),
-                        'low_24h': float(
-                            ticker.get('low')
-                            or min(closes[-24:])
-                        ),
+                        'change_24h':
+                            float(
+                                ticker.get(
+                                    'percentage'
+                                )
+                                if ticker.get(
+                                    'percentage'
+                                )
+                                is not None
+                                else change
+                            ),
+                        'high_24h':
+                            float(
+                                ticker.get(
+                                    'high'
+                                )
+                                or max(
+                                    closes[-24:]
+                                )
+                            ),
+                        'low_24h':
+                            float(
+                                ticker.get(
+                                    'low'
+                                )
+                                or min(
+                                    closes[-24:]
+                                )
+                            ),
                     }
 
-                    price_data['_history'] = [
-                        [
-                            int(row[0]),
-                            float(row[1]),
-                            float(row[2]),
-                            float(row[3]),
-                            float(row[4]),
-                            float(row[5] or 0.0),
-                        ]
-                        for row in bars
-                        if (
-                            isinstance(row, (list, tuple))
-                            and len(row) >= 6
-                            and row[4] is not None
-                        )
-                    ]
+                    price_data[
+                        '_history'
+                    ] = rows
 
-                    price_data['_source'] = source
+                    price_data[
+                        '_source'
+                    ] = source
 
                     return price_data
 
                 except Exception as exc:
                     logger.debug(
-                        "public market source %s unavailable for %s: %s",
+                        "real crypto source %s "
+                        "unavailable for %s: %s",
                         source,
                         symbol,
                         exc,
@@ -378,7 +419,7 @@ class UltimateBot450Models:
 
         if market_type == 'forex':
 
-            yahoo_symbols = {
+            mapping = {
                 'EUR/USD': 'EURUSD=X',
                 'GBP/USD': 'GBPUSD=X',
                 'USD/JPY': 'JPY=X',
@@ -388,105 +429,268 @@ class UltimateBot450Models:
                 'NZD/USD': 'NZDUSD=X',
             }
 
-            ticker_symbol = yahoo_symbols.get(
+            ticker_symbol = mapping.get(
                 symbol
             )
 
             if not ticker_symbol:
                 return {}
 
-            try:
-                frame = await asyncio.to_thread(
-                    lambda: yf.Ticker(
-                        ticker_symbol
-                    ).history(
-                        period='1mo',
-                        interval='1h',
-                        auto_adjust=False,
+            def fetch_real_forex():
+
+                from urllib.parse import quote
+                from curl_cffi import (
+                    requests
+                    as curl_requests
+                )
+
+                encoded = quote(
+                    ticker_symbol,
+                    safe='',
+                )
+
+                url = (
+                    "https://query1.finance.yahoo.com/"
+                    f"v8/finance/chart/{encoded}"
+                    "?range=10d"
+                    "&interval=1h"
+                    "&includePrePost=false"
+                )
+
+                session = (
+                    curl_requests.Session(
+                        impersonate='chrome136'
                     )
                 )
 
-                if frame is None or len(frame) < 60:
-                    return {}
+                try:
+                    response = session.get(
+                        url,
+                        timeout=10,
+                    )
 
-                frame = frame.dropna(
-                    subset=['Close']
+                    response.raise_for_status()
+
+                    payload = response.json()
+
+                finally:
+                    try:
+                        session.close()
+                    except Exception:
+                        pass
+
+                results = (
+                    payload.get(
+                        'chart',
+                        {}
+                    ).get(
+                        'result'
+                    )
+                    or []
                 )
 
-                close = frame['Close'].astype(float)
-                high = frame['High'].astype(float)
-                low = frame['Low'].astype(float)
+                if not results:
+                    return []
 
-                volume = (
-                    frame['Volume'].fillna(0).astype(float)
-                    if 'Volume' in frame
-                    else pd.Series(
-                        [0.0] * len(frame),
-                        index=frame.index,
+                result = results[0]
+
+                timestamps = (
+                    result.get(
+                        'timestamp'
+                    )
+                    or []
+                )
+
+                quotes = (
+                    result.get(
+                        'indicators',
+                        {}
+                    ).get(
+                        'quote',
+                        []
                     )
                 )
 
-                latest = float(close.iloc[-1])
+                if not quotes:
+                    return []
 
-                previous = float(
-                    close.iloc[-25]
-                    if len(close) >= 25
-                    else close.iloc[0]
+                q = quotes[0]
+
+                closes = (
+                    q.get('close')
+                    or []
                 )
 
-                change = (
-                    ((latest / previous) - 1.0) * 100.0
-                    if previous > 0
-                    else 0.0
+                opens = (
+                    q.get('open')
+                    or []
                 )
 
-                bars = []
+                highs = (
+                    q.get('high')
+                    or []
+                )
 
-                for index, row in frame.iterrows():
-                    bars.append(
+                lows = (
+                    q.get('low')
+                    or []
+                )
+
+                volumes = (
+                    q.get('volume')
+                    or []
+                )
+
+                rows = []
+
+                for i in range(
+                    min(
+                        len(
+                            timestamps
+                        ),
+                        len(
+                            closes
+                        ),
+                    )
+                ):
+
+                    close = closes[i]
+
+                    if close is None:
+                        continue
+
+                    open_ = (
+                        opens[i]
+                        if i < len(opens)
+                        and opens[i]
+                        is not None
+                        else close
+                    )
+
+                    high = (
+                        highs[i]
+                        if i < len(highs)
+                        and highs[i]
+                        is not None
+                        else close
+                    )
+
+                    low = (
+                        lows[i]
+                        if i < len(lows)
+                        and lows[i]
+                        is not None
+                        else close
+                    )
+
+                    volume = (
+                        volumes[i]
+                        if i < len(volumes)
+                        and volumes[i]
+                        is not None
+                        else 0.0
+                    )
+
+                    rows.append(
                         [
                             int(
-                                pd.Timestamp(index).timestamp()
-                                * 1000
-                            ),
-                            float(row['Open']),
-                            float(row['High']),
-                            float(row['Low']),
-                            float(row['Close']),
-                            float(
-                                row.get('Volume', 0.0)
-                                or 0.0
-                            ),
+                                timestamps[i]
+                            ) * 1000,
+                            float(open_),
+                            float(high),
+                            float(low),
+                            float(close),
+                            float(volume),
                         ]
                     )
 
-                price_data['yahoo'] = {
-                    'price': latest,
-                    'volume': float(
-                        volume.iloc[-1]
-                    ),
-                    'change_24h': change,
-                    'high_24h': float(
-                        high.iloc[-24:].max()
-                    ),
-                    'low_24h': float(
-                        low.iloc[-24:].min()
-                    ),
-                }
+                return rows
 
-                price_data['_history'] = bars
-                price_data['_source'] = 'yahoo'
 
-                return price_data
+            try:
+                rows = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        fetch_real_forex
+                    ),
+                    timeout=15,
+                )
 
             except Exception as exc:
                 logger.warning(
-                    "real forex data unavailable for %s: %s",
+                    "real forex data unavailable "
+                    "for %s: %s",
                     symbol,
                     exc,
                 )
 
                 return {}
+
+            if len(rows) < 60:
+                return {}
+
+            closes = [
+                row[4]
+                for row in rows
+            ]
+
+            volumes = [
+                row[5]
+                for row in rows
+            ]
+
+            latest = float(
+                closes[-1]
+            )
+
+            previous = float(
+                closes[-25]
+            )
+
+            change = (
+                (
+                    latest
+                    / previous
+                    - 1.0
+                )
+                * 100.0
+                if previous > 0
+                else 0.0
+            )
+
+            price_data[
+                'yahoo'
+            ] = {
+                'price': latest,
+                'volume': float(
+                    volumes[-1]
+                ),
+                'change_24h':
+                    change,
+                'high_24h':
+                    max(
+                        row[2]
+                        for row
+                        in rows[-24:]
+                    ),
+                'low_24h':
+                    min(
+                        row[3]
+                        for row
+                        in rows[-24:]
+                    ),
+            }
+
+            price_data[
+                '_history'
+            ] = rows
+
+            price_data[
+                '_source'
+            ] = (
+                'yahoo_chart_api'
+            )
+
+            return price_data
 
         return {}
 

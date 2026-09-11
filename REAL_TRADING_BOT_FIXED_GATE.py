@@ -14,8 +14,8 @@ class GATE_PROFIT_BOT:
 
         # GATE.IO API CONFIGURATION (REAL TRADING)
         self.gate_config = {
-            'apiKey': 'a0508d8aadf3bcb76e16f4373e1f3a76',
-            'secret': '451770a07dbede1b87bb92f5ce98e24029d2fe91e0053be2ec41771c953113f9',
+            'apiKey': __import__("os").getenv("REAL_TRADING_BOT_FIXED_GATE_API_KEY", ""),
+            'secret': __import__("os").getenv("REAL_TRADING_BOT_FIXED_GATE_API_SECRET", ""),
             'sandbox': False,  # REAL TRADING
             'enableRateLimit': True,
         }

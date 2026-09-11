@@ -20,15 +20,15 @@ class MICRO_GATE_BOT:
             "enableRateLimit": True,
         }
 
-        exchange_name = (
-            "gateio"
-            if self.exchange_id in {"gate", "gateio"}
-            else self.exchange_id
+        from ccxt_exchange_compat import (
+            resolve_exchange_class,
         )
 
-        exchange_class = getattr(
-            ccxt,
-            exchange_name,
+        exchange_class = (
+            resolve_exchange_class(
+                ccxt,
+                self.exchange_id,
+            )
         )
 
         self.gate = exchange_class(

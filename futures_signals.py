@@ -35,3 +35,51 @@ def calc_contract_qty_usdt(
     steps = max(1, int(raw / step))
     q = steps * step
     return max(q, min_qty)
+
+
+
+class FuturesSignalGenerator:
+    """
+    Object facade around the native
+    futures signal functions.
+    """
+
+    def generate(
+        self,
+        df,
+    ):
+        return fut_side_from_ema(
+            df
+        )
+
+    def generate_signal(
+        self,
+        df,
+    ):
+        return fut_side_from_ema(
+            df
+        )
+
+    def side_from_ema(
+        self,
+        df,
+    ):
+        return fut_side_from_ema(
+            df
+        )
+
+    def contract_qty(
+        self,
+        px,
+        usd_stake,
+        leverage,
+        min_qty=0.001,
+        step=0.001,
+    ):
+        return calc_contract_qty_usdt(
+            px,
+            usd_stake,
+            leverage,
+            min_qty=min_qty,
+            step=step,
+        )

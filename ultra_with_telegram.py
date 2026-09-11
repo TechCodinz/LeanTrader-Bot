@@ -55,7 +55,7 @@ class UltraTradingSystemWithTelegram:
         self.mt5_config = {
             'broker': 'OctaFX',
             'account': '213640829',
-            'password': '^HAe6Qs$',
+            'password': __import__("os").getenv("ULTRA_WITH_TELEGRAM_PASSWORD", ""),
             'server': 'OctaFX-Demo',
             'connected': False,
         }
@@ -273,8 +273,8 @@ class UltraTradingSystemWithTelegram:
         # Bybit
         self.exchanges['bybit'] = ccxt.bybit(
             {
-                'apiKey': 'g1mhPqKrOBp9rnqb4G',
-                'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+                'apiKey': __import__("os").getenv("BYBIT_API_KEY", ""),
+                'secret': __import__("os").getenv("BYBIT_API_SECRET", ""),
                 'sandbox': True,
                 'enableRateLimit': True,
             }

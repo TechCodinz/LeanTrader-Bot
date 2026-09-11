@@ -49,7 +49,7 @@ class RealMarketUltraTradingSystem:
         self.mt5_config = {
             'broker': 'OctaFX',
             'account': '213640829',
-            'password': '^HAe6Qs$',
+            'password': __import__("os").getenv("REAL_MARKET_BOT_PASSWORD", ""),
             'server': 'OctaFX-Demo',
             'connected': False,
         }

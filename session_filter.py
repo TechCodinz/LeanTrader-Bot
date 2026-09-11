@@ -57,3 +57,87 @@ def crypto_session_weight(symbol: str) -> Tuple[str, float]:
 
     w = 1.0 if in_range(*ny_peak, now) else 0.85
     return ("CRYPTO", w)
+
+
+
+class SessionFilter:
+    """
+    Object facade around the native
+    session-weight functions.
+    """
+
+    def fx_weight(
+        self,
+        symbol,
+    ):
+        return fx_session_weight(
+            symbol
+        )
+
+    def crypto_weight(
+        self,
+        symbol,
+    ):
+        return crypto_session_weight(
+            symbol
+        )
+
+    def weight(
+        self,
+        symbol,
+        asset_class=None,
+    ):
+        kind = str(
+            asset_class or ""
+        ).strip().lower()
+
+        if kind in {
+            "fx",
+            "forex",
+            "metal",
+            "metals",
+        }:
+            return fx_session_weight(
+                symbol
+            )
+
+        if kind in {
+            "crypto",
+            "spot",
+            "perp",
+            "futures",
+        }:
+            return crypto_session_weight(
+                symbol
+            )
+
+        value = str(
+            symbol or ""
+        ).upper()
+
+        fx_tokens = (
+            "EUR",
+            "GBP",
+            "JPY",
+            "CHF",
+            "AUD",
+            "NZD",
+            "XAU",
+            "XAG",
+        )
+
+        if (
+            any(
+                item in value
+                for item in fx_tokens
+            )
+            and "USDT" not in value
+            and "USDC" not in value
+        ):
+            return fx_session_weight(
+                symbol
+            )
+
+        return crypto_session_weight(
+            symbol
+        )

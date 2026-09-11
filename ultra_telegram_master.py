@@ -1173,3 +1173,105 @@ if __name__ == "__main__":
     The most beautiful and profitable signals on Telegram!
     """
     )
+
+
+
+class UltraTelegramMaster:
+    """
+    Compatibility facade around the real
+    TelegramSignalIntegration.
+
+    Telegram credentials are external
+    configuration. Their absence must not
+    make native intelligence initialization fail.
+    """
+
+    def __init__(
+        self,
+        bot_token=None,
+        channel_id=None,
+        vip_channel_id=None,
+    ):
+        import os
+
+        self.bot_token = (
+            bot_token
+            or os.getenv(
+                "TELEGRAM_BOT_TOKEN",
+                "",
+            )
+        ).strip()
+
+        self.channel_id = (
+            channel_id
+            or os.getenv(
+                "TG_ADMIN_CHAT_ID",
+                "",
+            )
+            or os.getenv(
+                "TELEGRAM_ADMIN_CHAT_ID",
+                "",
+            )
+            or os.getenv(
+                "TELEGRAM_CHANNEL_ID",
+                "",
+            )
+        ).strip()
+
+        self.vip_channel_id = (
+            vip_channel_id
+            or os.getenv(
+                "TELEGRAM_VIP_CHAT_ID",
+                "",
+            )
+        ).strip() or None
+
+        self.integration = None
+        self.status = (
+            "CONFIG_REQUIRED"
+        )
+
+        if (
+            self.bot_token
+            and self.channel_id
+        ):
+            self.integration = (
+                TelegramSignalIntegration(
+                    bot_token=(
+                        self.bot_token
+                    ),
+                    channel_id=(
+                        self.channel_id
+                    ),
+                    vip_channel_id=(
+                        self.vip_channel_id
+                    ),
+                )
+            )
+
+            self.status = "READY"
+
+    async def start(self):
+        if self.integration is None:
+            return False
+
+        await self.integration.start()
+
+        return True
+
+    async def add_signal(
+        self,
+        signal_data,
+    ):
+        if self.integration is None:
+            return False
+
+        await self.integration.add_signal(
+            signal_data
+        )
+
+        return True
+
+    def stop(self):
+        if self.integration is not None:
+            self.integration.stop()

@@ -42,7 +42,7 @@ class UltraTradingSystem:
         self.mt5_config = {
             'broker': 'OctaFX',
             'account': '213640829',
-            'password': '^HAe6Qs$',
+            'password': __import__("os").getenv("RUN_ULTRA_SYSTEM_PASSWORD", ""),
             'server': 'OctaFX-Demo',
             'connected': False,
         }
@@ -236,8 +236,8 @@ class UltraTradingSystem:
         # Bybit
         self.exchanges['bybit'] = ccxt.bybit(
             {
-                'apiKey': 'g1mhPqKrOBp9rnqb4G',
-                'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+                'apiKey': __import__("os").getenv("BYBIT_API_KEY", ""),
+                'secret': __import__("os").getenv("BYBIT_API_SECRET", ""),
                 'sandbox': True,
                 'enableRateLimit': True,
             }

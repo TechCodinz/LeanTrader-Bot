@@ -150,7 +150,7 @@ class UltraMLPipeline:
 
                 # Train model
                 results = self.trainer.train_full_system(
-                    data_path=None, symbol=symbol, task='classification'  # Will use df directly
+                    data_path=df, symbol=symbol, task='classification'
                 )
 
                 print(f"✅ Trained model for {symbol}: {results.get('ensemble', {})}")

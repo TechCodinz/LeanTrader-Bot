@@ -561,22 +561,141 @@ class ForexTradingOrchestrator:
                 logger.error(f"Forex trading error: {e}")
                 await asyncio.sleep(180)
     
-    async def generate_forex_signal(self, pair: str) -> Optional[Dict[str, Any]]:
-        """Generate forex signal for pair"""
-        # Placeholder - would use real FX data and ML models
-        import random
-        
-        if random.random() > 0.8:  # 20% chance
-            return {
-                'type': 'forex',
-                'source': 'ForexOrchestrator',
-                'pair': pair,
-                'side': random.choice(['buy', 'sell']),
-                'confidence': random.uniform(0.6, 0.9),
-                'timestamp': datetime.now()
-            }
-        
-        return None
+    async def generate_forex_signal(
+        self,
+        pair: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Generate a forex signal solely from
+        genuine observed public price history.
+        """
+
+        import asyncio
+        import numpy as np
+
+        from real_yahoo_adapter import (
+            fetch_yahoo_rows,
+        )
+
+        try:
+            rows = await asyncio.wait_for(
+                asyncio.to_thread(
+                    fetch_yahoo_rows,
+                    pair,
+                    "1mo",
+                    "1h",
+                    12,
+                ),
+                timeout=15,
+            )
+
+        except Exception as exc:
+            logger.warning(
+                "Forex observation unavailable "
+                "for %s: %s",
+                pair,
+                type(exc).__name__,
+            )
+
+            return None
+
+        if len(rows) < 40:
+            return None
+
+        close = np.asarray(
+            [
+                float(
+                    row[4]
+                )
+                for row
+                in rows
+            ],
+            dtype=np.float64,
+        )
+
+        returns = (
+            np.diff(close)
+            / close[:-1]
+        )
+
+        fast = (
+            close[-1]
+            / close[-6]
+            - 1.0
+        )
+
+        slow = (
+            close[-1]
+            / close[-21]
+            - 1.0
+        )
+
+        volatility = float(
+            np.std(
+                returns[-24:]
+            )
+        )
+
+        score = (
+            fast * 30.0
+            + slow * 12.0
+        )
+
+        threshold = max(
+            volatility * 2.0,
+            0.001,
+        )
+
+        if score > threshold:
+            side = "buy"
+
+        elif score < -threshold:
+            side = "sell"
+
+        else:
+            return None
+
+        strength = (
+            abs(score)
+            / max(
+                volatility,
+                0.0001,
+            )
+        )
+
+        confidence = float(
+            np.clip(
+                0.50
+                + strength
+                * 0.04,
+                0.50,
+                0.98,
+            )
+        )
+
+        return {
+            "type": "forex",
+            "source":
+                "ForexOrchestratorRealYahoo",
+            "pair": pair,
+            "side": side,
+            "confidence":
+                confidence,
+            "current_price":
+                float(
+                    close[-1]
+                ),
+            "fast_return":
+                float(fast),
+            "slow_return":
+                float(slow),
+            "volatility":
+                volatility,
+            "evidence":
+                "real_public_hourly_prices",
+            "timestamp":
+                datetime.now(),
+        }
 
 
 class DeepLearningOrchestrator:
@@ -636,6 +755,69 @@ class DeepLearningOrchestrator:
 
 
 class CompleteUltimateOrchestrator(UltimateOrchestrator):
+
+    @staticmethod
+    def _normalize_intelligence_results(result):
+        """Normalize list/dict intelligence outputs without discarding information."""
+
+        if result is None:
+            return []
+
+        if isinstance(result, (list, tuple)):
+            output = []
+
+            for item in result:
+                if isinstance(item, dict):
+                    output.append(item)
+                else:
+                    output.append({
+                        "value": item,
+                    })
+
+            return output
+
+        if isinstance(result, dict):
+
+            # A single signal object.
+            if any(
+                key in result
+                for key in (
+                    "feature",
+                    "signal",
+                    "insight",
+                    "symbol",
+                    "action",
+                    "side",
+                )
+            ):
+                return [result]
+
+            # Mapping of feature name -> result.
+            output = []
+
+            for key, value in result.items():
+
+                if isinstance(value, dict):
+                    item = dict(value)
+                    item.setdefault(
+                        "feature",
+                        str(key),
+                    )
+
+                else:
+                    item = {
+                        "feature": str(key),
+                        "value": value,
+                    }
+
+                output.append(item)
+
+            return output
+
+        return [{
+            "value": result,
+        }]
+
     """
     COMPLETE ULTIMATE ORCHESTRATOR
     Extends base with ALL additional systems:
@@ -748,7 +930,21 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         try:
             self.telegram_master = UltraTelegramMaster()
             self.advanced_systems['telegram_master'] = self.telegram_master
-            logger.info("✅ 💬 ULTRA TELEGRAM MASTER - Rich notifications!")
+            if getattr(
+                self.telegram_master,
+                "status",
+                "READY",
+            ) == "READY":
+                logger.info(
+                    "✅ 💬 ULTRA TELEGRAM MASTER - "
+                    "Rich notifications ready!"
+                )
+            else:
+                logger.info(
+                    "ℹ️ ULTRA TELEGRAM MASTER loaded; "
+                    "CONFIG_REQUIRED until Telegram "
+                    "credentials are supplied"
+                )
         except Exception as e:
             logger.warning(f"⚠️  Telegram Master: {e}")
             self.telegram_master = None
@@ -802,7 +998,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         # 12-14. Additional ultra systems
         try:
             self.testnet_trader = UltraTestnetTrader(
-                self.ultra_core, self.risk_engine, self.swarm_consciousness
+                self.ultra_core, self.risk_engine, getattr(self, "swarm_consciousness", None)
             )
             self.telegram_bot = UltraTelegramBot()
             self.launcher = UltraLauncher()
@@ -852,6 +1048,33 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             setattr(self, attr, instance)
             self.advanced_systems[attr] = instance
             logger.info(f"✅ 🧠 {label} ready")
+
+        # PASS3_JOIN_REBIND_TESTNET_SWARM
+        if getattr(
+            self,
+            "testnet_trader",
+            None,
+        ) is not None:
+
+            if getattr(
+                self,
+                "swarm_consciousness",
+                None,
+            ) is None:
+                raise RuntimeError(
+                    "required SwarmConsciousness "
+                    "failed before TestnetTradingEngine "
+                    "binding"
+                )
+
+            self.testnet_trader.swarm = (
+                self.swarm_consciousness
+            )
+
+            self.advanced_systems[
+                "testnet_trader"
+            ] = self.testnet_trader
+
         
         # REVOLUTIONARY AI MANAGER
         try:
@@ -971,7 +1194,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         # OMNISCIENT EXECUTION ENGINE - Trade everything (9KB)
         try:
-            self.omniscient_execution = OmniscientExecutionEngine()
+            self.omniscient_execution = get_omniscient_engine()
             self.advanced_systems['omniscient_execution'] = self.omniscient_execution
             logger.info("✅ 👁️  OMNISCIENT EXECUTION - All markets, timeframes, exchanges!")
         except Exception as e:
@@ -980,7 +1203,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         
         # OMNISCIENT TRADING MODE - Ultimate trading (16KB)
         try:
-            self.omniscient_mode = OmniscientTradingMode()
+            self.omniscient_mode = get_omniscient_engine()
             self.advanced_systems['omniscient_mode'] = self.omniscient_mode
             logger.info("✅ 👁️  OMNISCIENT MODE - Beyond human vision (16KB)!")
         except Exception as e:
@@ -2022,62 +2245,220 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         # Check current balance
                         balance = self.micro_wallet_grower.check_gate_balance()
                         
-                        # AUTO-CLOSE ALL positions to compound profit
+                        # AUTO-CLOSE OPEN INVENTORY THROUGH THE UNIVERSAL ROUTER ONLY
+                        #
+                        # Paper:
+                        #   route_balance exposes only paper inventory,
+                        #   so no private exchange request occurs.
+                        #
+                        # Testnet/live:
+                        #   credentials, venue selection and financial
+                        #   authority remain inside the central router.
                         try:
-                            positions = self.micro_wallet_grower.gate.fetch_balance()
-                            total_freed = 0.0
-                            
-                            for coin, amt in positions['total'].items():
-                                # Skip USDT, GT (fee rebates), and PIG (problematic position)
-                                if coin not in ['USDT', 'GT', 'PIG'] and amt > 0:
-                                    # Get available (not locked) amount
-                                    available_amt = positions['free'].get(coin, 0)
-                                    
-                                    if available_amt > 0:
-                                        symbol = f"{coin}/USDT"
-                                        if symbol in self.micro_wallet_grower.gate.markets:
-                                            # Check current price
-                                            ticker = self.micro_wallet_grower.gate.fetch_ticker(symbol)
-                                            current_price = ticker['last']
-                                            position_value = available_amt * current_price
-                                            
-                                            # Close ANY position > $1
-                                            if position_value >= 1.0:
-                                                logger.info(f"🔄 CLOSING FULL POSITION: {symbol}")
-                                                logger.info(f"   Amount: {available_amt:.8f} {coin}")
-                                                logger.info(f"   Value: ${position_value:.2f}")
-                                                
-                                                # Capital recycling decides what to close;
-                                                # the execution router owns placing it. This
-                                                # runs inside an async method, so the router's
-                                                # own non-blocking facade is used.
-                                                receipt = await route_legacy_order_async(
-                                                    exchange_client=self.micro_wallet_grower.gate,
-                                                    symbol=symbol,
-                                                    order_type='market',
-                                                    side='sell',
-                                                    amount=available_amt,
+                            from src.leantrader.execution.router import (
+                                route_balance,
+                                route_ticker,
+                                route_order,
+                            )
+
+                            positions = (
+                                route_balance(
+                                    exchange_id=(
+                                        self.micro_wallet_grower.exchange_id
+                                    )
+                                )
+                                or {}
+                            )
+
+                            total_map = (
+                                positions.get(
+                                    "total"
+                                )
+                                or {}
+                            )
+
+                            free_map = (
+                                positions.get(
+                                    "free"
+                                )
+                                or {}
+                            )
+
+                            routed_notional_freed = 0.0
+
+                            if (
+                                isinstance(
+                                    total_map,
+                                    dict,
+                                )
+                                and isinstance(
+                                    free_map,
+                                    dict,
+                                )
+                            ):
+                                for coin, raw_amount in (
+                                    total_map.items()
+                                ):
+
+                                    if coin in {
+                                        "USDT",
+                                        "GT",
+                                        "PIG",
+                                    }:
+                                        continue
+
+                                    try:
+                                        available_amount = float(
+                                            free_map.get(
+                                                coin,
+                                                0.0,
+                                            )
+                                            or 0.0
+                                        )
+
+                                    except (
+                                        TypeError,
+                                        ValueError,
+                                    ):
+                                        continue
+
+                                    if available_amount <= 0.0:
+                                        continue
+
+                                    symbol = (
+                                        f"{coin}/USDT"
+                                    )
+
+                                    try:
+                                        ticker = (
+                                            route_ticker(
+                                                symbol,
+                                                exchange_id=(
+                                                    self
+                                                    .micro_wallet_grower
+                                                    .exchange_id
+                                                ),
+                                            )
+                                            or {}
+                                        )
+
+                                        current_price = float(
+                                            ticker.get(
+                                                "last"
+                                            )
+                                            or ticker.get(
+                                                "close"
+                                            )
+                                            or 0.0
+                                        )
+
+                                    except Exception as exc:
+                                        logger.info(
+                                            "MICRO close observation unavailable "
+                                            "for %s: %s",
+                                            symbol,
+                                            type(exc).__name__,
+                                        )
+                                        continue
+
+                                    if current_price <= 0.0:
+                                        continue
+
+                                    position_notional = (
+                                        available_amount
+                                        * current_price
+                                    )
+
+                                    if position_notional < 1.0:
+                                        continue
+
+                                    logger.info(
+                                        "🔄 MICRO ROUTED CLOSE CANDIDATE: %s "
+                                        "qty=%s reference=$%.8f",
+                                        symbol,
+                                        available_amount,
+                                        current_price,
+                                    )
+
+                                    result = (
+                                        route_order(
+                                            {
+                                                "symbol": symbol,
+                                                "side": "sell",
+                                                "qty":
+                                                    available_amount,
+                                                "price":
+                                                    current_price,
+                                                "order_type":
+                                                    "market",
+                                                "exchange_id": (
+                                                    self
+                                                    .micro_wallet_grower
+                                                    .exchange_id
+                                                ),
+                                                "backend":
+                                                    "ccxt",
+                                            }
+                                        )
+                                        or {}
+                                    )
+
+                                    if (
+                                        isinstance(
+                                            result,
+                                            dict,
+                                        )
+                                        and result.get(
+                                            "ok"
+                                        )
+                                    ):
+                                        routed_notional_freed += (
+                                            position_notional
+                                        )
+
+                                        logger.info(
+                                            "✅ MICRO routed close accepted: "
+                                            "%s mode=%s authority=%s",
+                                            symbol,
+                                            result.get(
+                                                "execution_mode"
+                                            ),
+                                            result.get(
+                                                "authority"
+                                            ),
+                                        )
+
+                                    else:
+                                        logger.info(
+                                            "MICRO routed close not executed: "
+                                            "%s reason=%s",
+                                            symbol,
+                                            (
+                                                result.get(
+                                                    "error"
                                                 )
+                                                if isinstance(
+                                                    result,
+                                                    dict,
+                                                )
+                                                else "unknown"
+                                            ),
+                                        )
 
-                                                if not receipt.get('ok'):
-                                                    logger.warning(
-                                                        f"   ⚠️  close rejected for {symbol}: "
-                                                        f"{receipt.get('error') or receipt.get('reason')}"
-                                                    )
-                                                    continue
+                            if routed_notional_freed > 0.0:
+                                logger.info(
+                                    "MICRO routed close notional processed: "
+                                    "$%.8f",
+                                    routed_notional_freed,
+                                )
 
-                                                order = receipt.get('order') or receipt
-                                                logger.info(f"   ✅ CLOSED! Order: {order.get('id')}")
-                                                logger.info(f"   💰 Freed ${position_value:.2f}")
-                                                total_freed += position_value
-                            
-                            if total_freed > 0:
-                                logger.info(f"💰 TOTAL FREED: ${total_freed:.2f}")
-                                
-                        except Exception as e:
-                            logger.error(f"❌ Position close failed: {e}")
-                            logger.error(f"   This error was preventing MICRO from trading!")
-                        
+                        except Exception as exc:
+                            logger.warning(
+                                "MICRO routed inventory reconciliation "
+                                "unavailable: %s",
+                                type(exc).__name__,
+                            )
+
                         # INJECT DYNAMIC PAIRS from discovery engines
                         if not self.micro_wallet_grower.crypto_pairs or len(self.micro_wallet_grower.crypto_pairs) == 0:
                             # Get pairs from market scanner
@@ -2108,17 +2489,17 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         logger.info(f"🔍 MICRO scanning {len(self.micro_wallet_grower.crypto_pairs)} pairs...")
                         trades_attempted = 0
                         for symbol in self.micro_wallet_grower.crypto_pairs:
-                            action, confidence, price, sl, tp = self.micro_wallet_grower.analyze_market(symbol)
+                            action, confidence, price, change_24h, quote_volume = self.micro_wallet_grower.analyze_market(symbol)
                             
-                            if action in ['BUY', 'SELL'] and confidence >= 0.70:
+                            if action in ['BUY', 'SELL'] and confidence >= 70.0:
                                 trades_attempted += 1
-                                logger.info(f"💎 MICRO TRADE #{trades_attempted}: {action} {symbol} @ {confidence:.0%}")
+                                logger.info(f"💎 MICRO TRADE #{trades_attempted}: {action} {symbol} @ {confidence:.0f}%")
                                 # Execute micro trade
-                                result = self.micro_wallet_grower.execute_trade(symbol, action, price, sl, tp)
+                                result = self.micro_wallet_grower.execute_trade(symbol, action, price)
                                 
-                                if result:
+                                if isinstance(result, dict) and result.get('ok'):
                                     logger.info(f"💎 MICRO GROWTH: {symbol} {action} @ ${price:.6f}")
-                                    logger.info(f"   Balance: ${balance:.2f}, Conf: {confidence*100:.0f}%")
+                                    logger.info(f"   Balance: ${balance:.2f}, Conf: {confidence:.0f}%")
                                 else:
                                     logger.warning(f"⚠️  MICRO trade failed for {symbol}")
                         
@@ -2406,7 +2787,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     try:
                         goldmine_count = 0
                         for symbol in ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']:
-                            goldmine_signals = await self.ultra_goldmine.get_all_signals(symbol, {})
+                            goldmine_raw = await self.ultra_goldmine.get_all_signals(symbol, {})
+                            goldmine_signals = self._normalize_intelligence_results(
+                                goldmine_raw
+                            )
                             if goldmine_signals:
                                 goldmine_count += len(goldmine_signals)
                                 for sig in goldmine_signals[:2]:  # Log first 2
@@ -2419,8 +2803,58 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 # ACTIVATE DIVINE INTELLIGENCE (EXPLICIT LOGGING)
                 if DIVINE_FEATURES_AVAILABLE and hasattr(self, 'divine_intelligence') and self.divine_intelligence:
                     try:
-                        market_data = {'prices': [], 'volumes': [], 'current_price': 0, 'order_book': {}, 'recent_trades': []}
-                        divine_signals = await self.divine_intelligence.get_divine_signals(market_data)
+                        market_data = {
+                            'prices': [],
+                            'volumes': [],
+                            'current_price': 0.0,
+                            'order_book': {},
+                            'recent_trades': [],
+                            'source': None,
+                        }
+
+                        try:
+                            import ccxt
+
+                            _divine_ex = ccxt.bybit({
+                                'enableRateLimit': True,
+                                'timeout': 15000,
+                            })
+
+                            _bars = await asyncio.to_thread(
+                                _divine_ex.fetch_ohlcv,
+                                'BTC/USDT',
+                                '1m',
+                                None,
+                                120,
+                            )
+
+                            if _bars:
+                                market_data = {
+                                    'prices': [
+                                        float(row[4])
+                                        for row in _bars
+                                        if len(row) >= 6
+                                    ],
+                                    'volumes': [
+                                        float(row[5] or 0.0)
+                                        for row in _bars
+                                        if len(row) >= 6
+                                    ],
+                                    'current_price': float(_bars[-1][4]),
+                                    'order_book': {},
+                                    'recent_trades': [],
+                                    'source': 'bybit_public_ohlcv',
+                                }
+
+                        except Exception as _divine_data_error:
+                            logger.warning(
+                                f"Divine real-data feed unavailable: "
+                                f"{_divine_data_error}"
+                            )
+                        divine_raw = await self.divine_intelligence.get_divine_signals(market_data)
+                        divine_signals = self._normalize_intelligence_results(
+                            divine_raw
+                        )
                         if divine_signals:
                             for sig in divine_signals[:3]:  # Log first 3
                                 logger.info(f"🔮 DIVINE: {sig.get('feature', 'Unknown')} - {sig.get('insight', 'N/A')}")

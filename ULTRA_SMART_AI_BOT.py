@@ -21,26 +21,26 @@ class ULTRA_SMART_AI_BOT:
         # ALL EXCHANGE CONFIGURATIONS - ULTRA SMART SYSTEM
         self.exchange_configs = {
             'gate': {
-                'apiKey': 'a0508d8aadf3bcb76e16f4373e1f3a76',
-                'secret': '451770a07dbede1b87bb92f5ce98e24029d2fe91e0053be2ec41771c953113f9',
+                'apiKey': __import__("os").getenv("ULTRA_SMART_AI_BOT_API_KEY", ""),
+                'secret': __import__("os").getenv("ULTRA_SMART_AI_BOT_API_SECRET", ""),
                 'sandbox': False,
                 'enableRateLimit': True,
             },
             'bybit': {
-                'apiKey': 'fX0py6Av5dFPmCPOMX',
-                'secret': 'P9lkTCsxMWhmnqmCeoZzjll0kR2Db7ykgek0',
+                'apiKey': __import__("os").getenv("ULTRA_SMART_AI_BOT_API_KEY", ""),
+                'secret': __import__("os").getenv("ULTRA_SMART_AI_BOT_API_SECRET", ""),
                 'sandbox': False,
                 'enableRateLimit': True,
             },
             'mexc': {
-                'apiKey': 'mx0vgl7ytNbnU44V5G',
-                'secret': '68562da9963e4666a32a4a73cda61062',
+                'apiKey': __import__("os").getenv("ULTRA_SMART_AI_BOT_API_KEY", ""),
+                'secret': __import__("os").getenv("ULTRA_SMART_AI_BOT_API_SECRET", ""),
                 'sandbox': False,
                 'enableRateLimit': True,
             },
             'bitget': {
-                'apiKey': 'bg_a76be18966412e3f95b11eac379edf91',
-                'secret': '7507beac89f798ea88f469747e5c8fd0094fc3c3887afc671c777380d9c95cff',
+                'apiKey': __import__("os").getenv("ULTRA_SMART_AI_BOT_API_KEY", ""),
+                'secret': __import__("os").getenv("ULTRA_SMART_AI_BOT_API_SECRET", ""),
                 'sandbox': False,
                 'enableRateLimit': True,
             },

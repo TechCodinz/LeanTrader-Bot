@@ -1164,3 +1164,30 @@ if __name__ == "__main__":
     print(f"Risk Level: {risk_metrics.risk_level}")
     
     print("✅ Nobel Risk Management example completed")
+
+
+class NobelRiskManagement(
+    QuantumRiskManager
+):
+    """
+    Historical orchestrator compatibility name
+    for the implemented QuantumRiskManager.
+
+    The historical top-level orchestrator
+    constructs NobelRiskManagement() without
+    arguments. The underlying implementation
+    requires a config mapping, so an empty
+    mapping activates its native built-in
+    defaults. Explicit caller configuration
+    is preserved unchanged.
+    """
+
+    def __init__(
+        self,
+        config=None,
+    ):
+        super().__init__(
+            {}
+            if config is None
+            else config
+        )

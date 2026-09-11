@@ -24,7 +24,6 @@ import pandas as pd
 import sqlite3
 import json
 import logging
-import yfinance as yf
 import requests
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
@@ -219,42 +218,71 @@ class DataProvider:
             logger.error(f"Market data retrieval error: {e}")
             return None
     
-    async def get_yfinance_data(self, symbol: str, timeframe: str, limit: int) -> pd.DataFrame:
-        """Get data from Yahoo Finance as fallback"""
-        try:
-            # Convert symbol format
-            yf_symbol = symbol.replace('/', '-')
-            
-            # Convert timeframe
-            interval_map = {
-                '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m',
-                '1h': '1h', '4h': '4h', '1d': '1d', '1w': '1wk'
-            }
-            interval = interval_map.get(timeframe, '1h')
-            
-            # Get data
-            ticker = yf.Ticker(yf_symbol)
-            hist = ticker.history(period="7d", interval=interval)
-            
-            if hist.empty:
-                raise Exception("No data from Yahoo Finance")
-            
-            # Convert to our format
-            df = pd.DataFrame()
-            df['timestamp'] = hist.index
-            df['open'] = hist['Open'].values
-            df['high'] = hist['High'].values
-            df['low'] = hist['Low'].values
-            df['close'] = hist['Close'].values
-            df['volume'] = hist['Volume'].values
-            df['vwap'] = (df['high'] + df['low'] + df['close']) / 3
-            df['spread'] = df['high'] - df['low']
-            
-            return df.tail(limit)
-            
-        except Exception as e:
-            logger.error(f"YFinance data error: {e}")
-            raise
+    async def get_yfinance_data(
+        self,
+        symbol: str,
+        timeframe: str,
+        limit: int,
+    ) -> pd.DataFrame:
+        """
+        Historical compatibility method name.
+
+        Data comes directly from Yahoo public charts,
+        not the yfinance client.
+        """
+
+        from real_yahoo_adapter import (
+            fetch_yahoo_dataframe,
+        )
+
+        interval_map = {
+            "1m": "1m",
+            "5m": "5m",
+            "15m": "15m",
+            "30m": "30m",
+            "1h": "1h",
+            "4h": "1h",
+            "1d": "1d",
+        }
+
+        interval = (
+            interval_map.get(
+                str(
+                    timeframe
+                ).lower(),
+                "1h",
+            )
+        )
+
+        data = (
+            await asyncio.wait_for(
+                asyncio.to_thread(
+                    fetch_yahoo_dataframe,
+                    symbol,
+                    "3mo",
+                    interval,
+                    12,
+                ),
+                timeout=15,
+            )
+        )
+
+        if (
+            data is None
+            or data.empty
+        ):
+            return pd.DataFrame()
+
+        if limit:
+            data = data.tail(
+                int(limit)
+            )
+
+        return (
+            data.reset_index(
+                drop=True
+            )
+        )
     
     async def get_simulated_data(self, symbol: str, timeframe: str, limit: int) -> pd.DataFrame:
         """Generate simulated data for testing"""
@@ -589,8 +617,8 @@ class NobelCompleteSystem:
         return {
             'exchanges': {
                 'bybit': {
-                    'api_key': 'g1mhPqKrOBp9rnqb4G',
-                    'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+                    'api_key': __import__("os").getenv("NOBEL_COMPLETE_SYSTEM_API_KEY", ""),
+                    'secret': __import__("os").getenv("NOBEL_COMPLETE_SYSTEM_API_SECRET", ""),
                     'sandbox': True,
                     'testnet': True,
                     'enabled': True

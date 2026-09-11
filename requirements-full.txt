@@ -51,3 +51,4 @@ tweepy
 praw
 openai
 oandapyV20
+curl_cffi==0.16.3

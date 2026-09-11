@@ -1116,13 +1116,30 @@ class UltraTrainer:
     def _load_data(self, data_path: str) -> Optional[pd.DataFrame]:
         """Load data from various sources."""
         try:
-            if data_path.endswith('.csv'):
+            if isinstance(data_path, pd.DataFrame):
+                df = data_path.copy()
+
+            elif (
+                isinstance(data_path, (str, Path))
+                and str(data_path).lower().endswith('.csv')
+            ):
                 df = pd.read_csv(data_path)
-            else:
-                # Try to fetch using market_data module
+
+            elif (
+                isinstance(data_path, str)
+                and data_path.strip()
+            ):
                 from market_data import fetch_ohlcv
 
-                df = fetch_ohlcv(data_path)  # Assume data_path is symbol
+                df = fetch_ohlcv(
+                    data_path
+                )
+
+            else:
+                raise ValueError(
+                    "real training DataFrame or "
+                    "market symbol required"
+                )
 
             # Ensure required columns
             required = ['open', 'high', 'low', 'close', 'volume']

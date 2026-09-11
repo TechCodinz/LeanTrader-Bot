@@ -7,8 +7,8 @@ import os
 
 api_keys = {
     'bybit_live': {
-        'apiKey': 'mMHs7rDC72TvHs4oQG',
-        'secret': 'NwTa6UOgczdmZI2Kn2WBcFfh5r6VkVGnvGEI'
+        'apiKey': __import__("os").getenv("CHECK_ALL_BALANCES_API_KEY", ""),
+        'secret': __import__("os").getenv("CHECK_ALL_BALANCES_API_SECRET", "")
     }
 }
 
