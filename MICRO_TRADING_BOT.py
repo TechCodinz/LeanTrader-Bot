@@ -55,19 +55,31 @@ class MICRO_GATE_BOT:
         self.winning_trades = 0
         self.running = True
 
-        # Only trade pairs that definitely meet minimums
-        # self.crypto_pairs = ['DOGE/USDT', 'SHIB/USDT', 'PEPE/USDT', 'FLOKI/USDT', 'BONK/USDT']  # DISABLED - Using dynamic discovery
-        self.crypto_pairs = []  # Will be populated by scanner
+        # Pairs come from the canonical market registry, not from a list
+        # kept here. The comment that used to sit on this line said "will be
+        # populated by scanner" -- nothing ever did, so the trading loop
+        # iterated an empty list forever and this engine never produced a
+        # single candidate. set_universe() is how the orchestrator fills it;
+        # refresh_universe() is the fallback for a standalone run.
+        self.crypto_pairs = []
+        self.universe_source = "unset"
 
         # SAFETY FEATURES
         self.starting_balance = self.check_gate_balance()
+
+        # One balance read, reused for the first universe pull.
+        self.refresh_universe(balance=self.starting_balance)
         self.max_daily_loss = self.starting_balance * 0.20  # Max 20% loss per day
         self.daily_loss = 0.0
         self.max_trades_per_day = 50  # Limit trades  # Multiple micro pairs
 
-        print("🚀 MICRO GATE.IO BOT INITIALIZED!")
-        print("💰 TRADING EXCHANGE: Gate.io (MICRO POSITIONS)")
-        print(f"📊 {len(self.crypto_pairs)} Crypto Pairs")
+        print("🚀 MICRO TRADING BOT INITIALIZED!")
+        # The execution venue is whichever one the universal router is
+        # authenticated against. self.exchange_id names this engine's
+        # historical market-data client and says nothing about where orders go.
+        print(f"📈 Market data client: {self.exchange_id}")
+        print("💱 Execution venue: selected by the universal router")
+        print(f"📊 {len(self.crypto_pairs)} pairs ({self.universe_source})")
         print("🎯 READY FOR MICRO PROFITS!")
 
     def send_telegram(self, message, chat_id=None):
@@ -211,6 +223,70 @@ class MICRO_GATE_BOT:
         except Exception as e:
             print(f"❌ Market analysis error for {symbol}: {e}")
             return "HOLD", 0, 0, 0, 0
+
+    def set_universe(self, symbols):
+        """Accept the ranked universe from the orchestrator.
+
+        Symbols are normalized and filtered to what the authenticated
+        execution venue currently lists, because this engine sends orders --
+        studying a market it cannot trade would just waste its cycles.
+        """
+        from src.leantrader.execution.preflight import normalize_symbol
+        from src.leantrader.universe.registry import universe
+
+        accepted = []
+        for symbol in symbols or []:
+            normalized = normalize_symbol(symbol)
+            if not normalized:
+                continue
+            market = universe.get(normalized)
+            if market is not None and market.execution_eligible is False:
+                continue
+            accepted.append(normalized)
+
+        if accepted:
+            self.crypto_pairs = accepted
+            self.universe_source = "orchestrator"
+
+        return len(self.crypto_pairs)
+
+    def refresh_universe(self, limit=None, balance=None):
+        """Pull micro-account candidates straight from the registry.
+
+        Used when this engine runs on its own. The ranking is the registry's:
+        markets whose venue minimum this balance can actually fund, with
+        headroom left for fees and an exit. Nominal unit price is not what
+        puts a market on this list.
+        """
+        try:
+            from src.leantrader.universe.registry import universe
+        except Exception:
+            return 0
+
+        if limit is None:
+            try:
+                limit = int(os.getenv("MICRO_UNIVERSE_LIMIT", "40"))
+            except ValueError:
+                limit = 40
+
+        if balance is None:
+            try:
+                balance = float(self.check_gate_balance() or 0.0)
+            except Exception:
+                balance = 0.0
+        balance = float(balance or 0.0)
+
+        candidates = universe.micro_candidates(
+            capital_quote=balance,
+            limit=limit,
+        )
+
+        symbols = [market.symbol for market in candidates]
+        if symbols:
+            self.crypto_pairs = symbols
+            self.universe_source = f"registry(capital={balance:.4f})"
+
+        return len(self.crypto_pairs)
 
     def execute_trade(
         self,

@@ -9,6 +9,10 @@ Three sections:
 
   ENVIRONMENT  the resolved venue, execution mode and authority. Whether
                credentials are present, never what they are.
+  UNIVERSE     how many markets were discovered, how many the authenticated
+               venue can actually execute, and how much of it is being
+               studied -- the answer to "of the thousands we found, how many
+               are we using?"
   COUNTERS     the persisted lifecycle funnel and blocker breakdown written
                by src/leantrader/execution/preflight.py, plus stage timings.
   PREFLIGHT    an optional live dry run for one symbol that walks the same
@@ -41,6 +45,7 @@ _repo_root_on_path()
 
 from src.leantrader.execution import preflight  # noqa: E402
 from src.leantrader.execution.broker_ccxt import BrokerCCXT  # noqa: E402
+from src.leantrader.universe.registry import universe  # noqa: E402
 
 
 def _rule(title: str) -> None:
@@ -114,6 +119,63 @@ def report_environment() -> BrokerCCXT:
         print("     refused before they reach the exchange.")
 
     return broker
+
+
+def report_universe(capital: float = 0.0) -> Dict[str, Any]:
+    _rule("UNIVERSE")
+
+    telemetry = universe.telemetry(capital_quote=capital)
+    markets = telemetry["markets_discovered_by_venue"]
+
+    if not markets:
+        print("  No markets discovered yet.")
+        print()
+        print("  >> Discovery has not run, or its output never reached the")
+        print("     registry. Every engine that trades from a pair list will")
+        print("     be running on whatever it was seeded with.")
+        return telemetry
+
+    print("  discovered by venue:")
+    for venue, count in sorted(markets.items(), key=lambda kv: -kv[1]):
+        print(f"    {venue:<14} {count:>6}")
+
+    print()
+    for label, key in (
+        ("normalized unique symbols", "normalized_unique_symbols"),
+        ("active spot USDT markets", "active_spot_usdt_markets"),
+        ("assigned to swarm shards", "markets_assigned_to_swarm"),
+        ("studied in last 1m", "markets_analyzed_last_1m"),
+        ("studied in last 5m", "markets_analyzed_last_5m"),
+        ("studied ever", "markets_analyzed_ever"),
+        ("micro candidates", "micro_candidates"),
+        ("major candidates", "major_candidates"),
+    ):
+        print(f"  {label:<28} {telemetry[key]}")
+
+    print()
+    print(f"  execution venue              {telemetry['execution_venue'] or '(none)'}")
+    print(f"  execution eligible           {telemetry['execution_eligible']}")
+    print(f"  execution ineligible         {telemetry['execution_ineligible']}")
+    print(f"  eligibility unknown          {telemetry['execution_eligibility_unknown']}")
+
+    reasons = telemetry["ineligibility_reasons"]
+    if reasons:
+        print()
+        print("  not executable here, by reason:")
+        width = max(len(r) for r in reasons)
+        for reason, count in reasons.items():
+            print(f"    {reason:<{width}}  {count:>6}")
+
+    total = telemetry["normalized_unique_symbols"]
+    studied = telemetry["markets_analyzed_ever"]
+    if total:
+        print()
+        print(
+            f"  >> Studying {studied}/{total} discovered markets "
+            f"({studied / total * 100:.1f}%)."
+        )
+
+    return telemetry
 
 
 def report_counters() -> Dict[str, Any]:
@@ -241,14 +303,38 @@ def main() -> int:
     parser.add_argument("--side", default="buy", choices=["buy", "sell"])
     parser.add_argument("--confidence", type=float, default=0.85)
     parser.add_argument("--price", type=float, default=None)
+    parser.add_argument(
+        "--explain",
+        metavar="SYMBOL",
+        help="say why this particular market has or has not reached execution",
+    )
     args = parser.parse_args()
 
     report_environment()
+
+    capital = 0.0
+    try:
+        broker = preflight.shared_broker()
+        if broker.authority in {"testnet", "live"}:
+            balance = preflight.fetch_balance_cached(broker) or {}
+            free = balance.get("free")
+            if isinstance(free, dict):
+                capital = float(free.get("USDT") or 0.0)
+    except Exception:
+        capital = 0.0
+
+    report_universe(capital)
     report_counters()
+
+    if args.explain:
+        _rule(f"WHY {args.explain}")
+        for key, value in universe.explain(args.explain).items():
+            print(f"  {key:<22} {value}")
 
     if not args.symbol:
         print()
-        print("Pass --symbol BTC/USDT to run a live preflight dry run.")
+        print("Pass --symbol BTC/USDT to run a live preflight dry run,")
+        print("or --explain DOGE/USDT to trace one market's eligibility.")
         return 0
 
     return report_preflight(args)

@@ -18,6 +18,8 @@ from datetime import datetime, timedelta
 from collections import deque
 import logging
 
+from src.leantrader.universe.registry import configured_quotes, universe
+
 logger = logging.getLogger(__name__)
 
 
@@ -101,6 +103,28 @@ class DynamicMarketScanner:
                     continue
 
                 tickers = await exchange.fetch_tickers()
+
+                # Everything this venue lists goes into the canonical registry,
+                # not just what clears the volume threshold below. The
+                # threshold decides what is worth trading now; the registry is
+                # what LeanTrader studies, and narrowing it here is how the
+                # engines ended up back on a handful of majors.
+                try:
+                    markets = getattr(exchange, 'markets', None) or {}
+                    recorded = universe.ingest_venue(
+                        exchange_name,
+                        tickers,
+                        markets=markets,
+                        quote_filter=configured_quotes(),
+                    )
+                    logger.info(
+                        f"   Registry: {recorded} markets recorded from {exchange_name}"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"   Registry ingest failed for {exchange_name}: "
+                        f"{type(e).__name__}: {e}"
+                    )
 
                 # Filter for USDT pairs only
                 usdt_pairs = {

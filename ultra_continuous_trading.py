@@ -285,17 +285,75 @@ class UltraContinuousTradingOrchestrator:
 
         return opportunities
 
+    # How many symbols each timeframe band analyses per cycle. Shorter
+    # timeframes cycle faster, so they take fewer symbols per pass and cover
+    # the universe by rotation rather than by doing everything every time.
+    TIMEFRAME_BREADTH = {
+        'M1': 12,
+        'M5': 20,
+        'M15': 30,
+        'M30': 30,
+        'H1': 45,
+        'H4': 60,
+        'D1': 80,
+    }
+
+    def set_universe(self, symbols) -> int:
+        """Accept the ranked universe from the orchestrator."""
+        accepted = [s for s in (symbols or []) if s]
+        if accepted:
+            self.universe = list(accepted)
+        return len(getattr(self, 'universe', []) or [])
+
     async def _get_symbols_for_timeframe(self, timeframe: str) -> List[str]:
-        """Get symbols suitable for specific timeframe"""
-        if timeframe in ['M1', 'M5']:
-            # High-frequency symbols
-            return ['BTC/USDT', 'ETH/USDT', 'BNB/USDT']
-        elif timeframe in ['M15', 'M30']:
-            # Medium-frequency symbols
-            return ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT']
-        else:
-            # All symbols
-            return ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT', 'MATIC/USDT']
+        """Ranked, currently-executable symbols for this timeframe.
+
+        This used to return three to six hardcoded majors, which contradicted
+        the broad dynamic universe the rest of the system discovers -- roughly
+        3,800 markets on the execution venue alone. The majors were not chosen
+        by any ranking; they were simply the ones written here.
+
+        The universe is now the registry's, ranked by execution economics for
+        the capital actually available. Breadth is bounded per timeframe so a
+        1m cycle does not try to analyse thousands of markets, and the
+        registry's staleness term rotates which ones come up, so coverage
+        accumulates across cycles instead of repeating the same head.
+
+        Falls back to whatever universe the orchestrator last published, and
+        only then to nothing -- never to a hardcoded list, which would quietly
+        reintroduce the defect.
+        """
+        band = str(timeframe or '').upper()
+        breadth = self.TIMEFRAME_BREADTH.get(band, 30)
+
+        try:
+            from src.leantrader.universe.registry import universe
+
+            capital = float(getattr(self, 'daily_balance', 0.0) or 0.0)
+            ranked = universe.rank(
+                capital_quote=capital,
+                limit=breadth,
+                executable_only=True,
+            )
+            if ranked:
+                symbols = [market.symbol for market in ranked]
+                for symbol in symbols:
+                    universe.touch_analysis(symbol)
+                return symbols
+        except Exception as e:
+            self.logger.debug(
+                f"Universe unavailable for {timeframe}: {type(e).__name__}"
+            )
+
+        published = list(getattr(self, 'universe', []) or [])
+        if published:
+            return published[:breadth]
+
+        self.logger.warning(
+            f"No market universe available for {timeframe}; "
+            "analysing nothing this cycle rather than falling back to majors"
+        )
+        return []
 
     async def _analyze_symbol_opportunities(
         self, symbol: str, timeframe: str, market_data: Dict[str, Any], weight: float

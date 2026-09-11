@@ -27,14 +27,18 @@ def test_no_credential_literals_in_tracked_files():
     )
 
 
+# These are invented values that exist only to prove the scanner still looks.
+# Each carries an explicit allow marker so the scanner does not flag its own
+# fixtures -- per-line and visible in review, never a blanket exemption for
+# the tests directory, because a real secret in a test file is still a leak.
 @pytest.mark.parametrize(
     "line",
     [
-        'BYBIT_API_KEY="aB3dE5gH7jK9mN1pQ2"',
-        "BYBIT_TESTNET_API_SECRET=s9KqW2eR4tY6uI8oP0aS1dF3gH5jK7lZ9xC1",
-        'gate_secret: "e1ec0ffee0ddf00dbaadf00d1234567890abcdefe1ec0ffee0ddf00dbaadf00d"',
-        "TELEGRAM_BOT_TOKEN=8291234567:AAHfakeTOKENvalue_thatLooksRealENOUGH1",
-        "aws_key = 'AKIAIOSFODNN7EXAMPLE'",
+        'BYBIT_API_KEY="aB3dE5gH7jK9mN1pQ2"',  # secret-scan: allow
+        "BYBIT_TESTNET_API_SECRET=s9KqW2eR4tY6uI8oP0aS1dF3gH5jK7lZ9xC1",  # secret-scan: allow
+        'gate_secret: "e1ec0ffee0ddf00dbaadf00d1234567890abcdefe1ec0ffee0ddf00dbaadf00d"',  # secret-scan: allow
+        "TELEGRAM_BOT_TOKEN=8291234567:AAHfakeTOKENvalue_thatLooksRealENOUGH1",  # secret-scan: allow
+        "aws_key = 'AKIAIOSFODNN7EXAMPLE'",  # secret-scan: allow
         'DEX_PRIVATE_KEY = "0x' + "ab" * 32 + '"',
     ],
 )
@@ -89,3 +93,22 @@ def test_the_scanner_runs_as_a_command():
         text=True,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_a_path_valued_key_is_not_treated_as_a_secret():
+    """*_FILE holds where the secret is mounted, not the secret."""
+    line = "BYBIT_TESTNET_API_KEY_FILE=/run/secrets/bybit_testnet_api_key"
+    assert not list(secret_scan.scan_text(line))
+
+
+def test_the_allow_marker_only_exempts_its_own_line():
+    exempt = 'BYBIT_API_SECRET="aB3dE5gH7jK9mN1pQ2rS"  # secret-scan: allow'
+    assert not list(secret_scan.scan_text(exempt))
+
+    # Composed at runtime so this file does not itself contain an unmarked
+    # assignment for the scanner to find.
+    key = "BYBIT_API" + "_SECRET"
+    unmarked = f'{key}="aB3dE5gH7jK9mN1pQ2rS"'
+    assert list(secret_scan.scan_text(unmarked)), (
+        "the marker must not leak onto neighbouring lines"
+    )

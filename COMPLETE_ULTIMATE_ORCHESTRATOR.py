@@ -2109,6 +2109,15 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ ⚡ SMART SCALPING LOOP STARTED - Micro-profits accumulating!")
 
         # Start enhanced main loop
+        # The universe loop runs before anything trades: engines that hold a
+        # pair list get it from here, and an engine started with an empty or
+        # hardcoded list keeps it until this pass publishes one.
+        _add_task(
+            self._schedule_once(
+                'universe_maintenance_loop', self.universe_maintenance_loop
+            )
+        )
+
         _add_task(self._schedule_once('enhanced_trading_loop', self.enhanced_trading_loop))
 
         # ====================================================================
@@ -2799,6 +2808,11 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             _add(
                 self._schedule_once('decision.run_decision_loop', self.orchestrators['decision'].run_decision_loop)
             )
+        _add(
+            self._schedule_once(
+                'universe_maintenance_loop', self.universe_maintenance_loop
+            )
+        )
         _add(self._schedule_once('enhanced_trading_loop', self.enhanced_trading_loop))
 
         # OUR NEW TASK LOOPS (MICRO, execution, signals, etc.)
@@ -3222,6 +3236,165 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
     # ========================================================================
     # HELPER METHODS FOR PROFIT FEATURES
     # ========================================================================
+
+    async def universe_maintenance_loop(self):
+        """Keep the canonical market registry, and every engine, current.
+
+        Discovery already worked -- DynamicMarketScanner pulls bulk tickers
+        from every connected venue -- but nothing consumed it. trading_universe
+        was read in four places and assigned in none, so the engines fell back
+        to whatever was hardcoded in them: three majors in the swarm, six in
+        the continuous trader, an empty list in the micro bot. This is the
+        step that was missing.
+
+        Each pass:
+          1. reads the authenticated venue's market metadata, which is the
+             only thing that can make a market executable
+          2. shards the universe across the swarm
+          3. republishes the ranked universe to every engine that trades
+        """
+        from src.leantrader.execution import preflight
+        from src.leantrader.universe.registry import universe
+
+        logger.info("🌍 UNIVERSE MAINTENANCE ACTIVE")
+
+        interval = float(os.getenv("UNIVERSE_REFRESH_SECONDS", "120"))
+
+        while self.is_running:
+            try:
+                broker = preflight.shared_broker()
+                venue = broker.exchange_id
+
+                # A market discovered on Binance is a market we may study. It
+                # is executable only if the venue we hold credentials for
+                # lists it right now, so eligibility comes from here alone.
+                def _execution_markets():
+                    try:
+                        return preflight.load_markets_cached(broker)
+                    except Exception as e:
+                        logger.warning(
+                            f"🌍 execution venue metadata unavailable: "
+                            f"{type(e).__name__}"
+                        )
+                        return None
+
+                markets = await asyncio.to_thread(_execution_markets)
+                eligible = universe.apply_execution_venue(venue, markets)
+
+                agent_count = self._swarm_agent_count()
+                universe.assign_shards(agent_count)
+
+                capital = await self._get_account_balance()
+                ranked = universe.rank(
+                    capital_quote=capital or 0.0,
+                    executable_only=True,
+                )
+
+                if ranked:
+                    self.publish_trading_universe(
+                        [market.symbol for market in ranked]
+                    )
+
+                telemetry = universe.telemetry(capital_quote=capital or 0.0)
+                logger.info(
+                    "🌍 UNIVERSE: "
+                    f"{telemetry['normalized_unique_symbols']} symbols across "
+                    f"{len(telemetry['markets_discovered_by_venue'])} venues | "
+                    f"{eligible} executable on {venue} | "
+                    f"{telemetry['micro_candidates']} micro candidates | "
+                    f"{telemetry['markets_analyzed_last_5m']} studied in 5m"
+                )
+
+                if telemetry["ineligibility_reasons"]:
+                    top = list(telemetry["ineligibility_reasons"].items())[:3]
+                    logger.info(
+                        "🌍 not executable here: "
+                        + ", ".join(f"{k}={v}" for k, v in top)
+                    )
+
+                await asyncio.sleep(interval)
+
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error(f"Universe maintenance error: {type(e).__name__}: {e}")
+                await asyncio.sleep(60)
+
+    def _swarm_agent_count(self) -> int:
+        """How many shards the universe should be split into."""
+        swarm = getattr(self, "swarm", None) or getattr(
+            self, "ai_systems", {}
+        ).get("swarm")
+        count = getattr(swarm, "agent_count", 0)
+        try:
+            count = int(count)
+        except (TypeError, ValueError):
+            count = 0
+        return count if count > 0 else 100
+
+    def publish_trading_universe(self, symbols):
+        """Hand the ranked universe to every engine that trades from one.
+
+        Engines hold their own pair lists, so a registry nothing pushes into
+        them changes nothing. This is the push. It is deliberately one place:
+        an engine that needs the universe is wired here rather than reaching
+        into the registry itself, so there is one list and one moment it
+        changes.
+        """
+        if not symbols:
+            return 0
+
+        self.trading_universe = list(symbols)
+        updated = []
+
+        # Engines that hold a crypto_pairs list.
+        for attribute in ("real_profit_bot", "micro_wallet_grower"):
+            engine = getattr(self, attribute, None)
+            if engine is None:
+                continue
+            setter = getattr(engine, "set_universe", None)
+            if callable(setter):
+                try:
+                    setter(symbols)
+                    updated.append(attribute)
+                except Exception as e:
+                    logger.debug(f"{attribute} universe update: {type(e).__name__}")
+            elif hasattr(engine, "crypto_pairs"):
+                engine.crypto_pairs = list(symbols)
+                updated.append(attribute)
+
+        # Engines that take the universe wholesale.
+        for attribute in ("continuous_trading", "ultra_scalping", "ultra_arbitrage"):
+            engine = getattr(self, attribute, None)
+            setter = getattr(engine, "set_universe", None)
+            if callable(setter):
+                try:
+                    setter(symbols)
+                    updated.append(attribute)
+                except Exception as e:
+                    logger.debug(f"{attribute} universe update: {type(e).__name__}")
+            elif engine is not None and hasattr(engine, "universe"):
+                engine.universe = list(symbols)
+                updated.append(attribute)
+
+        # UltraCore holds the pair list the analysis layers read.
+        core = getattr(self, "ultra_core", None)
+        if core is not None and hasattr(core, "pairs"):
+            core.pairs = list(symbols)
+            updated.append("ultra_core")
+
+        swarm = getattr(self, "swarm", None) or getattr(self, "ai_systems", {}).get(
+            "swarm"
+        )
+        if swarm is not None and hasattr(swarm, "symbols"):
+            swarm.symbols = list(symbols)
+            updated.append("swarm")
+
+        logger.info(
+            f"🌍 Universe published: {len(symbols)} symbols -> "
+            f"{', '.join(updated) if updated else 'no engines wired'}"
+        )
+        return len(updated)
 
     async def _get_account_balance(self) -> Optional[float]:
         """Free quote balance on the authenticated account, or None.

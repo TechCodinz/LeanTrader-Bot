@@ -67,11 +67,41 @@ class REAL_PROFIT_BOT:
         # 2. DYNAMIC_MARKET_SCANNER (filters dead pairs, adds trending ones)
         # 3. Orchestrator injects discovered pairs every scan cycle
 
-        print(f"🚀 REAL PROFIT BOT INITIALIZED with {len(self.crypto_pairs)} pairs!")
-        print("💰 TRADING EXCHANGE: Gate.io (REAL INCOME GENERATION)")
-        print(f"📊 {len(self.crypto_pairs)} Initial Pairs (expanding with dynamic discovery - NO LIMITS!)")
-        print("🎯 TARGET: $50-200 DAILY PROFITS FOR BILLS!")
-        print("🔄 Pairs auto-update every hour with fresh discoveries!")
+        self.universe_source = "seed" if universe else "fallback"
+
+        print(f"🚀 REAL PROFIT BOT INITIALIZED with {len(self.crypto_pairs)} pairs")
+        # self.exchange_id names this engine's historical market-data client.
+        # Orders go wherever the universal router is authenticated.
+        print(f"📈 Market data client: {self.exchange_id}")
+        print("💱 Execution venue: selected by the universal router")
+        print(f"📊 Pair universe: {self.universe_source}")
+
+    def set_universe(self, symbols) -> int:
+        """Accept the ranked universe from the orchestrator.
+
+        The fallback list this engine starts with is five majors, which is a
+        seed, not a universe. Once the registry has published, this replaces
+        it -- filtered to markets the authenticated execution venue currently
+        lists, since this engine sends orders.
+        """
+        from src.leantrader.execution.preflight import normalize_symbol
+        from src.leantrader.universe.registry import universe as registry
+
+        accepted = []
+        for symbol in symbols or []:
+            normalized = normalize_symbol(symbol)
+            if not normalized:
+                continue
+            market = registry.get(normalized)
+            if market is not None and market.execution_eligible is False:
+                continue
+            accepted.append(normalized)
+
+        if accepted:
+            self.crypto_pairs = accepted
+            self.universe_source = "orchestrator"
+
+        return len(self.crypto_pairs)
 
     def send_telegram(self, message, chat_id=None):
         if chat_id is None:

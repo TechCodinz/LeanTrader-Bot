@@ -12,6 +12,7 @@ This system implements a distributed swarm consciousness that:
 """
 
 import asyncio
+import os
 import time
 import queue
 import logging
@@ -333,6 +334,16 @@ class SwarmAgent:
             )
         return None
 
+class _StandaloneWork:
+    """A work item for a run with no registry feed. Same shape as WorkItem."""
+
+    __slots__ = ("symbol", "timeframe")
+
+    def __init__(self, symbol, timeframe):
+        self.symbol = symbol
+        self.timeframe = timeframe
+
+
 class SwarmConsciousness:
     """Main swarm consciousness coordinator"""
 
@@ -341,9 +352,11 @@ class SwarmConsciousness:
         self.risk_engine = risk_engine
         self.logger = logging.getLogger("swarm_consciousness")
 
-        # Swarm configuration
+        # Swarm configuration. self.symbols is a fallback for a standalone
+        # run, not the universe: the signal loop takes its work from the
+        # canonical market registry, which covers thousands of markets.
         self.agent_count = 100
-        self.symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT']
+        self.symbols = []
         self.timeframes = ['1m', '5m', '15m', '1h', '4h', '1d']
 
         # Agent management
@@ -361,6 +374,13 @@ class SwarmConsciousness:
             opportunity_score=0.0,
             risk_level='low',
         )
+
+        # One cycle analyses agent_count markets. Too fast and the venues
+        # rate-limit; too slow and the tail of the universe goes stale.
+        try:
+            self.cycle_seconds = float(os.getenv("SWARM_CYCLE_SECONDS", "2.0"))
+        except (TypeError, ValueError):
+            self.cycle_seconds = 2.0
 
         # Performance tracking
         self.performance_history = deque(maxlen=10000)
@@ -410,27 +430,76 @@ class SwarmConsciousness:
             self.logger.error(f"Error in swarm consciousness: {e}")
 
     async def _signal_collection_loop(self):
-        """Continuously collect signals from all agents"""
+        """Collect signals, one market per agent per cycle.
+
+        This used to run every agent over the same symbol and timeframe, for
+        three hardcoded majors: 100 agents producing 100 opinions about
+        BTC/USDT, then 100 about ETH/USDT, and nothing at all about the other
+        ~3,800 markets the system discovers. That is neither a swarm nor
+        coverage.
+
+        Each cycle now asks the registry for as many work items as there are
+        agents and gives each agent its own market. The registry ranks by
+        execution economics and staleness, so the head of the universe is
+        revisited often, the tail is not starved, and a market keeps its shard
+        as the universe grows -- an agent's accumulated context for a market
+        stays with the agent that built it.
+
+        Study is not restricted to executable markets: learning from a venue
+        we cannot trade is the reason to watch it. Whether an order may be
+        sent is decided later, by preflight, against the authenticated venue.
+        """
+        from src.leantrader.universe.registry import universe
+
+        idle_cycles = 0
+
         while True:
             try:
-                # Analyze all symbol/timeframe combinations
-                for symbol in self.symbols:
-                    for timeframe in self.timeframes:
-                        # Get signals from all agents
-                        tasks = []
-                        for agent in self.agents:
-                            task = asyncio.create_task(agent.analyze_market(symbol, timeframe))
-                            tasks.append(task)
+                work = universe.next_work_items(
+                    count=len(self.agents),
+                    timeframes=self.timeframes,
+                )
 
-                        # Wait for all agents to complete
-                        signals = await asyncio.gather(*tasks, return_exceptions=True)
+                if not work and self.symbols:
+                    # Standalone run with no registry feed yet.
+                    work = [
+                        _StandaloneWork(symbol, self.timeframes[0])
+                        for symbol in self.symbols
+                    ]
 
-                        # Process valid signals
-                        for signal in signals:
-                            if isinstance(signal, SwarmSignal):
-                                self.signal_queue.put(signal)
+                if not work:
+                    idle_cycles += 1
+                    if idle_cycles % 300 == 1:
+                        self.logger.info(
+                            "🧠 Swarm idle: no market universe published yet"
+                        )
+                    await asyncio.sleep(1.0)
+                    continue
 
-                await asyncio.sleep(0.1)  # 100ms cycle
+                idle_cycles = 0
+
+                tasks = []
+                assigned = []
+                for agent, item in zip(self.agents, work):
+                    tasks.append(
+                        asyncio.create_task(
+                            agent.analyze_market(item.symbol, item.timeframe)
+                        )
+                    )
+                    assigned.append(item.symbol)
+
+                signals = await asyncio.gather(*tasks, return_exceptions=True)
+
+                for signal in signals:
+                    if isinstance(signal, SwarmSignal):
+                        self.signal_queue.put(signal)
+
+                # Record coverage so the next cycle ranks these lower and
+                # moves on to markets nothing has looked at.
+                for symbol in assigned:
+                    universe.touch_analysis(symbol)
+
+                await asyncio.sleep(self.cycle_seconds)
 
             except Exception as e:
                 self.logger.error(f"Error in signal collection: {e}")

@@ -1,10 +1,25 @@
 """
-ULTRA MOON SPOTTER - The Ultimate Micro Cap Gem Hunter
-Finds 0.00000001 coins before they become 0.01 (1,000,000x potential)
+Micro-cap discovery: surfaces newly listed, low-liquidity tokens early.
+
+This is a discovery and research engine. It ranks what it finds; it does not
+predict returns, and the multipliers it reports are arithmetic against a
+target price, not forecasts. Most micro caps go to zero.
+
+Several of its on-chain adapters were never written. They now raise and are
+reported as unavailable, because returning empty made a scan that covered
+none of them look identical to one that covered all of them and found
+nothing.
+
+Execution is separate and currently disabled: no signing key is configured
+for DEX orders, so the sniper refuses. Any future executable DEX order must
+use balance-aware sizing and the central execution authority, like every
+other order in this system.
 """
 import numpy as np
 
 import asyncio
+import os
+
 import aiohttp
 import hashlib
 from datetime import datetime
@@ -79,30 +94,50 @@ class MicroMoonSpotter:
 
         gems = []
 
-        # Parallel scanning across all sources
+        # Parallel scanning across all sources. Each source is named so an
+        # unavailable one can be reported as unavailable -- several of the
+        # on-chain adapters were never written, and when they returned empty
+        # a scan that covered none of them looked identical to a scan that
+        # covered all of them and found nothing.
         tasks = []
+        names = []
 
-        # Scan DEXs
         for dex_name, endpoint in self.dex_endpoints.items():
+            names.append(f"dex:{dex_name}")
             tasks.append(self._scan_dex(dex_name, endpoint))
 
-        # Scan chains for new contracts
         for chain_name, endpoint in self.chain_scanners.items():
+            names.append(f"chain:{chain_name}")
             tasks.append(self._scan_new_contracts(chain_name, endpoint))
 
-        # Scan social media for early mentions
         for social_name, endpoint in self.social_sources.items():
+            names.append(f"social:{social_name}")
             tasks.append(self._scan_social_signals(social_name, endpoint))
 
-        # Execute all scans in parallel
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Process results
-        for result in results:
-            if isinstance(result, list):
+        self.source_status = {}
+        for name, result in zip(names, results):
+            if isinstance(result, NotImplementedError):
+                self.source_status[name] = "NOT_IMPLEMENTED"
+            elif isinstance(result, BaseException):
+                self.source_status[name] = f"ERROR:{type(result).__name__}"
+            elif isinstance(result, list):
                 gems.extend(result)
+                self.source_status[name] = f"ok:{len(result)}"
             elif isinstance(result, dict):
                 gems.append(result)
+                self.source_status[name] = "ok:1"
+            else:
+                self.source_status[name] = "ok:0"
+
+        working = [n for n, s in self.source_status.items() if s.startswith("ok")]
+        unavailable = [n for n, s in self.source_status.items() if not s.startswith("ok")]
+
+        print(
+            f"🔍 Gem scan: {len(working)}/{len(names)} sources responded"
+            + (f" | unavailable: {', '.join(sorted(unavailable))}" if unavailable else "")
+        )
 
         # Filter and rank gems
         filtered_gems = await self._filter_gems(gems)
@@ -129,8 +164,10 @@ class MicroMoonSpotter:
                             gems = await self._parse_raydium(data)
                         # Add more DEX parsers as needed
 
+        except NotImplementedError:
+            raise
         except Exception as e:
-            print(f"Error scanning {dex_name}: {e}")
+            print(f"Error scanning {dex_name}: {type(e).__name__}: {e}")
 
         return gems
 
@@ -203,37 +240,39 @@ class MicroMoonSpotter:
 
         return gems
 
+    # Adapters that were never written. They used to return empty, which is
+    # indistinguishable from "scanned and found nothing" -- so a run that
+    # covered none of these sources reported a clean scan. They now raise
+    # NotImplementedError and the caller records the source as unavailable.
+    UNIMPLEMENTED_SOURCES = (
+        "raydium",
+        "chain_contract_scan",
+    )
+
     async def _parse_raydium(self, data: Any) -> List[Dict[str, Any]]:
-        """Parse Raydium data for gems."""
-        gems = []
-
-        # Parse Solana-based tokens
-        # Implementation specific to Raydium format
-
-        return gems
+        """Not implemented: no Raydium response parser exists."""
+        raise NotImplementedError(
+            "raydium parser not implemented; Solana DEX discovery is "
+            "unavailable rather than empty"
+        )
 
     async def _scan_new_contracts(self, chain: str, endpoint: str) -> List[Dict[str, Any]]:
         """Scan blockchain for newly deployed contracts."""
         gems = []
 
-        try:
-            # Get latest block
-            latest_block = await self._get_latest_block(chain, endpoint)
+        # NotImplementedError is deliberately not caught: an adapter that
+        # does not exist must surface as unavailable, not as an empty scan.
+        latest_block = await self._get_latest_block(chain, endpoint)
 
-            # Scan last 100 blocks for new contracts
-            for block_num in range(latest_block - 100, latest_block):
-                contracts = await self._get_contracts_in_block(chain, endpoint, block_num)
+        for block_num in range(latest_block - 100, latest_block):
+            contracts = await self._get_contracts_in_block(chain, endpoint, block_num)
 
-                for contract in contracts:
-                    # Check if it's a token contract
-                    if await self._is_token_contract(contract, chain):
-                        token_info = await self._get_token_info(contract, chain)
+            for contract in contracts:
+                if await self._is_token_contract(contract, chain):
+                    token_info = await self._get_token_info(contract, chain)
 
-                        if token_info and self._is_micro_cap(token_info):
-                            gems.append(token_info)
-
-        except Exception as e:
-            print(f"Error scanning {chain}: {e}")
+                    if token_info and self._is_micro_cap(token_info):
+                        gems.append(token_info)
 
         return gems
 
@@ -549,24 +588,38 @@ class MicroMoonSpotter:
         return float(token_data.get('liquidity', 0))
 
     async def _get_latest_block(self, chain: str, endpoint: str) -> int:
-        """Get latest block number."""
-        # Implementation depends on chain
-        return 0
+        """Not implemented: no chain RPC client exists here.
+
+        This returned 0, which made the caller's
+        ``range(latest - 100, latest)`` empty, so on-chain contract discovery
+        scanned nothing on every chain and reported no error.
+        """
+        raise NotImplementedError(
+            f"no block-height client for {chain}; on-chain contract "
+            "discovery is unavailable"
+        )
 
     async def _get_contracts_in_block(self, chain: str, endpoint: str, block: int) -> List[str]:
-        """Get contracts deployed in a block."""
-        # Implementation depends on chain
-        return []
+        """Not implemented: no chain RPC client exists here."""
+        raise NotImplementedError(
+            f"no block-contents client for {chain}"
+        )
 
     async def _is_token_contract(self, address: str, chain: str) -> bool:
-        """Check if address is a token contract."""
-        # Check for ERC20/BEP20 interface
-        return False
+        """Not implemented: no contract-interface probe exists here.
+
+        Returning False made every discovered contract look like a
+        non-token, which is a claim this code cannot support.
+        """
+        raise NotImplementedError(
+            f"no ERC20/BEP20 interface probe for {chain}"
+        )
 
     async def _get_token_info(self, address: str, chain: str) -> Optional[Dict[str, Any]]:
-        """Get token information."""
-        # Fetch token details
-        return None
+        """Not implemented: no token-metadata client exists here."""
+        raise NotImplementedError(
+            f"no token metadata client for {chain}"
+        )
 
     def _is_micro_cap(self, token_info: Dict[str, Any]) -> bool:
         """Check if token is micro cap."""
@@ -806,6 +859,41 @@ class UltraMoonSystem:
         self.dashboard = MoonTrackerDashboard()
         self.running = False
 
+    async def _snipe_amount_usd(self) -> float:
+        """What a DEX snipe may spend, from the account's real balance.
+
+        Bounded by MOON_SNIPE_FRACTION of free quote balance and by
+        MOON_SNIPE_MAX_USD. Returns 0.0 when the balance cannot be read --
+        an unknown balance is not a licence to spend a default.
+        """
+        try:
+            fraction = float(os.getenv("MOON_SNIPE_FRACTION", "0.10"))
+        except (TypeError, ValueError):
+            fraction = 0.10
+        try:
+            ceiling = float(os.getenv("MOON_SNIPE_MAX_USD", "25"))
+        except (TypeError, ValueError):
+            ceiling = 25.0
+
+        try:
+            from src.leantrader.execution import preflight
+
+            def _free() -> float:
+                broker = preflight.shared_broker()
+                if broker.authority not in {"testnet", "live"}:
+                    return 0.0
+                balance = preflight.fetch_balance_cached(broker)
+                free = balance.get("free")
+                if isinstance(free, dict):
+                    return float(free.get("USDT") or 0.0)
+                return 0.0
+
+            balance = await asyncio.to_thread(_free)
+        except Exception:
+            return 0.0
+
+        return max(0.0, min(balance * max(0.0, fraction), ceiling))
+
     async def run_forever(self):
         """Run the moon spotting system forever."""
 
@@ -840,15 +928,30 @@ class UltraMoonSystem:
                     # Add to tracking
                     self.dashboard.track_gem(gem)
 
-                    # Auto-snipe if score is high enough
+                    # Auto-snipe if score is high enough. The amount used to
+                    # be a flat $100 regardless of what the wallet held --
+                    # on a wallet of a few tens of USDT that is the whole
+                    # balance on one micro cap. It is now a bounded fraction
+                    # of the real balance, and zero when there is nothing to
+                    # spend. (The sniper itself refuses either way: no
+                    # signing key is configured. This is what the size would
+                    # be when one is.)
                     if gem['moon_score'] > 80:
-                        print("   🎯 AUTO-SNIPING with $100...")
-                        result = await self.sniper.auto_snipe(gem, 100)
+                        amount_usd = await self._snipe_amount_usd()
+
+                        if amount_usd <= 0.0:
+                            print(
+                                "   ⏸️  Snipe skipped: no spendable balance"
+                            )
+                            continue
+
+                        print(f"   🎯 Snipe attempt sized at ${amount_usd:.2f}")
+                        result = await self.sniper.auto_snipe(gem, amount_usd)
 
                         if result['success']:
                             print(f"   ✅ SNIPED! TX: {result['tx_hash'][:10]}...")
                         else:
-                            print(f"   ❌ Snipe failed: {result.get('error')}")
+                            print(f"   ⏸️  Not sniped: {result.get('error')}")
 
                 # Update tracked gems
                 await self.dashboard.update_prices()
@@ -890,7 +993,7 @@ async def integrate_moon_spotter(pipeline):
     # Start moon spotter in background
     asyncio.create_task(moon_system.run_forever())
 
-    print("🌙 MOON SPOTTER INTEGRATED - Hunting for 1000x gems!")
+    print("🌙 MOON SPOTTER INTEGRATED - micro-cap discovery (research only)")
 
     return pipeline
 
@@ -918,27 +1021,28 @@ if __name__ == "__main__":
     ║     • Telegram gem channels                                    ║
     ║     • Twitter crypto mentions                                  ║
     ║                                                                  ║
-    ║  🎯 Auto-Sniper                                                ║
-    ║     • Instant buying when gem found                            ║
-    ║     • Optimal gas calculation                                  ║
-    ║     • Multi-DEX support                                        ║
-    ║     • Slippage protection                                      ║
+    ║  🎯 Auto-Sniper: DISABLED (CONFIG_REQUIRED)                    ║
+    ║     • No signing key configured; orders are refused            ║
+    ║     • Sizing, when enabled, comes from the real balance         ║
+    ║     • Must route through the central execution authority        ║
     ║                                                                  ║
-    ║  📊 Moon Tracker Dashboard                                      ║
-    ║     • Real-time price tracking                                 ║
-    ║     • Multiplier alerts (10x, 100x, 1000x)                    ║
-    ║     • Portfolio management                                     ║
-    ║     • Historical moon tracking                                 ║
+    ║  📊 Tracker                                                     ║
+    ║     • Price tracking for discovered tokens                      ║
+    ║     • Multiplier alerts against a tracked entry                 ║
+    ║     • Historical record of what was found                       ║
     ║                                                                  ║
-    ║  Expected Results:                                             ║
-    ║     • Find 10-50 micro caps daily                              ║
-    ║     • 1-5 will 10x within days                                 ║
-    ║     • 1 in 20 will 100x+                                       ║
-    ║     • 1 in 100 will 1000x+ (true moon)                        ║
+    ║  What this does NOT do                                         ║
+    ║     • It does not predict returns. Multipliers are              ║
+    ║       arithmetic against a target price, not forecasts.         ║
+    ║     • Most micro caps go to zero. Discovery is not an edge      ║
+    ║       on its own, and nothing here estimates a hit rate.        ║
+    ║     • Several on-chain adapters are unimplemented and report    ║
+    ║       as unavailable rather than as an empty scan.              ║
     ║                                                                  ║
     ╚══════════════════════════════════════════════════════════════════╝
 
-    The system that finds the next SHIB, PEPE, or DOGE before they moon!
+    Discovery and research. Execution is disabled until a signing adapter
+    and a central-authority path exist.
     """
     )
 # Alias for backwards compatibility

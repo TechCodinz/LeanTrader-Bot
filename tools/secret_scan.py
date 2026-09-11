@@ -60,6 +60,17 @@ NOT_A_SECRET_CONTEXT = re.compile(
 # Telegram's own documentation token, used in every setup guide.
 BOTFATHER_EXAMPLE = "1234567890:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
 
+# A *_FILE or *_PATH variable holds the location of a mounted secret, not the
+# secret. That indirection is the contract SECRETS.md documents, so flagging
+# the path would penalise doing the right thing.
+PATH_VALUED_KEY = re.compile(r"(_FILE|_PATH|_LOCATION)$", re.IGNORECASE)
+
+# An explicit, per-line opt-out for a value that only looks like a secret --
+# a scanner fixture, a documented example. Deliberately per-line and visible
+# in review rather than a directory-wide exemption, since a real secret in a
+# test file is still a leak.
+ALLOW_MARKER = re.compile(r"#\s*secret-scan:\s*allow", re.IGNORECASE)
+
 # A value that is plainly not a secret.
 PLACEHOLDER = re.compile(
     r"""^(
@@ -125,6 +136,8 @@ def scan_text(text: str) -> Iterable[Tuple[int, str, str]]:
         stripped = line.strip()
         if stripped.startswith(("#", "//", "*")) and "REDACTED" in line.upper():
             continue
+        if ALLOW_MARKER.search(line):
+            continue
 
         for kind, pattern in SHAPES:
             for match in pattern.finditer(line):
@@ -138,6 +151,8 @@ def scan_text(text: str) -> Iterable[Tuple[int, str, str]]:
         for match in ASSIGNMENT.finditer(line):
             value = match.group("val")
             key = match.group("key")
+            if PATH_VALUED_KEY.search(key):
+                continue
             if _is_placeholder(value, key):
                 continue
             yield number, f"assignment:{key}", _mask(value)
