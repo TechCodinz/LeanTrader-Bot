@@ -147,7 +147,20 @@ DATABASE_URL=postgresql://user:password@localhost:5432/trading_bot
 REDIS_URL=redis://localhost:6379/0
 
 # Trading Configuration
-TRADING_MODE=live
+#
+# Real-money live mode requires a separate operator-controlled configuration.
+# Never enable it from a tracked repository template. "production" here is the
+# deployment topology -- database, workers, monitoring -- not real-money
+# trading authority.
+#
+# This generator emitted TRADING_MODE=live, which is how config/prod/config.env
+# came to carry it. Regenerating must not reintroduce live authority.
+TRADING_MODE=testnet
+EXECUTION_MODE=testnet
+ENABLE_LIVE=false
+ALLOW_LIVE=false
+LIVE_CONFIRM=NO
+BYBIT_TESTNET=true
 RISK_MANAGEMENT=enabled
 MAX_POSITION_SIZE=0.1
 STOP_LOSS_PERCENTAGE=2.0

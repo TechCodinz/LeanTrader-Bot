@@ -115,50 +115,16 @@ def test_the_allow_marker_only_exempts_its_own_line():
 
 
 # ------------------------------------------------------- execution posture
-
-
-LIVE_ENABLING = {
-    "ENABLE_LIVE": {"true", "1", "yes", "on"},
-    "ALLOW_LIVE": {"true", "1", "yes", "on"},
-    "LIVE_CONFIRM": {"yes"},
-}
-
-
-def _env_values(path):
-    values = {}
-    for line in path.read_text(errors="ignore").split("\n"):
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        values[key.strip().upper()] = value.strip().strip("\"'").lower()
-    return values
-
-
-def test_no_tracked_env_template_ships_live_authority():
-    """Real-money authority must be an operator decision on the host.
-
-    .env shipped with TRADING_MODE=live, ENABLE_LIVE=true and ALLOW_LIVE=true
-    -- one variable short of live execution, committed to the repository.
-    """
-    offenders = []
-
-    # Both spellings: NAME.env templates and .env.NAME variants.
-    candidates = set(ROOT.glob("*.env")) | set(ROOT.glob(".env*"))
-    for path in sorted(candidates):
-        if not path.is_file():
-            continue
-        if "conservative" in path.name:
-            # Explicitly a live example, named as one.
-            continue
-        values = _env_values(path)
-        for key, enabling in LIVE_ENABLING.items():
-            if values.get(key) in enabling:
-                offenders.append(f"{path.name}: {key}={values[key]}")
-
-    assert not offenders, "tracked env files enable live trading: " + ", ".join(
-        offenders
-    )
+#
+# The live-authority check lives in tests/test_config_posture.py, which scans
+# every tracked file repo-wide with no per-file exemptions. The version that
+# used to sit here globbed only the repository root and carved out
+# .env.live.conservative.example by name -- so it missed config/prod/config.env
+# (a subdirectory), env.live (a name it did not match), and excused the one
+# file it did see. A deployment gate caught what it did not.
+#
+# What remains here is the narrower question this module owns: that the
+# primary .env still declares the posture the runtime is meant to hold.
 
 
 def test_the_tracked_env_declares_the_testnet_posture():
@@ -171,3 +137,14 @@ def test_the_tracked_env_declares_the_testnet_posture():
     assert values.get("ENABLE_LIVE") == "false"
     assert values.get("ALLOW_LIVE") == "false"
     assert values.get("LIVE_CONFIRM") == "no"
+
+
+def _env_values(path):
+    values = {}
+    for line in path.read_text(errors="ignore").split("\n"):
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip().upper()] = value.split("#")[0].strip().strip("\"'").lower()
+    return values

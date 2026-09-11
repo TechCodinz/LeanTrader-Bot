@@ -4,12 +4,20 @@ cd /opt/ultra
 source /opt/ultra/.venv/bin/activate
 export $(grep -v '^#' /etc/ultra-testnet.env | xargs -d '\n') || true
 
-# Sensible defaults for testnet
+# Sensible defaults for testnet.
+#
+# This script exported ENABLE_LIVE=true, ALLOW_LIVE=true and LIVE_CONFIRM=YES
+# despite its name. BYBIT_TESTNET=true happens to win in the current mode
+# resolver, so it did route to Testnet -- but those three flags together are
+# the live-authority grant, and a tracked script that sets all three is one
+# unset variable or one resolver change away from real money. A Testnet
+# launcher asks for Testnet explicitly and leaves live fail-closed.
 export EXCHANGE_ID=bybit
 export BYBIT_TESTNET=true
-export ENABLE_LIVE=true
-export ALLOW_LIVE=true
-export LIVE_CONFIRM=YES
+export EXECUTION_MODE=testnet
+export ENABLE_LIVE=false
+export ALLOW_LIVE=false
+export LIVE_CONFIRM=NO
 export LIVE_ORDER_USD=${LIVE_ORDER_USD:-25}
 export DAILY_MAX_LOSS=${DAILY_MAX_LOSS:-100}
 export SESSION_MIN_WEIGHT=${SESSION_MIN_WEIGHT:-0.70}
