@@ -488,6 +488,20 @@ class SizingPolicy:
         )
 
 
+def paper_equity() -> float:
+    """Quote-currency equity a paper run sizes against.
+
+    Paper has no account to query, so this is a declared number rather than a
+    discovered one. It exists so paper and authenticated runs go through the
+    same sizing, precision and minimum-notional checks; it is never used for
+    an authenticated environment, where the real free balance is read.
+    """
+    try:
+        return float(os.getenv("PAPER_EQUITY_QUOTE", "1000"))
+    except (TypeError, ValueError):
+        return 1000.0
+
+
 def size_order(
     free_quote: float,
     price: float,
@@ -609,7 +623,7 @@ def prepare_order(
         )
 
     authority = broker.authority
-    if authority not in {"testnet", "live"}:
+    if authority not in {"testnet", "live", "paper"}:
         return blocked(
             NO_EXECUTION_AUTHORITY,
             f"{broker.exchange_id}:{broker.resolve_mode()}",
@@ -668,27 +682,40 @@ def prepare_order(
     if not price or price <= 0.0:
         return blocked(REFERENCE_PRICE_UNAVAILABLE, symbol, "price")
 
-    try:
-        balance = fetch_balance_cached(broker)
-    except Exception as exc:
-        return blocked(BALANCE_UNAVAILABLE, type(exc).__name__, "balance")
-
-    if not balance:
-        return blocked(BALANCE_UNAVAILABLE, broker.exchange_id, "balance")
-
     # A sell spends base, a buy spends quote. Both are checked against the
     # currency actually leaving the account.
     spend_currency = quote if side == "buy" else str(
         market.get("base") or symbol.split("/")[0]
     ).upper()
-    free_spend = _free_quote_balance(balance, spend_currency)
-    if free_spend is None:
-        return blocked(BALANCE_UNAVAILABLE, spend_currency, "balance")
-    free_quote = free_spend if side == "buy" else free_spend * price
-    if free_quote <= 0.0:
-        return blocked(
-            INSUFFICIENT_FREE_BALANCE, f"{spend_currency}=0", "balance"
-        )
+
+    if authority == "paper":
+        # Paper has no account to read. The equity a paper run sizes against
+        # is a declared configuration value, not a balance discovered
+        # anywhere, and it is expressed in the quote currency.
+        free_quote = paper_equity()
+        if free_quote <= 0.0:
+            return blocked(
+                INSUFFICIENT_FREE_BALANCE,
+                f"paper_equity={free_quote}",
+                "balance",
+            )
+    else:
+        try:
+            balance = fetch_balance_cached(broker)
+        except Exception as exc:
+            return blocked(BALANCE_UNAVAILABLE, type(exc).__name__, "balance")
+
+        if not balance:
+            return blocked(BALANCE_UNAVAILABLE, broker.exchange_id, "balance")
+
+        free_spend = _free_quote_balance(balance, spend_currency)
+        if free_spend is None:
+            return blocked(BALANCE_UNAVAILABLE, spend_currency, "balance")
+        free_quote = free_spend if side == "buy" else free_spend * price
+        if free_quote <= 0.0:
+            return blocked(
+                INSUFFICIENT_FREE_BALANCE, f"{spend_currency}=0", "balance"
+            )
 
     min_notional = _limit(market, "cost", "min") or 0.0
     min_amount = _limit(market, "amount", "min") or 0.0

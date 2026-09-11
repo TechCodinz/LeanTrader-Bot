@@ -278,13 +278,46 @@ def test_an_unparseable_symbol_blocks_before_any_venue_call():
     assert blocked.blocker == preflight.SYMBOL_NOT_NORMALIZED
 
 
-@pytest.mark.parametrize("authority", ["none", "paper"])
-def test_without_authenticated_authority_nothing_is_prepared(authority):
-    prepared, blocked = prepare_order(
-        intent(), broker=StubBroker(authority=authority)
-    )
+def test_without_any_execution_authority_nothing_is_prepared():
+    prepared, blocked = prepare_order(intent(), broker=StubBroker(authority="none"))
     assert prepared is None
     assert blocked.blocker == preflight.NO_EXECUTION_AUTHORITY
+
+
+def test_paper_sizes_against_declared_equity_not_a_discovered_balance(monkeypatch):
+    """Paper has no account to read, so its equity is configuration.
+
+    It still goes through the same market, minimum-notional and precision
+    checks, so a paper run exercises the same path an authenticated one does.
+    """
+    monkeypatch.setenv("PAPER_EQUITY_QUOTE", "250")
+
+    broker = StubBroker(authority="paper", balance_error=AssertionError("no fetch"))
+    prepared, blocked = prepare_order(intent(), broker=broker)
+
+    assert blocked is None
+    assert prepared.free_quote == pytest.approx(250.0)
+    assert prepared.notional <= 250.0
+    assert prepared.meta["authority"] == "paper"
+
+
+def test_a_paper_equity_of_zero_blocks_rather_than_sizing_from_nothing(monkeypatch):
+    monkeypatch.setenv("PAPER_EQUITY_QUOTE", "0")
+    prepared, blocked = prepare_order(
+        intent(), broker=StubBroker(authority="paper")
+    )
+    assert prepared is None
+    assert blocked.blocker == preflight.INSUFFICIENT_FREE_BALANCE
+
+
+def test_an_authenticated_run_never_falls_back_to_paper_equity(monkeypatch):
+    """The declared paper number must not stand in for a real balance."""
+    monkeypatch.setenv("PAPER_EQUITY_QUOTE", "100000")
+    broker = StubBroker(authority="testnet", balance={"free": {"USDT": 0.0}})
+    prepared, blocked = prepare_order(intent(), broker=broker)
+
+    assert prepared is None
+    assert blocked.blocker == preflight.INSUFFICIENT_FREE_BALANCE
 
 
 def test_a_symbol_the_venue_does_not_list_blocks():

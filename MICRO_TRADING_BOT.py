@@ -219,6 +219,9 @@ class MICRO_GATE_BOT:
         price,
         quantity=None,
     ):
+        from src.leantrader.execution import (
+            preflight,
+        )
         from src.leantrader.execution.router import (
             route_order,
         )
@@ -242,21 +245,74 @@ class MICRO_GATE_BOT:
             )
         )
 
-        return route_order(
-            {
-                "symbol": symbol,
-                "side": side,
-                "qty": amount,
-                "price": float(
-                    price or 0.0
-                ),
-                "order_type": "market",
-                "exchange_id": (
-                    self.exchange_id
-                ),
-                "backend": "ccxt",
-            }
+        intent = {
+            "symbol": symbol,
+            "side": side,
+            "price": float(
+                price or 0.0
+            ),
+            "order_type": "market",
+        }
+
+        # self.exchange_id names this engine's historical Gate.io market-data
+        # client. Passing it as the order venue overrode whichever exchange
+        # the runtime is authenticated against, addressing orders to an
+        # account that does not exist. The router resolves the venue from the
+        # runtime configuration unless an operator sets an explicit override.
+        override = os.getenv(
+            "EXECUTION_EXCHANGE_OVERRIDE",
+            "",
+        ).strip().lower()
+
+        if override:
+            intent["exchange_id"] = override
+
+        if quantity is not None:
+            # An explicit size from the caller is respected as given.
+            intent["qty"] = amount
+            intent["backend"] = "ccxt"
+            return route_order(intent)
+
+        # Otherwise size against the account's real free balance and the
+        # venue's own minimums, rather than the fixed self.position_sizes
+        # table a small wallet can never fund.
+        prepared, blocked = (
+            preflight.prepare_order(
+                intent
+            )
         )
+
+        if prepared is None:
+            return blocked.as_dict()
+
+        receipt = route_order(
+            prepared.to_payload()
+        )
+
+        blocker = (
+            preflight
+            .classify_receipt(
+                receipt
+            )
+        )
+
+        if blocker is None:
+            preflight.record_event(
+                "acknowledged"
+            )
+            preflight.invalidate_balance_cache()
+        else:
+            preflight.record_blocker(
+                blocker,
+                str(
+                    receipt.get(
+                        "error",
+                        "",
+                    )
+                )[:200],
+            )
+
+        return receipt
 
     def run_micro_trading(self):
         """
