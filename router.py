@@ -52,10 +52,46 @@ class ExchangeRouter:
     """
 
     def __init__(self) -> None:
-        self.id = _env("EXCHANGE_ID", "bybit").lower()
-        self.mode = _env("EXCHANGE_MODE", "spot").lower()  # 'spot' | 'linear'
-        self.live = _env_bool("ENABLE_LIVE", False)
-        self.testnet = _env_bool("BYBIT_TESTNET", False)
+        # PASS5_CANONICAL_EXECUTION_CONTEXT
+        self.execution_mode = _env(
+            "EXECUTION_MODE",
+            "",
+        ).strip().lower()
+
+        self.id = (
+            _env("EXCHANGE_ID")
+            or _env(
+                "CCXT_EXCHANGE",
+                "bybit",
+            )
+        ).lower()
+
+        self.mode = _env(
+            "EXCHANGE_MODE",
+            "spot",
+        ).lower()
+
+        self.live = _env_bool(
+            "ENABLE_LIVE",
+            False,
+        )
+
+        self.testnet = (
+            self.execution_mode
+            in {
+                "testnet",
+                "sandbox",
+                "demo",
+            }
+            or _env_bool(
+                "BYBIT_TESTNET",
+                False,
+            )
+            or _env_bool(
+                "CCXT_TESTNET",
+                False,
+            )
+        )
 
         # explicit allow flag required to actually send live orders (extra safety)
         # instance-level allow flag captured at init time to avoid mid-run env changes
@@ -147,17 +183,10 @@ class ExchangeRouter:
             opts["options"]["defaultType"] = "swap" if self.mode == "linear" else "spot"
             if self.mode == "linear":
                 opts["options"]["defaultSubType"] = "linear"
-            if self.testnet:
-                # testnet REST base; ccxt bybit uses different url fields; set both common forms
-                opts_urls = {
-                    "api": "https://api-testnet.bybit.com",
-                    "rest": "https://api-testnet.bybit.com",
-                }
-                # merge with existing opts if present
-                if "urls" in opts and isinstance(opts["urls"], dict):
-                    opts["urls"].update(opts_urls)
-                else:
-                    opts["urls"] = opts_urls
+            # PASS5_CCXT_NATIVE_SANDBOX
+            # Do not manually overwrite Bybit URL structures.
+            # Current CCXT owns the complete endpoint schema;
+            # set_sandbox_mode(True) is applied after creation.
         elif self.id == "binance" and self.mode == "linear":
             opts["options"]["defaultType"] = "future"
 
@@ -169,6 +198,24 @@ class ExchangeRouter:
             if not klass:
                 raise RuntimeError(f"Unknown ccxt exchange id: {self.id}")
             self.ex = klass(opts)
+
+            # PASS5_CCXT_SANDBOX_ACTIVATION
+            if self.testnet:
+                sandbox = getattr(
+                    self.ex,
+                    "set_sandbox_mode",
+                    None,
+                )
+
+                if not callable(
+                    sandbox
+                ):
+                    raise RuntimeError(
+                        f"{self.id} does not expose "
+                        "CCXT sandbox mode"
+                    )
+
+                sandbox(True)
 
             # Apply guard hook for order safety and exchange intel
             try:
@@ -473,74 +520,161 @@ class ExchangeRouter:
         except Exception as _e:
             return {"ok": False, "error": str(_e)}
 
-    def apply_runtime_order_block(self, logger: Optional[logging.Logger] = None) -> None:
+    def apply_runtime_order_block(
+        self,
+        logger: Optional[logging.Logger] = None,
+    ) -> None:
         """
-        Apply a runtime overlay that stubs order-sending methods when ENABLE_LIVE
-        is not explicitly enabled. This is non-destructive: original callables
-        are saved as `_orig_<name>` on the instance where possible.
+        Preserve one final order authority.
 
-        This method is safe to call multiple times; it will attempt to preserve
-        existing originals when present.
+        Router-level create/safe_place_order methods
+        remain callable because they delegate to
+        src.leantrader.execution.router.route_order().
+
+        Raw CCXT create_order methods are always blocked
+        on this market-data client so historical engines
+        cannot bypass the universal execution router.
         """
         lg = logger or _log
-        try:
-            enable_live_env = _env("ENABLE_LIVE", "").strip().lower() == "true"
-            # Do not override behavior for paper broker
-            if getattr(self, "id", "").lower() == "paper":
-                lg.debug("[router] paper broker detected: skipping runtime order overlay")
-                return
 
-            if enable_live_env:
-                lg.debug("[router] ENABLE_LIVE=true: no runtime order overlay applied")
-                return
+        if (
+            getattr(
+                self,
+                "id",
+                "",
+            ).lower()
+            == "paper"
+        ):
+            lg.debug(
+                "[router] paper broker: "
+                "raw exchange bypass guard not required"
+            )
+            return
 
-            lg.warning("[router] ENABLE_LIVE not true: applying runtime order-block overlay")
+        execution_mode = _env(
+            "EXECUTION_MODE",
+            "",
+        ).strip().lower()
 
-            def _stub_order(*args, **kwargs):
-                lg.warning("[router] blocked live order call (ENABLE_LIVE != 'true')")
-                return {"ok": False, "dry_run": True, "error": "live disabled"}
+        testnet_authority = (
+            getattr(
+                self,
+                "testnet",
+                False,
+            )
+            or execution_mode
+            in {
+                "testnet",
+                "sandbox",
+                "demo",
+            }
+        )
 
-            # Instance-level shims (high-level router methods)
-            for name in (
-                "safe_place_order",
-                "create_order",
-                "create_market_order",
-                "create_limit_order",
-                "create_stop_order",
-            ):
-                try:
-                    if hasattr(self, name):
-                        if not hasattr(self, f"_orig_{name}"):
-                            setattr(self, f"_orig_{name}", getattr(self, name))
-                        setattr(self, name, _stub_order)
-                except Exception:
-                    lg.exception("[router] failed to stub router.%s", name)
+        if testnet_authority:
+            lg.info(
+                "[router] TESTNET: high-level order "
+                "calls remain routed through universal "
+                "execution authority"
+            )
+        elif getattr(
+            self,
+            "live",
+            False,
+        ):
+            lg.info(
+                "[router] LIVE requested: high-level "
+                "orders remain routed through universal "
+                "execution authority"
+            )
+        else:
+            lg.info(
+                "[router] non-live mode: high-level "
+                "orders remain centrally routed"
+            )
 
-            # Try to stub underlying exchange methods if present (best-effort)
+        ex = getattr(
+            self,
+            "ex",
+            None,
+        )
+
+        if ex is None:
+            return
+
+        def _raw_order_block(
+            *args,
+            **kwargs,
+        ):
+            lg.warning(
+                "[router] blocked raw exchange order "
+                "bypass; use universal execution router"
+            )
+
+            return {
+                "ok":
+                    False,
+
+                "executed":
+                    False,
+
+                "submitted":
+                    False,
+
+                "authority":
+                    (
+                        "testnet"
+                        if testnet_authority
+                        else "none"
+                    ),
+
+                "error":
+                    (
+                        "direct_exchange_order_"
+                        "bypass_blocked"
+                    ),
+            }
+
+        for name in (
+            "create_order",
+            "create_market_order",
+            "create_limit_order",
+        ):
             try:
-                ex = getattr(self, "ex", None)
-                if ex is not None:
+                if not hasattr(
+                    ex,
+                    name,
+                ):
+                    continue
 
-                    def make_ex_stub():
-                        def _ex_stub(*a, **k):
-                            lg.warning(
-                                "[router] blocked underlying exchange order (ENABLE_LIVE != 'true')"
-                            )
-                            return {"ok": False, "dry_run": True, "error": "live disabled"}
+                original_name = (
+                    f"_leantrader_raw_{name}"
+                )
 
-                        return _ex_stub
+                if not hasattr(
+                    ex,
+                    original_name,
+                ):
+                    setattr(
+                        ex,
+                        original_name,
+                        getattr(
+                            ex,
+                            name,
+                        ),
+                    )
 
-                    for cname in ("create_order", "create_market_order", "create_limit_order"):
-                        try:
-                            if hasattr(ex, cname) and not hasattr(ex, f"_orig_{cname}"):
-                                setattr(ex, f"_orig_{cname}", getattr(ex, cname))
-                                setattr(ex, cname, make_ex_stub())
-                        except Exception:
-                            lg.exception("[router] failed to stub ex.%s", cname)
+                setattr(
+                    ex,
+                    name,
+                    _raw_order_block,
+                )
+
             except Exception:
-                lg.exception("[router] underlying exchange overlay failed")
-        except Exception:
-            lg.exception("[router] apply_runtime_order_block outer failure")
+                lg.exception(
+                    "[router] failed to guard "
+                    "raw exchange method %s",
+                    name,
+                )
 
     # ---------- safe convenience wrappers (used across the codebase) ----------
     def safe_fetch_ticker(self, symbol: str) -> Dict[str, Any]:
