@@ -3,14 +3,16 @@
 EXECUTION ORCHESTRATOR - THE MISSING PIECE
 Smart trade execution with risk management, position sizing, and profit optimization
 """
-from ccxt_exchange_compat import resolve_exchange_class
-
 import asyncio
 import logging
+import os
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from collections import deque
 import time
+
+from src.leantrader.execution import preflight
+from src.leantrader.execution.router import route_order
 
 logger = logging.getLogger(__name__)
 
@@ -228,10 +230,11 @@ class ExecutionOrchestrator:
         self.total_profit = 0.0
         self.execution_times = deque(maxlen=100)
 
-        logger.info("⚡ Execution Orchestrator initialized (SMART LOGIC)")
+        logger.info("⚡ Execution Orchestrator initialized")
         logger.info(f"   Mode: {mode}")
         logger.info(f"   Min Confidence: {self.min_confidence}")
-        logger.info(f"   Risk per trade: {self.position_sizer.max_risk_per_trade:.1%}")
+        logger.info("   Sizing: adaptive, from the account's real free balance")
+        logger.info("   Placement: universal execution router (route_order)")
 
     async def run_execution_loop(self):
         """
@@ -271,19 +274,40 @@ class ExecutionOrchestrator:
 
             symbol = signal.get('symbol') or signal.get('data', {}).get('symbol')
             if not symbol:
+                preflight.record_blocker(preflight.INVALID_INTENT, 'no_symbol')
                 logger.debug("No symbol in decision")
                 return
 
-            # Validate confidence
+            # Validate confidence. This threshold is not lowered to produce
+            # activity; attempts that fail it are counted so a quiet run can
+            # be attributed rather than guessed at.
             if confidence < self.min_confidence:
+                preflight.record_blocker(
+                    preflight.CONFIDENCE_BELOW_THRESHOLD,
+                    f"{symbol} {confidence:.4f}<{self.min_confidence:.4f}",
+                )
                 logger.debug(f"Low confidence: {confidence:.2%} < {self.min_confidence:.2%}")
                 return
 
             # USE ADVANCED ACTION DECIDER if available
             if self.action_decider:
-                # Get price history (simulate for now)
-                price = signal.get('data', {}).get('price', 0)
-                price_history = [price] * 50  # Would fetch real history
+                # Real recent closes. This used to pass [price] * 50 -- a flat
+                # synthetic series -- which made every volatility and regime
+                # reading the decider produced meaningless. If real history is
+                # unavailable the decider is skipped rather than fed invented
+                # bars.
+                price_history = await self._recent_closes(symbol)
+
+                if not price_history:
+                    preflight.record_blocker(
+                        preflight.MARKET_METADATA_UNAVAILABLE,
+                        f"{symbol}:no_price_history",
+                    )
+                    logger.info(
+                        f"   ⏸️  {symbol}: no real price history for the "
+                        "action decider"
+                    )
+                    return
 
                 # Get all current opportunities (for portfolio balancing)
                 opportunities = []  # Would get from data_hub
@@ -308,6 +332,9 @@ class ExecutionOrchestrator:
 
                 # Handle different actions
                 if action == 'avoid' or action == 'hold':
+                    preflight.record_blocker(
+                        preflight.STRATEGY_REJECT, f"{symbol}:{action}"
+                    )
                     logger.info(f"   ⏸️  No action taken")
                     return
 
@@ -322,11 +349,17 @@ class ExecutionOrchestrator:
             else:
                 # Fallback to simple logic
                 if action not in ['buy', 'sell']:
+                    preflight.record_blocker(
+                        preflight.STRATEGY_REJECT, f"{symbol}:{action}"
+                    )
                     return
 
             # Check risk management
             can_trade, reason = self.risk_manager.can_open_position(symbol, action)
             if not can_trade:
+                preflight.record_blocker(
+                    preflight.RISK_REJECT, f"{symbol}:{reason}"
+                )
                 logger.info(f"⚠️ Trade blocked: {reason}")
                 return
 
@@ -340,10 +373,22 @@ class ExecutionOrchestrator:
                 signal=signal
             )
 
-            if result:
-                logger.info(f"✅ Trade executed successfully: {symbol}")
+            # execute_trade returns a receipt on acknowledgement and a
+            # classified blocker otherwise. Both are dicts, so the truthiness
+            # of the return value says nothing -- read ok.
+            if isinstance(result, dict) and result.get('ok'):
+                order = result.get('order') or {}
+                logger.info(
+                    f"✅ Order acknowledged: {symbol} id={order.get('id')}"
+                )
+            elif isinstance(result, dict):
+                logger.warning(
+                    f"❌ No order placed for {symbol}: "
+                    f"{result.get('blocker', 'UNCLASSIFIED')}"
+                )
             else:
-                logger.warning(f"❌ Trade execution failed: {symbol}")
+                preflight.record_blocker(preflight.ROUTER_REFUSED, symbol)
+                logger.warning(f"❌ No order placed for {symbol}: no receipt")
 
         except Exception as e:
             logger.error(f"Decision processing error: {e}")
@@ -353,189 +398,207 @@ class ExecutionOrchestrator:
                            side: str,
                            confidence: float,
                            signal: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """
-        Execute trade with smart logic
+        """Submit one order through the universal execution router.
 
-        Returns trade result or None if failed
-        """
+        This used to size from a fixed $1000 assumption, hand the order to
+        REAL_PROFIT_BOT, and -- if that produced anything at all, including a
+        refusal receipt -- record a position, publish a trade record and log
+        "TRADE EXECUTED". A refusal dict is truthy, so refusals were being
+        counted as fills and fed to the learning path as trade outcomes. There
+        was also a fallback branch that built a trade record out of nothing and
+        marked it simulated.
 
+        Both are gone. The order is sized against the account's real free
+        balance and the venue's own limits, submitted through route_order, and
+        only treated as executed when the router reports execution and the
+        exchange returns an order id. Anything else is classified, counted and
+        returned as a blocker.
+        """
         start_time = time.time()
 
-        try:
-            # Get current price
-            price = signal.get('data', {}).get('price', 0)
-            if not price:
-                # Try to fetch current price
-                price = await self.get_current_price(symbol)
+        intent = {
+            'symbol': symbol,
+            'side': side,
+            'confidence': confidence,
+            'order_type': 'market',
+        }
 
-            if not price:
-                logger.error(f"Cannot get price for {symbol}")
-                return None
+        price = signal.get('data', {}).get('price') or signal.get('price')
+        if price:
+            intent['price'] = price
+        else:
+            fetched = await self.get_current_price(symbol)
+            if fetched:
+                intent['price'] = fetched
 
-            # Calculate smart position size
-            volatility = signal.get('data', {}).get('volatility', 0.02)
-            position_size_usd = self.position_sizer.calculate_position_size(
-                confidence=confidence,
-                volatility=volatility
+        override = os.getenv('EXECUTION_EXCHANGE_OVERRIDE', '').strip().lower()
+        if override:
+            intent['exchange_id'] = override
+
+        # Preflight touches the network (markets, balance, ticker) and
+        # route_order blocks on the exchange call, so both run off the event
+        # loop. Holding the loop here stalls every other engine.
+        prepared, blocked = await asyncio.to_thread(preflight.prepare_order, intent)
+
+        if prepared is None:
+            logger.info(
+                f"⛔ {symbol} {side.upper()} not submitted: "
+                f"{blocked.blocker} ({blocked.detail})"
             )
+            return blocked.as_dict()
 
-            # Convert to base currency amount
-            amount = position_size_usd / price
+        logger.info(
+            f"⚡ SUBMITTING {side.upper()} {prepared.symbol} "
+            f"amount={prepared.amount} notional={prepared.notional:.4f} "
+            f"{prepared.quote_currency} "
+            f"[{prepared.execution_mode}@{prepared.exchange_id}] "
+            f"sizing: {prepared.sizing_reason}"
+        )
 
-            # Calculate stop loss and take profit
-            stop_loss_pct = 0.01  # 1% stop loss
-            take_profit_pct = 0.02  # 2% take profit (2:1 reward/risk)
+        preflight.record_event('submitted')
+        receipt = await asyncio.to_thread(route_order, prepared.to_payload())
 
-            if side == 'buy':
-                stop_loss = price * (1 - stop_loss_pct)
-                take_profit = price * (1 + take_profit_pct)
-            else:
-                stop_loss = price * (1 + stop_loss_pct)
-                take_profit = price * (1 - take_profit_pct)
+        blocker = preflight.classify_receipt(receipt)
+        execution_time = time.time() - start_time
+        self.execution_times.append(execution_time)
+        preflight.record_stage_latency('submit_to_receipt', execution_time)
 
-            # Choose execution engine based on signal source
-            execution_result = None
+        if blocker is not None:
+            detail = str((receipt or {}).get('error', ''))[:200]
+            preflight.record_blocker(blocker, f"{symbol}:{detail}")
+            logger.warning(
+                f"❌ {symbol} {side.upper()} not acknowledged: {blocker} {detail}"
+            )
+            return {
+                'ok': False,
+                'prepared': True,
+                'blocker': blocker,
+                'detail': detail,
+                'receipt': receipt,
+            }
 
-            # Try REAL_PROFIT_BOT first (Gate.io)
-            if 'real_profit' in self.engines and self.engines['real_profit']:
+        order = receipt.get('order') or {}
+        order_id = order.get('id')
+        filled = order.get('filled')
+        avg_price = order.get('average') or order.get('price') or prepared.price
+        status = order.get('status')
+
+        preflight.record_event('acknowledged')
+        preflight.invalidate_balance_cache()
+
+        self.risk_manager.record_position(
+            symbol=prepared.symbol,
+            side=prepared.side,
+            size=prepared.amount,
+            entry_price=avg_price
+        )
+
+        # Only facts the exchange returned, plus the intent that produced
+        # them. No stop/target is invented here: nothing has placed one.
+        trade_record = {
+            'symbol': prepared.symbol,
+            'side': prepared.side,
+            'order_id': order_id,
+            'amount': prepared.amount,
+            'filled': filled,
+            'entry_price': avg_price,
+            'notional': prepared.notional,
+            'quote_currency': prepared.quote_currency,
+            'confidence': confidence,
+            'exchange': receipt.get('exchange'),
+            'execution_mode': receipt.get('execution_mode'),
+            'authority': receipt.get('authority'),
+            'order_status': status,
+            'timestamp': datetime.now(),
+            'status': 'open',
+            'realized_pnl': None,
+        }
+
+        await self.data_hub.publish_trade(trade_record)
+
+        self.total_trades += 1
+
+        logger.info("⚡ ORDER ACKNOWLEDGED:")
+        logger.info(f"   Symbol: {prepared.symbol}")
+        logger.info(f"   Side: {prepared.side.upper()}")
+        logger.info(f"   Order ID: {order_id}")
+        logger.info(f"   Amount: {prepared.amount}")
+        logger.info(f"   Price: {avg_price}")
+        logger.info(f"   Filled: {filled}")
+        logger.info(f"   Status: {status}")
+        logger.info(f"   Venue: {receipt.get('exchange')} "
+                    f"({receipt.get('execution_mode')})")
+        logger.info(f"   Latency: {execution_time:.2f}s")
+
+        return receipt
+
+    async def _recent_closes(self, symbol: str, limit: int = 50) -> List[float]:
+        """Real recent closes for ``symbol``, or [] if they cannot be read.
+
+        Returns closes only -- never a padded or interpolated series. An empty
+        list means the caller must not run analysis that assumes history.
+        """
+        normalized = preflight.normalize_symbol(symbol) or symbol
+
+        def _fetch() -> List[float]:
+            broker = preflight.shared_broker()
+            candles = broker.fetch_ohlcv(normalized, timeframe="1m", limit=limit)
+            closes: List[float] = []
+            for candle in candles or []:
                 try:
-                    execution_result = self.engines['real_profit'].execute_trade(
-                        symbol=symbol,
-                        signal=side.upper(),
-                        price=price
-                    )
-                except Exception as e:
-                    logger.debug(f"Real profit execution: {e}")
+                    close = float(candle[4])
+                except (IndexError, TypeError, ValueError):
+                    continue
+                if close > 0.0:
+                    closes.append(close)
+            return closes
 
-            # Fallback to enhanced bot (Bybit/other exchanges)
-            if not execution_result and 'enhanced' in self.engines:
-                try:
-                    # Would execute on Bybit or other exchange
-                    # For now, simulate execution
-                    execution_result = {
-                        'symbol': symbol,
-                        'side': side,
-                        'amount': amount,
-                        'price': price,
-                        'stop_loss': stop_loss,
-                        'take_profit': take_profit,
-                        'timestamp': datetime.now().isoformat(),
-                        'simulated': True  # Mark as simulated in testnet
-                    }
-                except Exception as e:
-                    logger.debug(f"Enhanced bot execution: {e}")
-
-            if execution_result:
-                # Record position with risk manager
-                self.risk_manager.record_position(
-                    symbol=symbol,
-                    side=side,
-                    size=amount,
-                    entry_price=price
-                )
-
-                # Record in ledger
-                trade_record = {
-                    'symbol': symbol,
-                    'side': side,
-                    'amount': amount,
-                    'entry_price': price,
-                    'stop_loss': stop_loss,
-                    'take_profit': take_profit,
-                    'confidence': confidence,
-                    'position_size_usd': position_size_usd,
-                    'timestamp': datetime.now(),
-                    'status': 'open'
-                }
-
-                await self.data_hub.publish_trade(trade_record)
-
-                # Update stats
-                self.total_trades += 1
-                execution_time = time.time() - start_time
-                self.execution_times.append(execution_time)
-
-                logger.info(f"⚡ TRADE EXECUTED:")
-                logger.info(f"   Symbol: {symbol}")
-                logger.info(f"   Side: {side.upper()}")
-                logger.info(f"   Amount: {amount:.6f}")
-                logger.info(f"   Entry: ${price:.4f}")
-                logger.info(f"   Stop Loss: ${stop_loss:.4f}")
-                logger.info(f"   Take Profit: ${take_profit:.4f}")
-                logger.info(f"   Position Size: ${position_size_usd:.2f}")
-                logger.info(f"   Confidence: {confidence:.1%}")
-                logger.info(f"   Execution Time: {execution_time:.2f}s")
-
-                return execution_result
-
-            return None
-
-        except Exception as e:
-            logger.error(f"Trade execution error: {e}")
-            return None
+        try:
+            return await asyncio.to_thread(_fetch)
+        except Exception as exc:
+            logger.debug(f"OHLCV unavailable for {symbol}: {type(exc).__name__}")
+            return []
 
     async def get_current_price(self, symbol: str) -> Optional[float]:
-        """Get current market price from engines or fresh exchange connection"""
-        try:
-            # Try to get from router
-            if hasattr(self, 'router') and self.router:
-                ticker = await self.router.fetch_ticker(symbol)
-                if ticker and ticker.get('last'):
-                    return ticker.get('last', 0)
-        except Exception as e:
-            logger.debug(f"Router fetch failed: {str(e)[:50]}")
+        """Last price for ``symbol`` on the venue this orchestrator trades.
 
-        # Try engines
+        The previous implementation built a fresh ccxt.async_support client on
+        every call and only closed it on the success path, so each failed fetch
+        leaked an aiohttp session -- from a loop that runs once per second per
+        open position. It also fell back to Binance, marking positions held on
+        one venue against another venue's book, which on testnet is a
+        different market entirely.
+
+        Both are gone: the price comes from the shared authenticated client,
+        through a short-lived cache, off the event loop.
+        """
+        normalized = preflight.normalize_symbol(symbol) or symbol
+
+        # A live engine client is still preferred when one is already open on
+        # this venue -- it is warm and costs nothing extra.
         if self.engines:
             for engine_name, engine in self.engines.items():
-                try:
-                    # Check if engine has an exchange object
-                    if hasattr(engine, 'exchange') and engine.exchange:
-                        ticker = await engine.exchange.fetch_ticker(symbol)
-                        if ticker and ticker.get('last'):
-                            logger.debug(f"Got price from {engine_name}: ${ticker['last']:.2f}")
-                            return ticker['last']
-                except Exception as e:
-                    logger.debug(f"{engine_name} fetch failed: {str(e)[:50]}")
+                exchange = getattr(engine, 'exchange', None)
+                if not exchange:
                     continue
-
-        # Fallback: Create fresh exchange connection
-        try:
-            import ccxt.async_support as ccxt
-            import os
-
-            logger.debug(f"Trying fresh exchange connection for {symbol}...")
-
-            # Try Gate.io first (user's main exchange)
-            if os.getenv('GATE_API_KEY'):
                 try:
-                    exchange = resolve_exchange_class(ccxt, "gateio")({
-                        'apiKey': os.getenv('GATE_API_KEY'),
-                        'secret': os.getenv('GATE_SECRET'),
-                        'enableRateLimit': True
-                    })
-                    ticker = await exchange.fetch_ticker(symbol)
-                    price = ticker['last']
-                    await exchange.close()
-                    logger.debug(f"Got ${price:.2f} from Gate.io")
-                    return price
+                    ticker = await exchange.fetch_ticker(normalized)
                 except Exception as e:
-                    logger.debug(f"Gate.io failed: {str(e)[:50]}")
+                    logger.debug(f"{engine_name} ticker failed: {type(e).__name__}")
+                    continue
+                last = (ticker or {}).get('last')
+                if last:
+                    return float(last)
 
-            # Try Binance public API
-            exchange = ccxt.binance({'enableRateLimit': True})
-            ticker = await exchange.fetch_ticker(symbol)
-            price = ticker['last']
-            await exchange.close()
-            logger.debug(f"Got ${price:.2f} from Binance")
-            return price
-
+        try:
+            return await asyncio.to_thread(
+                lambda: preflight.fetch_last_price_cached(
+                    preflight.shared_broker(), normalized
+                )
+            )
         except Exception as e:
-            logger.error(f"All price fetch attempts failed for {symbol}: {e}")
-            ccxt = None
-            os = None
-
-        return None
+            logger.debug(f"Ticker unavailable for {symbol}: {type(e).__name__}")
+            return None
 
     async def monitor_positions(self):
         """Monitor open positions with ADVANCED FEATURES (Trailing Stop, Partial TP)"""
@@ -595,45 +658,174 @@ class ExecutionOrchestrator:
                 logger.debug(f"Position monitoring error for {symbol}: {e}")
 
     async def close_position(self, symbol: str, exit_price: float, reason: str):
-        """Close position and record result"""
+        """Submit the closing order, then record realized PnL from the fill.
 
+        This used to compute a PnL from the in-memory entry price and a fetched
+        ticker, publish a "closed" trade record carrying that number, and log a
+        new balance -- without ever sending a closing order. The position stayed
+        open on the exchange while the bot reported it closed and fed the
+        invented PnL to the learning path.
+
+        Now the opposite-side order goes through the universal router first. If
+        it is not acknowledged the position stays open and the attempt is
+        counted; nothing is published. Realized PnL is computed from the price
+        the exchange actually filled at and the fees it actually charged.
+        """
+        position = self.risk_manager.open_positions.get(symbol)
+        if not position:
+            return None
+
+        entry_price = float(position['entry_price'])
+        size = float(position['size'])
+        side = str(position['side']).lower()
+        closing_side = 'sell' if side == 'buy' else 'buy'
+
+        override = os.getenv('EXECUTION_EXCHANGE_OVERRIDE', '').strip().lower()
+        payload = {
+            'symbol': preflight.normalize_symbol(symbol) or symbol,
+            'side': closing_side,
+            'qty': size,
+            'order_type': 'market',
+            'reference_price': exit_price,
+            'backend': 'ccxt',
+        }
+        if override:
+            payload['exchange_id'] = override
+
+        preflight.record_event('submitted')
+        started = time.time()
         try:
-            # Calculate P&L with risk manager
-            pnl = self.risk_manager.close_position(symbol, exit_price)
+            receipt = await asyncio.to_thread(route_order, payload)
+        except Exception as exc:
+            preflight.record_blocker(
+                preflight.EXCHANGE_REJECT, f"close:{symbol}:{type(exc).__name__}"
+            )
+            logger.error(f"Close order failed for {symbol}: {type(exc).__name__}")
+            return None
 
-            # Update balance
-            new_balance = self.position_sizer.balance + pnl
-            self.position_sizer.update_balance(new_balance)
+        preflight.record_stage_latency('close_submit', time.time() - started)
 
-            # Update stats
-            if pnl > 0:
-                self.winning_trades += 1
+        blocker = preflight.classify_receipt(receipt)
+        if blocker is not None:
+            detail = str((receipt or {}).get('error', ''))[:200]
+            preflight.record_blocker(blocker, f"close:{symbol}:{detail}")
+            logger.warning(
+                f"🛑 {symbol} close NOT placed ({blocker}): position remains open"
+            )
+            return None
 
-            self.total_profit += pnl
+        order = receipt.get('order') or {}
+        fill_price = order.get('average') or order.get('price')
+        try:
+            fill_price = float(fill_price)
+        except (TypeError, ValueError):
+            fill_price = 0.0
 
-            # Record in ledger
-            close_record = {
-                'symbol': symbol,
-                'exit_price': exit_price,
-                'pnl': pnl,
-                'reason': reason,
-                'timestamp': datetime.now(),
-                'status': 'closed'
-            }
+        if fill_price <= 0.0:
+            # Acknowledged but no price to settle against. Leave the position
+            # recorded rather than book a PnL we cannot substantiate.
+            preflight.record_blocker(
+                preflight.NO_ORDER_ID, f"close:{symbol}:no_fill_price"
+            )
+            logger.warning(
+                f"🛑 {symbol} close acknowledged without a fill price; "
+                "PnL not booked"
+            )
+            return None
 
-            await self.data_hub.publish_trade(close_record)
+        entry_fee, exit_fee = self._order_fees(symbol, order, fill_price, size)
 
-            logger.info(f"💰 POSITION CLOSED:")
-            logger.info(f"   Symbol: {symbol}")
-            logger.info(f"   Exit: ${exit_price:.4f}")
-            logger.info(f"   P&L: ${pnl:.2f}")
-            logger.info(f"   Reason: {reason}")
-            logger.info(f"   New Balance: ${new_balance:.2f}")
-            logger.info(f"   Total Profit: ${self.total_profit:.2f}")
-            logger.info(f"   Win Rate: {self.get_win_rate():.1%}")
+        gross_pnl = (
+            (fill_price - entry_price) * size
+            if side == 'buy'
+            else (entry_price - fill_price) * size
+        )
+        net_pnl = gross_pnl - entry_fee - exit_fee
 
-        except Exception as e:
-            logger.error(f"Position close error: {e}")
+        # Settle the in-memory book at the real fill, not at the ticker.
+        self.risk_manager.close_position(symbol, fill_price)
+        preflight.record_event('acknowledged')
+        preflight.invalidate_balance_cache()
+
+        if net_pnl > 0:
+            self.winning_trades += 1
+        self.total_profit += net_pnl
+
+        close_record = {
+            'symbol': symbol,
+            'order_id': order.get('id'),
+            'side': closing_side,
+            'size': size,
+            'entry_price': entry_price,
+            'exit_price': fill_price,
+            'gross_pnl': gross_pnl,
+            'fees': entry_fee + exit_fee,
+            'realized_pnl': net_pnl,
+            'reason': reason,
+            'exchange': receipt.get('exchange'),
+            'execution_mode': receipt.get('execution_mode'),
+            'timestamp': datetime.now(),
+            'status': 'closed',
+        }
+
+        await self.data_hub.publish_trade(close_record)
+
+        logger.info(f"💰 POSITION CLOSED:")
+        logger.info(f"   Symbol: {symbol}")
+        logger.info(f"   Order ID: {order.get('id')}")
+        logger.info(f"   Entry: {entry_price}")
+        logger.info(f"   Exit fill: {fill_price}")
+        logger.info(f"   Gross P&L: {gross_pnl:.8f}")
+        logger.info(f"   Fees: {entry_fee + exit_fee:.8f}")
+        logger.info(f"   Realized net P&L: {net_pnl:.8f}")
+        logger.info(f"   Reason: {reason}")
+
+        return close_record
+
+    def _order_fees(self, symbol, order, fill_price, size):
+        """Fees for the round trip, from the exchange where it reports them.
+
+        ccxt puts the charged fee on the order as ``fee``/``fees``. When the
+        venue does not return one, the market's taker rate is applied to both
+        legs -- an estimate, and labelled as one on the record it feeds.
+        """
+        def _fee_of(payload):
+            if isinstance(payload, dict):
+                cost = payload.get('cost')
+                if cost is not None:
+                    try:
+                        return abs(float(cost))
+                    except (TypeError, ValueError):
+                        return None
+            return None
+
+        exit_fee = _fee_of(order.get('fee'))
+        if exit_fee is None:
+            for entry in order.get('fees') or []:
+                candidate = _fee_of(entry)
+                if candidate is not None:
+                    exit_fee = (exit_fee or 0.0) + candidate
+
+        rate = 0.001
+        try:
+            broker = preflight.shared_broker()
+            market = preflight.load_markets_cached(broker).get(
+                preflight.normalize_symbol(symbol) or symbol
+            )
+            if isinstance(market, dict) and market.get('taker') is not None:
+                rate = float(market['taker'])
+        except Exception:
+            pass
+
+        notional = fill_price * size
+        if exit_fee is None:
+            exit_fee = notional * rate
+
+        # The entry fee belongs to the opening order, which is not in hand
+        # here; it is estimated at the same rate against the entry notional.
+        entry_fee = notional * rate
+
+        return entry_fee, exit_fee
 
     def get_win_rate(self) -> float:
         """Get current win rate"""
@@ -642,15 +834,27 @@ class ExecutionOrchestrator:
         return self.winning_trades / self.total_trades
 
     def get_stats(self) -> Dict[str, Any]:
-        """Get execution statistics"""
+        """Execution statistics.
+
+        Counts here are acknowledged orders and settled closes only. The
+        blocker breakdown says where every other attempt stopped, so a run
+        with no trades is attributable. ``current_balance`` is not reported:
+        this object does not hold one, and the placeholder it used to print
+        was a fixed $1000 that no account ever had.
+        """
+        telemetry = preflight.telemetry_snapshot()
         return {
             'total_trades': self.total_trades,
             'winning_trades': self.winning_trades,
             'win_rate': self.get_win_rate(),
-            'total_profit': self.total_profit,
-            'current_balance': self.position_sizer.balance,
+            'realized_net_profit': self.total_profit,
             'open_positions': len(self.risk_manager.open_positions),
             'daily_pnl': self.risk_manager.daily_pnl,
             'daily_trades': self.risk_manager.daily_trades,
-            'avg_execution_time': sum(self.execution_times) / len(self.execution_times) if self.execution_times else 0
+            'avg_execution_time': sum(self.execution_times) / len(self.execution_times) if self.execution_times else 0,
+            'attempts': telemetry.get('attempts', 0),
+            'prepared': telemetry.get('prepared', 0),
+            'submitted': telemetry.get('submitted', 0),
+            'acknowledged': telemetry.get('acknowledged', 0),
+            'blockers': telemetry.get('blockers', {}),
         }

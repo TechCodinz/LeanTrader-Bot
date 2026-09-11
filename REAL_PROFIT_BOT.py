@@ -256,7 +256,22 @@ class REAL_PROFIT_BOT:
         symbol,
         signal,
         price,
+        confidence=0.0,
     ):
+        """Size against the real free balance, then route centrally.
+
+        The execution venue is deliberately not passed here. self.exchange_id
+        names this engine's historical Gate.io *market-data* client; passing it
+        as the order venue overrode whichever exchange the runtime is actually
+        authenticated against, so orders were addressed to an account that does
+        not exist. The router resolves the venue from the runtime execution
+        configuration unless an operator sets an explicit override.
+
+        Sizing no longer comes from self.position_sizes. That table is fixed in
+        base units (0.01 BTC and similar) and cannot be funded by a small
+        account, so every attempt died at the exchange minimum-balance check.
+        """
+        from src.leantrader.execution import preflight
         from src.leantrader.execution.router import (
             route_order,
         )
@@ -271,28 +286,61 @@ class REAL_PROFIT_BOT:
         }:
             return None
 
-        amount = float(
-            self.position_sizes.get(
-                symbol,
-                0.01,
+        intent = {
+            "symbol": symbol,
+            "side": side,
+            "price": float(
+                price or 0.0
+            ),
+            "order_type": "market",
+            "confidence": confidence,
+        }
+
+        override = os.getenv(
+            "EXECUTION_EXCHANGE_OVERRIDE",
+            "",
+        ).strip().lower()
+
+        if override:
+            intent["exchange_id"] = override
+
+        prepared, blocked = (
+            preflight.prepare_order(
+                intent
             )
         )
 
-        return route_order(
-            {
-                "symbol": symbol,
-                "side": side,
-                "qty": amount,
-                "price": float(
-                    price or 0.0
-                ),
-                "order_type": "market",
-                "exchange_id": (
-                    self.exchange_id
-                ),
-                "backend": "ccxt",
-            }
+        if prepared is None:
+            return blocked.as_dict()
+
+        receipt = route_order(
+            prepared.to_payload()
         )
+
+        blocker = (
+            preflight
+            .classify_receipt(
+                receipt
+            )
+        )
+
+        if blocker is None:
+            preflight.record_event(
+                "acknowledged"
+            )
+            preflight.invalidate_balance_cache()
+        else:
+            preflight.record_blocker(
+                blocker,
+                str(
+                    receipt.get(
+                        "error",
+                        "",
+                    )
+                )[:200],
+            )
+
+        return receipt
 
     def run_real_profit_trading(self):
         """
@@ -343,6 +391,12 @@ class REAL_PROFIT_BOT:
                             symbol,
                             signal,
                             price,
+                            confidence=(
+                                float(
+                                    confidence
+                                )
+                                / 100.0
+                            ),
                         )
                     )
 

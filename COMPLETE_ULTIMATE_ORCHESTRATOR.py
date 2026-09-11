@@ -10,6 +10,7 @@ from src.leantrader.execution.router import route_legacy_order_async
 
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Any
@@ -2810,15 +2811,36 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 # ============================================================
                 if getattr(self, 'emergency_stop', None):
                     try:
-                        # Get current balance
+                        # Real free balance, or None when it cannot be read.
                         balance = await self._get_account_balance()
-                        initial_balance = self.compound_engine.initial_capital if self.compound_engine else 1000.0
 
-                        # Check if emergency stop should trigger
-                        should_stop = self.emergency_stop.check_conditions(
-                            account_balance=balance,
-                            initial_balance=initial_balance
-                        )
+                        if balance is None:
+                            # Without a balance the loss check is meaningless.
+                            # Say so once per cycle rather than comparing two
+                            # placeholders and concluding all is well.
+                            logger.warning(
+                                "⚠️  Emergency stop: account balance "
+                                "unavailable; loss limit NOT evaluated"
+                            )
+                            should_stop = False
+                        else:
+                            initial_balance = (
+                                self.compound_engine.initial_capital
+                                if self.compound_engine
+                                else None
+                            )
+
+                            if not initial_balance:
+                                logger.warning(
+                                    "⚠️  Emergency stop: no initial capital "
+                                    "recorded; loss limit NOT evaluated"
+                                )
+                                should_stop = False
+                            else:
+                                should_stop = self.emergency_stop.check_conditions(
+                                    account_balance=balance,
+                                    initial_balance=initial_balance
+                                )
 
                         if should_stop:
                             logger.error("🚨 EMERGENCY STOP TRIGGERED!")
@@ -3095,27 +3117,17 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
 
                     last_signal_count = current_signal_count
 
-                # Also check signal_queue
-                while not self.data_hub.signal_queue.empty():
-                    signal = await self.data_hub.signal_queue.get()
-
-                    signal_data = signal.get('data', signal)
-                    confidence = signal_data.get('confidence', 0)
-                    symbol = signal_data.get('symbol', 'UNKNOWN')
-                    side = signal_data.get('side', 'buy')
-
-                    if symbol != 'UNKNOWN' and confidence > 0:
-                        signal_id = f"{symbol}_{int(confidence*1000)}_{side}"
-
-                        if signal_id not in sent_signals:
-                            sent_signals.add(signal_id)
-
-                            if confidence >= 0.80:
-                                await telegram.send_signal_to_vip(signal_data)
-                                logger.info(f"📱 VIP signal sent: {symbol} (conf: {confidence*100:.0f}%)")
-                            elif confidence >= 0.65:
-                                await telegram.send_signal_to_free(signal_data)
-                                logger.info(f"📱 Free signal sent: {symbol} (conf: {confidence*100:.0f}%)")
+                # data_hub.signal_queue is deliberately NOT read here.
+                #
+                # publish_signal writes every signal to both signal_queue and
+                # recent_signals. The loop above already covers recent_signals,
+                # which is a deque and non-destructive. This block used to also
+                # drain signal_queue with get(), twice a second -- and
+                # UnifiedDecisionEngine.run_decision_loop, the only consumer
+                # that feeds execution, polls the same queue every 5 seconds.
+                # Telegram won that race almost every time, so signals were
+                # notified and discarded before the decision engine could see
+                # them. Notification must not consume the execution queue.
 
                 # Monitor trade queue
                 if not self.data_hub.trade_data_queue.empty():
@@ -3153,32 +3165,41 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
     # HELPER METHODS FOR PROFIT FEATURES
     # ========================================================================
 
-    async def _get_account_balance(self) -> float:
-        """Get current account balance"""
+    async def _get_account_balance(self) -> Optional[float]:
+        """Free quote balance on the authenticated account, or None.
+
+        This used to return ExecutionOrchestrator.position_sizer.balance --
+        a constant 1000.0 that no account ever held -- and fall back to the
+        same constant on error. The emergency stop compares this against the
+        initial capital, so with both sides pinned to 1000.0 the stop could
+        never trigger, and a losing run would never be halted.
+
+        None means the balance is unknown. Callers must not substitute a
+        number for it.
+        """
+        currency = os.getenv("ACCOUNT_QUOTE_CURRENCY", "USDT").strip().upper()
+
         try:
-            # Try execution orchestrator first
-            if 'execution' in self.advanced_orchestrators:
-                exec_orch = self.advanced_orchestrators['execution']
-                if hasattr(exec_orch, 'position_sizer'):
-                    return exec_orch.position_sizer.balance
+            from src.leantrader.execution import preflight
 
-            # Try to get from exchange
-            if hasattr(self, 'trading_engines') and self.trading_engines:
-                for engine_name, engine in self.trading_engines.items():
-                    try:
-                        balance = await engine.fetch_balance()
-                        usdt_balance = balance.get('USDT', {}).get('free', 0)
-                        if usdt_balance > 0:
-                            return float(usdt_balance)
-                    except:
-                        continue
+            def _read() -> Optional[float]:
+                broker = preflight.shared_broker()
+                if broker.authority not in {"testnet", "live"}:
+                    return None
+                balance = preflight.fetch_balance_cached(broker)
+                free = balance.get("free")
+                if isinstance(free, dict) and currency in free:
+                    return float(free[currency] or 0.0)
+                entry = balance.get(currency)
+                if isinstance(entry, dict) and entry.get("free") is not None:
+                    return float(entry["free"] or 0.0)
+                return None
 
-            # Default
-            return 1000.0
+            return await asyncio.to_thread(_read)
 
         except Exception as e:
-            logger.debug(f"Balance fetch error: {e}")
-            return 1000.0
+            logger.debug(f"Balance fetch error: {type(e).__name__}")
+            return None
 
     async def _emergency_close_all_positions(self):
         """Emergency close ALL positions"""
@@ -3191,15 +3212,56 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 if hasattr(exec_orch, 'risk_manager'):
                     open_positions = list(exec_orch.risk_manager.open_positions.keys())
 
+                    # This used to call risk_manager.close_position(symbol, 0),
+                    # which only drops the in-memory record and books a P&L
+                    # against a price of zero. No closing order was ever sent,
+                    # so an "emergency close" left every position open on the
+                    # exchange while reporting them all closed.
+                    closed = 0
+                    failed = []
+
                     for symbol in open_positions:
                         try:
                             logger.warning(f"   Emergency closing: {symbol}")
-                            pnl = exec_orch.risk_manager.close_position(symbol, 0)
-                            logger.warning(f"   Position closed: {symbol} | P&L: ${pnl:.2f}")
-                        except Exception as e:
-                            logger.error(f"   Failed to close {symbol}: {e}")
+                            price = await exec_orch.get_current_price(symbol)
 
-                    logger.warning(f"✅ Emergency close complete: {len(open_positions)} positions")
+                            if not price:
+                                failed.append(symbol)
+                                logger.error(
+                                    f"   {symbol}: no price; position left OPEN"
+                                )
+                                continue
+
+                            record = await exec_orch.close_position(
+                                symbol, price, 'emergency_stop'
+                            )
+
+                            if record:
+                                closed += 1
+                                logger.warning(
+                                    f"   Closed {symbol} | "
+                                    f"realized {record.get('realized_pnl'):.8f}"
+                                )
+                            else:
+                                failed.append(symbol)
+                                logger.error(
+                                    f"   {symbol}: close not acknowledged; "
+                                    "position left OPEN"
+                                )
+                        except Exception as e:
+                            failed.append(symbol)
+                            logger.error(
+                                f"   Failed to close {symbol}: {type(e).__name__}"
+                            )
+
+                    logger.warning(
+                        f"Emergency close: {closed}/{len(open_positions)} closed"
+                    )
+
+                    if failed:
+                        logger.error(
+                            f"🚨 STILL OPEN ON THE EXCHANGE: {', '.join(failed)}"
+                        )
 
         except Exception as e:
             logger.error(f"❌ Emergency close failed: {e}")
