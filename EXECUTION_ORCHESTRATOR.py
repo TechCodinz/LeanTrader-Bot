@@ -484,6 +484,8 @@ class ExecutionOrchestrator:
         status = order.get('status')
 
         preflight.record_event('acknowledged')
+        if filled:
+            preflight.record_event('fills')
         preflight.invalidate_balance_cache()
 
         self.risk_manager.record_position(
@@ -745,6 +747,7 @@ class ExecutionOrchestrator:
         # Settle the in-memory book at the real fill, not at the ticker.
         self.risk_manager.close_position(symbol, fill_price)
         preflight.record_event('acknowledged')
+        preflight.record_event('closes')
         preflight.invalidate_balance_cache()
 
         if net_pnl > 0:
@@ -853,6 +856,8 @@ class ExecutionOrchestrator:
             'daily_trades': self.risk_manager.daily_trades,
             'avg_execution_time': sum(self.execution_times) / len(self.execution_times) if self.execution_times else 0,
             'attempts': telemetry.get('attempts', 0),
+            'fills': telemetry.get('fills', 0),
+            'closes': telemetry.get('closes', 0),
             'prepared': telemetry.get('prepared', 0),
             'submitted': telemetry.get('submitted', 0),
             'acknowledged': telemetry.get('acknowledged', 0),

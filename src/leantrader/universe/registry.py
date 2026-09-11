@@ -181,6 +181,10 @@ class MarketUniverse:
         self._venue_counts: Dict[str, int] = {}
         self._cycle: int = 0
         self._analyzed_at: List[float] = []
+        self._signals_total: int = 0
+        self._signals_by_symbol: Dict[str, int] = {}
+        self._signals_by_strategy: Dict[str, int] = {}
+        self._signals_by_timeframe: Dict[str, int] = {}
 
     # ------------------------------------------------------------- ingestion
 
@@ -391,6 +395,43 @@ class MarketUniverse:
         if market is not None:
             with self._lock:
                 market.signal_state = str(state)
+
+    def record_signal(
+        self,
+        symbol: str,
+        strategy: str = "",
+        timeframe: str = "",
+        state: str = "",
+    ) -> None:
+        """Count one generated signal, by symbol, strategy and timeframe.
+
+        Counted here rather than in each producer so the breakdown covers
+        every engine that publishes, and so "which pairs are actually
+        producing signals" can be answered without reading logs.
+        """
+        normalized = normalize_symbol(symbol)
+        with self._lock:
+            self._signals_total += 1
+            if normalized:
+                self._signals_by_symbol[normalized] = (
+                    self._signals_by_symbol.get(normalized, 0) + 1
+                )
+            if strategy:
+                self._signals_by_strategy[strategy] = (
+                    self._signals_by_strategy.get(strategy, 0) + 1
+                )
+            if timeframe:
+                self._signals_by_timeframe[timeframe] = (
+                    self._signals_by_timeframe.get(timeframe, 0) + 1
+                )
+        if state:
+            self.set_signal_state(normalized or symbol, state)
+
+    @staticmethod
+    def _top(counts: Dict[str, int], limit: int = 20) -> Dict[str, int]:
+        return dict(
+            sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+        )
 
     # --------------------------------------------------------------- ranking
 
@@ -683,7 +724,11 @@ class MarketUniverse:
             "execution_metadata_age_seconds": (
                 now - self._execution_metadata_at if self._execution_metadata_at else None
             ),
+            "signals_generated": self._signals_total,
             "signals_by_state": signals,
+            "signals_by_symbol": self._top(self._signals_by_symbol),
+            "signals_by_strategy": self._top(self._signals_by_strategy),
+            "signals_by_timeframe": self._top(self._signals_by_timeframe),
             "ineligibility_reasons": dict(
                 sorted(blockers.items(), key=lambda kv: kv[1], reverse=True)
             ),
@@ -733,6 +778,10 @@ class MarketUniverse:
             self._venue_counts.clear()
             self._cycle = 0
             self._analyzed_at.clear()
+            self._signals_total = 0
+            self._signals_by_symbol.clear()
+            self._signals_by_strategy.clear()
+            self._signals_by_timeframe.clear()
 
 
 # One registry per process. The engines import this rather than building

@@ -131,9 +131,51 @@ class CentralDataHub:
         await self.learning_queue.put(trade)  # Also send to learning
 
     async def publish_signal(self, signal: Dict[str, Any]):
-        """Publish trading signal"""
+        """Publish trading signal.
+
+        Every producer publishes here, so this is where signals are counted --
+        by symbol, strategy and timeframe. Counting in each producer would
+        miss whichever one was added last, and the question this answers
+        ("which pairs are actually producing signals, and from what?") is only
+        useful if the count is complete.
+        """
         await self.signal_queue.put(signal)
         self.recent_signals.append(signal)
+
+        try:
+            from src.leantrader.universe.registry import universe
+
+            data = signal.get('data', signal) if isinstance(signal, dict) else {}
+            data = data if isinstance(data, dict) else {}
+
+            universe.record_signal(
+                symbol=(
+                    signal.get('symbol')
+                    or data.get('symbol')
+                    or data.get('pair')
+                    or ''
+                ),
+                strategy=str(
+                    signal.get('strategy')
+                    or data.get('strategy')
+                    or signal.get('source')
+                    or data.get('source')
+                    or ''
+                ),
+                timeframe=str(
+                    signal.get('timeframe') or data.get('timeframe') or ''
+                ),
+                state=str(
+                    signal.get('side')
+                    or data.get('side')
+                    or signal.get('action')
+                    or data.get('action')
+                    or ''
+                ).lower(),
+            )
+        except Exception:
+            # Telemetry must never block a signal.
+            pass
 
     async def publish_alert(self, alert: Dict[str, Any]):
         """Publish alert to all systems"""

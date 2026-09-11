@@ -47,6 +47,12 @@ class DynamicMarketScanner:
         self.last_scan = None
         self.scan_count = 0
 
+        # Public observer clients, built once and reused. venue_status records
+        # why a venue is not in that set, so an unreachable venue is reported
+        # rather than silently missing.
+        self._public_exchanges = {}
+        self.venue_status = {}
+
         logger.info("🔍 Dynamic Market Scanner initialized")
         logger.info(f"   Min volume: ${self.min_24h_volume_usd:,}")
         logger.info(f"   Min price change: {self.min_price_change_pct}%")
@@ -83,15 +89,22 @@ class DynamicMarketScanner:
 
         new_opportunities = set()
 
-        # CRITICAL FIX: The exchanges are already ccxt objects from arbitrage engine
-        # Just use them directly!
-        actual_exchanges = self.exchanges
+        # Whatever the arbitrage engine injected, plus the public observers.
+        # These used to be alternatives -- the public set was built only when
+        # the injected objects did not look like ccxt clients -- so discovery
+        # breadth depended on which engine happened to be wired first.
+        actual_exchanges = {}
 
-        # Check if they're ccxt exchanges
-        first_exchange = next(iter(actual_exchanges.values())) if actual_exchanges else None
-        if first_exchange and not hasattr(first_exchange, 'fetch_tickers'):
-            logger.warning("⚠️  Exchanges are not ccxt objects, creating fallback...")
-            actual_exchanges = await self._create_fallback_exchanges()
+        for name, candidate in (self.exchanges or {}).items():
+            if hasattr(candidate, 'fetch_tickers'):
+                actual_exchanges[name] = candidate
+
+        for name, client in (await self.public_exchanges()).items():
+            actual_exchanges.setdefault(name, client)
+
+        if not actual_exchanges:
+            logger.warning("⚠️  No reachable venues for discovery this scan")
+            return
 
         for exchange_name, exchange in actual_exchanges.items():
             try:
@@ -228,55 +241,97 @@ class DynamicMarketScanner:
 
         return ccxt_exchanges
 
-    async def _create_fallback_exchanges(self) -> Dict:
-        """Create fresh exchange connections as fallback"""
-        import ccxt.async_support as ccxt
+    # Venues to observe for public market data. Ticker and market metadata
+    # need no credentials anywhere here, so discovery breadth is not gated on
+    # holding keys -- it used to be, which left public discovery on Binance
+    # alone unless an operator happened to have keys for the others.
+    #
+    # Observing a venue is not permission to trade on it. Execution stays with
+    # whichever venue the universal router is authenticated against, and the
+    # registry marks everything else NOT_LISTED_ON_EXECUTION_VENUE.
+    PUBLIC_DISCOVERY_VENUES = (
+        'bybit',
+        'binance',
+        'okx',
+        'kucoin',
+        'gateio',
+        'mexc',
+        'bitget',
+    )
+
+    def _configured_public_venues(self):
         import os
 
-        fallback = {}
+        raw = os.getenv('PUBLIC_DISCOVERY_VENUES', '').strip()
+        if not raw:
+            return self.PUBLIC_DISCOVERY_VENUES
+        venues = tuple(v.strip().lower() for v in raw.split(',') if v.strip())
+        return venues or self.PUBLIC_DISCOVERY_VENUES
 
-        # Try Gate.io (user's main exchange)
-        if os.getenv('GATE_API_KEY'):
+    async def public_exchanges(self) -> Dict:
+        """Unauthenticated clients for every venue we can actually reach.
+
+        Built once and reused: a fresh ccxt.async_support client per scan
+        leaks an aiohttp session, and these are long-lived observers.
+
+        A venue that cannot be constructed or whose markets will not load is
+        recorded in self.venue_status with the reason and left out. Nothing is
+        assumed to be available.
+        """
+        import ccxt.async_support as ccxt
+
+        if getattr(self, '_public_exchanges', None):
+            return self._public_exchanges
+
+        self._public_exchanges = {}
+        self.venue_status = getattr(self, 'venue_status', {})
+
+        for venue in self._configured_public_venues():
             try:
-                fallback['gateio'] = resolve_exchange_class(ccxt, "gateio")({
-                    'apiKey': os.getenv('GATE_API_KEY'),
-                    'secret': os.getenv('GATE_SECRET'),
-                    'enableRateLimit': True
-                })
-                logger.info("   ✅ Created Gate.io connection")
+                exchange_class = resolve_exchange_class(ccxt, venue)
             except Exception as e:
-                logger.warning(f"   ⚠️  Gate.io: {str(e)[:50]}")
+                self.venue_status[venue] = f'unavailable: {type(e).__name__}'
+                logger.warning(f"   ⚠️  {venue}: not provided by this ccxt build")
+                continue
 
-        # Try Binance (public API, no auth needed for tickers)
-        try:
-            fallback['binance'] = ccxt.binance({
-                'enableRateLimit': True
-            })
-            logger.info("   ✅ Created Binance connection (public)")
-        except Exception as e:
-            logger.warning(f"   ⚠️  Binance: {str(e)[:50]}")
-
-        # Try other exchanges if API keys exist
-        exchange_configs = {
-            'mexc': ('MEXC_API_KEY', 'MEXC_SECRET'),
-            'okx': ('OKX_API_KEY', 'OKX_SECRET'),
-            'kucoin': ('KUCOIN_API_KEY', 'KUCOIN_SECRET'),
-        }
-
-        for exchange_name, (key_var, secret_var) in exchange_configs.items():
-            if os.getenv(key_var):
+            try:
+                client = exchange_class({'enableRateLimit': True})
+                await client.load_markets()
+            except Exception as e:
+                self.venue_status[venue] = f'unreachable: {type(e).__name__}'
+                logger.warning(
+                    f"   ⚠️  {venue}: {type(e).__name__}: {str(e)[:80]}"
+                )
                 try:
-                    exchange_class = resolve_exchange_class(ccxt, exchange_name)
-                    fallback[exchange_name] = exchange_class({
-                        'apiKey': os.getenv(key_var),
-                        'secret': os.getenv(secret_var),
-                        'enableRateLimit': True
-                    })
-                    logger.info(f"   ✅ Created {exchange_name.upper()} connection")
-                except Exception as e:
-                    logger.debug(f"   ⚠️  {exchange_name}: {str(e)[:50]}")
+                    await client.close()
+                except Exception:
+                    pass
+                continue
 
-        return fallback
+            self._public_exchanges[venue] = client
+            self.venue_status[venue] = f'public: {len(client.markets)} markets'
+            logger.info(
+                f"   ✅ {venue}: {len(client.markets)} markets (public)"
+            )
+
+        reachable = len(self._public_exchanges)
+        total = len(self._configured_public_venues())
+        logger.info(f"🔭 Public discovery: {reachable}/{total} venues reachable")
+
+        return self._public_exchanges
+
+    async def close_public_exchanges(self) -> None:
+        """Release the observer clients."""
+        for client in (getattr(self, '_public_exchanges', None) or {}).values():
+            try:
+                await client.close()
+            except Exception:
+                pass
+        self._public_exchanges = {}
+
+    async def _create_fallback_exchanges(self) -> Dict:
+        """Kept for callers that expect this name; public clients now."""
+        return await self.public_exchanges()
 
     def get_stats(self) -> Dict:
         """Get scanner statistics"""
@@ -286,7 +341,8 @@ class DynamicMarketScanner:
             'volume_leaders': len(self.volume_leaders),
             'scan_count': self.scan_count,
             'last_scan': self.last_scan.isoformat() if self.last_scan else None,
-            'exchanges_scanned': len(self.exchanges)
+            'exchanges_scanned': len(self.exchanges),
+            'venue_status': dict(getattr(self, 'venue_status', {})),
         }
 
     async def publish_trending_signals(self):

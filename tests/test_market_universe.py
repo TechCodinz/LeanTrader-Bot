@@ -496,3 +496,41 @@ def test_refreshing_a_market_keeps_its_history(broad):
     assert refreshed.first_seen == first_seen, "rediscovery is not a new market"
     assert refreshed.analysis_count == 1, "learned context survives a refresh"
     assert refreshed.price == pytest.approx(0.15)
+
+
+# ------------------------------------------------ signal telemetry breakdown
+
+
+def test_signals_are_counted_by_symbol_strategy_and_timeframe(registry):
+    registry.record_signal("doge/usdt", strategy="scalp", timeframe="5m", state="buy")
+    registry.record_signal("DOGE/USDT", strategy="scalp", timeframe="1m", state="buy")
+    registry.record_signal("PEPE-USDT", strategy="breakout", timeframe="5m")
+
+    telemetry = registry.telemetry()
+
+    assert telemetry["signals_generated"] == 3
+    assert telemetry["signals_by_symbol"] == {"DOGE/USDT": 2, "PEPE/USDT": 1}
+    assert telemetry["signals_by_strategy"] == {"scalp": 2, "breakout": 1}
+    assert telemetry["signals_by_timeframe"] == {"5m": 2, "1m": 1}
+
+
+def test_signal_breakdowns_are_ranked_and_bounded(registry):
+    for index in range(50):
+        for _ in range(index):
+            registry.record_signal(f"S{index}/USDT", strategy=f"strat{index}")
+
+    telemetry = registry.telemetry()
+    by_symbol = telemetry["signals_by_symbol"]
+
+    assert len(by_symbol) <= 20, "the breakdown must not grow without bound"
+    counts = list(by_symbol.values())
+    assert counts == sorted(counts, reverse=True), "most frequent first"
+
+
+def test_a_signal_without_a_usable_symbol_is_still_counted(registry):
+    registry.record_signal("", strategy="scalp")
+    telemetry = registry.telemetry()
+
+    assert telemetry["signals_generated"] == 1
+    assert telemetry["signals_by_symbol"] == {}
+    assert telemetry["signals_by_strategy"] == {"scalp": 1}

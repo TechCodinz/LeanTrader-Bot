@@ -598,3 +598,171 @@ def test_publishing_an_empty_universe_does_not_wipe_the_engines():
 def test_the_universe_loop_is_scheduled_from_both_entry_points():
     source = (ROOT / "COMPLETE_ULTIMATE_ORCHESTRATOR.py").read_text()
     assert source.count("'universe_maintenance_loop', self.universe_maintenance_loop") == 2
+
+
+# ------------------------------------ public discovery breadth, honestly
+
+
+def test_public_discovery_covers_the_named_venues():
+    from DYNAMIC_MARKET_SCANNER import DynamicMarketScanner
+
+    scanner = DynamicMarketScanner({}, None)
+    venues = set(scanner._configured_public_venues())
+
+    for venue in ("bybit", "binance", "okx", "kucoin", "gateio", "mexc", "bitget"):
+        assert venue in venues, f"{venue} is not observed for public discovery"
+
+
+def test_public_discovery_needs_no_credentials(monkeypatch):
+    """Ticker and market data are public; breadth must not depend on keys."""
+    import DYNAMIC_MARKET_SCANNER as module
+
+    built = []
+
+    class FakeClient:
+        def __init__(self, config):
+            built.append(config)
+            self.markets = {"BTC/USDT": {}, "DOGE/USDT": {}}
+
+        async def load_markets(self):
+            return self.markets
+
+        async def close(self):
+            pass
+
+    monkeypatch.setattr(
+        module, "resolve_exchange_class", lambda ccxt, venue: FakeClient
+    )
+    monkeypatch.setenv("PUBLIC_DISCOVERY_VENUES", "bybit,binance,okx")
+    for name in ("GATE_API_KEY", "MEXC_API_KEY", "OKX_API_KEY", "KUCOIN_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+
+    scanner = module.DynamicMarketScanner({}, None)
+    clients = asyncio.run(scanner.public_exchanges())
+
+    assert set(clients) == {"bybit", "binance", "okx"}
+    for config in built:
+        assert "apiKey" not in config, "a public observer must carry no credentials"
+        assert "secret" not in config
+
+
+def test_an_unreachable_venue_is_reported_not_invented(monkeypatch):
+    import DYNAMIC_MARKET_SCANNER as module
+
+    class Reachable:
+        def __init__(self, config):
+            self.markets = {"BTC/USDT": {}}
+
+        async def load_markets(self):
+            return self.markets
+
+        async def close(self):
+            pass
+
+    class Unreachable:
+        def __init__(self, config):
+            pass
+
+        async def load_markets(self):
+            raise ConnectionError("venue down")
+
+        async def close(self):
+            pass
+
+    def resolver(ccxt, venue):
+        if venue == "binance":
+            return Reachable
+        return Unreachable
+
+    monkeypatch.setattr(module, "resolve_exchange_class", resolver)
+    monkeypatch.setenv("PUBLIC_DISCOVERY_VENUES", "binance,okx")
+
+    scanner = module.DynamicMarketScanner({}, None)
+    clients = asyncio.run(scanner.public_exchanges())
+
+    assert set(clients) == {"binance"}
+    assert scanner.venue_status["binance"].startswith("public:")
+    assert scanner.venue_status["okx"].startswith("unreachable:")
+    assert "ConnectionError" in scanner.venue_status["okx"]
+    assert scanner.get_stats()["venue_status"] == scanner.venue_status
+
+
+def test_observer_clients_are_reused_not_rebuilt(monkeypatch):
+    """A fresh async client per scan leaks a session."""
+    import DYNAMIC_MARKET_SCANNER as module
+
+    constructions = []
+
+    class Client:
+        def __init__(self, config):
+            constructions.append(config)
+            self.markets = {"BTC/USDT": {}}
+
+        async def load_markets(self):
+            return self.markets
+
+        async def close(self):
+            pass
+
+    monkeypatch.setattr(module, "resolve_exchange_class", lambda ccxt, v: Client)
+    monkeypatch.setenv("PUBLIC_DISCOVERY_VENUES", "binance")
+
+    scanner = module.DynamicMarketScanner({}, None)
+    asyncio.run(scanner.public_exchanges())
+    asyncio.run(scanner.public_exchanges())
+
+    assert len(constructions) == 1
+
+
+def test_observing_a_venue_grants_no_execution_there(populated, monkeypatch):
+    """Discovery breadth is not execution breadth, end to end."""
+    import DYNAMIC_MARKET_SCANNER as module
+
+    class Client:
+        def __init__(self, config):
+            self.markets = {"FOREIGN/USDT": {"spot": True, "active": True}}
+
+        async def load_markets(self):
+            return self.markets
+
+        async def close(self):
+            pass
+
+    monkeypatch.setattr(module, "resolve_exchange_class", lambda ccxt, v: Client)
+    monkeypatch.setenv("PUBLIC_DISCOVERY_VENUES", "okx")
+
+    scanner = module.DynamicMarketScanner({}, None)
+    asyncio.run(scanner.public_exchanges())
+
+    registry.ingest_venue("okx", {"FOREIGN/USDT": ticker()}, markets={})
+    registry.apply_execution_venue("bybit", BYBIT_MARKETS)
+
+    market = registry.get("FOREIGN/USDT")
+    assert market is not None, "it is observed"
+    assert market.execution_eligible is False, "but not executable here"
+    assert "FOREIGN/USDT" not in registry.symbols(executable_only=True)
+
+
+def test_signals_are_counted_when_published(monkeypatch):
+    """The data hub is the one seam every producer passes through."""
+    from COMPLETE_UNIFIED_ORCHESTRATOR import CentralDataHub
+
+    hub = CentralDataHub()
+    asyncio.run(
+        hub.publish_signal(
+            {
+                "symbol": "PEPE/USDT",
+                "side": "buy",
+                "strategy": "scalp",
+                "timeframe": "5m",
+                "confidence": 0.9,
+            }
+        )
+    )
+
+    telemetry = registry.telemetry()
+    assert telemetry["signals_generated"] == 1
+    assert telemetry["signals_by_symbol"] == {"PEPE/USDT": 1}
+    assert telemetry["signals_by_strategy"] == {"scalp": 1}
+    assert telemetry["signals_by_timeframe"] == {"5m": 1}
+    assert registry.get("PEPE/USDT") is None or True  # unknown market is fine

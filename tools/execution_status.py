@@ -149,8 +149,20 @@ def report_universe(capital: float = 0.0) -> Dict[str, Any]:
         ("studied ever", "markets_analyzed_ever"),
         ("micro candidates", "micro_candidates"),
         ("major candidates", "major_candidates"),
+        ("signals generated", "signals_generated"),
     ):
         print(f"  {label:<28} {telemetry[key]}")
+
+    for label, key in (
+        ("signals by strategy", "signals_by_strategy"),
+        ("signals by timeframe", "signals_by_timeframe"),
+        ("signals by symbol (top)", "signals_by_symbol"),
+    ):
+        breakdown = telemetry.get(key) or {}
+        if breakdown:
+            print(f"  {label}:")
+            for name, count in list(breakdown.items())[:10]:
+                print(f"    {name:<24} {count}")
 
     print()
     print(f"  execution venue              {telemetry['execution_venue'] or '(none)'}")
@@ -199,6 +211,8 @@ def report_counters() -> Dict[str, Any]:
     print(f"    prepared        {prepared}")
     print(f"    submitted       {submitted}")
     print(f"    acknowledged    {acknowledged}")
+    print(f"    fills           {int(snapshot.get('fills', 0))}")
+    print(f"    closes          {int(snapshot.get('closes', 0))}")
 
     if attempts == 0:
         print()
