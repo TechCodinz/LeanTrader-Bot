@@ -65,28 +65,48 @@ def _age(timestamp: float) -> str:
     return f"{delta / 3600:.1f}h ago"
 
 
-def report_environment() -> BrokerCCXT:
+def report_environment():
+    """Print the resolved execution environment, or why it cannot resolve.
+
+    Building the broker can fail outright -- most often a *_FILE credential
+    path that is not mounted, which raises by design so a broken mount does
+    not run unauthenticated. That is precisely the situation this command
+    exists to diagnose, so the failure is reported rather than propagated.
+    """
     _rule("ENVIRONMENT")
 
-    broker = preflight.shared_broker()
-    described = broker.describe()
+    broker = None
+    described = {}
+    try:
+        broker = preflight.shared_broker()
+        described = broker.describe()
+    except Exception as e:
+        print(f"  !! cannot resolve execution environment: {type(e).__name__}")
+        print(f"     {e}")
+        print()
+        print("  >> Nothing can execute until this is fixed. A missing")
+        print("     credential file is the usual cause; see SECRETS.md.")
 
-    for key in (
-        "exchange",
-        "market_mode",
-        "requested_mode",
-        "resolved_mode",
-        "authority",
-        "authenticated",
-    ):
-        print(f"  {key:16} {described.get(key)}")
+    if described:
+        for key in (
+            "exchange",
+            "market_mode",
+            "requested_mode",
+            "resolved_mode",
+            "authority",
+            "authenticated",
+        ):
+            print(f"  {key:16} {described.get(key)}")
 
-    probe_errors = described.get("probe_errors") or {}
-    if probe_errors:
-        print(f"  {'probe_errors':16} {probe_errors}")
+        probe_errors = described.get("probe_errors") or {}
+        if probe_errors:
+            print(f"  {'probe_errors':16} {probe_errors}")
 
     # Which configuration inputs are set. Values are never printed.
-    prefix = broker.exchange_id.replace("-", "_").upper()
+    exchange_id = getattr(broker, "exchange_id", None) or (
+        os.getenv("CCXT_EXCHANGE") or os.getenv("EXCHANGE_ID") or "bybit"
+    )
+    prefix = str(exchange_id).replace("-", "_").upper()
     relevant = [
         "EXECUTION_MODE",
         "EXCHANGE_ID",
@@ -113,7 +133,7 @@ def report_environment() -> BrokerCCXT:
             state = f"set = {value}"
         print(f"    {name:38} {state}")
 
-    if described.get("authority") not in {"testnet", "live"}:
+    if described and described.get("authority") not in {"testnet", "live"}:
         print()
         print("  >> No authenticated execution authority. Orders will be")
         print("     refused before they reach the exchange.")

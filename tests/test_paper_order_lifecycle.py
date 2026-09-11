@@ -44,12 +44,24 @@ def _no_ambient_credentials(monkeypatch):
             monkeypatch.delenv(name, raising=False)
     for name in (
         "EXCHANGE_ID",
+        "CCXT_EXCHANGE",
         "EXECUTION_MODE",
         "BROKER_MODE",
+        "BROKER_BACKEND",
         "TRADING_MODE",
         "LIVE_CONFIRM",
         "TRADING_ENABLED",
         "ENVIRONMENT",
+        # Legacy testnet flags. _requested_execution_mode falls back to these
+        # when EXECUTION_MODE is unset, and .env sets BYBIT_TESTNET, which
+        # something in the suite loads into the process -- so clearing
+        # EXECUTION_MODE alone left this test depending on run order.
+        "BYBIT_TESTNET",
+        "CCXT_TESTNET",
+        "ENABLE_LIVE",
+        "ALLOW_LIVE",
+        "API_ENVIRONMENT",
+        "EXCHANGE_ENVIRONMENT",
     ):
         monkeypatch.delenv(name, raising=False)
 

@@ -112,3 +112,62 @@ def test_the_allow_marker_only_exempts_its_own_line():
     assert list(secret_scan.scan_text(unmarked)), (
         "the marker must not leak onto neighbouring lines"
     )
+
+
+# ------------------------------------------------------- execution posture
+
+
+LIVE_ENABLING = {
+    "ENABLE_LIVE": {"true", "1", "yes", "on"},
+    "ALLOW_LIVE": {"true", "1", "yes", "on"},
+    "LIVE_CONFIRM": {"yes"},
+}
+
+
+def _env_values(path):
+    values = {}
+    for line in path.read_text(errors="ignore").split("\n"):
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip().upper()] = value.strip().strip("\"'").lower()
+    return values
+
+
+def test_no_tracked_env_template_ships_live_authority():
+    """Real-money authority must be an operator decision on the host.
+
+    .env shipped with TRADING_MODE=live, ENABLE_LIVE=true and ALLOW_LIVE=true
+    -- one variable short of live execution, committed to the repository.
+    """
+    offenders = []
+
+    # Both spellings: NAME.env templates and .env.NAME variants.
+    candidates = set(ROOT.glob("*.env")) | set(ROOT.glob(".env*"))
+    for path in sorted(candidates):
+        if not path.is_file():
+            continue
+        if "conservative" in path.name:
+            # Explicitly a live example, named as one.
+            continue
+        values = _env_values(path)
+        for key, enabling in LIVE_ENABLING.items():
+            if values.get(key) in enabling:
+                offenders.append(f"{path.name}: {key}={values[key]}")
+
+    assert not offenders, "tracked env files enable live trading: " + ", ".join(
+        offenders
+    )
+
+
+def test_the_tracked_env_declares_the_testnet_posture():
+    env = ROOT / ".env"
+    if not env.exists():
+        pytest.skip("no .env in this checkout")
+
+    values = _env_values(env)
+    assert values.get("EXECUTION_MODE") == "testnet"
+    assert values.get("ENABLE_LIVE") == "false"
+    assert values.get("ALLOW_LIVE") == "false"
+    assert values.get("LIVE_CONFIRM") == "no"
