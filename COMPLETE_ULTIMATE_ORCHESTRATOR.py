@@ -1030,6 +1030,27 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f"⚠️  Ultra Arbitrage: {e}")
             self.ultra_arbitrage = None
 
+        # UltraContinuousTradingOrchestrator was constructed above, before
+        # these two existed, and its constructor made private copies. It
+        # starts whatever engines it holds, so without this there would be two
+        # scalping engines and two arbitrage engines trading the same account,
+        # each blind to the other's positions. Their start-once guards are
+        # per-instance and would not have caught it.
+        if getattr(self, 'continuous_trading', None) and hasattr(
+            self.continuous_trading, 'adopt_engines'
+        ):
+            try:
+                self.continuous_trading.adopt_engines(
+                    scalping_engine=self.ultra_scalping,
+                    arbitrage_engine=self.ultra_arbitrage,
+                )
+                logger.info(
+                    "✅ Continuous trading adopted the canonical scalping "
+                    "and arbitrage engines"
+                )
+            except Exception as e:
+                logger.warning(f"⚠️  Engine adoption failed: {e}")
+
         # 12-14. Additional ultra systems
         try:
             self.testnet_trader = UltraTestnetTrader(
@@ -1912,6 +1933,32 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("      → Cross-exchange arbitrage | P2P arbitrage")
         logger.info("=" * 80)
 
+    async def _supervise(self, name: str, entrypoint, restart_delay: float = 30.0):
+        """Run a long-lived engine entrypoint and restart it if it stops.
+
+        Most engines here expose one "start" coroutine that gathers forever-
+        running tasks; they are not per-tick calls. The loops that used to
+        wrap them awaited a method name that did not exist on the engine, so
+        every cycle raised AttributeError into a debug-level handler and slept
+        -- invisible at INFO, while startup had already logged the engine as
+        active. A supervisor calls the real entrypoint once and only comes
+        back if it returns or raises, which is the event worth logging.
+        """
+        while True:
+            try:
+                await entrypoint()
+                logger.warning(
+                    f"⚠️  {name} returned; restarting in {restart_delay:.0f}s"
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error(
+                    f"❌ {name} stopped: {type(e).__name__}: {e}; "
+                    f"restarting in {restart_delay:.0f}s"
+                )
+            await asyncio.sleep(restart_delay)
+
     def _schedule_once(self, key: str, factory):
         """Create a task for a continuous loop at most once per orchestrator.
 
@@ -2071,101 +2118,114 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
 
         # ULTRA MOON SPOTTER - Continuously hunt for 1,000,000x gems
         if getattr(self, 'ultra_moon_system', None):
-            async def run_moon_hunting():
-                while True:
-                    try:
-                        await self.ultra_moon_system.hunt_micro_moons()
-                        await asyncio.sleep(300)  # Every 5 min
-                    except Exception as e:
-                        logger.debug(f"Moon hunting: {e}")
-                        await asyncio.sleep(300)
-
-            tasks.append(asyncio.create_task(run_moon_hunting()))
-            logger.info("✅ 🌙 MOON SPOTTER HUNTING - Scanning for 1,000,000x gems!")
+            # No hunt_micro_moons(); the entrypoint is run_forever(), which
+            # scans on its own schedule. Its auto-snipe leg has no signing key
+            # configured and now refuses rather than reporting a purchase, so
+            # this task scans and reports only.
+            _t = self._schedule_once(
+                'ultra_moon_system.run_forever',
+                lambda: self._supervise(
+                    'Moon Spotter',
+                    self.ultra_moon_system.run_forever,
+                    restart_delay=300.0,
+                ),
+            )
+            if _t:
+                tasks.append(_t)
+                logger.info("✅ 🌙 MOON SPOTTER SCANNING (snipe: CONFIG_REQUIRED)")
 
         # ULTRA FOREX MASTER - Trade forex continuously
         if getattr(self, 'forex_master', None):
-            async def run_forex_master():
-                while True:
-                    try:
-                        await self.forex_master.trade_forex_pairs()
-                        await asyncio.sleep(60)
-                    except Exception as e:
-                        logger.debug(f"Forex master: {e}")
-                        await asyncio.sleep(60)
-
-            tasks.append(asyncio.create_task(run_forex_master()))
-            logger.info("✅ 💱 FOREX MASTER TRADING - Major + Exotic pairs!")
+            # Deliberately not scheduled. UltraForexMaster exposes no loop
+            # entrypoint -- only analyze_instrument(symbol, timeframe_data)
+            # and execute_trade(analysis) -- and its execute_trade builds a
+            # trade record with entry_price 0 and prints "Executed" without
+            # placing an order anywhere. Driving it would manufacture trades.
+            # The loop that used to sit here called trade_forex_pairs(), which
+            # does not exist, so it raised into a debug handler every 60s
+            # while this line claimed the engine was trading.
+            logger.info(
+                "⏸️  FOREX MASTER: analysis object constructed, loop NOT "
+                "wired (no execution path; see UltraForexMaster.execute_trade)"
+            )
 
         # ULTRA CONTINUOUS TRADING - 24/7 execution
         if getattr(self, 'continuous_trading', None):
-            async def run_continuous():
-                while True:
-                    try:
-                        await self.continuous_trading.execute_continuous_trading()
-                        await asyncio.sleep(30)
-                    except Exception as e:
-                        logger.debug(f"Continuous trading: {e}")
-                        await asyncio.sleep(30)
-
-            tasks.append(asyncio.create_task(run_continuous()))
-            logger.info("✅ 🔄 CONTINUOUS TRADING ACTIVE - Never stops!")
+            # No execute_continuous_trading(); the entrypoint is
+            # start_continuous_trading(), which gathers its own tasks. It also
+            # starts the scalping and arbitrage engines, so it is handed the
+            # canonical instances above rather than constructing its own.
+            _t = self._schedule_once(
+                'continuous_trading.start_continuous_trading',
+                lambda: self._supervise(
+                    'Continuous Trading',
+                    self.continuous_trading.start_continuous_trading,
+                ),
+            )
+            if _t:
+                tasks.append(_t)
+                logger.info("✅ 🔄 CONTINUOUS TRADING STARTED")
 
         # ULTRA ML PIPELINE - Continuous model training
         if getattr(self, 'ml_pipeline', None):
-            async def run_ml_training():
-                while True:
-                    try:
-                        await self.ml_pipeline.train_models()
-                        await asyncio.sleep(600)  # Every 10 min
-                    except Exception as e:
-                        logger.debug(f"ML pipeline: {e}")
-                        await asyncio.sleep(600)
-
-            tasks.append(asyncio.create_task(run_ml_training()))
-            logger.info("✅ 🤖 ML PIPELINE TRAINING - Continuous learning!")
+            # No train_models(); the entrypoint is run_forever(), which
+            # analyses, trains online and routes through its own router.
+            _t = self._schedule_once(
+                'ml_pipeline.run_forever',
+                lambda: self._supervise(
+                    'ML Pipeline',
+                    self.ml_pipeline.run_forever,
+                    restart_delay=600.0,
+                ),
+            )
+            if _t:
+                tasks.append(_t)
+                logger.info("✅ 🤖 ML PIPELINE STARTED")
 
         # ULTRA SCALPING ENGINE
         if getattr(self, 'ultra_scalping', None):
-            async def run_ultra_scalping():
-                while True:
-                    try:
-                        await self.ultra_scalping.execute_scalp_trades()
-                        await asyncio.sleep(10)  # Every 10 sec
-                    except Exception as e:
-                        logger.debug(f"Ultra scalping: {e}")
-                        await asyncio.sleep(10)
-
-            tasks.append(asyncio.create_task(run_ultra_scalping()))
-            logger.info("✅ ⚡ ULTRA SCALPING ACTIVE - Micro-profits!")
+            # UltraScalpingEngine has no execute_scalp_trades(); its
+            # entrypoint is start_scalping(), which runs until stopped.
+            _t = self._schedule_once(
+                'ultra_scalping.start_scalping',
+                lambda: self._supervise(
+                    'Ultra Scalping', self.ultra_scalping.start_scalping
+                ),
+            )
+            if _t:
+                tasks.append(_t)
+                logger.info("✅ ⚡ ULTRA SCALPING ENGINE STARTED")
 
         # ULTRA ARBITRAGE ENGINE
         if getattr(self, 'ultra_arbitrage', None):
-            async def run_ultra_arb():
-                while True:
-                    try:
-                        await self.ultra_arbitrage.scan_arbitrage()
-                        await asyncio.sleep(20)
-                    except Exception as e:
-                        logger.debug(f"Ultra arbitrage: {e}")
-                        await asyncio.sleep(20)
-
-            tasks.append(asyncio.create_task(run_ultra_arb()))
-            logger.info("✅ 💰 ULTRA ARBITRAGE SCANNING!")
+            # UltraArbitrageEngine has no scan_arbitrage(); its entrypoint
+            # is start_arbitrage_scanning(), which runs until stopped.
+            _t = self._schedule_once(
+                'ultra_arbitrage.start_arbitrage_scanning',
+                lambda: self._supervise(
+                    'Ultra Arbitrage',
+                    self.ultra_arbitrage.start_arbitrage_scanning,
+                ),
+            )
+            if _t:
+                tasks.append(_t)
+                logger.info("✅ 💰 ULTRA ARBITRAGE SCANNING STARTED")
 
         # ULTRA MULTI-PLATFORM SCANNER
         if getattr(self, 'multi_platform', None):
-            async def run_multi_scan():
-                while True:
-                    try:
-                        await self.multi_platform.scan_all_platforms()
-                        await asyncio.sleep(180)  # Every 3 min
-                    except Exception as e:
-                        logger.debug(f"Multi-platform: {e}")
-                        await asyncio.sleep(180)
-
-            tasks.append(asyncio.create_task(run_multi_scan()))
-            logger.info("✅ 🔍 MULTI-PLATFORM SCANNING!")
+            # No scan_all_platforms(); the entrypoint is
+            # start_multi_platform_scanning(), which loops internally.
+            _t = self._schedule_once(
+                'multi_platform.start_multi_platform_scanning',
+                lambda: self._supervise(
+                    'Multi-Platform Scanner',
+                    self.multi_platform.start_multi_platform_scanning,
+                    restart_delay=180.0,
+                ),
+            )
+            if _t:
+                tasks.append(_t)
+                logger.info("✅ 🔍 MULTI-PLATFORM SCANNING STARTED")
 
         # REVOLUTIONARY AI - All 10 cutting-edge features
         if getattr(self, 'revolutionary_ai', None):
@@ -2628,24 +2688,22 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 - Arbitrage across exchanges
                 - 24/7/365 operation
                 """
-                while True:
-                    try:
-                        # Initialize if needed
-                        if not self.continuous_ultra.running:
-                            await self.continuous_ultra.initialize()
-                            self.continuous_ultra.running = True
+                # ContinuousUltraTradingSystem has no run_continuous_trading();
+                # start() initialises and then enters trading_loop(). The old
+                # body called the missing name, so it raised on every pass,
+                # logged at debug and slept -- while the line below announced
+                # the engine as active.
+                await self.continuous_ultra.start()
 
-                        # Run continuous trading (has its own loop)
-                        await self.continuous_ultra.run_continuous_trading()
-
-                        await asyncio.sleep(1)  # Minimal delay
-
-                    except Exception as e:
-                        logger.debug(f"Continuous ultra: {e}")
-                        await asyncio.sleep(30)
-
-            tasks.append(asyncio.create_task(run_continuous_ultra()))
-            logger.info("✅ 🔄 CONTINUOUS ULTRA ACTIVE - Scanning ALL exchanges & patterns!")
+            _t = self._schedule_once(
+                'continuous_ultra.start',
+                lambda: self._supervise(
+                    'Continuous Ultra', run_continuous_ultra
+                ),
+            )
+            if _t:
+                tasks.append(_t)
+                logger.info("✅ 🔄 CONTINUOUS ULTRA STARTED")
 
         # ====================================================================
         # AUTO LIVE TRIGGER - TESTNET→REAL AUTO-SWITCHING! 🤖

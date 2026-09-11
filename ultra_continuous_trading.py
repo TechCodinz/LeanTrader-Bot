@@ -118,14 +118,26 @@ class UltraContinuousTradingOrchestrator:
         ultra_core: UltraCore,
         risk_engine: RiskEngine,
         config: Optional[ContinuousTradingConfig] = None,
+        scalping_engine: Optional[UltraScalpingEngine] = None,
+        arbitrage_engine: Optional[UltraArbitrageEngine] = None,
     ):
         self.ultra_core = ultra_core
         self.risk_engine = risk_engine
         self.config = config or ContinuousTradingConfig()
 
-        # Initialize trading engines
-        self.scalping_engine = UltraScalpingEngine(ultra_core, risk_engine)
-        self.arbitrage_engine = UltraArbitrageEngine(ultra_core, risk_engine)
+        # Trading engines. These are injected when the process already owns a
+        # canonical instance: start_continuous_trading() starts both, and the
+        # top-level orchestrator supervises the same two engines directly. The
+        # engines' start-once guards are per-instance, so constructing private
+        # copies here meant two scalping engines and two arbitrage engines
+        # scanning and sizing against the same account, each unaware of the
+        # other's positions.
+        self.scalping_engine = scalping_engine or UltraScalpingEngine(
+            ultra_core, risk_engine
+        )
+        self.arbitrage_engine = arbitrage_engine or UltraArbitrageEngine(
+            ultra_core, risk_engine
+        )
 
         # Trading state
         self.active_sessions: Dict[str, TradingSession] = {}
@@ -150,8 +162,35 @@ class UltraContinuousTradingOrchestrator:
 
         self.logger = logging.getLogger(__name__)
 
+    def adopt_engines(self, scalping_engine=None, arbitrage_engine=None) -> None:
+        """Replace the engines this orchestrator will start.
+
+        Safe only before start_continuous_trading(); after that the previous
+        engines are already running and swapping them would orphan their
+        tasks. Call order in the top-level orchestrator builds this object
+        before the canonical engines exist, so this is how ownership is
+        handed over.
+        """
+        if getattr(self, "_engines_started", False):
+            raise RuntimeError(
+                "engines already started; adopt_engines must be called before "
+                "start_continuous_trading"
+            )
+        if scalping_engine is not None:
+            self.scalping_engine = scalping_engine
+        if arbitrage_engine is not None:
+            self.arbitrage_engine = arbitrage_engine
+
     async def start_continuous_trading(self) -> None:
         """Start 24/7 continuous trading system"""
+        if getattr(self, "_engines_started", False):
+            self.logger.info(
+                "♻️ UltraContinuousTradingOrchestrator already running - "
+                "reusing canonical instance"
+            )
+            return
+        self._engines_started = True
+
         self.logger.info("🚀 Starting Ultra Continuous Trading Orchestrator...")
         self.logger.info(f"💰 Starting Balance: ${self.daily_balance:.2f}")
         self.logger.info(f"🎯 November Target: ${self.target_balance:.2f}")

@@ -684,21 +684,23 @@ class AutoSniper:
         }
 
     async def _execute_snipe(self, w3: Web3, tx: Dict) -> Dict[str, Any]:
-        """Execute the snipe transaction."""
+        """Broadcast the snipe transaction.
 
-        try:
-            # Sign and send transaction
-            # This would require private key management
+        This used to return success with a tx_hash built by hashing the
+        unsigned transaction dict -- a hex string that looks like a receipt
+        and corresponds to nothing on any chain. The caller printed "SNIPED!"
+        and recorded it, so the system reported on-chain purchases it had
+        never made.
 
-            return {
-                'success': True,
-                'tx_hash': '0x' + hashlib.sha256(str(tx).encode()).hexdigest(),
-                'gas_used': tx['gas'],
-                'gas_price': tx['gasPrice'],
-            }
-
-        except Exception as e:
-            return {'success': False, 'error': str(e)}
+        No signing key management exists in this path, so there is nothing to
+        broadcast with. It refuses, and the caller reports the failure.
+        """
+        return {
+            'success': False,
+            'error': 'dex_snipe_signing_not_configured',
+            'gas': tx.get('gas'),
+            'gasPrice': tx.get('gasPrice'),
+        }
 
     async def _monitor_snipe(self, w3: Web3, tx_hash: str, gem: Dict[str, Any]):
         """Monitor snipe transaction and track results."""
