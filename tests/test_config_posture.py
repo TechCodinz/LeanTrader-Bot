@@ -66,8 +66,8 @@ def test_each_repaired_file_stays_fail_closed(name):
         "BINANCE_TESTNET=no",
         "GATEIO_SANDBOX=false",
         "export ENABLE_LIVE=true",
-        '  ENABLE_LIVE="true"',
-        "ALLOW_LIVE=true   # go live",
+        '  ENABLE_LIVE="true"',  # config-posture: allow
+        "ALLOW_LIVE=true   # go live",  # config-posture: allow
     ],
 )
 def test_the_gate_catches_each_live_enabling_form(line):
@@ -276,3 +276,32 @@ def test_the_gate_would_have_caught_the_deployment_blocker():
             key for _, key, _ in config_posture.scan_text(previous, generator=generator)
         }
         assert keys <= found, f"{name}: gate would have missed {keys - found}"
+
+
+def test_the_allow_marker_is_per_line_not_per_file():
+    """The gate's own fixtures are marked; nothing else is exempt."""
+    marked = 'ENABLE_LIVE=true  # config-posture: allow'
+    assert not list(config_posture.scan_text(marked))
+
+    unmarked = "ENABLE" + "_LIVE=true"
+    assert list(config_posture.scan_text(unmarked)), (
+        "the marker must not leak onto neighbouring lines"
+    )
+
+
+def test_no_tracked_file_uses_the_marker_outside_this_gates_own_tests():
+    """An exemption that spreads is an exemption list by another name."""
+    users = []
+    for path in config_posture.tracked_files(ROOT):
+        if path.suffix not in {".py", ".sh", ".env", ".conf", ".cfg", ".ini"}:
+            continue
+        try:
+            text = path.read_text(errors="ignore")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if config_posture.ALLOW_MARKER.search(text):
+            users.append(str(path.relative_to(ROOT)))
+
+    assert users == ["tests/test_config_posture.py"], (
+        f"the config-posture allow marker has spread to: {users}"
+    )

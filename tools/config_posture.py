@@ -71,6 +71,13 @@ ASSIGNMENT = re.compile(
     r"""^\s*(?:export\s+)?(?P<key>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P<value>.*)$"""
 )
 
+# An explicit, per-line opt-out for a line that only looks like a live
+# assignment -- this gate's own fixtures are the case that exists. Per-line
+# and visible in review, never a file or directory exemption: a real
+# live-enabling value in a test file would still be a tracked file that
+# enables live.
+ALLOW_MARKER = re.compile(r"#\s*config-posture:\s*allow", re.IGNORECASE)
+
 
 def is_config_file(path: pathlib.PurePath) -> bool:
     """Files whose KEY=VALUE lines are configuration when loaded."""
@@ -122,6 +129,8 @@ def scan_text(text: str, *, generator: bool = False) -> Iterable[Tuple[int, str,
     for number, line in enumerate(text.split("\n"), 1):
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
+            continue
+        if ALLOW_MARKER.search(line):
             continue
 
         candidate = stripped

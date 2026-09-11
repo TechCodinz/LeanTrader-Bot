@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import time
 from typing import Any, Dict, Optional, Tuple
+
+_log = logging.getLogger(__name__)
 
 
 EXECUTION_MODES = {
@@ -111,8 +114,24 @@ def _normalize_mode(
 
 def _legacy_mode() -> str:
     """
-    Preserve compatibility with old environment files,
-    without making those flags the architecture.
+    Resolve execution mode from the environment, in precedence order.
+
+    1. EXECUTION_MODE -- the canonical selector. Whatever it names wins,
+       including live. Nothing below can override or shadow it.
+    2. The legacy three-flag live grant: ENABLE_LIVE, ALLOW_LIVE and
+       LIVE_CONFIRM=YES together. All three are required, so this is a
+       deliberate operator act, never an accident.
+    3. Venue sandbox hints: CCXT_TESTNET / BYBIT_TESTNET.
+    4. TRADING_MODE, for old files that only carried that.
+    5. "auto", meaning nothing was selected.
+
+    The live grant is checked BEFORE the sandbox hints. It used to be
+    checked after, which made a per-venue endpoint flag silently outrank an
+    explicit operator decision: with BYBIT_TESTNET=true present -- as it now
+    is in the tracked .env, and as it is in any Testnet-oriented deployment
+    file -- an operator who set all three live flags got Testnet with no
+    warning. A sandbox flag says which endpoint a venue should use; it is not
+    a mode selection, and it must not shadow one.
     """
     explicit = os.getenv(
         "EXECUTION_MODE",
@@ -123,18 +142,6 @@ def _legacy_mode() -> str:
         return _normalize_mode(
             explicit
         )
-
-    if (
-        _env_bool(
-            "CCXT_TESTNET",
-            False,
-        )
-        or _env_bool(
-            "BYBIT_TESTNET",
-            False,
-        )
-    ):
-        return "testnet"
 
     legacy_live = (
         _env_bool(
@@ -154,8 +161,32 @@ def _legacy_mode() -> str:
         )
     )
 
+    sandbox_hint = (
+        _env_bool(
+            "CCXT_TESTNET",
+            False,
+        )
+        or _env_bool(
+            "BYBIT_TESTNET",
+            False,
+        )
+    )
+
     if legacy_live:
+        if sandbox_hint:
+            # Both were set. Say which one is being honoured rather than
+            # picking one silently; an operator seeing this has a
+            # contradiction in their configuration to resolve.
+            _log.warning(
+                "Execution mode: live requested via ENABLE_LIVE/ALLOW_LIVE/"
+                "LIVE_CONFIRM while a testnet sandbox flag is also set. "
+                "Honouring the explicit live grant. Set EXECUTION_MODE to "
+                "state the intent unambiguously."
+            )
         return "live"
+
+    if sandbox_hint:
+        return "testnet"
 
     trading_mode = os.getenv(
         "TRADING_MODE",
@@ -268,6 +299,23 @@ class BrokerCCXT:
             if execution_mode
             else _legacy_mode()
         )
+
+        # "auto" arrives two ways, and they are not the same decision.
+        #
+        # An operator who writes EXECUTION_MODE=auto (or passes it here) has
+        # asked for discovery and may be discovered into live. An operator
+        # who set nothing has selected nothing -- and for them, adding an
+        # exchange API key must not move the execution destination to real
+        # money. Only the first may reach live.
+        self.auto_requested = str(
+            execution_mode
+            or os.getenv(
+                "EXECUTION_MODE",
+                "",
+            )
+        ).strip().lower() in {
+            "auto",
+        }
 
         prefix = (
             self.exchange_id
@@ -636,9 +684,58 @@ class BrokerCCXT:
                     "CCXT sandbox endpoint"
                 )
 
-            sandbox(
-                True
-            )
+            # Verify the switch actually reaches the wire, rather than
+            # trusting that the call returned.
+            #
+            # Venues sandbox differently: most swap the API URLs, OKX keeps
+            # its URL and sends an x-simulated-trading header instead. Both
+            # are real. But bitget, in the installed ccxt, sets only an
+            # internal options flag and changes nothing that affects where a
+            # request goes -- set_sandbox_mode(True) reports success and the
+            # client still points at production. A caller who asked for
+            # Testnet would have sent real orders to the live endpoint
+            # believing they were sandboxed.
+            #
+            # So the evidence required is a change to something that decides
+            # where the request lands: the URLs, the hostname, or the
+            # headers. An options flag on its own is not evidence.
+            def _routing_fingerprint() -> str:
+                return json.dumps(
+                    {
+                        "urls": exchange.urls,
+                        "hostname": getattr(
+                            exchange,
+                            "hostname",
+                            None,
+                        ),
+                        "headers": getattr(
+                            exchange,
+                            "headers",
+                            None,
+                        ),
+                    },
+                    sort_keys=True,
+                    default=str,
+                )
+
+            before = _routing_fingerprint()
+
+            try:
+                sandbox(
+                    True
+                )
+            except Exception as exc:
+                raise RuntimeError(
+                    f"{self.exchange_id} has no usable CCXT sandbox: "
+                    f"{type(exc).__name__}"
+                ) from exc
+
+            if _routing_fingerprint() == before:
+                raise RuntimeError(
+                    f"{self.exchange_id} accepted set_sandbox_mode(True) "
+                    "without changing where requests are sent; Testnet "
+                    "execution is not available on this venue"
+                )
 
         self._exchange_cache[
             key
@@ -787,10 +884,22 @@ class BrokerCCXT:
                     self._resolved_mode
                 )
 
-        for environment in (
-            "testnet",
-            "live",
-        ):
+        # Which environments discovery may consider.
+        #
+        # Testnet always. Live only when the operator explicitly asked for
+        # discovery by writing "auto"; when nothing was selected at all,
+        # live is not probed. That distinction is the point: an operator who
+        # wrote EXECUTION_MODE=auto asked to be routed wherever their
+        # credentials work, but an operator who set nothing did not, and for
+        # them adding an exchange API key used to silently move the
+        # execution destination to real money.
+        environments = (
+            ("testnet", "live")
+            if self.auto_requested
+            else ("testnet",)
+        )
+
+        for environment in environments:
             if self._probe_environment(
                 environment
             ):
@@ -808,6 +917,15 @@ class BrokerCCXT:
                 return (
                     self._resolved_mode
                 )
+
+        if not self.auto_requested:
+            _log.warning(
+                "Credentials for %s did not authenticate on Testnet and no "
+                "execution mode was selected. Live is not probed unless "
+                "discovery is requested explicitly (EXECUTION_MODE=auto) or "
+                "live is selected (EXECUTION_MODE=live).",
+                self.exchange_id,
+            )
 
         self._resolved_mode = (
             "invalid"
