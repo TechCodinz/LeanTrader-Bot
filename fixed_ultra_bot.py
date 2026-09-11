@@ -205,7 +205,7 @@ class FixedUltraTradingSystem:
     def telegram_demo_mode(self):
         """Setup Telegram with real credentials"""
         # Your actual Telegram bot credentials
-        bot_token = "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
+        bot_token = "REDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE"
         chat_id = "5329503447"
 
         try:
@@ -213,7 +213,7 @@ class FixedUltraTradingSystem:
             self.telegram_chat_id = chat_id
             self.telegram_enabled = True
             logger.info("✅ Telegram configured with REAL credentials!")
-            logger.info("📱 Bot Token: 8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+            logger.info("📱 Bot Token: REDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE")
             logger.info("📱 Chat ID: 5329503447")
             logger.info("🚀 Real notifications will be sent to your Telegram!")
         except Exception as e:

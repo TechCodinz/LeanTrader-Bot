@@ -69,7 +69,7 @@ class CompleteEnhancedUltraTradingSystem:
         }
 
         # Telegram Bot Configuration
-        self.telegram_bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+        self.telegram_bot = Bot(token="REDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE")
 
         # Channel IDs
         self.channels = {'admin': '5329503447', 'free': '-1002930953007', 'vip': '-1002983007302'}

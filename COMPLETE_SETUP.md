@@ -235,8 +235,8 @@ class CompleteGodTraderBot:
 
         # Bybit
         self.exchanges['bybit'] = ccxt.bybit({
-            'apiKey': 'g1mhPqKrOBp9rnqb4G',
-            'secret': 's9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG',
+            'apiKey': 'REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE',
+            'secret': 'REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE',
             'sandbox': True,
             'enableRateLimit': True,
         })

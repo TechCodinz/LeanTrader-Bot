@@ -16,8 +16,8 @@ class BybitTradingBot:
     def __init__(self):
         self.exchange = None
         self.running = False
-        self.api_key = "g1mhPqKrOBp9rnqb4G"
-        self.secret_key = "s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG"
+        self.api_key = "REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE"
+        self.secret_key = "REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE"
         self.sandbox = True
 
     async def initialize(self):

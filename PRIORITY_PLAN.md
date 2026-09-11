@@ -125,7 +125,7 @@ Every 4 hours:
 **Manual Status (Send yourself):**
 ```bash
 # Run this on VPS to get status update:
-curl -X POST "https://api.telegram.org/bot8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg/sendMessage" -d "chat_id=5329503447" -d "text=✅ Bot still running. Checking for trades..."
+curl -X POST "https://api.telegram.org/botREDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE/sendMessage" -d "chat_id=5329503447" -d "text=✅ Bot still running. Checking for trades..."
 ```
 
 **This works for now!** ✅
@@ -186,7 +186,7 @@ curl -X POST "https://api.telegram.org/bot8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR
 
 ```bash
 # Run this on VPS when you want update:
-curl -X POST "https://api.telegram.org/bot8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg/sendMessage" -d "chat_id=5329503447" -d "text=📊 Bot Status Check $(date)%0A%0ACheck exchanges for orders!%0ABot running: $(systemctl is-active trading-bot)"
+curl -X POST "https://api.telegram.org/botREDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE/sendMessage" -d "chat_id=5329503447" -d "text=📊 Bot Status Check $(date)%0A%0ACheck exchanges for orders!%0ABot running: $(systemctl is-active trading-bot)"
 ```
 
 **Use this until auto-notifications work!** ✅

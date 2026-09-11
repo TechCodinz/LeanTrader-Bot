@@ -9,12 +9,12 @@
 ### Your Gate.io Keys (Both Sets):
 ```
 TESTNET (for training):
-  Key: 590f4e3cb2a8cfcaa66fe1a3a646e4b1
+  Key: REDACTED_ROTATED_GATEIO_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE
   Secret: e1e5...a37b
   Mode: TESTNET (safe, fake money)
 
 LIVE (for your $40):
-  Key: bbdcedbd7f719a87c851356cf4dd3c20
+  Key: REDACTED_ROTATED_GATEIO_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE
   Secret: 068996...9c26
   Mode: Ready for when you switch
 

@@ -48,8 +48,8 @@
 
 **Real API Keys Found:**
 ```python
-'apiKey': 'a0508d8aadf3bcb76e16f4373e1f3a76'
-'secret': '451770a07dbede1b87bb92f5ce98e24029d2fe91e0053be2ec41771c953113f9'
+'apiKey': 'REDACTED_ROTATED_GATEIO_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE'
+'secret': 'REDACTED_ROTATED_GATEIO_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE'
 ```
 
 ### 4. enhanced_trading_bot.py - BYBIT BOT (TESTNET)

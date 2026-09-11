@@ -61,7 +61,7 @@ class MultiChannelUltraTradingSystem:
         # Telegram Bot Configuration (using centralized config)
         telegram_config = self.api_config.get('telegram', {})
         self.telegram_bot = Bot(
-            token=telegram_config.get('bot_token', "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+            token=telegram_config.get('bot_token', "REDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE")
         )
 
         # Channel IDs (using centralized config)

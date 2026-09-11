@@ -2,7 +2,7 @@
 # Send Complete Bot Status to Admin Chat
 # Run this on VPS to get status update in Telegram
 
-TOKEN="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
+TOKEN="REDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE"
 ADMIN_CHAT="5329503447"
 
 # Get bot status

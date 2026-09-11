@@ -23,7 +23,7 @@ async def monitor_trading():
     print("🔥🔥🔥 LIVE TRADING ACTIVATED 🔥🔥🔥")
     print("="*80)
     print("\nUsing REAL API KEYS:")
-    print("  ✅ Bybit LIVE (mMHs7rDC72TvHs4oQG...)")
+    print("  ✅ Bybit LIVE (REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE...)")
     print("  ✅ All learned memory loaded (43,201 trades)")
     print("  ✅ 116+ systems active")
     print("\n⚠️  REAL MONEY TRADING - Monitoring for 3 minutes...\n")

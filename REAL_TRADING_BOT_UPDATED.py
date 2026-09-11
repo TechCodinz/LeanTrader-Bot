@@ -9,7 +9,7 @@ import concurrent.futures
 class REAL_TRADING_BOT:
     def __init__(self):
         # REAL TRADING CREDENTIALS
-        self.telegram_bot_token = "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
+        self.telegram_bot_token = "REDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE"
         self.admin_chat_id = "5329503447"
         self.vip_chat_id = "-1002983007302"
         self.free_chat_id = "-1002930953007"

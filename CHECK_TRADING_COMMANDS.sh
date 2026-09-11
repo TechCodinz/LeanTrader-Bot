@@ -44,8 +44,8 @@ import os
 # Test Bybit connection
 try:
     bybit = ccxt.bybit({
-        'apiKey': 'N8BMgWdfisCtkvfZk8',
-        'secret': 'BIu7c65FQnDsd6kBmctU7gK9bBbzY15vi8oe',
+        'apiKey': 'REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE',
+        'secret': 'REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE',
         'options': {'defaultType': 'spot'}
     })
     bybit.set_sandbox_mode(True)  # Testnet
@@ -75,8 +75,8 @@ print()
 # Test Gate.io connection
 try:
     gate = ccxt.gateio({
-        'apiKey': '590f4e3cb2a8cfcaa66fe1a3a646e4b1',
-        'secret': 'e1e5614876dfd2aa9c59beabd035c2af08a186b5f818209640c66e98225ca37b'
+        'apiKey': 'REDACTED_ROTATED_GATEIO_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE',
+        'secret': 'REDACTED_ROTATED_GATEIO_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE'
     })
 
     balance = gate.fetch_balance()

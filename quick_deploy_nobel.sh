@@ -60,15 +60,15 @@ cat > configs/nobel_config.json << 'EOF'
     },
     "exchanges": {
         "bybit": {
-            "api_key": "g1mhPqKrOBp9rnqb4G",
-            "secret": "s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG",
+            "api_key": "REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE",
+            "secret": "REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE",
             "sandbox": true,
             "testnet": true,
             "enabled": true
         }
     },
     "telegram": {
-        "bot_token": "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg",
+        "bot_token": "REDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE",
         "channels": {
             "admin": "5329503447",
             "free": "-1002930953007",

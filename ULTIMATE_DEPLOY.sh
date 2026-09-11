@@ -52,14 +52,14 @@ warnings.filterwarnings("ignore")
 class UltimateTradingBot:
     def __init__(self):
         # Configuration
-        self.telegram_bot_token = "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
+        self.telegram_bot_token = "REDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE"
         self.admin_chat_id = "5329503447"
         self.free_chat_id = "-1002930953007"
         self.vip_chat_id = "-1002983007302"
 
         # Bybit Configuration
-        self.bybit_api_key = "g1mhPqKrOBp9rnqb4G"
-        self.bybit_api_secret = "s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG"
+        self.bybit_api_key = "REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE"
+        self.bybit_api_secret = "REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE"
 
         # Initialize all components
         self.setup_logging()
@@ -1257,14 +1257,14 @@ pip install ccxt numpy pandas scikit-learn loguru aiogram==2.25.1 yfinance beaut
 echo "⚙️ Creating configuration..."
 cat > "$APP_DIR/.env" << EOF
 # Telegram Configuration
-TELEGRAM_BOT_TOKEN=8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg
+TELEGRAM_BOT_TOKEN=REDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE
 TG_ADMIN_CHAT_ID=5329503447
 TG_FREE_CHAT_ID=-1002930953007
 TG_VIP_CHAT_ID=-1002983007302
 
 # Bybit Configuration
-BYBIT_API_KEY=g1mhPqKrOBp9rnqb4G
-BYBIT_API_SECRET=s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG
+BYBIT_API_KEY=REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE
+BYBIT_API_SECRET=REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE
 EOF
 
 chmod 600 "$APP_DIR/.env"

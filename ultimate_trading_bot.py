@@ -143,7 +143,7 @@ class UltimateTradingBot:
     async def send_telegram(self, message, channel):
         """Send Telegram message"""
         try:
-            bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+            bot = Bot(token="REDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE")
             await bot.send_message(chat_id=self.channels[channel], text=message)
             logger.info(f"📱 Message sent to {channel}")
         except Exception as e:
@@ -152,7 +152,7 @@ class UltimateTradingBot:
     async def send_telegram_with_buttons(self, message, channel, symbol, signal_data):
         """Send Telegram with trading buttons"""
         try:
-            bot = Bot(token="8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg")
+            bot = Bot(token="REDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE")
 
             if channel == 'vip' and signal_data:
                 keyboard = [
@@ -487,7 +487,7 @@ class UltimateTradingBot:
 
         # Setup Telegram
         application = (
-            Application.builder().token("8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg").build()
+            Application.builder().token("REDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE").build()
         )
         application.add_handler(CallbackQueryHandler(self.handle_callback))
         asyncio.create_task(application.run_polling())

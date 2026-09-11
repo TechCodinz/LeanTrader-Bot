@@ -102,7 +102,7 @@ Line 418: Initialization
 - ✅ Secret
 
 ### Gate.io Testnet (2):
-- ✅ API Key (590f4e3cb2a8cfcaa66fe1a3a646e4b1)
+- ✅ API Key (REDACTED_ROTATED_GATEIO_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE)
 - ✅ Secret
 
 ### Data APIs (6):

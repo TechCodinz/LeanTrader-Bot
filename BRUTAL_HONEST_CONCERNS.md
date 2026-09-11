@@ -106,11 +106,11 @@ Week 4+:     Models trained, 70%+ accurate
 **Your Keys:**
 ```
 Old keys (in REAL_PROFIT_BOT.py):
-  API: a0508d8aadf3bcb76e16f4373e1f3a76
+  API: REDACTED_ROTATED_GATEIO_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE
   Mode: sandbox: False (LIVE!)
 
 Your new keys:
-  API: 590f4e3cb2a8cfcaa66fe1a3a646e4b1
+  API: REDACTED_ROTATED_GATEIO_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE
   Mode: You said "testnet"
 ```
 

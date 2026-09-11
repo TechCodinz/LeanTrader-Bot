@@ -11,49 +11,49 @@ You posted API keys for 7 exchanges in a public conversation. These keys are now
 ### MEXC
 1. Login to MEXC
 2. Go to: Account → API Management
-3. Find key: `mx0vgl7ytNbnU44V5G`
+3. Find key: `REDACTED_ROTATED_MEXC_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE`
 4. Click "Delete" or "Revoke"
 5. Confirm deletion
 
 ### Bitget
 1. Login to Bitget
 2. Go to: Account → API Management
-3. Find key: `bg_a76be18966412e3f95b11eac379edf91`
+3. Find key: `REDACTED_ROTATED_BITGET_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE`
 4. Click "Delete"
 5. Confirm deletion
 
 ### OKX
 1. Login to OKX
 2. Go to: Account → API Management
-3. Find key: `9b6e8a19-5a9c-44ca-942f-e98cc36d0354`
+3. Find key: `REDACTED_ROTATED_OKX_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE`
 4. Click "Delete"
 5. Confirm deletion
 
 ### KuCoin
 1. Login to KuCoin
 2. Go to: Account → API Management
-3. Find key: `68d494bd54d53500017383ed`
+3. Find key: `REDACTED_ROTATED_KUCOIN_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE`
 4. Click "Delete"
 5. Confirm deletion
 
 ### Gate.io
 1. Login to Gate.io
 2. Go to: Account → API Management
-3. Find key: `a0508d8aadf3bcb76e16f4373e1f3a76`
+3. Find key: `REDACTED_ROTATED_GATEIO_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE`
 4. Click "Delete"
 5. Confirm deletion
 
 ### Binance
 1. Login to Binance
 2. Go to: Account → API Management
-3. Find key: `uxMw38StLFlWpqzi9OpFMMj4H7m3dWy8jnR2EAl2raL0n465jtxnlK9S2CYBflyf`
+3. Find key: `REDACTED_ROTATED_BINANCE_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE`
 4. Click "Delete"
 5. Confirm deletion
 
 ### Bybit
 1. Login to Bybit
 2. Go to: Account → API Management
-3. Find key: `fX0py6Av5dFPmCPOMX`
+3. Find key: `REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE`
 4. Click "Delete"
 5. Confirm deletion
 

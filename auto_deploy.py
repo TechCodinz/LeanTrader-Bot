@@ -12,7 +12,7 @@ VPS_USER = "root"
 VPS_PASS = "pW65Yg036RettBb7"
 
 # API Keys provided
-TELEGRAM_BOT_TOKEN = "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
+TELEGRAM_BOT_TOKEN = "REDACTED_ROTATED_TELEGRAM_BOT_TOKEN__SET_VIA_MOUNTED_SECRET_FILE"
 TG_ADMIN_CHAT_ID = "5329503447"
 TG_FREE_CHAT_ID = "-1002930953007"
 TG_VIP_CHAT_ID = "-1002983007302"
@@ -225,8 +225,8 @@ class BybitTradingBot:
     def __init__(self):
         self.exchange = None
         self.running = False
-        self.api_key = "g1mhPqKrOBp9rnqb4G"
-        self.secret_key = "s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG"
+        self.api_key = "REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE"
+        self.secret_key = "REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE"
         self.sandbox = True
 
     async def initialize(self):
@@ -385,8 +385,8 @@ class BybitTradingBot:
     def __init__(self):
         self.exchange = None
         self.running = False
-        self.api_key = "g1mhPqKrOBp9rnqb4G"
-        self.secret_key = "s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG"
+        self.api_key = "REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE"
+        self.secret_key = "REDACTED_ROTATED_BYBIT_CREDENTIAL__SET_VIA_MOUNTED_SECRET_FILE"
         self.sandbox = True
 
     async def initialize(self):
