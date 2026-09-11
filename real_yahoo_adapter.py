@@ -11,8 +11,12 @@ from urllib.parse import quote
 import pandas as pd
 from curl_cffi import requests as curl_requests
 
+from curl_impersonate_compat import resolve_impersonation
 
-EXPLICIT_IMPERSONATION = "chrome"
+# Resolved against the installed curl_cffi rather than hardcoded: the bare
+# "chrome" alias is not present on every build, and a missing target takes
+# down every FX and commodity fetch in this module.
+EXPLICIT_IMPERSONATION = resolve_impersonation("chrome")
 
 
 SYMBOL_MAP = {

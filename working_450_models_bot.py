@@ -32,6 +32,20 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier
 
+
+def _impersonation():
+    """Impersonation target the installed curl_cffi actually supports.
+
+    Hardcoding "chrome" here failed on builds that do not list the bare
+    family alias. Resolved once per call rather than at import so an
+    operator override takes effect without a restart.
+    """
+    from curl_impersonate_compat import resolve_impersonation
+
+    return resolve_impersonation("chrome")
+
+
+
 # Setup logger
 logger = logging.getLogger(__name__)
 
@@ -459,7 +473,7 @@ class UltimateBot450Models:
 
                 session = (
                     curl_requests.Session(
-                        impersonate='chrome'
+                        impersonate=_impersonation()
                     )
                 )
 
