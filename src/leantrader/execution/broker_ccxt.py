@@ -22,6 +22,48 @@ _PROBE_CACHE: Dict[
 _PROBE_TTL_SECONDS = 300.0
 
 
+# PASS4_SECRET_FILE_CREDENTIAL_READER
+def _read_secret_file(
+    path_value: Optional[str],
+) -> str:
+    """
+    Read one mounted runtime secret.
+
+    Secret contents are never logged or returned
+    from broker status/describe methods.
+    """
+    path = str(
+        path_value or ""
+    ).strip()
+
+    if not path:
+        return ""
+
+    try:
+        with open(
+            path,
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            return (
+                handle
+                .read()
+                .strip()
+            )
+
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "configured credential file "
+            f"does not exist: {path}"
+        ) from exc
+
+    except OSError as exc:
+        raise RuntimeError(
+            "configured credential file "
+            f"could not be read: {path}"
+        ) from exc
+
+
 def _env_bool(
     name: str,
     default: bool = False,
@@ -237,20 +279,49 @@ class BrokerCCXT:
         #
         # Testnet keys remain separate from any
         # future live/production key pair.
-        testnet_api_key = (
+        # PASS4_TESTNET_SECRET_FILE_PRECEDENCE
+        testnet_api_key_file = (
             os.getenv(
-                f"{prefix}_TESTNET_API_KEY",
+                f"{prefix}_TESTNET_API_KEY_FILE",
                 "",
             ).strip()
             if self.requested_mode == "testnet"
             else ""
         )
 
-        testnet_api_secret = (
+        testnet_api_secret_file = (
             os.getenv(
-                f"{prefix}_TESTNET_API_SECRET",
+                f"{prefix}_TESTNET_API_SECRET_FILE",
                 "",
             ).strip()
+            if self.requested_mode == "testnet"
+            else ""
+        )
+
+        testnet_api_key = (
+            (
+                _read_secret_file(
+                    testnet_api_key_file
+                )
+                or os.getenv(
+                    f"{prefix}_TESTNET_API_KEY",
+                    "",
+                ).strip()
+            )
+            if self.requested_mode == "testnet"
+            else ""
+        )
+
+        testnet_api_secret = (
+            (
+                _read_secret_file(
+                    testnet_api_secret_file
+                )
+                or os.getenv(
+                    f"{prefix}_TESTNET_API_SECRET",
+                    "",
+                ).strip()
+            )
             if self.requested_mode == "testnet"
             else ""
         )
