@@ -24,27 +24,27 @@ def backup(filepath):
 def wire_all_remaining_engines():
     """Wire ALL remaining engines with task loops"""
     print("\n🔧 WIRING ALL REMAINING ENGINES...")
-    
+
     filepath = "COMPLETE_ULTIMATE_ORCHESTRATOR.py"
     backup(filepath)
-    
+
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     # Find the insertion point (after the last task loop)
     marker = "logger.info(\"=\" * 80)\n        logger.info(\"🔥 ALL ENGINES PROPERLY WIRED - ACTUALLY RUNNING!\")"
-    
+
     if marker not in content:
         print("❌ Could not find insertion point")
         return False
-    
+
     # ALL THE ADDITIONAL TASK LOOPS
     additional_loops = '''
-        
+
         # =================================================================
         # ADDITIONAL ENGINES - WIRING EVERYTHING LEFT
         # =================================================================
-        
+
         # ULTRA GOLDMINE ENGINES - 11 cutting-edge strategies
         if hasattr(self, 'ultra_goldmine') and self.ultra_goldmine:
             async def run_goldmine_active():
@@ -67,10 +67,10 @@ def wire_all_remaining_engines():
                     except Exception as e:
                         logger.debug(f"Ultra goldmine: {e}")
                         await asyncio.sleep(60)
-            
+
             tasks.append(asyncio.create_task(run_goldmine_active()))
             logger.info("✅ 💎 ULTRA GOLDMINE - 11 engines running!")
-        
+
         # ONLINE LEARNER - Continuous learning from results
         if hasattr(self, 'online_learner') and self.online_learner:
             async def run_online_learner_active():
@@ -81,7 +81,7 @@ def wire_all_remaining_engines():
                         learning_update = await self.online_learner.learn_from_recent_trades()
                         if learning_update:
                             logger.info(f"🎓 LEARNER: Learned from {learning_update.get('trades', 0)} trades, Win rate: {learning_update.get('win_rate', 0):.1%}")
-                        
+
                         # Get learned predictions
                         for symbol in ['BTC/USDT', 'ETH/USDT']:
                             prediction = await self.online_learner.predict(symbol, {})
@@ -95,15 +95,15 @@ def wire_all_remaining_engines():
                                 }
                                 await self.data_hub.publish_signal(signal)
                                 logger.info(f"🎓 LEARNER → {symbol}: {signal['action']} (learned from {signal['learned_from']} trades)")
-                        
+
                         await asyncio.sleep(180)  # Every 3 minutes
                     except Exception as e:
                         logger.debug(f"Online learner: {e}")
                         await asyncio.sleep(180)
-            
+
             tasks.append(asyncio.create_task(run_online_learner_active()))
             logger.info("✅ 🎓 ONLINE LEARNER - Continuous learning active!")
-        
+
         # AWARENESS - Situational awareness engine
         if hasattr(self, 'awareness') and self.awareness:
             async def run_awareness_active():
@@ -112,7 +112,7 @@ def wire_all_remaining_engines():
                     try:
                         # Assess current market situation
                         situation = await self.awareness.assess_situation(['BTC/USDT', 'ETH/USDT'])
-                        
+
                         if situation and situation.get('recommended_action'):
                             for recommendation in situation['recommended_action']:
                                 signal = {
@@ -124,15 +124,15 @@ def wire_all_remaining_engines():
                                 }
                                 await self.data_hub.publish_signal(signal)
                                 logger.info(f"👀 AWARENESS [{situation['assessment']}] → {signal['symbol']}: {signal['action']}")
-                        
+
                         await asyncio.sleep(120)  # Every 2 minutes
                     except Exception as e:
                         logger.debug(f"Awareness: {e}")
                         await asyncio.sleep(120)
-            
+
             tasks.append(asyncio.create_task(run_awareness_active()))
             logger.info("✅ 👀 SITUATIONAL AWARENESS - Market awareness active!")
-        
+
         # MOON RADAR - Meme coin explosion detector
         if hasattr(self, 'moon_radar') and self.moon_radar:
             async def run_moon_radar_active():
@@ -141,7 +141,7 @@ def wire_all_remaining_engines():
                     try:
                         # Scan for meme coin opportunities
                         meme_coins = ['DOGE/USDT', 'SHIB/USDT', 'PEPE/USDT', 'FLOKI/USDT']
-                        
+
                         for symbol in meme_coins:
                             scan_result = await self.moon_radar.scan(symbol, {})
                             if scan_result and scan_result.get('signal'):
@@ -154,15 +154,15 @@ def wire_all_remaining_engines():
                                 }
                                 await self.data_hub.publish_signal(signal)
                                 logger.info(f"🌙 MOON RADAR → {symbol}: {signal['action']} (score: {signal['moon_score']:.2f})")
-                        
+
                         await asyncio.sleep(30)  # Every 30 seconds - fast for memes!
                     except Exception as e:
                         logger.debug(f"Moon radar: {e}")
                         await asyncio.sleep(30)
-            
+
             tasks.append(asyncio.create_task(run_moon_radar_active()))
             logger.info("✅ 🌙 MOON RADAR - Meme coin detector active!")
-        
+
         # HYPE RADAR - Social hype scanner
         if hasattr(self, 'hype_radar') and self.hype_radar:
             async def run_hype_radar_active():
@@ -171,7 +171,7 @@ def wire_all_remaining_engines():
                     try:
                         # Scan for hyped coins
                         hype_result = await self.hype_radar.scan_hype(['BTC/USDT', 'ETH/USDT', 'SOL/USDT'])
-                        
+
                         for coin_hype in hype_result:
                             if coin_hype.get('signal'):
                                 signal = {
@@ -183,15 +183,15 @@ def wire_all_remaining_engines():
                                 }
                                 await self.data_hub.publish_signal(signal)
                                 logger.info(f"📢 HYPE RADAR → {signal['symbol']}: {signal['action']} (hype: {signal['hype_level']:.2f})")
-                        
+
                         await asyncio.sleep(120)  # Every 2 minutes
                     except Exception as e:
                         logger.debug(f"Hype radar: {e}")
                         await asyncio.sleep(120)
-            
+
             tasks.append(asyncio.create_task(run_hype_radar_active()))
             logger.info("✅ 📢 HYPE RADAR - Social hype scanner active!")
-        
+
         # ARBITRAGE SCANNER - Cross-exchange arbitrage
         if hasattr(self, 'arbitrage_scanner') and self.arbitrage_scanner:
             async def run_arbitrage_scanner_active():
@@ -200,7 +200,7 @@ def wire_all_remaining_engines():
                     try:
                         # Scan for arbitrage opportunities
                         arb_opps = await self.arbitrage_scanner.scan(['BTC/USDT', 'ETH/USDT'])
-                        
+
                         for opp in arb_opps:
                             if opp.get('profit_pct', 0) > 0.5:  # >0.5% profit
                                 signal = {
@@ -213,15 +213,15 @@ def wire_all_remaining_engines():
                                 }
                                 await self.data_hub.publish_signal(signal)
                                 logger.info(f"⚡ ARBITRAGE → {signal['symbol']}: {signal['profit_pct']:.2f}% profit ({signal['exchanges']})")
-                        
+
                         await asyncio.sleep(10)  # Every 10 seconds - fast for arb!
                     except Exception as e:
                         logger.debug(f"Arbitrage scanner: {e}")
                         await asyncio.sleep(10)
-            
+
             tasks.append(asyncio.create_task(run_arbitrage_scanner_active()))
             logger.info("✅ ⚡ ARBITRAGE SCANNER - Cross-exchange arb active!")
-        
+
         # QUANTUM EXECUTOR - Quantum execution optimization
         if hasattr(self, 'quantum_executor') and self.quantum_executor:
             async def run_quantum_executor_active():
@@ -230,7 +230,7 @@ def wire_all_remaining_engines():
                     try:
                         # Optimize execution for pending orders
                         optimization = await self.quantum_executor.optimize_execution(['BTC/USDT', 'ETH/USDT'])
-                        
+
                         if optimization and optimization.get('optimal_time'):
                             for opt in optimization['recommendations']:
                                 signal = {
@@ -242,15 +242,15 @@ def wire_all_remaining_engines():
                                 }
                                 await self.data_hub.publish_signal(signal)
                                 logger.info(f"⚛️  QUANTUM EXEC → {signal['symbol']}: {signal['action']} (score: {signal['execution_score']:.2f})")
-                        
+
                         await asyncio.sleep(20)  # Every 20 seconds
                     except Exception as e:
                         logger.debug(f"Quantum executor: {e}")
                         await asyncio.sleep(20)
-            
+
             tasks.append(asyncio.create_task(run_quantum_executor_active()))
             logger.info("✅ ⚛️  QUANTUM EXECUTOR - Execution optimization active!")
-        
+
         # LIQUIDITY GUARD - Liquidity checker
         if hasattr(self, 'liquidity_guard') and self.liquidity_guard:
             async def run_liquidity_guard_active():
@@ -259,7 +259,7 @@ def wire_all_remaining_engines():
                     try:
                         # Check liquidity for active pairs
                         liquidity_check = await self.liquidity_guard.check_all(['BTC/USDT', 'ETH/USDT'])
-                        
+
                         for check in liquidity_check:
                             if check.get('signal'):
                                 signal = {
@@ -271,15 +271,15 @@ def wire_all_remaining_engines():
                                 }
                                 await self.data_hub.publish_signal(signal)
                                 logger.info(f"💧 LIQUIDITY GUARD → {signal['symbol']}: {signal['action']} (score: {signal['liquidity_score']:.2f})")
-                        
+
                         await asyncio.sleep(60)  # Every minute
                     except Exception as e:
                         logger.debug(f"Liquidity guard: {e}")
                         await asyncio.sleep(60)
-            
+
             tasks.append(asyncio.create_task(run_liquidity_guard_active()))
             logger.info("✅ 💧 LIQUIDITY GUARD - Liquidity validation active!")
-        
+
         # PORTFOLIO ALLOCATOR - Portfolio optimization
         if hasattr(self, 'portfolio_allocator') and self.portfolio_allocator:
             async def run_portfolio_allocator_active():
@@ -288,7 +288,7 @@ def wire_all_remaining_engines():
                     try:
                         # Optimize portfolio allocation
                         allocation = await self.portfolio_allocator.optimize(['BTC/USDT', 'ETH/USDT', 'SOL/USDT'])
-                        
+
                         if allocation:
                             for alloc in allocation['recommendations']:
                                 signal = {
@@ -300,15 +300,15 @@ def wire_all_remaining_engines():
                                 }
                                 await self.data_hub.publish_signal(signal)
                                 logger.info(f"📊 PORTFOLIO → {signal['symbol']}: {signal['action']} ({signal['allocation_pct']:.1f}% allocation)")
-                        
+
                         await asyncio.sleep(300)  # Every 5 minutes
                     except Exception as e:
                         logger.debug(f"Portfolio allocator: {e}")
                         await asyncio.sleep(300)
-            
+
             tasks.append(asyncio.create_task(run_portfolio_allocator_active()))
             logger.info("✅ 📊 PORTFOLIO ALLOCATOR - Position optimization active!")
-        
+
         # POSITION SIZER - Dynamic position sizing
         if hasattr(self, 'position_sizer') and self.position_sizer:
             async def run_position_sizer_active():
@@ -317,7 +317,7 @@ def wire_all_remaining_engines():
                     try:
                         # Calculate optimal sizes for active pairs
                         sizing = await self.position_sizer.calculate(['BTC/USDT', 'ETH/USDT'])
-                        
+
                         for size_rec in sizing:
                             if size_rec.get('signal'):
                                 signal = {
@@ -329,15 +329,15 @@ def wire_all_remaining_engines():
                                 }
                                 await self.data_hub.publish_signal(signal)
                                 logger.info(f"📏 SIZER → {signal['symbol']}: {signal['action']} (size: ${signal['size_recommendation']:.2f})")
-                        
+
                         await asyncio.sleep(180)  # Every 3 minutes
                     except Exception as e:
                         logger.debug(f"Position sizer: {e}")
                         await asyncio.sleep(180)
-            
+
             tasks.append(asyncio.create_task(run_position_sizer_active()))
             logger.info("✅ 📏 POSITION SIZER - Dynamic sizing active!")
-        
+
         # META STRATEGY SELECTOR - Adaptive strategy selection
         if hasattr(self, 'meta_selector') and self.meta_selector:
             async def run_meta_selector_active():
@@ -346,7 +346,7 @@ def wire_all_remaining_engines():
                     try:
                         # Select best strategy for current market
                         selection = await self.meta_selector.select_best_strategy(['BTC/USDT', 'ETH/USDT'])
-                        
+
                         if selection:
                             for sel in selection:
                                 signal = {
@@ -358,15 +358,15 @@ def wire_all_remaining_engines():
                                 }
                                 await self.data_hub.publish_signal(signal)
                                 logger.info(f"🎯 META SELECTOR [{signal['selected_strategy']}] → {signal['symbol']}: {signal['action']}")
-                        
+
                         await asyncio.sleep(120)  # Every 2 minutes
                     except Exception as e:
                         logger.debug(f"Meta selector: {e}")
                         await asyncio.sleep(120)
-            
+
             tasks.append(asyncio.create_task(run_meta_selector_active()))
             logger.info("✅ 🎯 META SELECTOR - Adaptive strategy selection active!")
-        
+
         # CORE STRATEGY ENGINE - Technical strategies
         if hasattr(self, 'strategy_engine') and self.strategy_engine:
             async def run_strategy_engine_active():
@@ -376,7 +376,7 @@ def wire_all_remaining_engines():
                         # Run all technical strategies
                         for symbol in ['BTC/USDT', 'ETH/USDT', 'BNB/USDT']:
                             strategies_result = await self.strategy_engine.run_all_strategies(symbol, {})
-                            
+
                             for result in strategies_result:
                                 if result.get('signal'):
                                     signal = {
@@ -388,15 +388,15 @@ def wire_all_remaining_engines():
                                     }
                                     await self.data_hub.publish_signal(signal)
                                     logger.info(f"📈 STRATEGY [{signal['strategy_name']}] → {symbol}: {signal['action']}")
-                        
+
                         await asyncio.sleep(60)  # Every minute
                     except Exception as e:
                         logger.debug(f"Strategy engine: {e}")
                         await asyncio.sleep(60)
-            
+
             tasks.append(asyncio.create_task(run_strategy_engine_active()))
             logger.info("✅ 📈 STRATEGY ENGINE - Technical strategies active!")
-        
+
         # CORE RISK MANAGER - Risk assessment
         if hasattr(self, 'risk_manager_core') and self.risk_manager_core:
             async def run_risk_manager_active():
@@ -405,7 +405,7 @@ def wire_all_remaining_engines():
                     try:
                         # Assess risk for active positions
                         risk_assessment = await self.risk_manager_core.assess_all()
-                        
+
                         if risk_assessment and risk_assessment.get('alerts'):
                             for alert in risk_assessment['alerts']:
                                 if alert.get('action'):
@@ -418,36 +418,36 @@ def wire_all_remaining_engines():
                                     }
                                     await self.data_hub.publish_signal(signal)
                                     logger.info(f"⚠️  RISK MANAGER [{signal['risk_level']}] → {signal['symbol']}: {signal['action']}")
-                        
+
                         await asyncio.sleep(30)  # Every 30 seconds - risk is important!
                     except Exception as e:
                         logger.debug(f"Risk manager: {e}")
                         await asyncio.sleep(30)
-            
+
             tasks.append(asyncio.create_task(run_risk_manager_active()))
             logger.info("✅ ⚠️  RISK MANAGER - Risk validation active!")
-        
+
         logger.info("=" * 80)
         logger.info("🔥 ABSOLUTELY EVERYTHING WIRED - ALL ENGINES RUNNING!")
         logger.info("=" * 80)
 '''
-    
+
     # Insert after the marker
     content = content.replace(marker, marker + additional_loops)
-    
+
     with open(filepath, 'w') as f:
         f.write(content)
-    
+
     print("✅ Added ALL remaining engine loops!")
     return True
 
 def verify_all_loops():
     """Verify all loops are there"""
     print("\n🔍 Verifying ALL task loops...")
-    
+
     with open('COMPLETE_ULTIMATE_ORCHESTRATOR.py', 'r') as f:
         content = f.read()
-    
+
     all_loops = [
         # Original 10
         ('run_ultra_rare_active', 'Ultra Rare'),
@@ -475,7 +475,7 @@ def verify_all_loops():
         ('run_strategy_engine_active', 'Strategy Engine'),
         ('run_risk_manager_active', 'Risk Manager'),
     ]
-    
+
     found = 0
     for loop_name, display_name in all_loops:
         if f'async def {loop_name}' in content:
@@ -483,13 +483,13 @@ def verify_all_loops():
             found += 1
         else:
             print(f"   ❌ {display_name} - NOT FOUND!")
-    
+
     print(f"\n📊 Found {found}/{len(all_loops)} task loops")
-    
+
     # Count total including original 24
     total_engines = 24 + found  # 24 original + new ones
     print(f"\n🎯 TOTAL ACTIVE ENGINES: {total_engines}")
-    
+
     return found
 
 def main():
@@ -518,13 +518,13 @@ def main():
     ║                                                                   ║
     ╚═══════════════════════════════════════════════════════════════════╝
     """)
-    
+
     if not wire_all_remaining_engines():
         print("❌ Wiring failed")
         return 1
-    
+
     total_found = verify_all_loops()
-    
+
     print("\n" + "="*80)
     print("✅ ABSOLUTELY EVERYTHING WIRED!")
     print("="*80)
@@ -535,7 +535,7 @@ def main():
     print(f"   TOTAL RUNNING: {24 + total_found}+ engines")
     print(f"\n🔥 EVERY ENGINE IN YOUR CODEBASE IS NOW WIRED!")
     print(f"\n🚀 Ready to deploy!")
-    
+
     return 0
 
 if __name__ == "__main__":

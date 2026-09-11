@@ -62,10 +62,10 @@ cat >> ultimate_ultra_plus.py << 'UPDATE_EOF'
 try:
     from critical_features import *
     from quantum_intelligence import *
-    
+
     # Add to bot initialization
     print("🔮 Initializing Quantum Intelligence...")
-    
+
     # Critical features
     trailing_stop_manager = TrailingStopManager(0.02)
     compound_engine = CompoundEngine(1000, 0.5)
@@ -73,17 +73,17 @@ try:
     funding_arbitrage = FundingArbitrage()
     volume_analyzer = VolumeProfileAnalyzer()
     emergency_stop = EmergencyStop()
-    
+
     # Quantum intelligence
     microstructure_decoder = MicrostructureDecoder()
     quantum_momentum = QuantumMomentumOscillator()
     fractal_resonance = FractalResonanceDetector()
     sequence_predictor = NeuralSequencePredictor()
     regime_detector = AdaptiveMarketRegimeDetector()
-    
+
     print("✅ All Quantum Systems Activated!")
     print("🚀 Expected profit increase: 300-500%")
-    
+
 except ImportError as e:
     print(f"Warning: Some features not loaded: {e}")
 

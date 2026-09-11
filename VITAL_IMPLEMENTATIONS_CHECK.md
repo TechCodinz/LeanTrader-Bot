@@ -102,7 +102,7 @@ class PermanentKnowledgeEvolution:
         self.knowledge_base = {}
         self.evolution_history = []
         self.permanent_learnings = {}
-    
+
     def evolve_permanently(self, new_knowledge):
         """Permanently evolve knowledge base"""
         # Store in permanent database

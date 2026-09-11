@@ -12,7 +12,7 @@ echo ""
 echo "2️⃣  Check if engines are publishing signals:"
 grep -E "publish_signal|→.*:|SIGNAL:" bot.log 2>/dev/null | tail -20
 
-echo ""  
+echo ""
 echo "3️⃣  Check MICRO status:"
 grep -E "MICRO.*using|crypto_pairs|MICRO GROWTH" bot.log 2>/dev/null | tail -10
 

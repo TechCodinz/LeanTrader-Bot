@@ -24,22 +24,22 @@ print("1️⃣  Finding decision logging code...")
 try:
     with open('COMPLETE_UNIFIED_ORCHESTRATOR.py', 'r') as f:
         unified_content = f.read()
-    
+
     # Backup
     with open('COMPLETE_UNIFIED_ORCHESTRATOR.py.pre_action_display', 'w') as f:
         f.write(unified_content)
-    
+
     # Find where decisions are logged (look for "Decision: BUY" or "Decision: SELL")
     if 'logger.info(f"🎯 Decision:' in unified_content:
         print("   ✅ Found decision logging")
-        
+
         # We need to enhance the decision before it's logged
         # Look for the pattern where decision is created
-        
+
         # Add enhanced logging right after decision is made
         # Find the decision logging pattern
         pattern = r'logger\.info\(f"🎯 Decision: \{action\} \{symbol\} \(conf: \{confidence\*100:.1f\}%\)"\)'
-        
+
         if re.search(pattern, unified_content):
             # Replace with enhanced version that includes advanced action
             enhanced_log = '''# Determine advanced action
@@ -48,7 +48,7 @@ try:
                         adv_actions = get_advanced_actions()
                         direction = 'buy' if action == 'BUY' else 'sell'
                         adv_action = adv_actions.determine_action(
-                            symbol, direction, confidence, 
+                            symbol, direction, confidence,
                             timeframe='1h', volatility=0.02
                         )
                         action_display = f"{adv_action['action']} {adv_action['leverage']}X" if adv_action['leverage'] > 1 else adv_action['action']
@@ -56,20 +56,20 @@ try:
                         logger.debug(f"   Reason: {adv_action['reason']}")
                     except:
                         logger.info(f"🎯 Decision: {action} {symbol} (conf: {confidence*100:.1f}%)")'''
-            
+
             unified_content = re.sub(
                 pattern,
                 enhanced_log,
                 unified_content
             )
-            
+
             print("   ✅ Enhanced decision logging")
-            
+
             with open('COMPLETE_UNIFIED_ORCHESTRATOR.py', 'w') as f:
                 f.write(unified_content)
         else:
             print("   ⚠️  Pattern not found, trying simpler approach")
-            
+
 except Exception as e:
     print(f"   ❌ Error: {e}")
 

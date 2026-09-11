@@ -113,7 +113,7 @@ class NobelAIModels:
     """
     Nobel Prize-level AI/ML models for trading
     """
-    
+
     def __init__(self, config: Dict):
         self.config = config
         self.models = {}
@@ -123,19 +123,19 @@ class NobelAIModels:
         self.deep_learning_models = {}
         self.time_series_models = {}
         self.performance_metrics = {}
-        
+
         # Model directories
         self.model_dir = Path("models")
         self.model_dir.mkdir(exist_ok=True)
-        
+
         # Initialize models
         self.initialize_models()
-        
+
     def initialize_models(self):
         """Initialize all AI/ML models"""
         try:
             logger.info("🧠 Initializing Nobel AI Models...")
-            
+
             # Price prediction models
             self.models['price_prediction'] = {
                 'random_forest': RandomForestRegressor(
@@ -173,7 +173,7 @@ class NobelAIModels:
                 'ridge': Ridge(alpha=1.0),
                 'lasso': Lasso(alpha=0.1)
             }
-            
+
             # Signal classification models
             self.models['signal_classification'] = {
                 'random_forest': RandomForestClassifier(
@@ -212,7 +212,7 @@ class NobelAIModels:
                 'naive_bayes': GaussianNB(),
                 'knn': KNeighborsClassifier(n_neighbors=5)
             }
-            
+
             # Volatility prediction models
             self.models['volatility_prediction'] = {
                 'random_forest': RandomForestRegressor(
@@ -234,7 +234,7 @@ class NobelAIModels:
                     random_state=42
                 )
             }
-            
+
             # Sentiment analysis models
             self.models['sentiment_analysis'] = {
                 'random_forest': RandomForestClassifier(
@@ -254,7 +254,7 @@ class NobelAIModels:
                 'naive_bayes': GaussianNB(),
                 'svc': SVC(kernel='rbf', C=1.0, gamma='scale', probability=True)
             }
-            
+
             # Risk assessment models
             self.models['risk_assessment'] = {
                 'random_forest': RandomForestRegressor(
@@ -270,7 +270,7 @@ class NobelAIModels:
                     random_state=42, n_jobs=-1
                 )
             }
-            
+
             # Initialize scalers
             for model_type in self.models.keys():
                 self.scalers[model_type] = {
@@ -278,7 +278,7 @@ class NobelAIModels:
                     'minmax': MinMaxScaler(),
                     'robust': RobustScaler()
                 }
-            
+
             # Initialize feature selectors
             for model_type in self.models.keys():
                 self.feature_selectors[model_type] = {
@@ -286,22 +286,22 @@ class NobelAIModels:
                     'mutual_info': SelectKBest(mutual_info_regression, k=50),
                     'pca': PCA(n_components=0.95)
                 }
-            
+
             # Initialize ensemble models
             self.initialize_ensemble_models()
-            
+
             # Initialize deep learning models
             self.initialize_deep_learning_models()
-            
+
             # Initialize time series models
             self.initialize_time_series_models()
-            
+
             logger.info("✅ Nobel AI Models initialized successfully")
-            
+
         except Exception as e:
             logger.error(f"AI model initialization error: {e}")
             raise
-    
+
     def initialize_ensemble_models(self):
         """Initialize ensemble models"""
         try:
@@ -313,12 +313,12 @@ class NobelAIModels:
                 ('lgb', self.models['price_prediction']['lightgbm']),
                 ('cat', self.models['price_prediction']['catboost'])
             ]
-            
+
             self.ensemble_models['price_prediction'] = VotingRegressor(
                 estimators=price_models,
                 weights=[0.2, 0.2, 0.2, 0.2, 0.2]
             )
-            
+
             # Signal classification ensemble
             signal_models = [
                 ('rf', self.models['signal_classification']['random_forest']),
@@ -327,18 +327,18 @@ class NobelAIModels:
                 ('lgb', self.models['signal_classification']['lightgbm']),
                 ('cat', self.models['signal_classification']['catboost'])
             ]
-            
+
             self.ensemble_models['signal_classification'] = VotingClassifier(
                 estimators=signal_models,
                 voting='soft',
                 weights=[0.2, 0.2, 0.2, 0.2, 0.2]
             )
-            
+
             logger.info("✅ Ensemble models initialized")
-            
+
         except Exception as e:
             logger.error(f"Ensemble model initialization error: {e}")
-    
+
     def initialize_deep_learning_models(self):
         """Initialize deep learning models"""
         try:
@@ -348,33 +348,33 @@ class NobelAIModels:
                 output_units=1,
                 model_type='regression'
             )
-            
+
             # GRU for volatility prediction
             self.deep_learning_models['gru_volatility'] = self.build_gru_model(
                 input_shape=(30, 30),  # 30 timesteps, 30 features
                 output_units=1,
                 model_type='regression'
             )
-            
+
             # CNN for pattern recognition
             self.deep_learning_models['cnn_patterns'] = self.build_cnn_model(
                 input_shape=(100, 1),  # 100 timesteps, 1 feature
                 output_units=3,  # 3 classes: buy, sell, hold
                 model_type='classification'
             )
-            
+
             # Transformer for attention-based prediction
             self.deep_learning_models['transformer'] = self.build_transformer_model(
                 input_shape=(60, 50),
                 output_units=1,
                 model_type='regression'
             )
-            
+
             logger.info("✅ Deep learning models initialized")
-            
+
         except Exception as e:
             logger.error(f"Deep learning model initialization error: {e}")
-    
+
     def build_lstm_model(self, input_shape: Tuple, output_units: int, model_type: str) -> Model:
         """Build LSTM model"""
         try:
@@ -389,18 +389,18 @@ class NobelAIModels:
                 Dropout(0.2),
                 Dense(output_units, activation='linear' if model_type == 'regression' else 'softmax')
             ])
-            
+
             optimizer = Adam(learning_rate=0.001)
             loss = 'mse' if model_type == 'regression' else 'categorical_crossentropy'
             metrics = ['mae'] if model_type == 'regression' else ['accuracy']
-            
+
             model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
             return model
-            
+
         except Exception as e:
             logger.error(f"LSTM model build error: {e}")
             return None
-    
+
     def build_gru_model(self, input_shape: Tuple, output_units: int, model_type: str) -> Model:
         """Build GRU model"""
         try:
@@ -415,18 +415,18 @@ class NobelAIModels:
                 Dropout(0.2),
                 Dense(output_units, activation='linear' if model_type == 'regression' else 'softmax')
             ])
-            
+
             optimizer = Adam(learning_rate=0.001)
             loss = 'mse' if model_type == 'regression' else 'categorical_crossentropy'
             metrics = ['mae'] if model_type == 'regression' else ['accuracy']
-            
+
             model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
             return model
-            
+
         except Exception as e:
             logger.error(f"GRU model build error: {e}")
             return None
-    
+
     def build_cnn_model(self, input_shape: Tuple, output_units: int, model_type: str) -> Model:
         """Build CNN model"""
         try:
@@ -444,64 +444,64 @@ class NobelAIModels:
                 Dropout(0.2),
                 Dense(output_units, activation='linear' if model_type == 'regression' else 'softmax')
             ])
-            
+
             optimizer = Adam(learning_rate=0.001)
             loss = 'mse' if model_type == 'regression' else 'categorical_crossentropy'
             metrics = ['mae'] if model_type == 'regression' else ['accuracy']
-            
+
             model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
             return model
-            
+
         except Exception as e:
             logger.error(f"CNN model build error: {e}")
             return None
-    
+
     def build_transformer_model(self, input_shape: Tuple, output_units: int, model_type: str) -> Model:
         """Build Transformer model"""
         try:
             inputs = Input(shape=input_shape)
-            
+
             # Multi-head attention
             attention = MultiHeadAttention(
                 num_heads=8, key_dim=64, dropout=0.1
             )(inputs, inputs)
-            
+
             # Add & Norm
             attention = Dropout(0.1)(attention)
             attention = Dense(input_shape[1])(attention)
             attention = tf.keras.layers.Add()([inputs, attention])
             attention = tf.keras.layers.LayerNormalization()(attention)
-            
+
             # Feed forward
             ffn = Dense(256, activation='relu')(attention)
             ffn = Dropout(0.1)(ffn)
             ffn = Dense(input_shape[1])(ffn)
             ffn = tf.keras.layers.Add()([attention, ffn])
             ffn = tf.keras.layers.LayerNormalization()(ffn)
-            
+
             # Global average pooling
             pooled = tf.keras.layers.GlobalAveragePooling1D()(ffn)
-            
+
             # Output layers
             output = Dense(128, activation='relu')(pooled)
             output = Dropout(0.3)(output)
             output = Dense(64, activation='relu')(output)
             output = Dropout(0.2)(output)
             output = Dense(output_units, activation='linear' if model_type == 'regression' else 'softmax')(output)
-            
+
             model = Model(inputs=inputs, outputs=output)
-            
+
             optimizer = Adam(learning_rate=0.001)
             loss = 'mse' if model_type == 'regression' else 'categorical_crossentropy'
             metrics = ['mae'] if model_type == 'regression' else ['accuracy']
-            
+
             model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
             return model
-            
+
         except Exception as e:
             logger.error(f"Transformer model build error: {e}")
             return None
-    
+
     def initialize_time_series_models(self):
         """Initialize time series models"""
         try:
@@ -510,92 +510,92 @@ class NobelAIModels:
                 'sarima': SARIMAX,
                 'exponential_smoothing': ExponentialSmoothing
             }
-            
+
             logger.info("✅ Time series models initialized")
-            
+
         except Exception as e:
             logger.error(f"Time series model initialization error: {e}")
-    
+
     def prepare_features(self, data: pd.DataFrame, model_type: str) -> Tuple[np.ndarray, np.ndarray]:
         """Prepare features for ML models"""
         try:
             # Technical indicators
             features = self.calculate_technical_indicators(data)
-            
+
             # Price features
             features = self.calculate_price_features(features)
-            
+
             # Volume features
             features = self.calculate_volume_features(features)
-            
+
             # Volatility features
             features = self.calculate_volatility_features(features)
-            
+
             # Momentum features
             features = self.calculate_momentum_features(features)
-            
+
             # Trend features
             features = self.calculate_trend_features(features)
-            
+
             # Pattern features
             features = self.calculate_pattern_features(features)
-            
+
             # Market microstructure features
             features = self.calculate_microstructure_features(features)
-            
+
             # Remove NaN values
             features = features.dropna()
-            
+
             if len(features) < 10:
                 logger.warning("Insufficient data for feature preparation")
                 return np.array([]), np.array([])
-            
+
             # Separate features and target
             feature_columns = [col for col in features.columns if col not in ['target', 'future_price', 'future_return']]
             X = features[feature_columns].values
             y = features['target'].values if 'target' in features.columns else np.zeros(len(features))
-            
+
             # Feature scaling
             scaler = self.scalers[model_type]['standard']
             X_scaled = scaler.fit_transform(X)
-            
+
             # Feature selection
             selector = self.feature_selectors[model_type]['k_best']
             X_selected = selector.fit_transform(X_scaled, y)
-            
+
             return X_selected, y
-            
+
         except Exception as e:
             logger.error(f"Feature preparation error: {e}")
             return np.array([]), np.array([])
-    
+
     def calculate_technical_indicators(self, data: pd.DataFrame) -> pd.DataFrame:
         """Calculate technical indicators"""
         try:
             df = data.copy()
-            
+
             # Price-based indicators
             df['sma_5'] = talib.SMA(df['close'], timeperiod=5)
             df['sma_10'] = talib.SMA(df['close'], timeperiod=10)
             df['sma_20'] = talib.SMA(df['close'], timeperiod=20)
             df['sma_50'] = talib.SMA(df['close'], timeperiod=50)
             df['sma_200'] = talib.SMA(df['close'], timeperiod=200)
-            
+
             df['ema_5'] = talib.EMA(df['close'], timeperiod=5)
             df['ema_10'] = talib.EMA(df['close'], timeperiod=10)
             df['ema_20'] = talib.EMA(df['close'], timeperiod=20)
             df['ema_50'] = talib.EMA(df['close'], timeperiod=50)
-            
+
             # RSI
             df['rsi_14'] = talib.RSI(df['close'], timeperiod=14)
             df['rsi_21'] = talib.RSI(df['close'], timeperiod=21)
-            
+
             # MACD
             macd, macd_signal, macd_hist = talib.MACD(df['close'])
             df['macd'] = macd
             df['macd_signal'] = macd_signal
             df['macd_hist'] = macd_hist
-            
+
             # Bollinger Bands
             bb_upper, bb_middle, bb_lower = talib.BBANDS(df['close'])
             df['bb_upper'] = bb_upper
@@ -603,171 +603,171 @@ class NobelAIModels:
             df['bb_lower'] = bb_lower
             df['bb_width'] = (bb_upper - bb_lower) / bb_middle
             df['bb_position'] = (df['close'] - bb_lower) / (bb_upper - bb_lower)
-            
+
             # Stochastic
             stoch_k, stoch_d = talib.STOCH(df['high'], df['low'], df['close'])
             df['stoch_k'] = stoch_k
             df['stoch_d'] = stoch_d
-            
+
             # Williams %R
             df['williams_r'] = talib.WILLR(df['high'], df['low'], df['close'])
-            
+
             # CCI
             df['cci'] = talib.CCI(df['high'], df['low'], df['close'])
-            
+
             # ATR
             df['atr'] = talib.ATR(df['high'], df['low'], df['close'])
-            
+
             # ADX
             df['adx'] = talib.ADX(df['high'], df['low'], df['close'])
             df['plus_di'] = talib.PLUS_DI(df['high'], df['low'], df['close'])
             df['minus_di'] = talib.MINUS_DI(df['high'], df['low'], df['close'])
-            
+
             # OBV
             df['obv'] = talib.OBV(df['close'], df['volume'])
-            
+
             # MFI
             df['mfi'] = talib.MFI(df['high'], df['low'], df['close'], df['volume'])
-            
+
             return df
-            
+
         except Exception as e:
             logger.error(f"Technical indicators calculation error: {e}")
             return data
-    
+
     def calculate_price_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """Calculate price-based features"""
         try:
             df = data.copy()
-            
+
             # Returns
             df['returns'] = df['close'].pct_change()
             df['log_returns'] = np.log(df['close'] / df['close'].shift(1))
-            
+
             # Price changes
             df['price_change'] = df['close'] - df['open']
             df['price_range'] = df['high'] - df['low']
             df['body_size'] = abs(df['close'] - df['open'])
             df['upper_shadow'] = df['high'] - np.maximum(df['open'], df['close'])
             df['lower_shadow'] = np.minimum(df['open'], df['close']) - df['low']
-            
+
             # Price ratios
             df['close_open_ratio'] = df['close'] / df['open']
             df['high_close_ratio'] = df['high'] / df['close']
             df['low_close_ratio'] = df['low'] / df['close']
-            
+
             # Price momentum
             for period in [5, 10, 20, 50]:
                 df[f'price_momentum_{period}'] = df['close'] / df['close'].shift(period) - 1
                 df[f'price_roc_{period}'] = df['close'].pct_change(period)
-            
+
             return df
-            
+
         except Exception as e:
             logger.error(f"Price features calculation error: {e}")
             return data
-    
+
     def calculate_volume_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """Calculate volume-based features"""
         try:
             df = data.copy()
-            
+
             # Volume ratios
             for period in [5, 10, 20, 50]:
                 df[f'volume_sma_{period}'] = df['volume'].rolling(period).mean()
                 df[f'volume_ratio_{period}'] = df['volume'] / df[f'volume_sma_{period}']
-            
+
             # Volume momentum
             for period in [5, 10, 20]:
                 df[f'volume_momentum_{period}'] = df['volume'] / df['volume'].shift(period) - 1
-            
+
             # Volume-price features
             df['volume_price_trend'] = df['volume'] * df['returns']
             df['volume_weighted_price'] = (df['volume'] * df['close']).rolling(20).sum() / df['volume'].rolling(20).sum()
-            
+
             # On-balance volume
             df['obv_ratio'] = df['obv'] / df['obv'].rolling(20).mean()
-            
+
             return df
-            
+
         except Exception as e:
             logger.error(f"Volume features calculation error: {e}")
             return data
-    
+
     def calculate_volatility_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """Calculate volatility features"""
         try:
             df = data.copy()
-            
+
             # Historical volatility
             for period in [5, 10, 20, 50]:
                 df[f'volatility_{period}'] = df['returns'].rolling(period).std()
                 df[f'volatility_ratio_{period}'] = df[f'volatility_{period}'] / df[f'volatility_{period}'].rolling(50).mean()
-            
+
             # GARCH-like features
             df['volatility_clustering'] = df['returns'].rolling(5).apply(lambda x: np.corrcoef(x[:-1], x[1:])[0, 1] if len(x) > 1 else 0)
-            
+
             # Volatility of volatility
             df['vol_vol'] = df['volatility_20'].rolling(20).std()
-            
+
             return df
-            
+
         except Exception as e:
             logger.error(f"Volatility features calculation error: {e}")
             return data
-    
+
     def calculate_momentum_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """Calculate momentum features"""
         try:
             df = data.copy()
-            
+
             # Rate of change
             for period in [5, 10, 20, 50]:
                 df[f'roc_{period}'] = df['close'].pct_change(period)
-            
+
             # Momentum
             for period in [5, 10, 20]:
                 df[f'momentum_{period}'] = df['close'] - df['close'].shift(period)
-            
+
             # Price velocity
             df['price_velocity'] = df['close'].diff().diff()
             df['price_acceleration'] = df['price_velocity'].diff()
-            
+
             return df
-            
+
         except Exception as e:
             logger.error(f"Momentum features calculation error: {e}")
             return data
-    
+
     def calculate_trend_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """Calculate trend features"""
         try:
             df = data.copy()
-            
+
             # Trend strength
             for period in [5, 10, 20, 50]:
                 df[f'trend_strength_{period}'] = np.where(df['close'] > df[f'sma_{period}'], 1, -1)
-            
+
             # Trend consistency
             df['trend_consistency'] = df[['trend_strength_5', 'trend_strength_10', 'trend_strength_20']].sum(axis=1)
-            
+
             # Support and resistance
             df['resistance'] = df['high'].rolling(20).max()
             df['support'] = df['low'].rolling(20).min()
             df['resistance_distance'] = (df['resistance'] - df['close']) / df['close']
             df['support_distance'] = (df['close'] - df['support']) / df['close']
-            
+
             return df
-            
+
         except Exception as e:
             logger.error(f"Trend features calculation error: {e}")
             return data
-    
+
     def calculate_pattern_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """Calculate pattern recognition features"""
         try:
             df = data.copy()
-            
+
             # Candlestick patterns
             df['doji'] = talib.CDLDOJI(df['open'], df['high'], df['low'], df['close'])
             df['hammer'] = talib.CDLHAMMER(df['open'], df['high'], df['low'], df['close'])
@@ -776,68 +776,68 @@ class NobelAIModels:
             df['harami'] = talib.CDLHARAMI(df['open'], df['high'], df['low'], df['close'])
             df['morning_star'] = talib.CDLMORNINGSTAR(df['open'], df['high'], df['low'], df['close'])
             df['evening_star'] = talib.CDLEVENINGSTAR(df['open'], df['high'], df['low'], df['close'])
-            
+
             # Pattern strength
             pattern_columns = ['doji', 'hammer', 'hanging_man', 'engulfing', 'harami', 'morning_star', 'evening_star']
             df['pattern_strength'] = df[pattern_columns].abs().sum(axis=1)
-            
+
             return df
-            
+
         except Exception as e:
             logger.error(f"Pattern features calculation error: {e}")
             return data
-    
+
     def calculate_microstructure_features(self, data: pd.DataFrame) -> pd.DataFrame:
         """Calculate market microstructure features"""
         try:
             df = data.copy()
-            
+
             # Bid-ask spread proxy
             df['spread_proxy'] = (df['high'] - df['low']) / df['close']
-            
+
             # Price impact
             df['price_impact'] = df['returns'] / np.log(1 + df['volume'])
-            
+
             # Order flow imbalance
             df['order_flow'] = (df['close'] - df['open']) / (df['high'] - df['low'])
-            
+
             # Tick direction
             df['tick_direction'] = np.where(df['close'] > df['close'].shift(1), 1, -1)
-            
+
             # Tick momentum
             df['tick_momentum'] = df['tick_direction'].rolling(5).sum()
-            
+
             return df
-            
+
         except Exception as e:
             logger.error(f"Microstructure features calculation error: {e}")
             return data
-    
+
     def train_models(self, X: np.ndarray, y: np.ndarray, model_type: str) -> Dict:
         """Train all models for a given type"""
         try:
             if len(X) == 0 or len(y) == 0:
                 logger.warning("No data available for training")
                 return {}
-            
+
             # Split data
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.2, random_state=42, shuffle=False
             )
-            
+
             results = {}
-            
+
             # Train individual models
             for model_name, model in self.models[model_type].items():
                 try:
                     logger.info(f"Training {model_name} for {model_type}...")
-                    
+
                     # Train model
                     model.fit(X_train, y_train)
-                    
+
                     # Make predictions
                     y_pred = model.predict(X_test)
-                    
+
                     # Calculate metrics
                     if model_type == 'price_prediction' or model_type == 'volatility_prediction' or model_type == 'risk_assessment':
                         mse = mean_squared_error(y_test, y_pred)
@@ -846,25 +846,25 @@ class NobelAIModels:
                     else:
                         accuracy = accuracy_score(y_test, y_pred)
                         results[model_name] = {'accuracy': accuracy}
-                    
+
                     # Save model
                     model_path = self.model_dir / f"{model_type}_{model_name}.pkl"
                     joblib.dump(model, model_path)
-                    
+
                     logger.info(f"✅ {model_name} trained successfully")
-                    
+
                 except Exception as e:
                     logger.error(f"Error training {model_name}: {e}")
                     continue
-            
+
             # Train ensemble model
             if model_type in self.ensemble_models:
                 try:
                     logger.info(f"Training ensemble model for {model_type}...")
                     self.ensemble_models[model_type].fit(X_train, y_train)
-                    
+
                     y_pred_ensemble = self.ensemble_models[model_type].predict(X_test)
-                    
+
                     if model_type == 'price_prediction' or model_type == 'volatility_prediction' or model_type == 'risk_assessment':
                         mse = mean_squared_error(y_test, y_pred_ensemble)
                         r2 = r2_score(y_test, y_pred_ensemble)
@@ -872,25 +872,25 @@ class NobelAIModels:
                     else:
                         accuracy = accuracy_score(y_test, y_pred_ensemble)
                         results['ensemble'] = {'accuracy': accuracy}
-                    
+
                     # Save ensemble model
                     ensemble_path = self.model_dir / f"{model_type}_ensemble.pkl"
                     joblib.dump(self.ensemble_models[model_type], ensemble_path)
-                    
+
                     logger.info(f"✅ Ensemble model trained successfully")
-                    
+
                 except Exception as e:
                     logger.error(f"Error training ensemble model: {e}")
-            
+
             # Store performance metrics
             self.performance_metrics[model_type] = results
-            
+
             return results
-            
+
         except Exception as e:
             logger.error(f"Model training error: {e}")
             return {}
-    
+
     def predict(self, X: np.ndarray, model_type: str, model_name: str = 'ensemble') -> np.ndarray:
         """Make predictions using trained models"""
         try:
@@ -901,11 +901,11 @@ class NobelAIModels:
             else:
                 logger.error(f"Model {model_name} not found for type {model_type}")
                 return np.array([])
-                
+
         except Exception as e:
             logger.error(f"Prediction error: {e}")
             return np.array([])
-    
+
     def optimize_hyperparameters(self, X: np.ndarray, y: np.ndarray, model_type: str, model_name: str) -> Dict:
         """Optimize hyperparameters using Optuna"""
         try:
@@ -928,20 +928,20 @@ class NobelAIModels:
                     model = xgb.XGBRegressor(**params, random_state=42, n_jobs=-1)
                 else:
                     return 0.0
-                
+
                 # Cross-validation
                 scores = cross_val_score(model, X, y, cv=5, scoring='neg_mean_squared_error')
                 return scores.mean()
-            
+
             study = optuna.create_study(direction='maximize')
             study.optimize(objective, n_trials=50)
-            
+
             return study.best_params
-            
+
         except Exception as e:
             logger.error(f"Hyperparameter optimization error: {e}")
             return {}
-    
+
     def save_models(self):
         """Save all trained models"""
         try:
@@ -949,24 +949,24 @@ class NobelAIModels:
                 for model_name, model in models.items():
                     model_path = self.model_dir / f"{model_type}_{model_name}.pkl"
                     joblib.dump(model, model_path)
-            
+
             # Save scalers
             for model_type, scalers in self.scalers.items():
                 for scaler_name, scaler in scalers.items():
                     scaler_path = self.model_dir / f"{model_type}_{scaler_name}_scaler.pkl"
                     joblib.dump(scaler, scaler_path)
-            
+
             # Save feature selectors
             for model_type, selectors in self.feature_selectors.items():
                 for selector_name, selector in selectors.items():
                     selector_path = self.model_dir / f"{model_type}_{selector_name}_selector.pkl"
                     joblib.dump(selector, selector_path)
-            
+
             logger.info("✅ All models saved successfully")
-            
+
         except Exception as e:
             logger.error(f"Model saving error: {e}")
-    
+
     def load_models(self):
         """Load all trained models"""
         try:
@@ -975,42 +975,42 @@ class NobelAIModels:
                     model_path = self.model_dir / f"{model_type}_{model_name}.pkl"
                     if model_path.exists():
                         self.models[model_type][model_name] = joblib.load(model_path)
-            
+
             # Load scalers
             for model_type in self.scalers.keys():
                 for scaler_name in self.scalers[model_type].keys():
                     scaler_path = self.model_dir / f"{model_type}_{scaler_name}_scaler.pkl"
                     if scaler_path.exists():
                         self.scalers[model_type][scaler_name] = joblib.load(scaler_path)
-            
+
             # Load feature selectors
             for model_type in self.feature_selectors.keys():
                 for selector_name in self.feature_selectors[model_type].keys():
                     selector_path = self.model_dir / f"{model_type}_{selector_name}_selector.pkl"
                     if selector_path.exists():
                         self.feature_selectors[model_type][selector_name] = joblib.load(selector_path)
-            
+
             logger.info("✅ All models loaded successfully")
-            
+
         except Exception as e:
             logger.error(f"Model loading error: {e}")
-    
+
     def get_model_performance(self) -> Dict:
         """Get performance metrics for all models"""
         return self.performance_metrics
-    
+
     def retrain_models(self, new_data: pd.DataFrame):
         """Retrain models with new data"""
         try:
             logger.info("🔄 Retraining models with new data...")
-            
+
             for model_type in self.models.keys():
                 X, y = self.prepare_features(new_data, model_type)
                 if len(X) > 0 and len(y) > 0:
                     self.train_models(X, y, model_type)
-            
+
             logger.info("✅ Models retrained successfully")
-            
+
         except Exception as e:
             logger.error(f"Model retraining error: {e}")
 
@@ -1024,9 +1024,9 @@ if __name__ == "__main__":
             'prediction_horizon': 10
         }
     }
-    
+
     ai_models = NobelAIModels(config)
-    
+
     # Create sample data
     dates = pd.date_range('2023-01-01', periods=1000, freq='1H')
     sample_data = pd.DataFrame({
@@ -1037,15 +1037,15 @@ if __name__ == "__main__":
         'close': np.random.randn(1000).cumsum() + 100,
         'volume': np.random.randint(1000, 10000, 1000)
     })
-    
+
     # Train models
     for model_type in ai_models.models.keys():
         X, y = ai_models.prepare_features(sample_data, model_type)
         if len(X) > 0 and len(y) > 0:
             results = ai_models.train_models(X, y, model_type)
             print(f"{model_type}: {results}")
-    
+
     # Save models
     ai_models.save_models()
-    
+
     print("✅ Nobel AI Models example completed")

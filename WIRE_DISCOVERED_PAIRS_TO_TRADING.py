@@ -35,10 +35,10 @@ with open('COMPLETE_ULTIMATE_ORCHESTRATOR.py.pre_wire', 'w') as f:
 # Find the run_dynamic_pair_discovery method
 if 'async def run_dynamic_pair_discovery' in ult_content:
     # Add universe update logic
-    
+
     # Find where it updates self.dynamic_pairs
     if 'self.dynamic_pairs.extend(new_pairs)' in ult_content or 'self.dynamic_pairs =' in ult_content:
-        
+
         # Add a method to refresh parent's universe
         update_method = '''
     def update_trading_universe(self):
@@ -49,11 +49,11 @@ if 'async def run_dynamic_pair_discovery' in ult_content:
                 # Update ultra_core's pair list
                 self.ultra_core.pairs = self.dynamic_pairs
                 logger.info(f'🔄 Updated ultra_core universe: {len(self.dynamic_pairs)} pairs')
-            
+
             if hasattr(self, 'trading_universe'):
                 self.trading_universe = self.dynamic_pairs
                 logger.info(f'🔄 Updated trading_universe: {len(self.dynamic_pairs)} pairs')
-            
+
             # Update engines if they exist
             if hasattr(self, 'engines'):
                 for engine_name, engine in self.engines.items():
@@ -61,26 +61,26 @@ if 'async def run_dynamic_pair_discovery' in ult_content:
                         engine.pairs = self.dynamic_pairs
                         logger.debug(f'🔄 Updated {engine_name}: {len(self.dynamic_pairs)} pairs')
 '''
-        
+
         # Add this method before run_dynamic_pair_discovery
         ult_content = ult_content.replace(
             'async def run_dynamic_pair_discovery',
             update_method + '\n    async def run_dynamic_pair_discovery'
         )
-        
+
         # Now call this method whenever pairs are updated
         # Find where self.dynamic_pairs is updated
         if 'logger.info(f"✅ Added {len(new_pairs)} new profitable pairs!")' in ult_content:
             ult_content = ult_content.replace(
                 'logger.info(f"✅ Added {len(new_pairs)} new profitable pairs!")',
                 '''logger.info(f"✅ Added {len(new_pairs)} new profitable pairs!")
-                    
+
                     # 🔌 UPDATE TRADING UNIVERSE
                     self.update_trading_universe()
                     logger.info(f"🔄 Trading engines now using {len(self.dynamic_pairs)} pairs!")'''
             )
             print("   ✅ Added universe update on discovery")
-        
+
         with open('COMPLETE_ULTIMATE_ORCHESTRATOR.py', 'w') as f:
             f.write(ult_content)
 
@@ -106,18 +106,18 @@ if 'def update_universe' not in uni_content:
         if new_universe and len(new_universe) > len(getattr(self, 'trading_universe', [])):
             old_count = len(getattr(self, 'trading_universe', []))
             self.trading_universe = new_universe
-            
+
             # Update ultra_core
             if hasattr(self, 'ultra_core') and hasattr(self.ultra_core, 'pairs'):
                 self.ultra_core.pairs = new_universe
-            
+
             logger.info(f"🔄 UNIVERSE EXPANDED: {old_count} → {len(new_universe)} pairs!")
             logger.info(f"   🎯 Trading engines now scanning {len(new_universe)} pairs!")
-            
+
             return True
         return False
 '''
-    
+
     # Add after __init__ or near other methods
     if 'async def initialize_all_systems' in uni_content:
         uni_content = uni_content.replace(
@@ -125,7 +125,7 @@ if 'def update_universe' not in uni_content:
             update_uni_method + '\n    async def initialize_all_systems'
         )
         print("   ✅ Added update_universe method")
-        
+
         with open('COMPLETE_UNIFIED_ORCHESTRATOR.py', 'w') as f:
             f.write(uni_content)
 

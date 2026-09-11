@@ -67,7 +67,7 @@ if [ "$answer" = "yes" ]; then
     sed -i 's/mode="testnet"/mode="live"/g' RUN_BOT.py
     sed -i "s/mode = 'testnet'/mode = 'live'/g" RUN_BOT.py
     sed -i 's/mode = "testnet"/mode = "live"/g' RUN_BOT.py
-    
+
     echo "✅ Switched to LIVE mode"
     echo "⚠️  WARNING: Bot will now use REAL money!"
     echo "   Start with small amount (\$40-100)"

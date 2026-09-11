@@ -8,11 +8,11 @@ import sys
 
 async def test_integration():
     """Test that everything imports and works together"""
-    
+
     print("\n" + "="*80)
     print("  TESTING DYNAMIC PAIR DISCOVERY INTEGRATION")
     print("="*80 + "\n")
-    
+
     # Test 1: Import discovery engine
     print("1️⃣  Testing discovery engine import...")
     try:
@@ -23,7 +23,7 @@ async def test_integration():
         print(f"   ❌ Failed to import discovery engine: {e}")
         return False
         get_discovery_engine = None
-    
+
     # Test 2: Import complete orchestrator
     print("\n2️⃣  Testing Complete Ultimate Orchestrator import...")
     try:
@@ -33,7 +33,7 @@ async def test_integration():
         print(f"   ❌ Failed to import orchestrator: {e}")
         return False
         CompleteUltimateOrchestrator = None
-    
+
     # Test 3: Quick discovery test
     print("\n3️⃣  Testing pair discovery (scanning markets)...")
     try:
@@ -43,7 +43,7 @@ async def test_integration():
         print(f"   📋 First 10 pairs: {pairs[:10]}")
     except Exception as e:
         print(f"   ⚠️  Discovery test: {e}")
-    
+
     # Test 4: Test filtering
     print("\n4️⃣  Testing profitability filter...")
     try:
@@ -53,7 +53,7 @@ async def test_integration():
             print(f"   💰 Top profitable pair: {profitable[0]}")
     except Exception as e:
         print(f"   ⚠️  Filter test: {e}")
-    
+
     # Test 5: Test orchestrator initialization
     print("\n5️⃣  Testing orchestrator initialization...")
     try:
@@ -63,13 +63,13 @@ async def test_integration():
     except Exception as e:
         print(f"   ❌ Orchestrator initialization failed: {e}")
         return False
-    
+
     print("\n" + "="*80)
     print("  ✅ ALL TESTS PASSED! Ready to start the bot!")
     print("="*80)
     print("\n  🚀 Run: bash START_BOT_WITH_PAIR_DISCOVERY.sh")
     print("  Or:    python3 COMPLETE_ULTIMATE_ORCHESTRATOR.py --mode=testnet\n")
-    
+
     return True
 
 

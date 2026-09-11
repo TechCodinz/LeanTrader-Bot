@@ -172,32 +172,32 @@ print("\n🚀 Testing Complete System Initialization...")
 async def test_full_system():
     try:
         orchestrator = CompleteUltimateOrchestrator(mode="testnet")
-        
+
         # Initialize
         await orchestrator.initialize_all_systems()
-        
+
         # Count systems
         core_count = 9  # Core infrastructure
         trading_count = len(orchestrator.trading_engines)
         ai_count = len([v for v in orchestrator.ai_systems.values() if v])
-        
+
         test("Core Infrastructure initialized", core_count == 9)
         test("Trading Engines initialized", trading_count >= 5)
         test("AI/ML Systems initialized", ai_count >= 4)
-        
+
         # Wire systems
         await orchestrator.wire_all_systems()
-        
+
         total_orchestrators = len(orchestrator.orchestrators) + len(orchestrator.advanced_orchestrators)
         test("All Orchestrators wired", total_orchestrators >= 9)
-        
+
         # Check specific orchestrators
         test("Execution Orchestrator", 'execution' in orchestrator.advanced_orchestrators)
         test("Telegram Orchestrator", 'telegram' in orchestrator.advanced_orchestrators)
         test("Smart Scalping", 'smart_scalping' in orchestrator.trading_engines)
-        
+
         return True
-        
+
     except Exception as e:
         test("System Initialization", False, str(e))
         return False

@@ -37,7 +37,7 @@ services:
     restart: unless-stopped
     env_file: ../.env
     command: >
-      python -c "from leantrader.agents.market_scheduler import run_pairs; 
+      python -c "from leantrader.agents.market_scheduler import run_pairs;
       run_pairs({'XAUUSD':'data/ohlc/XAUUSD_M15.csv','EURUSD':'data/ohlc/EURUSD_M15.csv','BTCUSDT':'data/ohlc/BTCUSDT_M15.csv'}, sleep_s=30)"
     depends_on:
       - api

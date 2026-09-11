@@ -116,17 +116,17 @@ echo ""
 if systemctl is-active --quiet trading-bot; then
     echo "✅ Bot is RUNNING!"
     echo ""
-    
+
     # Check for features
     echo "🔍 Checking loaded features..."
     FEATURES=$(journalctl -u trading-bot --since "1 minute ago" --no-pager | grep -E "LOADED|ACTIVE" | tail -10)
-    
+
     if [ -n "$FEATURES" ]; then
         echo "$FEATURES"
     else
         echo "   Features loading... check logs in 30 seconds"
     fi
-    
+
     echo ""
     echo "════════════════════════════════════════════════════════════════════"
     echo "📱 CHECK YOUR TELEGRAM!"
@@ -140,7 +140,7 @@ if systemctl is-active --quiet trading-bot; then
     echo "  2. Verify Telegram token in .env"
     echo "  3. Check admin chat ID is correct"
     echo ""
-    
+
 else
     echo "❌ Bot is NOT running - checking error..."
     echo ""

@@ -237,27 +237,27 @@ while true; do
         echo "$(date): Bot stopped, auto-restarting..." >> $LOG_FILE
         systemctl start ultra_plus
     fi
-    
+
     # Check memory usage
     MEM_USED=$(free | grep Mem | awk '{print int(($3/$2) * 100)}')
     if [ "$MEM_USED" -gt 90 ]; then
         echo "$(date): High memory ($MEM_USED%), restarting bot..." >> $LOG_FILE
         systemctl restart ultra_plus
     fi
-    
+
     # Check if bot is responsive
     if [ -f /opt/leantraderbot/logs/ultra_plus.log ]; then
         LAST_LOG=$(stat -c %Y /opt/leantraderbot/logs/ultra_plus.log)
         CURRENT=$(date +%s)
         DIFF=$((CURRENT - LAST_LOG))
-        
+
         # If no logs for 10 minutes, restart
         if [ $DIFF -gt 600 ]; then
             echo "$(date): Bot unresponsive, restarting..." >> $LOG_FILE
             systemctl restart ultra_plus
         fi
     fi
-    
+
     sleep 60
 done
 EOF

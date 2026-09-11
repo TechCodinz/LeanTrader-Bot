@@ -79,13 +79,13 @@ This ensures learned knowledge is preserved across VPS deployments.
 log "💾 Committing changes..."
 if git commit -m "$COMMIT_MSG"; then
     log "✅ Successfully committed learned data!"
-    
+
     # Show commit details
     log ""
     log "📝 Commit details:"
     git log -1 --stat | tee -a "$LOG_FILE"
     log ""
-    
+
     # Optionally push (commented out for safety - enable if desired)
     # log "🚀 Pushing to remote..."
     # if git push; then
@@ -93,7 +93,7 @@ if git commit -m "$COMMIT_MSG"; then
     # else
     #     log "⚠️  Failed to push to remote (will retry next time)"
     # fi
-    
+
 else
     log "⚠️  Failed to commit (nothing to commit or error)"
 fi

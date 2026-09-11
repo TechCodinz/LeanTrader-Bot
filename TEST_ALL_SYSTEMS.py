@@ -286,12 +286,12 @@ print("\n🚀 Testing System Initialization...")
 async def test_initialization():
     try:
         from COMPLETE_ULTIMATE_ORCHESTRATOR import CompleteUltimateOrchestrator
-        
+
         orchestrator = CompleteUltimateOrchestrator(mode="testnet")
-        
+
         # Initialize all systems
         await orchestrator.initialize_all_systems()
-        
+
         # Check systems were initialized
         core_count = sum([
             1 if orchestrator.router else 0,
@@ -304,24 +304,24 @@ async def test_initialization():
             1 if orchestrator.hivemind else 0,
             1 if orchestrator.global_awareness else 0,
         ])
-        
+
         trading_count = len(orchestrator.trading_engines)
         ai_count = len([v for v in orchestrator.ai_systems.values() if v])
         advanced_count = len([v for v in orchestrator.advanced_systems.values() if v])
-        
+
         test_result("Core Infrastructure (9 systems)", core_count == 9, f"Only {core_count}/9 initialized")
         test_result("Trading Engines (5 systems)", trading_count >= 5, f"Only {trading_count}/5 initialized")
         test_result("AI/ML Systems (6 systems)", ai_count >= 4, f"Only {ai_count}/6 initialized (some optional)")
         test_result("Advanced Systems (1+ systems)", advanced_count >= 1, f"Only {advanced_count} initialized")
-        
+
         # Test wiring
         await orchestrator.wire_all_systems()
-        
+
         orchestrator_count = len(orchestrator.orchestrators) + len(orchestrator.advanced_orchestrators)
         test_result("Orchestrators wired (6+ total)", orchestrator_count >= 6, f"Only {orchestrator_count} wired")
-        
+
         return True
-    
+
     except Exception as e:
         test_result("System Initialization", False, str(e))
         return False

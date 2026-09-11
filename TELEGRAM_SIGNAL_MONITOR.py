@@ -16,29 +16,29 @@ async def monitor_signals_for_telegram(orchestrator):
     VIP: 70%+ confidence
     FREE: 75%+ confidence
     """
-    
+
     logger.info("📱 Starting Telegram Signal Monitor...")
-    
+
     try:
         telegram = get_telegram_bot()
         logger.info("✅ Telegram bot ready!")
     except Exception as e:
         logger.error(f"❌ Failed to initialize Telegram: {e}")
         return
-    
+
     sent_count_vip = 0
     sent_count_free = 0
-    
+
     loop_count = 0
     last_processed_count = 0
-    
+
     while orchestrator.is_running:
         try:
             loop_count += 1
             if loop_count % 30 == 0:  # Log every 30 seconds
                 total_signals = len(orchestrator.data_hub.recent_signals)
                 logger.info(f"📊 Monitor: {total_signals} total signals, {sent_count_vip} VIP sent, {sent_count_free} FREE sent")
-            
+
             # Get signals from RECENT_SIGNALS (queue is consumed by decision engine)
             total_signals = len(orchestrator.data_hub.recent_signals)
             if total_signals > last_processed_count:
@@ -48,15 +48,15 @@ async def monitor_signals_for_telegram(orchestrator):
                         break
                     signal = orchestrator.data_hub.recent_signals[i]
                     last_processed_count = i + 1
-                
+
                 symbol = signal.get('symbol', 'UNKNOWN')
                 side = signal.get('side', signal.get('action', 'HOLD')).upper()
                 confidence = signal.get('confidence', 0.0)
-                
+
                 # Skip low confidence
                 if confidence < 0.70:
                     continue
-                
+
                 # Calculate simple levels
                 price = signal.get('data', {}).get('price', 100.0)
                 if side == 'BUY':
@@ -71,7 +71,7 @@ async def monitor_signals_for_telegram(orchestrator):
                     tp2 = price * 0.98
                     tp3 = price * 0.97
                     sl = price * 1.01
-                
+
                 # Send to VIP (70%+)
                 if confidence >= 0.70:
                     success = await telegram.send_vip_signal(
@@ -80,16 +80,16 @@ async def monitor_signals_for_telegram(orchestrator):
                     if success:
                         sent_count_vip += 1
                         logger.info(f"✅ VIP #{sent_count_vip}: {side} {symbol} ({confidence:.1%})")
-                
+
                 # Send to FREE (75%+)
                 if confidence >= 0.75:
                     success = await telegram.send_free_signal(symbol, side, confidence)
                     if success:
                         sent_count_free += 1
                         logger.info(f"✅ FREE #{sent_count_free}: {side} {symbol} ({confidence:.1%})")
-            
+
             await asyncio.sleep(1)
-            
+
         except Exception as e:
             logger.error(f"Monitor error: {e}")
             await asyncio.sleep(5)

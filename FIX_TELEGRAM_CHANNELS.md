@@ -143,7 +143,7 @@ load_dotenv()
 
 async def test():
     bot = Bot(token=os.getenv('TELEGRAM_BOT_TOKEN'))
-    
+
     # Test admin chat
     admin_id = os.getenv('TELEGRAM_ADMIN_CHAT_ID')
     if admin_id:
@@ -152,7 +152,7 @@ async def test():
             print(f'✅ Admin message sent (msg_id: {result.message_id})')
         except Exception as e:
             print(f'❌ Admin failed: {e}')
-    
+
     # Test FREE channel
     free_id = os.getenv('TELEGRAM_FREE_CHANNEL')
     if free_id:
@@ -161,8 +161,8 @@ async def test():
             print(f'✅ FREE channel works! (msg_id: {result.message_id})')
         except Exception as e:
             print(f'❌ FREE channel failed: {e}')
-    
-    # Test VIP channel  
+
+    # Test VIP channel
     vip_id = os.getenv('TELEGRAM_VIP_CHANNEL')
     if vip_id:
         try:

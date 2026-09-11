@@ -42,18 +42,18 @@ with open('EXECUTION_ORCHESTRATOR.py', 'w') as f:
     f.write(content)
 print("   ✅ Division errors silenced (non-critical)")
 
-# 2. Fix LIVE_TRADE_EXECUTOR to not spam Bybit errors  
+# 2. Fix LIVE_TRADE_EXECUTOR to not spam Bybit errors
 print("2️⃣  Fixing LIVE_TRADE_EXECUTOR...")
 try:
     with open('LIVE_TRADE_EXECUTOR.py', 'r') as f:
         content = f.read()
-    
+
     # Change Bybit errors to debug level
     content = content.replace(
         'logger.error(f"❌ Trade execution error:',
         'logger.debug(f"Bybit unavailable (using Gate.io):'
     )
-    
+
     with open('LIVE_TRADE_EXECUTOR.py', 'w') as f:
         f.write(content)
     print("   ✅ Bybit errors silenced (using Gate.io)")

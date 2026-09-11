@@ -387,6 +387,12 @@ class SwarmConsciousness:
 
     async def start_swarm_consciousness(self):
         """Start the swarm consciousness system"""
+
+        # PASS4_START_ONCE__leantrader_swarm_started
+        if getattr(self, "_leantrader_swarm_started", False):
+            self.logger.info("♻️ SwarmConsciousness already running - reusing canonical instance")
+            return
+        self._leantrader_swarm_started = True
         self.logger.info("🧠 Starting Swarm Consciousness System...")
 
         # Start background tasks
@@ -742,7 +748,7 @@ async def main():
     # Start swarm consciousness
     await swarm.start_swarm_consciousness()
 
-# Alias for backwards compatibility  
+# Alias for backwards compatibility
 UltraSwarmConsciousness = SwarmConsciousness
 
 if __name__ == "__main__":

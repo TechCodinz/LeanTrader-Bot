@@ -11,7 +11,7 @@ CURRENTLY INTEGRATED:
 - ✅ Ultra Arbitrage Engine (fixed with get_market_data)
 - ✅ Evolution Engine (background evolution)
 - ✅ Revolutionary AI
-- ✅ Swarm Consciousness  
+- ✅ Swarm Consciousness
 - ✅ Moon Spotter (wrapper)
 
 MISSING (WILL BE ADDED):
@@ -52,19 +52,19 @@ def backup_file(filepath):
 def add_ultimate_imports():
     """Add all missing imports to orchestrator"""
     print("\n🔧 Adding ultimate imports...")
-    
+
     filepath = "COMPLETE_ULTIMATE_ORCHESTRATOR.py"
     backup_file(filepath)
-    
+
     with open(filepath, 'r') as f:
         lines = f.readlines()
-    
+
     # Find the import section
     import_section_end = 0
     for i, line in enumerate(lines):
         if line.startswith('from') or line.startswith('import'):
             import_section_end = i + 1
-    
+
     # Imports to add (if not already present)
     new_imports = [
         "from ULTRA_RARE_ENGINES import UltraRareEnginesOrchestrator\n",
@@ -72,16 +72,16 @@ def add_ultimate_imports():
         "from OMNISCIENT_EXECUTION_ENGINE import OmniscientExecutionEngine\n",
         "from ADVANCED_TRADING_ACTIONS_ENGINE import AdvancedTradingActions\n",
     ]
-    
+
     content = ''.join(lines)
     added = []
-    
+
     for imp in new_imports:
         if imp.strip() not in content:
             lines.insert(import_section_end, imp)
             import_section_end += 1
             added.append(imp.strip())
-    
+
     if added:
         with open(filepath, 'w') as f:
             f.writelines(lines)
@@ -90,23 +90,23 @@ def add_ultimate_imports():
             print(f"   - {imp}")
     else:
         print("✅ All imports already present")
-    
+
     return True
 
 def add_engine_initialization():
     """Add initialization for missing engines"""
     print("\n🔧 Adding engine initialization...")
-    
+
     filepath = "COMPLETE_ULTIMATE_ORCHESTRATOR.py"
-    
+
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     # Find where to add (after other ultra engines)
     marker = "# REVOLUTIONARY AI MANAGER"
-    
+
     if marker in content and "UltraRareEnginesOrchestrator()" not in content:
-        
+
         init_code = '''
         # ULTRA RARE ENGINES - 10 PROFIT ENGINES!
         try:
@@ -116,7 +116,7 @@ def add_engine_initialization():
         except Exception as e:
             logger.warning(f"⚠️  Ultra Rare Engines: {e}")
             self.ultra_rare_engines = None
-        
+
         # ADAPTIVE CONFIDENCE ENGINE
         try:
             self.adaptive_confidence = AdaptiveConfidenceEngine()
@@ -125,7 +125,7 @@ def add_engine_initialization():
         except Exception as e:
             logger.warning(f"⚠️  Adaptive Confidence: {e}")
             self.adaptive_confidence = None
-        
+
         # OMNISCIENT EXECUTION ENGINE
         try:
             self.omniscient_execution = OmniscientExecutionEngine()
@@ -134,7 +134,7 @@ def add_engine_initialization():
         except Exception as e:
             logger.warning(f"⚠️  Omniscient Execution: {e}")
             self.omniscient_execution = None
-        
+
         # ADVANCED TRADING ACTIONS
         try:
             self.advanced_actions = AdvancedTradingActions()
@@ -143,14 +143,14 @@ def add_engine_initialization():
         except Exception as e:
             logger.warning(f"⚠️  Advanced Actions: {e}")
             self.advanced_actions = None
-        
+
 '''
-        
+
         content = content.replace(marker, init_code + "        " + marker)
-        
+
         with open(filepath, 'w') as f:
             f.write(content)
-        
+
         print("✅ Added engine initialization code")
         return True
     elif "UltraRareEnginesOrchestrator()" in content:
@@ -163,19 +163,19 @@ def add_engine_initialization():
 def add_engine_loops():
     """Add task loops for missing engines"""
     print("\n🔧 Adding engine task loops...")
-    
+
     filepath = "COMPLETE_ULTIMATE_ORCHESTRATOR.py"
-    
+
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     # Find where to add (after Ultra Arb loop)
     marker = "tasks.append(asyncio.create_task(run_ultra_arb()))"
-    
+
     if marker in content and "run_ultra_rare_engines()" not in content:
-        
+
         loop_code = '''
-        
+
         # ULTRA RARE ENGINES - 10 profit engines!
         if self.ultra_rare_engines:
             async def run_ultra_rare_engines():
@@ -193,10 +193,10 @@ def add_engine_loops():
                     except Exception as e:
                         logger.debug(f"Ultra rare engines: {e}")
                         await asyncio.sleep(30)
-            
+
             tasks.append(asyncio.create_task(run_ultra_rare_engines()))
             logger.info("✅ 💎 ULTRA RARE ENGINES ACTIVE - 10 profit engines hunting!")
-        
+
         # ADAPTIVE CONFIDENCE ENGINE
         if self.adaptive_confidence:
             async def run_adaptive_confidence():
@@ -208,10 +208,10 @@ def add_engine_loops():
                     except Exception as e:
                         logger.debug(f"Adaptive confidence: {e}")
                         await asyncio.sleep(300)
-            
+
             tasks.append(asyncio.create_task(run_adaptive_confidence()))
             logger.info("✅ 🧠 ADAPTIVE CONFIDENCE ACTIVE - Auto-tuning!")
-        
+
         # OMNISCIENT EXECUTION ENGINE
         if self.omniscient_execution:
             async def run_omniscient_execution():
@@ -229,16 +229,16 @@ def add_engine_loops():
                     except Exception as e:
                         logger.debug(f"Omniscient execution: {e}")
                         await asyncio.sleep(60)
-            
+
             tasks.append(asyncio.create_task(run_omniscient_execution()))
             logger.info("✅ 👁️  OMNISCIENT EXECUTION ACTIVE - Multi-dimensional trading!")
 '''
-        
+
         content = content.replace(marker, marker + loop_code)
-        
+
         with open(filepath, 'w') as f:
             f.write(content)
-        
+
         print("✅ Added engine task loops")
         return True
     elif "run_ultra_rare_engines()" in content:
@@ -251,100 +251,100 @@ def add_engine_loops():
 def add_missing_methods_to_ultra_rare():
     """Add scan_all_engines method to UltraRareEnginesOrchestrator if missing"""
     print("\n🔧 Checking ULTRA_RARE_ENGINES.py...")
-    
+
     filepath = "ULTRA_RARE_ENGINES.py"
-    
+
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     if "async def scan_all_engines" not in content:
         print("  ⚠️  scan_all_engines method missing, adding...")
-        
+
         # Find the UltraRareEnginesOrchestrator class
         marker = "class UltraRareEnginesOrchestrator:"
-        
+
         if marker in content:
             backup_file(filepath)
-            
+
             method_code = '''
-    
+
     async def scan_all_engines(self) -> List[Dict]:
         """
         Scan all 10 ultra rare engines for signals
         Returns list of signals from all engines
         """
         all_signals = []
-        
+
         try:
             # 1. Microstructure Exploiter
             micro_signal = await self.microstructure.analyze_orderbook('BTC/USDT', [], [])
             if micro_signal:
                 all_signals.append(micro_signal)
-            
+
             # 2. Information Entropy Trader
             entropy_signal = self.entropy_trader.get_entropy_signal('BTC/USDT', [])
             if entropy_signal:
                 all_signals.append(entropy_signal)
-            
+
             # 3. Cascading Liquidity Hunter
             liquidity_signal = self.liquidity_hunter.detect_cascade_setup('BTC/USDT', [])
             if liquidity_signal:
                 all_signals.append(liquidity_signal)
-            
+
             # 4. Flash Crash Predator
             crash_signal = self.crash_predator.detect_crash_opportunity('BTC/USDT', 50000, [])
             if crash_signal:
                 all_signals.append(crash_signal)
-            
+
             # 5. Funding Rate Arbitrage
             funding_signal = await self.funding_arb.scan_funding_opportunities()
             if funding_signal:
                 all_signals.append(funding_signal)
-            
+
             # 6. Hidden Order Detector
             hidden_signal = self.hidden_detector.detect_hidden_orders('BTC/USDT', [])
             if hidden_signal:
                 all_signals.append(hidden_signal)
-            
+
             # 7. Smart Money Shadow
             smart_money_signal = self.smart_money.detect_institutional_flow('BTC/USDT', [])
             if smart_money_signal:
                 all_signals.append(smart_money_signal)
-            
+
             # 8. Retail Panic Exploiter
             panic_signal = self.retail_exploiter.detect_panic('BTC/USDT', [])
             if panic_signal:
                 all_signals.append(panic_signal)
-            
+
             # 9. Time Warp Patterns
             timewarp_signal = self.timewarp.check_pattern_match('BTC/USDT')
             if timewarp_signal:
                 all_signals.append(timewarp_signal)
-            
+
             # 10. Whale Psychology Predictor
             whale_signal = self.whale_predictor.predict_whale_move('BTC/USDT', [])
             if whale_signal:
                 all_signals.append(whale_signal)
-        
+
         except Exception as e:
             logger.debug(f"Error scanning ultra rare engines: {e}")
-        
+
         return all_signals
 '''
-            
+
             # Find end of __init__ method in UltraRareEnginesOrchestrator
             init_end = content.find("logger.info", content.find(marker))
             if init_end > 0:
                 next_method = content.find("\n\n", init_end)
                 if next_method > 0:
                     content = content[:next_method] + method_code + content[next_method:]
-                    
+
                     with open(filepath, 'w') as f:
                         f.write(content)
-                    
+
                     print("  ✅ Added scan_all_engines method")
                     return True
-        
+
         print("  ❌ Could not add method")
         return False
     else:
@@ -354,7 +354,7 @@ def add_missing_methods_to_ultra_rare():
 def create_deployment_script():
     """Create single-command deployment script"""
     print("\n📝 Creating deployment script...")
-    
+
     script_content = '''#!/bin/bash
 # ULTIMATE ENGINE INTEGRATION DEPLOYMENT
 # Run this ONE command to integrate ALL engines!
@@ -414,10 +414,10 @@ echo ""
 echo "📈 Monitor profit:"
 echo "   ./watch_micro.sh"
 '''
-    
+
     with open('/workspace/DEPLOY_ALL_ENGINES.sh', 'w') as f:
         f.write(script_content)
-    
+
     print("✅ Created DEPLOY_ALL_ENGINES.sh")
     return True
 
@@ -426,7 +426,7 @@ def create_summary():
     print("\n" + "="*80)
     print("🎉 ULTIMATE ENGINE INTEGRATION COMPLETE!")
     print("="*80)
-    
+
     print("\n✅ ENGINES INTEGRATED:")
     print("  1. ✅ Smart Scalping Engine (already working)")
     print("  2. ✅ Ultra Scalping Engine (fixed)")
@@ -449,18 +449,18 @@ def create_summary():
     print("  9. ✅ Adaptive Confidence Engine")
     print("  10. ✅ Omniscient Execution Engine")
     print("  11. ✅ Advanced Trading Actions")
-    
+
     print("\n💰 TOTAL: 24+ ENGINES WORKING TOGETHER!")
-    
+
     print("\n🚀 DEPLOYMENT:")
     print("  On VPS, run:")
     print("  bash DEPLOY_ALL_ENGINES.sh")
-    
+
     print("\n📊 EXPECTED PROFIT BOOST:")
     print("  - Current: ~$30-40 balance, 10-15 pairs")
     print("  - After: 50-100+ pairs, 24+ engines")
     print("  - Estimated: +300-500% profit increase")
-    
+
     print("\n" + "="*80)
 
 def main():
@@ -479,7 +479,7 @@ def main():
     ║                                                                   ║
     ╚═══════════════════════════════════════════════════════════════════╝
     """)
-    
+
     steps = [
         ("Adding imports", add_ultimate_imports),
         ("Adding initialization", add_engine_initialization),
@@ -487,7 +487,7 @@ def main():
         ("Fixing Ultra Rare Engines", add_missing_methods_to_ultra_rare),
         ("Creating deployment script", create_deployment_script),
     ]
-    
+
     results = []
     for name, func in steps:
         try:
@@ -498,14 +498,14 @@ def main():
             import traceback
             traceback.print_exc()
             results.append((name, False))
-    
+
     print("\n" + "="*80)
     print("INTEGRATION RESULTS:")
     print("="*80)
     for name, result in results:
         status = "✅ SUCCESS" if result else "❌ FAILED"
         print(f"  {status} - {name}")
-    
+
     if all(r[1] for r in results):
         create_summary()
         return 0

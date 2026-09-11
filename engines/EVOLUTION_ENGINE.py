@@ -5,6 +5,8 @@
 💰 EVOLVES FROM REAL TRADING DATA INTO PERFECTION
 """
 
+import os
+
 import json
 import sqlite3
 
@@ -113,7 +115,13 @@ class ULTIMATE_EVOLUTION_ENGINE:
         self.data_hub = data_hub
 
         # Core Evolution Parameters
+        # PASS4_EVOLUTION_LIFECYCLE_FIELDS
         self.evolution_cycle = 0
+        self.evolution_progress = 0.0
+        self._market_collectors_initialized = False
+        self._active_engines_initialized = False
+        self._active_engine_threads_started = False
+        self._evolution_threads_started = False
         self.models_spawned = 0
         self.collective_intelligence = 0.0
         self.learning_rate = 0.001
@@ -146,7 +154,6 @@ class ULTIMATE_EVOLUTION_ENGINE:
         # Advanced Features Initialization
         self.initialize_claude_features()
         self.initialize_quantum_intelligence()
-        self.initialize_active_engines()
 
         # AI Model Arsenal - Starting with 35+ models, will evolve to 12,000+
         self.prediction_models = {}
@@ -173,11 +180,185 @@ class ULTIMATE_EVOLUTION_ENGINE:
 
         # Evolution Database
         self.init_evolution_database()
+        self._restore_persisted_evolution_state()
 
         # Initialize Core Systems
+        # PASS4_SINGLE_EVOLUTION_STARTUP_ORDER
+        # PASS4_SINGLE_EVOLUTION_STARTUP_ORDER
+        # PASS4_SINGLE_EVOLUTION_STARTUP_ORDER
+        self.initialize_market_collectors()
+        self.initialize_active_engines()
         self.initialize_evolution_systems()
         self.connect_to_live_bot()
         self.start_evolution_cycle()
+
+
+    # PASS4_DURABLE_EVOLUTION_STATE
+    def _ensure_runtime_state_table(self):
+        cursor = self.evo_db.cursor()
+
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS evolution_runtime_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                evolution_cycle INTEGER NOT NULL DEFAULT 0,
+                models_spawned INTEGER NOT NULL DEFAULT 0,
+                collective_intelligence REAL NOT NULL DEFAULT 0.0,
+                evolution_progress REAL NOT NULL DEFAULT 0.0,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+
+        self.evo_db.commit()
+
+    def _restore_persisted_evolution_state(self):
+        self._ensure_runtime_state_table()
+
+        cursor = self.evo_db.cursor()
+
+        row = cursor.execute(
+            """
+            SELECT
+                evolution_cycle,
+                models_spawned,
+                collective_intelligence,
+                evolution_progress,
+                updated_at
+            FROM evolution_runtime_state
+            WHERE id = 1
+            """
+        ).fetchone()
+
+        inferred_cycle = 0
+
+        if row is None:
+            try:
+                legacy = cursor.execute(
+                    """
+                    SELECT MAX(generation)
+                    FROM model_evolution
+                    """
+                ).fetchone()
+
+                if (
+                    legacy
+                    and legacy[0]
+                    is not None
+                ):
+                    inferred_cycle = max(
+                        0,
+                        int(
+                            float(
+                                legacy[0]
+                            )
+                        ),
+                    )
+
+            except Exception:
+                inferred_cycle = 0
+
+            self.evolution_cycle = (
+                inferred_cycle
+            )
+
+            self.evolution_progress = 0.0
+
+            self._checkpoint_evolution_state()
+
+            print(
+                "♻️ EVOLUTION STATE INITIALIZED "
+                f"| cycle={self.evolution_cycle} "
+                "| source=legacy_generation_or_zero"
+            )
+
+            return
+
+        self.evolution_cycle = max(
+            0,
+            int(row[0] or 0),
+        )
+
+        self.models_spawned = max(
+            int(
+                getattr(
+                    self,
+                    "models_spawned",
+                    0,
+                )
+                or 0
+            ),
+            int(row[1] or 0),
+        )
+
+        self.collective_intelligence = float(
+            row[2] or 0.0
+        )
+
+        self.evolution_progress = float(
+            row[3] or 0.0
+        )
+
+        print(
+            "♻️ EVOLUTION STATE RESTORED "
+            f"| cycle={self.evolution_cycle} "
+            f"| models_spawned={self.models_spawned} "
+            f"| collective={self.collective_intelligence:.6f} "
+            f"| previous_checkpoint={row[4]}"
+        )
+
+    def _checkpoint_evolution_state(self):
+        if not getattr(
+            self,
+            "evo_db",
+            None,
+        ):
+            return
+
+        self._ensure_runtime_state_table()
+
+        cursor = self.evo_db.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO evolution_runtime_state (
+                id,
+                evolution_cycle,
+                models_spawned,
+                collective_intelligence,
+                evolution_progress,
+                updated_at
+            )
+            VALUES (1, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                evolution_cycle = excluded.evolution_cycle,
+                models_spawned = excluded.models_spawned,
+                collective_intelligence = excluded.collective_intelligence,
+                evolution_progress = excluded.evolution_progress,
+                updated_at = excluded.updated_at
+            """,
+            (
+                int(
+                    self.evolution_cycle
+                ),
+                int(
+                    self.models_spawned
+                ),
+                float(
+                    self.collective_intelligence
+                ),
+                float(
+                    getattr(
+                        self,
+                        "evolution_progress",
+                        0.0,
+                    )
+                ),
+                datetime.now().isoformat(),
+            ),
+        )
+
+        self.evo_db.commit()
 
     def initialize_claude_features(self):
         """Initialize Claude 4.1 Opus advanced features"""
@@ -614,6 +795,12 @@ class ULTIMATE_EVOLUTION_ENGINE:
 
     def initialize_active_engines(self):
         """Initialize Active Trading Engines"""
+
+        # PASS4_START_ONCE__active_engines_initialized
+        if getattr(self, "_active_engines_initialized", False):
+            print("♻️ Active Evolution engines already initialized - reusing canonical engines")
+            return
+        self._active_engines_initialized = True
         print("⚡ Initializing ACTIVE ENGINES...")
 
         try:
@@ -829,6 +1016,12 @@ class ULTIMATE_EVOLUTION_ENGINE:
 
     def start_active_engine_threads(self):
         """Start all active engine threads"""
+
+        # PASS4_START_ONCE__active_engine_threads_started
+        if getattr(self, "_active_engine_threads_started", False):
+            print("♻️ Active Evolution threads already running")
+            return
+        self._active_engine_threads_started = True
         try:
             # Start Scalper Engine thread
             threading.Thread(target=self.run_scalper_engine, daemon=True).start()
@@ -858,7 +1051,7 @@ class ULTIMATE_EVOLUTION_ENGINE:
                 if signals:
                     self.engine_performance['scalper_signals'] += len(signals)
                     print(f"📈 Scalper generated {len(signals)} signals")
-                    
+
                     # PUBLISH SIGNALS TO DATA HUB!
                     if self.data_hub:
                         for sig in signals:
@@ -1068,7 +1261,25 @@ class ULTIMATE_EVOLUTION_ENGINE:
     def init_evolution_database(self):
         """Initialize the evolution tracking database"""
         try:
-            self.evo_db = _leantrader_sqlite_connect('/workspace/evolution_engine.db', check_same_thread=False)
+            evolution_data_dir = os.path.join(
+                os.getenv(
+                    "LEANTRADER_DATA_DIR",
+                    "/app/data",
+                ),
+                "evolution",
+            )
+            os.makedirs(
+                evolution_data_dir,
+                exist_ok=True,
+            )
+            evolution_db_path = os.path.join(
+                evolution_data_dir,
+                "evolution_engine.db",
+            )
+            self.evo_db = _leantrader_sqlite_connect(
+                evolution_db_path,
+                check_same_thread=False,
+            )
             cursor = self.evo_db.cursor()
 
             cursor.execute(
@@ -1235,6 +1446,12 @@ class ULTIMATE_EVOLUTION_ENGINE:
 
     def initialize_market_collectors(self):
         """Initialize market data collectors for all asset classes"""
+
+        # PASS4_START_ONCE__market_collectors_initialized
+        if getattr(self, "_market_collectors_initialized", False):
+            print("♻️ Market collectors already initialized - reusing canonical discovery")
+            return
+        self._market_collectors_initialized = True
         print("📊 Initializing market data collectors...")
 
         # Crypto pairs (70+ pairs)
@@ -1468,6 +1685,12 @@ class ULTIMATE_EVOLUTION_ENGINE:
 
     def start_evolution_cycle(self):
         """Start the continuous evolution cycle"""
+
+        # PASS4_START_ONCE__evolution_threads_started
+        if getattr(self, "_evolution_threads_started", False):
+            print("♻️ Evolution threads already running")
+            return
+        self._evolution_threads_started = True
         print("🚀 Starting evolution cycle...")
 
         # Start evolution thread
@@ -1488,6 +1711,8 @@ class ULTIMATE_EVOLUTION_ENGINE:
         """Main evolution cycle"""
         while True:
             try:
+                # PASS4_INTEGER_EVOLUTION_CYCLE
+                self.evolution_progress = 0.0
                 self.evolution_cycle += 1
                 print(f"🔄 Evolution Cycle {self.evolution_cycle}")
 
@@ -1502,6 +1727,10 @@ class ULTIMATE_EVOLUTION_ENGINE:
 
                 # Update collective intelligence
                 self.update_collective_intelligence()
+
+                # PASS4_EVOLUTION_CYCLE_CHECKPOINT
+                self.evolution_progress = 1.0
+                self._checkpoint_evolution_state()
 
                 # Sleep for evolution cycle
                 time.sleep(60)  # 1 minute evolution cycles
@@ -2068,7 +2297,7 @@ class ULTIMATE_EVOLUTION_ENGINE:
             for model_name, model in self.prediction_models.items():
                 if hasattr(model, 'fit'):
                     # Simulate model evolution
-                    self.evolution_cycle += 0.1
+                    self.evolution_progress = min(0.99, self.evolution_progress + 0.1)
                     print(f"🧠 Evolving {model_name}")
 
             # Evolve technical models

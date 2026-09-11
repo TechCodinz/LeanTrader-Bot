@@ -31,14 +31,14 @@ The fix is **already implemented** in your code:
 ```python
 async def start(self):
     self.running = True
-    
+
     # Check if we have private key for trading
     private_key = os.getenv('DEX_PRIVATE_KEY', '')
-    
+
     if not private_key:
         logger.info("⚠️  DEX Orchestrator: No private key - Monitoring only")
         return  # Skip async loops - PREVENTS CRASH!
-    
+
     # Continue with DEX setup only if we have key...
 ```
 
@@ -269,6 +269,6 @@ The bot will then:
 ---
 
 **Report Date:** 2025-10-15
-**Branch:** cursor/check-and-update-trading-bot-service-0f23  
+**Branch:** cursor/check-and-update-trading-bot-service-0f23
 **Status:** Ready for deployment
 **Priority:** HIGH (bot currently non-functional)

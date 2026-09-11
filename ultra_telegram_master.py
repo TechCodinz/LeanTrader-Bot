@@ -990,12 +990,12 @@ Use code ULTRA50 for 50% off first month!
         if not self.active_signals:
             await update.message.reply_text("🔥 No active signals at the moment.")
             return
-        
+
         active_text = f"🔥 **Active Signals** ({len(self.active_signals)})\n\n"
         for signal_id, signal_info in list(self.active_signals.items())[:10]:
             data = signal_info['data']
             active_text += f"• {data.get('symbol', 'N/A')} - {signal_info['status']}\n"
-        
+
         await update.message.reply_text(active_text)
 
     async def cmd_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

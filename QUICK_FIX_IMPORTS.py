@@ -97,11 +97,11 @@ except Exception as e:
 
 if old_import_block in content:
     content = content.replace(old_import_block, new_import_block)
-    
+
     # Write back
     with open('COMPLETE_ULTIMATE_ORCHESTRATOR.py', 'w') as f:
         f.write(content)
-    
+
     print("✅ Fixed imports to handle missing dependencies gracefully")
 else:
     print("⚠️  Could not find import block to fix")

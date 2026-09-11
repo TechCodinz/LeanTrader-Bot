@@ -104,6 +104,12 @@ class TestnetTradingEngine:
 
     async def start_testnet_trading(self):
         """Start the testnet trading system"""
+
+        # PASS4_START_ONCE__leantrader_testnet_engine_started
+        if getattr(self, "_leantrader_testnet_engine_started", False):
+            self.logger.info("♻️ TestnetTradingEngine already running - reusing canonical instance")
+            return
+        self._leantrader_testnet_engine_started = True
         self.logger.info("🚀 Starting Ultra Testnet Trading System...")
 
         # Start background tasks

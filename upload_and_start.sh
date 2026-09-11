@@ -37,29 +37,29 @@ ssh $VPS_USER@$VPS_IP << 'EOF'
     cd /home/root/trading-bot
     tar -xzf /tmp/trading-bot-deploy.tar.gz
     rm /tmp/trading-bot-deploy.tar.gz
-    
+
     # Make scripts executable
     chmod +x deploy.sh
     chmod +x start_dashboard.sh
     chmod +x monitor.sh
-    
+
     echo "✅ Files extracted successfully"
-    
+
     # Run the deployment script
     echo "🚀 Running deployment..."
     ./deploy.sh
-    
+
     echo "✅ Deployment complete!"
     echo ""
     echo "🎯 Starting the trading bot..."
     cd /home/root/trading-bot
     source venv/bin/activate
     nohup python main.py > bot.log 2>&1 &
-    
+
     # Start dashboard
     echo "📊 Starting dashboard..."
     nohup streamlit run dashboard_app.py --server.port 8501 --server.address 0.0.0.0 > dashboard.log 2>&1 &
-    
+
     echo "✅ Trading bot started!"
     echo "📊 Dashboard: http://75.119.149.117:8501"
     echo "📋 Bot logs: tail -f /home/root/trading-bot/bot.log"

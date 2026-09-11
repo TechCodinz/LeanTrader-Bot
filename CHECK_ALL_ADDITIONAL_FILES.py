@@ -70,7 +70,7 @@ orchestrator = Path('COMPLETE_ULTIMATE_ORCHESTRATOR.py')
 if orchestrator.exists():
     with open(orchestrator, 'r') as f:
         content = f.read()
-    
+
     critical_files = [
         'awareness.py',
         'data_sources.py',
@@ -78,7 +78,7 @@ if orchestrator.exists():
         'alpha_engines.py',
         'analyzer.py'
     ]
-    
+
     for f in critical_files:
         if f in [x[0] for x in existing_files]:
             module = f.replace('.py', '')

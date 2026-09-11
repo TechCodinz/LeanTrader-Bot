@@ -21,7 +21,7 @@ Without DEX enabled, you're missing:
 - Identifies potential 10x-100x opportunities
 - Early entry before CEX listings
 
-### 💎 Micro Scalping  
+### 💎 Micro Scalping
 - High-frequency trading on DEX
 - Profits from small price movements
 - Lower competition than CEX

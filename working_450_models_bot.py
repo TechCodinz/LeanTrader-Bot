@@ -459,7 +459,7 @@ class UltimateBot450Models:
 
                 session = (
                     curl_requests.Session(
-                        impersonate='chrome136'
+                        impersonate='chrome'
                     )
                 )
 
@@ -1248,7 +1248,7 @@ ULTIMATE TRADING BOT"""
                     cursor = self.db.cursor()
                     cursor.execute(
                         '''
-                        INSERT INTO trading_signals 
+                        INSERT INTO trading_signals
                         (symbol, timeframe, signal, confidence, price, tp1, tp2, tp3, stop_loss, ai_score, strategy, market_type)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''',
@@ -1331,7 +1331,7 @@ ULTIMATE TRADING BOT"""
                     cursor = self.db.cursor()
                     cursor.execute(
                         '''
-                        INSERT INTO trading_signals 
+                        INSERT INTO trading_signals
                         (symbol, timeframe, signal, confidence, price, tp1, tp2, tp3, stop_loss, ai_score, strategy, market_type)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''',
@@ -1363,6 +1363,12 @@ ULTIMATE TRADING BOT"""
 
     async def run_ultimate_bot(self):
         """Run the ultimate trading bot with 450+ models"""
+
+        # PASS4_START_ONCE__leantrader_450_started
+        if getattr(self, "_leantrader_450_started", False):
+            self.logger.info("♻️ UltimateBot450Models already running - reusing canonical instance")
+            return
+        self._leantrader_450_started = True
         logger.info("STARTING ULTIMATE TRADING BOT WITH 450+ AI MODELS!")
 
         startup_message = f"""ULTIMATE TRADING BOT STARTED!

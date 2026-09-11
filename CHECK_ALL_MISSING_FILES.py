@@ -7,7 +7,7 @@ from pathlib import Path
 # Files mentioned by user
 mentioned_files = [
     'brain.py',
-    'ultra_launcher_advanced.py', 
+    'ultra_launcher_advanced.py',
     'ultra_ml_pipeline.py',
     'ultra_multi_platform_scanner.py',
     'ultra_backtest_engine.py',
@@ -39,7 +39,7 @@ for f in mentioned_files:
     path = Path(f)
     # Also check in subdirectories
     matches = list(Path('.').rglob(f))
-    
+
     if path.exists() or matches:
         existing.append(f)
         if matches:
@@ -75,13 +75,13 @@ orchestrator_file = 'COMPLETE_UNIFIED_ORCHESTRATOR.py'
 if Path(orchestrator_file).exists():
     with open(orchestrator_file, 'r') as f:
         content = f.read()
-    
+
     integrated = []
     not_integrated = []
-    
+
     for file in existing:
         module = file.replace('.py', '')
-        
+
         # Check if imported
         if f'from {module} import' in content or f'import {module}' in content:
             integrated.append(file)
@@ -89,12 +89,12 @@ if Path(orchestrator_file).exists():
         else:
             not_integrated.append(file)
             print(f"⚠️  {file} - NOT INTEGRATED in orchestrator")
-    
+
     print("\n" + "=" * 80)
     print(f"INTEGRATED: {len(integrated)}/{len(existing)}")
     print(f"NOT INTEGRATED: {len(not_integrated)}/{len(existing)}")
     print("=" * 80)
-    
+
     if not_integrated:
         print("\n⚠️  FILES THAT NEED INTEGRATION:")
         for f in not_integrated:

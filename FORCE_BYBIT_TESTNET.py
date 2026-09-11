@@ -7,14 +7,14 @@ import re
 
 def force_testnet():
     """Force ENABLE_LIVE_TRADING.py to use ONLY Bybit testnet"""
-    
+
     try:
         with open('ENABLE_LIVE_TRADING.py', 'r') as f:
             content = f.read()
     except FileNotFoundError:
         print("❌ ENABLE_LIVE_TRADING.py not found")
         return
-    
+
     # Find the exchange initialization section
     if 'self.exchange = ccxt.bybit' in content or 'self.exchange = ccxt.gateio' in content:
         # Replace with testnet
@@ -23,7 +23,7 @@ def force_testnet():
             "self.exchange = ccxt.bybit(",
             content
         )
-        
+
         # Force testnet options
         if "'testnet': True" not in content:
             content = re.sub(
@@ -31,10 +31,10 @@ def force_testnet():
                 r"\1, options={'testnet': True})",
                 content
             )
-    
+
     with open('ENABLE_LIVE_TRADING.py', 'w') as f:
         f.write(content)
-    
+
     print("✅ Forced Bybit testnet!")
 
 def fix_router():
@@ -45,7 +45,7 @@ def fix_router():
     except:
         print("⚠️ router.py not found, skipping")
         return
-    
+
     # Force testnet in router
     if "'testnet': True" not in content:
         content = re.sub(
@@ -53,10 +53,10 @@ def fix_router():
             r"\1, 'options': {'testnet': True}",
             content
         )
-    
+
     with open('brokers/router.py', 'w') as f:
         f.write(content)
-    
+
     print("✅ Router forced to testnet!")
 
 if __name__ == "__main__":

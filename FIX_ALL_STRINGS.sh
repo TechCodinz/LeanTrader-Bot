@@ -25,7 +25,7 @@ fixes_made = 0
 
 while i < len(lines):
     line = lines[i]
-    
+
     # Check if line ends with an unterminated string (ends with ' or " or f' or f")
     # Pattern: ends with logger.info(' or logger.info(f' or logger.info(" without closing
     if re.search(r"logger\.(info|warning|error|debug)\s*\(\s*[f]?['\"]$", line.strip()):
@@ -40,7 +40,7 @@ while i < len(lines):
             print(f"   Fixed broken string at line {i+1}")
             i += 2  # Skip next line since we merged it
             continue
-    
+
     fixed_lines.append(line)
     i += 1
 

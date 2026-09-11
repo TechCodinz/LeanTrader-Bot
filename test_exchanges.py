@@ -16,7 +16,7 @@ if env_path.exists():
 
 async def test_all():
     results = []
-    
+
     # Test MEXC
     print('Testing MEXC...')
     try:
@@ -32,7 +32,7 @@ async def test_all():
         await exchange.close()
     except Exception as e:
         print(f'❌ MEXC: {str(e)[:80]}')
-    
+
     # Test Gate.io
     print('\nTesting Gate.io...')
     try:
@@ -48,7 +48,7 @@ async def test_all():
         await exchange.close()
     except Exception as e:
         print(f'❌ Gate.io: {str(e)[:80]}')
-    
+
     # Test Binance
     print('\nTesting Binance...')
     try:
@@ -64,7 +64,7 @@ async def test_all():
         await exchange.close()
     except Exception as e:
         print(f'❌ Binance: {str(e)[:80]}')
-    
+
     # Test Bybit
     print('\nTesting Bybit...')
     try:
@@ -80,10 +80,10 @@ async def test_all():
         await exchange.close()
     except Exception as e:
         print(f'❌ Bybit: {str(e)[:80]}')
-    
+
     print(f'\n{"="*70}')
     print(f'📊 Result: {len(results)}/4 exchanges connected (tested without passwords)')
-    
+
     if len(results) >= 2:
         print(f'\n✅ SUCCESS! Arbitrage will work with {len(results)} exchanges!')
         print(f'   Connected: {", ".join([e.upper() for e in results])}')

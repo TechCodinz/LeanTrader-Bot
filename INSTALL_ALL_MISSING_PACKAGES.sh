@@ -115,7 +115,7 @@ python3 << 'PYEOF'
 import sys
 packages = {
     'numpy': 'NumPy',
-    'pandas': 'Pandas', 
+    'pandas': 'Pandas',
     'ccxt': 'CCXT',
     'telegram': 'python-telegram-bot',
     'aiogram': 'aiogram',
@@ -146,13 +146,13 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "🔄 Restarting bot..."
     sudo systemctl restart trading-bot
-    
+
     sleep 15
-    
+
     echo ""
     echo "📊 STATUS:"
     systemctl status trading-bot --no-pager | head -15
-    
+
     echo ""
     echo "✅ Check logs with: journalctl -u trading-bot -f"
 else

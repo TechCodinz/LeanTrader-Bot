@@ -49,11 +49,11 @@ try:
         'options': {'defaultType': 'spot'}
     })
     bybit.set_sandbox_mode(True)  # Testnet
-    
+
     balance = bybit.fetch_balance()
     print("✅ Bybit Testnet Connection: SUCCESS")
     print(f"   USDT Balance: {balance.get('USDT', {}).get('free', 0)}")
-    
+
     # Check recent orders
     try:
         orders = bybit.fetch_orders(limit=10)
@@ -66,7 +66,7 @@ try:
             print("   ⚠️  No orders yet")
     except Exception as e:
         print(f"   Orders check: {e}")
-        
+
 except Exception as e:
     print(f"❌ Bybit Error: {e}")
 
@@ -78,11 +78,11 @@ try:
         'apiKey': '590f4e3cb2a8cfcaa66fe1a3a646e4b1',
         'secret': 'e1e5614876dfd2aa9c59beabd035c2af08a186b5f818209640c66e98225ca37b'
     })
-    
+
     balance = gate.fetch_balance()
     print("✅ Gate.io Testnet Connection: SUCCESS")
     print(f"   USDT Balance: {balance.get('USDT', {}).get('free', 0)}")
-    
+
     # Check recent orders
     try:
         orders = gate.fetch_orders(limit=10)
@@ -95,7 +95,7 @@ try:
             print("   ⚠️  No orders yet")
     except Exception as e:
         print(f"   Orders check: {e}")
-        
+
 except Exception as e:
     print(f"❌ Gate.io Error: {e}")
 

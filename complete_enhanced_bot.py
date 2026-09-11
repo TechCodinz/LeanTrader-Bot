@@ -422,8 +422,8 @@ class CompleteEnhancedUltraTradingSystem:
                     cursor = self.db.cursor()
                     cursor.execute(
                         '''
-                        INSERT INTO market_awareness 
-                        (total_market_cap, market_sentiment, fear_greed_index, 
+                        INSERT INTO market_awareness
+                        (total_market_cap, market_sentiment, fear_greed_index,
                          dominance_btc, dominance_eth, total_volume_24h)
                         VALUES (?, ?, ?, ?, ?, ?)
                     ''',

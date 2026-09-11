@@ -66,9 +66,9 @@ async def send_test_signal():
     token = os.getenv('TELEGRAM_BOT_TOKEN')
     free_id = os.getenv('TELEGRAM_FREE_CHANNEL')
     vip_id = os.getenv('TELEGRAM_VIP_CHANNEL')
-    
+
     bot = Bot(token=token)
-    
+
     # Send real-looking signal to FREE
     if free_id and free_id.startswith('-100'):
         try:
@@ -84,7 +84,7 @@ Take Profit: $67,671.39
 
 🌟 VIP members can trade with ONE CLICK!
 Use /subscribe to join VIP"""
-            
+
             result = await bot.send_message(
                 chat_id=free_id,
                 text=message,
@@ -96,7 +96,7 @@ Use /subscribe to join VIP"""
             print(f'❌ Failed to send to FREE: {e}')
     else:
         print(f'⚠️  FREE channel ID invalid: {free_id}')
-    
+
     # Send to VIP
     if vip_id and vip_id.startswith('-100'):
         try:
@@ -111,7 +111,7 @@ Stop Loss: $2,492.74
 Take Profit: $2,593.68
 
 Risk/Reward: 2.0:1"""
-            
+
             result = await bot.send_message(
                 chat_id=vip_id,
                 text=message,

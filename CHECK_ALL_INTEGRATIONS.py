@@ -58,7 +58,7 @@ print("=" * 80)
 apis_needed = {
     'Exchange APIs (MUST HAVE)': [
         'BYBIT_API_KEY / BYBIT_API_SECRET',
-        'BINANCE_API_KEY / BINANCE_API_SECRET', 
+        'BINANCE_API_KEY / BINANCE_API_SECRET',
         'OKX_API_KEY / OKX_API_SECRET',
         'COINBASE_API_KEY / COINBASE_API_SECRET',
         'GATEIO_API_KEY / GATEIO_API_SECRET',

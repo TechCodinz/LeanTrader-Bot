@@ -53,12 +53,12 @@ class UnifiedTradingSystem:
     Central orchestrator for all trading components.
     Manages lifecycle, coordination, and monitoring of all engines.
     """
-    
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialize the unified trading system"""
         self.config = config or self._load_default_config()
         self.status = SystemStatus()
-        
+
         # Component references
         self.enhanced_bot = None
         self.arbitrage_engine = None
@@ -67,13 +67,13 @@ class UnifiedTradingSystem:
         self.evolution_engine = None
         self.online_learner = None
         self.real_profit_bot = None
-        
+
         # Infrastructure
         self.exchange_router = None
         self.risk_manager = None
         self.portfolio_manager = None
         self.telegram_bot = None
-        
+
         # Control flags
         self.running = False
         self.engines_enabled = {
@@ -84,9 +84,9 @@ class UnifiedTradingSystem:
             'evolution': True,
             'learning': True,
         }
-        
+
         logger.info("🚀 Unified Trading System initialized")
-    
+
     def _load_default_config(self) -> Dict[str, Any]:
         """Load default configuration"""
         return {
@@ -119,42 +119,42 @@ class UnifiedTradingSystem:
                 'alert_on_errors': True,
             }
         }
-    
+
     async def initialize_components(self):
         """Initialize all trading components"""
         logger.info("📦 Initializing components...")
-        
+
         # Initialize enhanced trading bot
         if self.engines_enabled.get('enhanced_bot'):
             await self._init_enhanced_bot()
-        
+
         # Initialize exchange router
         await self._init_exchange_router()
-        
+
         # Initialize trading engines
         if self.engines_enabled.get('arbitrage'):
             await self._init_arbitrage_engine()
-        
+
         if self.engines_enabled.get('scalping'):
             await self._init_scalping_engine()
-        
+
         if self.engines_enabled.get('moon_spotter'):
             await self._init_moon_spotter()
-        
+
         # Initialize AI engines
         if self.engines_enabled.get('evolution'):
             await self._init_evolution_engine()
-        
+
         if self.engines_enabled.get('learning'):
             await self._init_online_learner()
-        
+
         # Initialize infrastructure
         await self._init_risk_manager()
         await self._init_portfolio_manager()
         await self._init_telegram_bot()
-        
+
         logger.info("✅ All components initialized successfully")
-    
+
     async def _init_enhanced_bot(self):
         """Initialize enhanced trading bot"""
         try:
@@ -166,7 +166,7 @@ class UnifiedTradingSystem:
             logger.error(f"❌ Failed to initialize enhanced bot: {e}")
             self.status.errors.append(f"Enhanced bot init: {e}")
             EnhancedTradingBot = None
-    
+
     async def _init_exchange_router(self):
         """Initialize exchange router"""
         try:
@@ -184,7 +184,7 @@ class UnifiedTradingSystem:
             logger.warning(f"⚠️  Exchange router not available: {e}")
             self.status.errors.append(f"Exchange router: {e}")
             ExchangeRouter = None
-    
+
     async def _init_arbitrage_engine(self):
         """Initialize arbitrage engine"""
         try:
@@ -200,7 +200,7 @@ class UnifiedTradingSystem:
             logger.error(f"❌ Failed to initialize arbitrage engine: {e}")
             self.status.errors.append(f"Arbitrage engine: {e}")
             UltraArbitrageEngine = None
-    
+
     async def _init_scalping_engine(self):
         """Initialize scalping engine"""
         try:
@@ -216,7 +216,7 @@ class UnifiedTradingSystem:
             logger.error(f"❌ Failed to initialize scalping engine: {e}")
             self.status.errors.append(f"Scalping engine: {e}")
             UltraScalpingEngine = None
-    
+
     async def _init_moon_spotter(self):
         """Initialize moon spotter"""
         try:
@@ -231,7 +231,7 @@ class UnifiedTradingSystem:
             logger.error(f"❌ Failed to initialize moon spotter: {e}")
             self.status.errors.append(f"Moon spotter: {e}")
             UltraMoonSpotter = None
-    
+
     async def _init_evolution_engine(self):
         """Initialize evolution engine"""
         try:
@@ -243,7 +243,7 @@ class UnifiedTradingSystem:
             logger.error(f"❌ Failed to initialize evolution engine: {e}")
             self.status.errors.append(f"Evolution engine: {e}")
             ULTIMATE_EVOLUTION_ENGINE = None
-    
+
     async def _init_online_learner(self):
         """Initialize online learner"""
         try:
@@ -255,7 +255,7 @@ class UnifiedTradingSystem:
             logger.error(f"❌ Failed to initialize online learner: {e}")
             self.status.errors.append(f"Online learner: {e}")
             OnlineLearner = None
-    
+
     async def _init_risk_manager(self):
         """Initialize risk management"""
         try:
@@ -266,7 +266,7 @@ class UnifiedTradingSystem:
             logger.warning(f"⚠️  Risk manager not available, using defaults: {e}")
             GuardState = None
             RiskLimits = None
-    
+
     async def _init_portfolio_manager(self):
         """Initialize portfolio manager"""
         try:
@@ -275,7 +275,7 @@ class UnifiedTradingSystem:
         except Exception as e:
             logger.warning(f"⚠️  Portfolio manager not available: {e}")
             choose_assets = None
-    
+
     async def _init_telegram_bot(self):
         """Initialize Telegram notifications"""
         try:
@@ -284,47 +284,47 @@ class UnifiedTradingSystem:
                 logger.info("✅ Telegram notifications available via enhanced bot")
         except Exception as e:
             logger.warning(f"⚠️  Telegram notifications not available: {e}")
-    
+
     async def start(self):
         """Start the unified trading system"""
         logger.info("🚀 Starting Unified Trading System")
         logger.info(f"📊 Mode: {self.config['mode']}")
         logger.info(f"🔗 Exchanges: {', '.join(self.config['exchanges'])}")
         logger.info(f"💱 Symbols: {', '.join(self.config['symbols'])}")
-        
+
         # Initialize all components
         await self.initialize_components()
-        
+
         self.running = True
-        
+
         # Start all engines concurrently
         tasks = []
-        
+
         if self.enhanced_bot:
             tasks.append(asyncio.create_task(self._run_enhanced_bot()))
-        
+
         if self.arbitrage_engine:
             tasks.append(asyncio.create_task(self._run_arbitrage_engine()))
-        
+
         if self.scalping_engine:
             tasks.append(asyncio.create_task(self._run_scalping_engine()))
-        
+
         if self.moon_spotter:
             tasks.append(asyncio.create_task(self._run_moon_spotter()))
-        
+
         # Add monitoring and health check tasks
         tasks.append(asyncio.create_task(self._monitor_system()))
         tasks.append(asyncio.create_task(self._health_check_loop()))
-        
+
         logger.info(f"✅ Started {len(tasks)} concurrent tasks")
-        
+
         # Wait for all tasks
         try:
             await asyncio.gather(*tasks)
         except Exception as e:
             logger.error(f"❌ System error: {e}")
             await self.stop()
-    
+
     async def _run_enhanced_bot(self):
         """Run enhanced trading bot"""
         try:
@@ -333,7 +333,7 @@ class UnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Enhanced bot error: {e}")
             self.status.errors.append(f"Enhanced bot runtime: {e}")
-    
+
     async def _run_arbitrage_engine(self):
         """Run arbitrage engine"""
         try:
@@ -342,7 +342,7 @@ class UnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Arbitrage engine error: {e}")
             self.status.errors.append(f"Arbitrage runtime: {e}")
-    
+
     async def _run_scalping_engine(self):
         """Run scalping engine"""
         try:
@@ -351,7 +351,7 @@ class UnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Scalping engine error: {e}")
             self.status.errors.append(f"Scalping runtime: {e}")
-    
+
     async def _run_moon_spotter(self):
         """Run moon spotter"""
         try:
@@ -363,7 +363,7 @@ class UnifiedTradingSystem:
         except Exception as e:
             logger.error(f"❌ Moon spotter error: {e}")
             self.status.errors.append(f"Moon spotter runtime: {e}")
-    
+
     async def _monitor_system(self):
         """Monitor system performance"""
         while self.running:
@@ -378,40 +378,40 @@ class UnifiedTradingSystem:
                 logger.info(f"📍 Active positions: {self.status.active_positions}")
                 logger.info(f"⚠️  Errors: {len(self.status.errors)}")
                 logger.info("=" * 60)
-                
+
                 await asyncio.sleep(300)  # Status update every 5 minutes
             except Exception as e:
                 logger.error(f"❌ Monitoring error: {e}")
-    
+
     async def _health_check_loop(self):
         """Perform periodic health checks"""
         while self.running:
             try:
                 self.status.last_health_check = datetime.now()
-                
+
                 # Check each engine
                 for engine_name, is_running in self.status.engines_running.items():
                     if not is_running:
                         logger.warning(f"⚠️  Engine {engine_name} is not running!")
-                
+
                 # Check for excessive errors
                 if len(self.status.errors) > 50:
                     logger.error(f"🚨 ALERT: Too many errors ({len(self.status.errors)})")
-                
+
                 await asyncio.sleep(60)  # Health check every minute
             except Exception as e:
                 logger.error(f"❌ Health check error: {e}")
-    
+
     async def stop(self):
         """Stop the unified trading system"""
         logger.info("🛑 Stopping Unified Trading System...")
         self.running = False
-        
+
         # Stop all engines
         # (Add cleanup code here if engines need explicit shutdown)
-        
+
         logger.info("✅ System stopped gracefully")
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Get current system status"""
         return {
@@ -433,10 +433,10 @@ async def main():
     print("=" * 70)
     print("Integrating all trading components into a unified system")
     print()
-    
+
     # Create and start the system
     system = UnifiedTradingSystem()
-    
+
     try:
         await system.start()
     except KeyboardInterrupt:

@@ -109,6 +109,12 @@ class UltraScalpingEngine:
 
     async def start_scalping(self) -> None:
         """Start continuous scalping across all timeframes"""
+
+        # PASS4_START_ONCE__leantrader_scalping_started
+        if getattr(self, "_leantrader_scalping_started", False):
+            self.logger.info("♻️ UltraScalpingEngine already running - reusing canonical instance")
+            return
+        self._leantrader_scalping_started = True
         self.logger.info("🚀 Starting Ultra Scalping Engine...")
 
         # Start scalping tasks for each timeframe

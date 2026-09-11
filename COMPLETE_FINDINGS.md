@@ -11,7 +11,7 @@ You have **MASSIVE** trading systems I completely ignored:
 ### 1. **ultra_quantum_intelligence.py** (1,714 lines / 62KB)
 **What it does:**
 - Market Microstructure Decoder
-- Iceberg Order Detection  
+- Iceberg Order Detection
 - Spoofing Detection
 - Hidden Liquidity Analysis
 - Market Maker Pattern Recognition
@@ -301,7 +301,7 @@ Multi-platform scanner
 ### Files by Category:
 
 **Ultra Systems:** 20+ files
-**Nobel Systems:** 4 files  
+**Nobel Systems:** 4 files
 **God Systems:** 2 files
 **Ultimate Systems:** 3 files
 **Quantum Systems:** 1 file

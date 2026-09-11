@@ -50,7 +50,7 @@ if grep -q "min_confidence = 0.8" EXECUTION_ORCHESTRATOR.py; then
     # Already at 0.8, let's add safety check for division
     echo "   Current confidence: 0.8 (80%)"
     echo "   Adding safety checks for division by zero..."
-    
+
     # This is more complex, will need manual fix or Python script
     echo "   ⚠️  Manual fix needed for division by zero"
     echo "      The bot will keep running but may show occasional errors"

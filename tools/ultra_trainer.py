@@ -1,3 +1,4 @@
+import os
 from collections import deque
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any, Union
@@ -1031,8 +1032,33 @@ class UltraTrainer:
     """Main ultra-advanced training system."""
 
     def __init__(self):
-        self.models_dir = Path("runtime") / "models"
-        self.models_dir.mkdir(parents=True, exist_ok=True)
+        # PASS4_DURABLE_ULTRA_MODELS
+        configured_models = os.getenv(
+            "LEANTRADER_MODELS_DIR",
+            "",
+        ).strip()
+
+        if configured_models:
+            self.models_dir = (
+                Path(configured_models)
+                / "ultra"
+            )
+        else:
+            self.models_dir = (
+                Path(
+                    os.getenv(
+                        "LEANTRADER_DATA_DIR",
+                        "/app/data",
+                    )
+                )
+                / "models"
+                / "ultra"
+            )
+
+        self.models_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
         self.feature_engine = UltraFeatureEngine()
         self.regime_detector = MarketRegimeDetector()
@@ -1188,9 +1214,15 @@ class UltraTrainer:
 
         # Update latest model symlink
         latest_path = self.models_dir / "latest"
-        if latest_path.exists():
+        if (
+            latest_path.exists()
+            or latest_path.is_symlink()
+        ):
             latest_path.unlink()
-        latest_path.symlink_to(base_path)
+
+        latest_path.symlink_to(
+            base_path.resolve()
+        )
 
         return model_id
 
@@ -1201,8 +1233,39 @@ class UltraTrainer:
         else:
             model_path = self.models_dir / f"ultra_{model_id}"
 
+        # PASS4_LATEST_MODEL_FALLBACK
+        if (
+            model_id == "latest"
+            and not model_path.exists()
+        ):
+            candidates = sorted(
+                (
+                    item
+                    for item
+                    in self.models_dir.glob(
+                        "ultra_*"
+                    )
+                    if item.is_dir()
+                ),
+                key=lambda item:
+                    item.stat().st_mtime,
+                reverse=True,
+            )
+
+            if candidates:
+                model_path = (
+                    candidates[0]
+                )
+
+                print(
+                    "♻️ Restoring latest persisted "
+                    f"Ultra model checkpoint: {model_path}"
+                )
+
         if not model_path.exists():
-            print(f"Model path not found: {model_path}")
+            print(
+                f"Model path not found: {model_path}"
+            )
             return False
 
         try:

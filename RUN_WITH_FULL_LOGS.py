@@ -23,16 +23,16 @@ async def main():
     print("\n" + "="*80)
     print("🔥 RUNNING WITH FULL DEBUG LOGGING")
     print("="*80 + "\n")
-    
+
     orch = CompleteUltimateOrchestrator()
-    
+
     print("\n🚀 Starting bot for 60 seconds...")
     print("   Watching for ACTUAL order execution...\n")
-    
+
     task = asyncio.create_task(orch.start())
     await asyncio.sleep(60)
     task.cancel()
-    
+
     print("\n✅ Done\n")
 
 asyncio.run(main())

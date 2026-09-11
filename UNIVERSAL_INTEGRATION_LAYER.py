@@ -22,30 +22,30 @@ sys.path.insert(0, str(Path(__file__).parent))
 class UniversalIntegrationLayer:
     """
     Universal Integration Layer - Provides access to ALL systems
-    
+
     This layer wires together:
     - Core infrastructure (26 systems in MASTER_ORCHESTRATOR)
     - All standalone bots
     - All utility functions
     - All trading engines
     - All AI/ML systems
-    
+
     Everything is accessible from one place.
     """
-    
+
     def __init__(self):
         self.systems = {}
         self.bots = {}
         self.engines = {}
         self.utils = {}
         self.ai_systems = {}
-        
+
         logger.info("🔌 Universal Integration Layer initializing...")
-    
+
     def load_core_systems(self):
         """Load all 26 core systems from MASTER_ORCHESTRATOR"""
         logger.info("Loading core systems...")
-        
+
         try:
             from router import ExchangeRouter
             self.systems['router'] = ExchangeRouter
@@ -53,7 +53,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  ExchangeRouter: {e}")
             ExchangeRouter = None
-        
+
         try:
             from risk_engine import RiskEngine
             self.systems['risk_engine'] = RiskEngine
@@ -61,7 +61,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  RiskEngine: {e}")
             RiskEngine = None
-        
+
         try:
             from brain import Brain
             self.systems['brain'] = Brain
@@ -69,7 +69,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  Brain: {e}")
             Brain = None
-        
+
         try:
             from pattern_memory import PatternMemory
             self.systems['pattern_memory'] = PatternMemory
@@ -77,7 +77,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  PatternMemory: {e}")
             PatternMemory = None
-        
+
         try:
             from ledger import Ledger
             self.systems['ledger'] = Ledger
@@ -85,7 +85,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  Ledger: {e}")
             Ledger = None
-        
+
         try:
             from ultra_core import UltraCore
             self.systems['ultra_core'] = UltraCore
@@ -93,7 +93,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  UltraCore: {e}")
             UltraCore = None
-        
+
         try:
             from awareness import SituationalAwareness
             self.systems['awareness'] = SituationalAwareness
@@ -101,7 +101,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  SituationalAwareness: {e}")
             SituationalAwareness = None
-        
+
         try:
             from hivemind import HiveCoordinator
             self.systems['hivemind'] = HiveCoordinator
@@ -109,7 +109,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  HiveCoordinator: {e}")
             HiveCoordinator = None
-        
+
         try:
             from gloaware import GlobalAwareness
             self.systems['gloaware'] = GlobalAwareness
@@ -117,13 +117,13 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  GlobalAwareness: {e}")
             GlobalAwareness = None
-        
+
         logger.info(f"✅ Loaded {len(self.systems)}/9 core infrastructure systems")
-    
+
     def load_trading_engines(self):
         """Load all trading engines"""
         logger.info("Loading trading engines...")
-        
+
         try:
             from ultra_arbitrage_engine import UltraArbitrageEngine
             self.engines['arbitrage'] = UltraArbitrageEngine
@@ -131,7 +131,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  UltraArbitrageEngine: {e}")
             UltraArbitrageEngine = None
-        
+
         try:
             from ultra_scalping_engine import UltraScalpingEngine
             self.engines['scalping'] = UltraScalpingEngine
@@ -139,7 +139,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  UltraScalpingEngine: {e}")
             UltraScalpingEngine = None
-        
+
         try:
             from ultra_moon_spotter import UltraMoonSpotter
             self.engines['moon_spotter'] = UltraMoonSpotter
@@ -147,7 +147,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  UltraMoonSpotter: {e}")
             UltraMoonSpotter = None
-        
+
         try:
             from REAL_PROFIT_BOT import RealProfitBot
             self.engines['real_profit'] = RealProfitBot
@@ -155,7 +155,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  RealProfitBot: {e}")
             RealProfitBot = None
-        
+
         try:
             from enhanced_trading_bot import EnhancedTradingBot
             self.engines['enhanced'] = EnhancedTradingBot
@@ -163,13 +163,13 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  EnhancedTradingBot: {e}")
             EnhancedTradingBot = None
-        
+
         logger.info(f"✅ Loaded {len(self.engines)}/5 trading engines")
-    
+
     def load_ai_systems(self):
         """Load all AI/ML systems"""
         logger.info("Loading AI/ML systems...")
-        
+
         try:
             from EVOLUTION_ENGINE import ULTIMATE_EVOLUTION_ENGINE
             self.ai_systems['evolution'] = ULTIMATE_EVOLUTION_ENGINE
@@ -177,7 +177,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  EvolutionEngine: {e}")
             ULTIMATE_EVOLUTION_ENGINE = None
-        
+
         try:
             from working_450_models_bot import working_450_models_bot
             self.ai_systems['models_450'] = working_450_models_bot
@@ -185,7 +185,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  450+ Models: {e}")
             working_450_models_bot = None
-        
+
         try:
             from ultra_swarm_consciousness import UltraSwarmConsciousness
             self.ai_systems['swarm'] = UltraSwarmConsciousness
@@ -193,7 +193,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  SwarmConsciousness: {e}")
             UltraSwarmConsciousness = None
-        
+
         try:
             from divine_intelligence_core import DivineIntelligence
             self.ai_systems['divine'] = DivineIntelligence
@@ -201,7 +201,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  DivineIntelligence: {e}")
             DivineIntelligence = None
-        
+
         try:
             from ml_strategy_engine import MLStrategyEngine
             self.ai_systems['ml_strategy'] = MLStrategyEngine
@@ -209,7 +209,7 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  MLStrategyEngine: {e}")
             MLStrategyEngine = None
-        
+
         try:
             from online_learner import OnlineLearner
             self.ai_systems['online_learner'] = OnlineLearner
@@ -217,27 +217,27 @@ class UniversalIntegrationLayer:
         except Exception as e:
             logger.warning(f"  ⚠️  OnlineLearner: {e}")
             OnlineLearner = None
-        
+
         logger.info(f"✅ Loaded {len(self.ai_systems)}/6 AI/ML systems")
-    
+
     def load_all(self):
         """Load all available systems"""
         logger.info("=" * 80)
         logger.info("🔌 LOADING ALL SYSTEMS")
         logger.info("=" * 80)
-        
+
         self.load_core_systems()
         self.load_trading_engines()
         self.load_ai_systems()
-        
+
         total_loaded = len(self.systems) + len(self.engines) + len(self.ai_systems)
-        
+
         logger.info("=" * 80)
         logger.info(f"✅ LOADED {total_loaded} SYSTEMS TOTAL")
         logger.info("=" * 80)
-        
+
         return total_loaded
-    
+
     def get_system(self, name: str):
         """Get any system by name"""
         if name in self.systems:
@@ -247,7 +247,7 @@ class UniversalIntegrationLayer:
         if name in self.ai_systems:
             return self.ai_systems[name]
         return None
-    
+
     def list_all(self) -> Dict[str, List[str]]:
         """List all available systems"""
         return {
@@ -275,23 +275,23 @@ if __name__ == "__main__":
     ║         UNIVERSAL INTEGRATION LAYER - TEST MODE              ║
     ╚══════════════════════════════════════════════════════════════╝
     """)
-    
+
     layer = get_integration_layer()
-    
+
     print("\n📊 AVAILABLE SYSTEMS:")
     all_systems = layer.list_all()
-    
+
     print(f"\n🎯 Core Systems ({len(all_systems['core_systems'])}):")
     for name in all_systems['core_systems']:
         print(f"  • {name}")
-    
+
     print(f"\n⚡ Trading Engines ({len(all_systems['trading_engines'])}):")
     for name in all_systems['trading_engines']:
         print(f"  • {name}")
-    
+
     print(f"\n🤖 AI/ML Systems ({len(all_systems['ai_systems'])}):")
     for name in all_systems['ai_systems']:
         print(f"  • {name}")
-    
+
     total = sum(len(v) for v in all_systems.values())
     print(f"\n✅ TOTAL: {total} systems accessible through Universal Integration Layer")

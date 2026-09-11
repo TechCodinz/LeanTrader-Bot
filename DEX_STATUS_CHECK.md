@@ -160,7 +160,7 @@ Should show:
 **What you have NOW (without DEX):**
 
 ✅ 26+ trading systems
-✅ 55+ total features  
+✅ 55+ total features
 ✅ High-frequency signal generation
 ✅ ML-powered predictions
 ✅ Multi-timeframe analysis

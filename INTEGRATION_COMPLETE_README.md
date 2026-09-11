@@ -229,12 +229,12 @@ pip3 install ccxt
 
 ## 💡 KEY FEATURES
 
-✅ **No Hardcoded Pairs** - Discovers everything automatically  
-✅ **Multi-Exchange** - Scans Bybit, Binance, OKX, KuCoin, and more  
-✅ **Profitability Filtering** - Only trades pairs with high profit potential  
-✅ **Continuous Updates** - Adapts to changing market conditions  
-✅ **Auto-Cleanup** - Removes unprofitable pairs automatically  
-✅ **Zero Manual Work** - Set it and forget it!  
+✅ **No Hardcoded Pairs** - Discovers everything automatically
+✅ **Multi-Exchange** - Scans Bybit, Binance, OKX, KuCoin, and more
+✅ **Profitability Filtering** - Only trades pairs with high profit potential
+✅ **Continuous Updates** - Adapts to changing market conditions
+✅ **Auto-Cleanup** - Removes unprofitable pairs automatically
+✅ **Zero Manual Work** - Set it and forget it!
 
 ---
 

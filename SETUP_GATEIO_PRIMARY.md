@@ -14,7 +14,7 @@
 2. Go to: Account → API Management
 3. Create new API key:
    - **Name:** Trading Bot
-   - **Permissions:** 
+   - **Permissions:**
      - ✅ Read
      - ✅ Spot Trading
      - ✅ Futures Trading (if you want futures)
@@ -91,30 +91,30 @@ load_dotenv()
 async def test():
     api_key = os.getenv('GATE_API_KEY')
     secret = os.getenv('GATE_SECRET')
-    
+
     if not api_key:
         print('❌ GATE_API_KEY not set in .env')
         return
-    
+
     exchange = ccxt.gateio({
         'apiKey': api_key,
         'secret': secret,
         'enableRateLimit': True
     })
-    
+
     try:
         # Test connection
         balance = await exchange.fetch_balance()
-        
+
         print('✅ Gate.io connection successful!')
         print(f'   Total Balance: \${balance[\"total\"][\"USDT\"]:.2f} USDT')
-        
+
         # Show available coins
         print('\\nAvailable balances:')
         for coin, amount in balance['total'].items():
             if amount > 0:
                 print(f'   {coin}: {amount}')
-        
+
     except Exception as e:
         print(f'❌ Gate.io connection failed: {e}')
         print('\\nCheck:')

@@ -4,7 +4,7 @@
 
 ### 1. TELEGRAM SIGNALS ✅
 - **VIP Channel**: Sending signals with Entry/TP1/TP2/TP3/SL (70%+ confidence)
-- **FREE Channel**: Sending basic signals (75%+ confidence)  
+- **FREE Channel**: Sending basic signals (75%+ confidence)
 - **Status**: 17 VIP + 12 FREE signals sent in first 90 seconds
 - **Channels**:
   - VIP: `-1002983007302`
@@ -77,7 +77,7 @@
 ## 📊 CURRENT PERFORMANCE
 
 - **Signals Generated**: 500+ per minute
-- **Signal Quality**: 70-95% confidence  
+- **Signal Quality**: 70-95% confidence
 - **Pairs Diversified**: 35+ (was only 5)
 - **Telegram Delivery**: WORKING ✅
 - **Learning Active**: YES ✅
@@ -111,8 +111,8 @@ tail -f bot.log
 
 # Restart bot
 pkill -9 python3; sleep 2
-export TELEGRAM_BOT_TOKEN='8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg' 
-export VIP_CHANNEL_ID='-1002983007302' 
+export TELEGRAM_BOT_TOKEN='8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg'
+export VIP_CHANNEL_ID='-1002983007302'
 export FREE_CHANNEL_ID='-1002930953007'
 python3 -B RUN_BOT.py > bot.log 2>&1 &
 
@@ -127,7 +127,7 @@ grep "Decision:" bot.log | grep -oE "[A-Z]{2,5}/[A-Z]{2,5}" | sort -u | wc -l
 
 ## ⏱️ TIME TO PROFIT
 
-**Manual Trading (NOW)**: 
+**Manual Trading (NOW)**:
 - Check Telegram, copy trades → **Immediate**
 
 **Auto-Trading (Setup Required)**:

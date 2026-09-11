@@ -62,7 +62,7 @@ if 'get_ultra_rare_engines' in orch_content:
     print("ℹ️  Ultra Rare Engines already integrated in orchestrator")
 else:
     print("📦 Adding Ultra Rare Engines to orchestrator...")
-    
+
     # Add import
     import_section = "from DYNAMIC_PAIR_DISCOVERY import get_discovery_engine"
     if import_section in orch_content:
@@ -71,13 +71,13 @@ else:
             import_section + "\nfrom ULTRA_RARE_ENGINES import get_ultra_rare_engines"
         )
         print("   ✅ Added import")
-    
+
     # Add to initialize_all_systems - after pair discovery
     init_section = """        logger.info('🎉 ALL 8 ADVANCED SYSTEMS INITIALIZED!')"""
-    
+
     if init_section in orch_content:
         ultra_init = """        logger.info('🎉 ALL 8 ADVANCED SYSTEMS INITIALIZED!')
-        
+
         # ================================================================
         # 9. ULTRA RARE ENGINES - The "Thin Wall" Exploiters
         # ================================================================
@@ -98,16 +98,16 @@ else:
         except Exception as e:
             logger.warning(f'⚠️  Ultra Rare Engines: {e}')
             self.advanced_systems['ultra_rare_engines'] = None
-        
+
         logger.info('🎉 ALL 9 ULTRA-ADVANCED SYSTEMS INITIALIZED!')"""
-        
+
         orch_content = orch_content.replace(init_section, ultra_init)
         print("   ✅ Added to initialization")
-    
+
     # Save
     with open('COMPLETE_ULTIMATE_ORCHESTRATOR.py', 'w') as f:
         f.write(orch_content)
-    
+
     print("✅ Ultra Rare Engines integrated into orchestrator")
 
 # Test imports

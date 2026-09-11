@@ -233,12 +233,35 @@ class BrokerCCXT:
             .upper()
         )
 
+        # PASS4_CANONICAL_TESTNET_CREDENTIALS
+        #
+        # Testnet keys remain separate from any
+        # future live/production key pair.
+        testnet_api_key = (
+            os.getenv(
+                f"{prefix}_TESTNET_API_KEY",
+                "",
+            ).strip()
+            if self.requested_mode == "testnet"
+            else ""
+        )
+
+        testnet_api_secret = (
+            os.getenv(
+                f"{prefix}_TESTNET_API_SECRET",
+                "",
+            ).strip()
+            if self.requested_mode == "testnet"
+            else ""
+        )
+
         self.api_key = (
             profile_value(
                 "apiKey",
                 "api_key",
                 "key",
             )
+            or testnet_api_key
             or os.getenv(
                 f"{prefix}_API_KEY"
             )
@@ -257,6 +280,7 @@ class BrokerCCXT:
                 "api_secret",
                 "secret_key",
             )
+            or testnet_api_secret
             or os.getenv(
                 f"{prefix}_API_SECRET"
             )

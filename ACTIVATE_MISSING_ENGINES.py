@@ -9,11 +9,11 @@ content_to_add = '''
     async def load_advanced_engines_background(self):
         """Load advanced engines in background after bot starts"""
         await asyncio.sleep(5)  # Wait for bot to start
-        
+
         logger.info("\\n" + "=" * 80)
         logger.info("🚀 LOADING ADVANCED ENGINES IN BACKGROUND...")
         logger.info("=" * 80)
-        
+
         # 1. Ultra Rare Engines
         try:
             logger.info('⚡ Loading Ultra Rare Engines...')
@@ -22,8 +22,8 @@ content_to_add = '''
             logger.info('✅ Ultra Rare Engines: 10 profit engines active!')
         except Exception as e:
             logger.warning(f'⚠️ Ultra Rare Engines failed: {e}')
-        
-        # 2. Adaptive Confidence Engine  
+
+        # 2. Adaptive Confidence Engine
         try:
             logger.info('🧠 Loading Adaptive Confidence Engine...')
             from ADAPTIVE_CONFIDENCE_ENGINE import get_adaptive_confidence_engine
@@ -31,7 +31,7 @@ content_to_add = '''
             logger.info('✅ Adaptive Confidence Engine active!')
         except Exception as e:
             logger.warning(f'⚠️ Adaptive Confidence failed: {e}')
-        
+
         # 3. Omniscient Execution Engine
         try:
             logger.info('👁️ Loading Omniscient Execution Engine...')
@@ -40,7 +40,7 @@ content_to_add = '''
             logger.info('✅ Omniscient Execution Engine active!')
         except Exception as e:
             logger.warning(f'⚠️ Omniscient Engine failed: {e}')
-        
+
         logger.info("\\n" + "=" * 80)
         logger.info("🎉 ALL ADVANCED ENGINES LOADED!")
         logger.info("=" * 80)

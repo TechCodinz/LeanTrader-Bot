@@ -23,7 +23,7 @@ fixed_lines = []
 i = 0
 while i < len(lines):
     line = lines[i]
-    
+
     # If line is just "async" or "async " with whitespace, merge with next line
     if line.strip() == 'async' or line.strip() == 'async ':
         if i + 1 < len(lines):
@@ -36,7 +36,7 @@ while i < len(lines):
             print(f"   Fixed line {i+1}: merged 'async' with next line")
             i += 2
             continue
-    
+
     fixed_lines.append(line)
     i += 1
 

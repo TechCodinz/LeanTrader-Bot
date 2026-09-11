@@ -40,19 +40,19 @@ echo "🔧 Extracting files on VPS..."
 ssh $VPS_USER@$VPS_IP << 'EOF'
     # Create trading-bot directory
     mkdir -p /home/root/trading-bot
-    
+
     # Extract files
     cd /home/root/trading-bot
     tar -xzf /tmp/trading-bot.tar.gz
-    
+
     # Clean up
     rm /tmp/trading-bot.tar.gz
-    
+
     # Set permissions
     chmod +x deploy.sh
     chmod +x start_dashboard.sh
     chmod +x monitor.sh
-    
+
     echo "✅ Files extracted successfully"
 EOF
 

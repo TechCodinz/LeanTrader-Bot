@@ -38,32 +38,32 @@ for filename in ['LIVE_TRADE_EXECUTOR.py', 'ENABLE_LIVE_TRADING.py', 'EXECUTION_
     try:
         with open(filename, 'r') as f:
             content = f.read()
-        
+
         if 'bybit' in content.lower() and 'retCode' not in content:
             print(f"📝 Checking {filename}...")
-            
+
             # Backup
             with open(f'{filename}.api_backup', 'w') as f:
                 f.write(content)
-            
+
             # Find Bybit execution attempts and wrap in try-except
             # Pattern: Look for bybit API calls
-            
+
             if 'try:' in content and 'bybit' in content:
                 # Already has error handling, just need to catch the specific error
-                
+
                 # Make Bybit errors non-fatal
                 content = re.sub(
                     r'(logger\.error\(f"❌ Trade execution error:)',
                     r'logger.warning(f"⚠️  Bybit unavailable (using Gate.io):',
                     content
                 )
-                
+
                 print(f"   ✅ Made Bybit errors non-fatal in {filename}")
-                
+
                 with open(filename, 'w') as f:
                     f.write(content)
-            
+
     except FileNotFoundError:
         continue
     except Exception as e:
@@ -82,7 +82,7 @@ with open('EXECUTION_ORCHESTRATOR.py.final_backup', 'w') as f:
 if 'except Exception as e:' in exec_content and 'Decision processing error' in exec_content:
     # Find the try block
     lines = exec_content.split('\n')
-    
+
     # Look for the specific error and find what's causing it
     # Add more detailed logging
     exec_content = exec_content.replace(
@@ -90,9 +90,9 @@ if 'except Exception as e:' in exec_content and 'Decision processing error' in e
         '''logger.debug(f"Decision processing error: {e}")  # Changed to debug - not critical
         # Continue processing other signals'''
     )
-    
+
     print("✅ Made division errors non-fatal (debug level)")
-    
+
     with open('EXECUTION_ORCHESTRATOR.py', 'w') as f:
         f.write(exec_content)
 

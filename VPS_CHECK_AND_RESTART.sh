@@ -48,19 +48,19 @@ if [ -f "bot.log" ]; then
     LOG_LINES=$(wc -l < bot.log)
     echo "   Size: $LOG_SIZE ($LOG_LINES lines)"
     echo ""
-    
+
     # Show recent activity
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "📈 RECENT ACTIVITY (Last 10 entries)"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     tail -10 bot.log | sed 's/^/   /'
     echo ""
-    
+
     # Show signal statistics
     VIP_COUNT=$(grep -c "✅ VIP #" bot.log 2>/dev/null || echo 0)
     FREE_COUNT=$(grep -c "✅ FREE #" bot.log 2>/dev/null || echo 0)
     UNIQUE_PAIRS=$(grep "Decision:" bot.log 2>/dev/null | grep -oE "[A-Z]{2,5}/[A-Z]{2,5}" | sort -u | wc -l)
-    
+
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "📊 SIGNAL STATISTICS"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -68,7 +68,7 @@ if [ -f "bot.log" ]; then
     echo "   FREE Signals: $FREE_COUNT"
     echo "   Unique Pairs: $UNIQUE_PAIRS"
     echo ""
-    
+
     # Show latest VIP signals
     if [ "$VIP_COUNT" -gt 0 ]; then
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -77,7 +77,7 @@ if [ -f "bot.log" ]; then
         grep "✅ VIP #" bot.log | tail -5 | sed 's/^/   /'
         echo ""
     fi
-    
+
     # Show discovered pairs
     TOTAL_DISCOVERED=$(grep "TOTAL DISCOVERED" bot.log 2>/dev/null | tail -1)
     if [ -n "$TOTAL_DISCOVERED" ]; then
@@ -108,12 +108,12 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     pkill -9 -f RUN_BOT.py 2>/dev/null
     screen -S trading_bot -X quit 2>/dev/null
     sleep 2
-    
+
     echo "🧹 Clearing Python cache..."
     rm -rf __pycache__ */__pycache__ 2>/dev/null
-    
+
     echo "🚀 Starting bot in background..."
-    
+
     # Export environment variables (from start_bot.sh)
     export TELEGRAM_BOT_TOKEN='8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg'
     export VIP_CHANNEL_ID='-1002983007302'
@@ -123,12 +123,12 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     export MAX_POSITION_SIZE='50'
     export MAX_DAILY_TRADES='20'
     export MIN_CONFIDENCE='0.80'
-    
+
     # Start in screen session
     screen -dmS trading_bot bash -c "cd ~/trading_bot && python3 -B RUN_BOT.py > bot.log 2>&1"
-    
+
     sleep 3
-    
+
     # Verify it started
     NEW_PID=$(pgrep -f "RUN_BOT.py")
     if [ -n "$NEW_PID" ]; then

@@ -28,13 +28,13 @@ def backup(filepath):
 def add_final_missing_imports():
     """Add the LAST missing imports"""
     print("\n🔧 STEP 1: Adding FINAL missing imports...")
-    
+
     filepath = "COMPLETE_ULTIMATE_ORCHESTRATOR.py"
     backup(filepath)
-    
+
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     # Final missing imports
     final_imports = [
         "from ULTRA_SMART_AI_BOT import ULTRA_SMART_AI_BOT\n",
@@ -43,20 +43,20 @@ def add_final_missing_imports():
         "from hivemind import HiveCoordinator, FrameDecision\n",
         "from EXPANDED_MARKET_UNIVERSE import get_market_universe_for_balance, get_priority_pairs\n",
     ]
-    
+
     lines = content.split('\n')
     import_end = 0
     for i, line in enumerate(lines):
         if line.startswith('from') or line.startswith('import'):
             import_end = i + 1
-    
+
     added = []
     for imp in final_imports:
         if imp.strip() not in content:
             lines.insert(import_end, imp)
             import_end += 1
             added.append(imp.strip()[:60])
-    
+
     if added:
         with open(filepath, 'w') as f:
             f.write('\n'.join(lines))
@@ -65,22 +65,22 @@ def add_final_missing_imports():
             print(f"   - {imp}...")
     else:
         print("✅ All final imports present")
-    
+
     return len(added)
 
 def add_ultra_smart_ai_bot():
     """Add ULTRA_SMART_AI_BOT initialization"""
     print("\n🔧 STEP 2: Adding ULTRA_SMART_AI_BOT...")
-    
+
     filepath = "COMPLETE_ULTIMATE_ORCHESTRATOR.py"
-    
+
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     if 'ULTRA_SMART_AI_BOT()' in content:
         print("✅ ULTRA_SMART_AI_BOT already initialized")
         return True
-    
+
     # Add initialization
     marker = "# CORE SUPPORT SYSTEMS"
     if marker in content:
@@ -93,31 +93,31 @@ def add_ultra_smart_ai_bot():
         except Exception as e:
             logger.warning(f"⚠️  Ultra Smart AI Bot: {e}")
             self.ultra_smart_ai = None
-        
+
 '''
         content = content.replace(marker, init_code + "        " + marker)
-        
+
         with open(filepath, 'w') as f:
             f.write(content)
-        
+
         print("✅ Added ULTRA_SMART_AI_BOT")
         return True
-    
+
     return False
 
 def add_brain_systems():
     """Add Brain system (5 classes)"""
     print("\n🔧 STEP 3: Adding Brain System (5 classes)...")
-    
+
     filepath = "COMPLETE_ULTIMATE_ORCHESTRATOR.py"
-    
+
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     if 'Brain()' in content:
         print("✅ Brain system already initialized")
         return True
-    
+
     # Add initialization
     marker = "# ULTRA SMART AI BOT"
     if marker in content:
@@ -135,31 +135,31 @@ def add_brain_systems():
         except Exception as e:
             logger.warning(f"⚠️  Brain System: {e}")
             self.brain_main = None
-        
+
 '''
         content = content.replace(marker, init_code + "        " + marker)
-        
+
         with open(filepath, 'w') as f:
             f.write(content)
-        
+
         print("✅ Added Brain System (5 classes)")
         return True
-    
+
     return False
 
 def add_hivemind():
     """Add HiveMind (2 classes)"""
     print("\n🔧 STEP 4: Adding HiveMind Coordinator (2 classes)...")
-    
+
     filepath = "COMPLETE_ULTIMATE_ORCHESTRATOR.py"
-    
+
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     if 'HiveCoordinator()' in content:
         print("✅ HiveMind already initialized")
         return True
-    
+
     # Add initialization
     marker = "# BRAIN SYSTEM"
     if marker in content:
@@ -172,10 +172,10 @@ def add_hivemind():
         except Exception as e:
             logger.warning(f"⚠️  HiveMind: {e}")
             self.hive_coordinator = None
-        
+
 '''
         content = content.replace(marker, init_code + "        " + marker)
-        
+
         # Add loop
         loop_marker = "logger.info(\"✅ 👑 ULTRA GOD MODE ACTIVE"
         if loop_marker in content:
@@ -187,7 +187,7 @@ def add_hivemind():
                     try:
                         # Coordinate multiple timeframe decisions
                         hive_decision = await self.hive_coordinator.coordinate_decision('BTC/USDT', {})
-                        
+
                         if hive_decision and hive_decision.get('signal'):
                             signal = {
                                 'symbol': 'BTC/USDT',
@@ -198,15 +198,15 @@ def add_hivemind():
                             }
                             await self.data_hub.publish_signal(signal)
                             logger.info(f"🐝 HIVEMIND → MICRO: {signal['symbol']} (consensus: {signal['frame_consensus']:.2f})")
-                        
+
                         await asyncio.sleep(120)  # Every 2 minutes
                     except Exception as e:
                         logger.debug(f"HiveMind: {e}")
                         await asyncio.sleep(120)
-            
+
             tasks.append(asyncio.create_task(run_hivemind()))
             logger.info("✅ 🐝 HIVEMIND ACTIVE - Collective intelligence!")
-        
+
 '''
             lines = content.split('\n')
             for i, line in enumerate(lines):
@@ -218,13 +218,13 @@ def add_hivemind():
                     lines.insert(insert_pos, loop_code)
                     break
             content = '\n'.join(lines)
-        
+
         with open(filepath, 'w') as f:
             f.write(content)
-        
+
         print("✅ Added HiveMind (2 classes)")
         return True
-    
+
     return False
 
 def create_ultra_final_summary():
@@ -232,9 +232,9 @@ def create_ultra_final_summary():
     print("\n" + "="*80)
     print("🏆 ULTRA FINAL COMPLETE SUMMARY")
     print("="*80)
-    
+
     print("\n✅ THE ABSOLUTE LAST MISSING SYSTEMS:")
-    
+
     print("\n🎯 NEWLY ADDED IN THIS PATCH:")
     print("  1. ULTRA SMART AI BOT (master AI controller)")
     print("  2. BRAIN SYSTEM (5 cognitive components)")
@@ -243,22 +243,22 @@ def create_ultra_final_summary():
     print("     - Advice (trade advisor)")
     print("     - Brain (main brain)")
     print("     - Guards (safety guards)")
-    
+
     print("\n  3. HIVEMIND (collective intelligence)")
     print("     - HiveCoordinator (multi-TF coordinator)")
     print("     - FrameDecision (timeframe decisions)")
-    
+
     print("\n  4. MARKET UNIVERSE (dynamic pair selection)")
-    
+
     print("\n💰 NEW GRAND TOTAL: 120-130+ ENGINES!")
-    
+
     print("\n📈 ULTRA FINAL ESTIMATED PERFORMANCE:")
     print("  Baseline (24 engines): 1x")
     print("  ULTRA FINAL (120-130+ engines): 40-60x boost")
-    
+
     print("\n🚀 READY FOR ULTIMATE DEPLOYMENT!")
     print("  bash DEPLOY_MASTER_INTEGRATION.sh")
-    
+
     print("\n" + "="*80)
 
 def main():
@@ -279,14 +279,14 @@ def main():
     ║                                                                   ║
     ╚═══════════════════════════════════════════════════════════════════╝
     """)
-    
+
     steps = [
         ("Final missing imports", add_final_missing_imports),
         ("ULTRA_SMART_AI_BOT", add_ultra_smart_ai_bot),
         ("Brain System (5 classes)", add_brain_systems),
         ("HiveMind (2 classes)", add_hivemind),
     ]
-    
+
     results = []
     for name, func in steps:
         try:
@@ -297,14 +297,14 @@ def main():
             import traceback
             traceback.print_exc()
             results.append((name, False))
-    
+
     print("\n" + "="*80)
     print("ULTRA FINAL RESULTS:")
     print("="*80)
     for name, result in results:
         status = "✅ SUCCESS" if result else "❌ FAILED"
         print(f"  {status} - {name}")
-    
+
     if all(r[1] for r in results):
         create_ultra_final_summary()
         return 0

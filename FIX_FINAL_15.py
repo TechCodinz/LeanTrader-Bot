@@ -19,7 +19,7 @@ for filename in ['complete_god_trader.py', 'god_trader_bot.py', 'ultimate_learnt
     if not filepath.exists():
         continue
     content = filepath.read_text()
-    
+
     # Remove old qiskit imports and replace with compatible ones
     if 'from qiskit import' in content and 'from qiskit_aer import Aer' not in content:
         # Find the import line
@@ -47,7 +47,7 @@ for filename in ['mobile_trading_api.py', 'quick_doge_test.py']:
     if not filepath.exists():
         continue
     content = filepath.read_text()
-    
+
     # Add environment variable defaults
     content = re.sub(
         r"if.*ENABLE_LIVE.*and.*not.*API_KEY.*:.*raise.*",
@@ -55,7 +55,7 @@ for filename in ['mobile_trading_api.py', 'quick_doge_test.py']:
         content,
         flags=re.DOTALL
     )
-    
+
     # Or wrap in try/except
     if 'raise Exception' in content and 'API_KEY' in content:
         lines = content.split('\n')
@@ -71,7 +71,7 @@ for filename in ['mobile_trading_api.py', 'quick_doge_test.py']:
             else:
                 new_lines.append(line)
         filepath.write_text('\n'.join(new_lines))
-    
+
     print(f"   ✅ Fixed {filename}")
 
 # Fix 6: mt5_autotrade_diag.py
@@ -117,17 +117,17 @@ for filename, needed_types in typing_fixes.items():
     filepath = workspace / filename
     if not filepath.exists():
         continue
-    
+
     content = filepath.read_text()
     lines = content.split('\n')
-    
+
     # Find typing import line
     typing_line_idx = -1
     for i, line in enumerate(lines):
         if line.strip().startswith('from typing import'):
             typing_line_idx = i
             break
-    
+
     if typing_line_idx >= 0:
         # Add missing types
         current_imports = lines[typing_line_idx]

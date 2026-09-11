@@ -33,7 +33,7 @@ class ProfessionalTradingBot:
             'vip': '-1002983007302'
         }
         self.crypto_pairs = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT']
-        
+
     async def get_real_price(self, symbol):
         """Get REAL live price"""
         try:
@@ -56,7 +56,7 @@ class ProfessionalTradingBot:
                         'volume': 0
                     }
         return None
-    
+
     async def send_telegram(self, message, channel):
         """Send Telegram message"""
         try:
@@ -66,7 +66,7 @@ class ProfessionalTradingBot:
             logger.info(f"📱 Message sent to {channel}")
         except Exception as e:
             logger.error(f"Telegram error: {e}")
-    
+
     async def analyze_market(self):
         """Analyze market and send signals"""
         for pair in self.crypto_pairs:
@@ -75,18 +75,18 @@ class ProfessionalTradingBot:
                 if price_data and price_data['price'] > 0:
                     price = price_data['price']
                     change = price_data['change_24h']
-                    
+
                     # Generate signal
                     if abs(change) > 2:  # Significant movement
                         action = "BUY" if change > 0 else "SELL"
                         confidence = min(95, 70 + abs(change))
-                        
+
                         # Calculate TP levels
                         tp1 = price * (1.02 if action == "BUY" else 0.98)
                         tp2 = price * (1.05 if action == "BUY" else 0.95)
                         tp3 = price * (1.10 if action == "BUY" else 0.90)
                         stop_loss = price * (0.97 if action == "BUY" else 1.03)
-                        
+
                         signal = f"""🚀 {pair} SIGNAL
 
 🎯 Action: {action}
@@ -102,18 +102,18 @@ class ProfessionalTradingBot:
 
 ⏰ Time: {datetime.now().strftime('%H:%M:%S')}
 🚀 PROFESSIONAL BOT"""
-                        
+
                         # Send to VIP if high confidence
                         if confidence >= 85:
                             await self.send_telegram(signal, 'vip')
                         else:
                             await self.send_telegram(signal, 'free')
-                        
+
                         logger.info(f"📊 {pair}: ${price:,.2f} ({change:+.2f}%) - {action}")
-                        
+
             except Exception as e:
                 logger.error(f"Error analyzing {pair}: {e}")
-    
+
     async def detect_arbitrage(self):
         """Detect arbitrage opportunities"""
         try:
@@ -125,12 +125,12 @@ class ProfessionalTradingBot:
                     prices[f'{pair}_bybit'] = float(ticker['last'])
                 except:
                     pass
-            
+
             # Check for arbitrage (simplified)
             if 'BTC/USDT_bybit' in prices and 'ETH/USDT_bybit' in prices:
                 btc_price = prices['BTC/USDT_bybit']
                 eth_price = prices['ETH/USDT_bybit']
-                
+
                 # Simple arbitrage detection
                 if btc_price > 60000:  # Arbitrage opportunity
                     arbitrage_signal = f"""💰 ARBITRAGE OPPORTUNITY
@@ -141,12 +141,12 @@ class ProfessionalTradingBot:
 📊 Opportunity detected!
 ⏰ Time: {datetime.now().strftime('%H:%M:%S')}
 🚀 PROFESSIONAL BOT"""
-                    
+
                     await self.send_telegram(arbitrage_signal, 'vip')
-                    
+
         except Exception as e:
             logger.error(f"Arbitrage error: {e}")
-    
+
     async def spot_moon_tokens(self):
         """Spot moon cap tokens"""
         try:
@@ -158,7 +158,7 @@ class ProfessionalTradingBot:
                     coin_data = coin['item']
                     name = coin_data['name']
                     symbol = coin_data['symbol'].upper()
-                    
+
                     moon_signal = f"""🌙 MOON TOKEN ALERT!
 
 🪙 Token: {name} ({symbol})
@@ -168,51 +168,51 @@ class ProfessionalTradingBot:
 🏪 Buy on: Binance, KuCoin, Gate.io
 ⏰ Time: {datetime.now().strftime('%H:%M:%S')}
 🚀 PROFESSIONAL BOT"""
-                    
+
                     await self.send_telegram(moon_signal, 'vip')
                     break  # Send only one per cycle
-                    
+
         except Exception as e:
             logger.error(f"Moon spotting error: {e}")
-    
+
     async def run(self):
         """Main trading loop"""
         logger.info("🚀 PROFESSIONAL TRADING BOT STARTED!")
-        
+
         # Send startup message
         startup = f"""🚀 PROFESSIONAL TRADING BOT STARTED!
 
 ✅ Live Price Analysis: ACTIVE
-✅ Arbitrage Detection: ACTIVE  
+✅ Arbitrage Detection: ACTIVE
 ✅ Moon Token Spotting: ACTIVE
 ✅ Telegram Notifications: ACTIVE
 
 📊 Analyzing: BTC, ETH, BNB, ADA, SOL
 ⏰ Started: {datetime.now().strftime('%H:%M:%S')}
 🚀 PROFESSIONAL BOT"""
-        
+
         await self.send_telegram(startup, 'admin')
-        
+
         loop_count = 0
         while True:
             try:
                 loop_count += 1
                 logger.info(f"📊 Analysis #{loop_count} - {datetime.now().strftime('%H:%M:%S')}")
-                
+
                 # Analyze markets
                 await self.analyze_market()
-                
+
                 # Detect arbitrage every 5 cycles
                 if loop_count % 5 == 0:
                     await self.detect_arbitrage()
-                
+
                 # Spot moon tokens every 10 cycles
                 if loop_count % 10 == 0:
                     await self.spot_moon_tokens()
-                
+
                 # Wait 2 minutes
                 await asyncio.sleep(120)
-                
+
             except Exception as e:
                 logger.error(f"Loop error: {e}")
                 await asyncio.sleep(30)

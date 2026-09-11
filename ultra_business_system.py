@@ -200,7 +200,7 @@ class SubscriptionManager:
         # Check if token exists and is valid
         cursor.execute(
             '''
-            SELECT * FROM tokens 
+            SELECT * FROM tokens
             WHERE token_id = ? AND redeemed_at IS NULL
             AND expires_at > datetime('now')
         ''',
@@ -235,7 +235,7 @@ class SubscriptionManager:
 
             cursor.execute(
                 '''
-                UPDATE users 
+                UPDATE users
                 SET subscription_tier = 'vip', subscription_expires = ?
                 WHERE user_id = ?
             ''',
@@ -245,7 +245,7 @@ class SubscriptionManager:
         # Mark token as redeemed
         cursor.execute(
             '''
-            UPDATE tokens 
+            UPDATE tokens
             SET redeemed_at = ?, redeemed_by = ?
             WHERE token_id = ?
         ''',
@@ -271,7 +271,7 @@ class SubscriptionManager:
 
         cursor.execute(
             '''
-            SELECT subscription_tier, subscription_expires 
+            SELECT subscription_tier, subscription_expires
             FROM users WHERE telegram_id = ?
         ''',
             (telegram_id,),
@@ -399,7 +399,7 @@ class MultiAccountManager:
 
         cursor.execute(
             '''
-            INSERT INTO managed_accounts 
+            INSERT INTO managed_accounts
             (user_id, exchange, api_key_encrypted, api_secret_encrypted, profit_share_percent)
             VALUES (?, ?, ?, ?, ?)
         ''',
@@ -531,7 +531,7 @@ class MultiAccountManager:
 
         cursor.execute(
             '''
-            UPDATE managed_accounts 
+            UPDATE managed_accounts
             SET balance = ?, total_profit = ?
             WHERE account_id = ?
         ''',
@@ -1096,7 +1096,7 @@ Target: {signal.get('target', 'See VIP')}
     def _format_vip_signal(self, signal: Dict[str, Any]) -> str:
         """Format signal for VIP users."""
         return f"""
-👑 **VIP SIGNAL** 
+👑 **VIP SIGNAL**
 
 Symbol: {signal['symbol']}
 Exchange: {signal.get('exchange', 'Bybit')}

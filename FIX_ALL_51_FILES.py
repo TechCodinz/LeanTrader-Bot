@@ -28,7 +28,7 @@ def fix_typing_imports(file_path):
     """Add missing typing imports to a file"""
     try:
         content = file_path.read_text()
-        
+
         # Check if typing is already imported
         if 'from typing import' in content or 'import typing' in content:
             # Check what's missing
@@ -45,7 +45,7 @@ def fix_typing_imports(file_path):
                 needs.append('Callable')
             if 'Any' in content and 'Any' not in re.findall(r'from typing import.*', content)[0] if re.findall(r'from typing import.*', content) else True:
                 needs.append('Any')
-            
+
             if needs:
                 # Find existing typing import and add to it
                 pattern = r'from typing import ([^\n]+)'
@@ -72,40 +72,40 @@ def fix_typing_imports(file_path):
                 needs.append('Callable')
             if ': Any' in content or '-> Any' in content:
                 needs.append('Any')
-            
+
             if needs:
                 # Add import after shebang/docstring
                 lines = content.split('\n')
                 insert_pos = 0
-                
+
                 # Skip shebang
                 if lines[0].startswith('#!'):
                     insert_pos = 1
-                
+
                 # Skip docstring
                 if len(lines) > insert_pos and lines[insert_pos].strip().startswith('"""'):
                     for i in range(insert_pos, len(lines)):
                         if lines[i].strip().endswith('"""') and i > insert_pos:
                             insert_pos = i + 1
                             break
-                
+
                 # Insert typing import
                 lines.insert(insert_pos, f'from typing import {", ".join(needs)}')
                 content = '\n'.join(lines)
-        
+
         # Check for other common issues
         if '@dataclass' in content and 'from dataclasses import dataclass' not in content:
             content = 'from dataclasses import dataclass\n' + content
-        
+
         if 'Path(' in content and 'from pathlib import Path' not in content:
             content = 'from pathlib import Path\n' + content
-        
+
         if 'pd.' in content and 'import pandas as pd' not in content:
             content = 'import pandas as pd\n' + content
-        
+
         if 'Enum' in content and 'from enum import Enum' not in content:
             content = 'from enum import Enum\n' + content
-        
+
         file_path.write_text(content)
         return True, "Fixed"
     except Exception as e:
@@ -113,14 +113,14 @@ def fix_typing_imports(file_path):
 
 def main():
     workspace = Path('/workspace')
-    
+
     print("=" * 100)
     print("FIXING ALL 51 FILES WITH ISSUES")
     print("=" * 100)
-    
+
     fixed_count = 0
     failed_count = 0
-    
+
     # Fix typing imports
     print("\n📝 Fixing typing import issues...")
     for filename in FIXES_NEEDED['typing_imports']:
@@ -136,11 +136,11 @@ def main():
                 failed_count += 1
         else:
             print(f"  ⚠️  {filename} not found")
-    
+
     print(f"\n{'=' * 100}")
     print(f"RESULTS: {fixed_count} files fixed, {failed_count} failed")
     print(f"{'=' * 100}")
-    
+
     return fixed_count, failed_count
 
 if __name__ == "__main__":

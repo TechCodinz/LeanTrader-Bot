@@ -22,7 +22,7 @@ if [ "$backup_choice" = "y" ]; then
     echo "Creating backup..."
     timestamp=$(date +%Y%m%d_%H%M%S)
     mkdir -p backups
-    
+
     # Backup old bots if they exist
     for dir in bot trading_bot old_bot lean-trader leantrader; do
         if [ -d "$dir" ]; then
@@ -30,7 +30,7 @@ if [ "$backup_choice" = "y" ]; then
             mv "$dir" "backups/${dir}_backup_${timestamp}"
         fi
     done
-    
+
     echo "✅ Backups created in ~/backups/"
 else
     echo "Deleting old bots..."
@@ -76,19 +76,19 @@ if [ "$auth_method" = "1" ]; then
     read -p "Enter your GitHub username: " gh_username
     read -p "Enter your Personal Access Token: " gh_token
     echo ""
-    
+
     # Set git credential store
     git config --global credential.helper store
-    
+
     # Clone URL with token
     REPO_URL="https://${gh_token}@github.com/${gh_username}/YOUR_REPO_NAME.git"
     echo "✅ Authentication configured"
-    
+
 elif [ "$auth_method" = "2" ]; then
     echo ""
     echo "=== USING SSH KEY ==="
     echo ""
-    
+
     # Check if SSH key exists
     if [ -f ~/.ssh/id_rsa.pub ]; then
         echo "✅ SSH key exists"
@@ -110,7 +110,7 @@ elif [ "$auth_method" = "2" ]; then
         echo ""
         read -p "Press Enter after adding key to GitHub..."
     fi
-    
+
     read -p "Enter your GitHub username: " gh_username
     REPO_URL="git@github.com:${gh_username}/YOUR_REPO_NAME.git"
     echo "✅ SSH authentication ready"

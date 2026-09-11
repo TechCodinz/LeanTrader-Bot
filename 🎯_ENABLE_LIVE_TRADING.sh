@@ -5,7 +5,7 @@
 #
 # CURRENT STATUS:
 #   ✅ Bot is FULLY FUNCTIONAL
-#   ✅ Generating 70-95% confidence signals  
+#   ✅ Generating 70-95% confidence signals
 #   ✅ Loaded 43,201 historical trades
 #   ✅ Execution orchestrator wired
 #   ⚠️  Currently BLOCKED (testnet mode for safety)

@@ -289,15 +289,15 @@ def check_system_health():
     try:
         # CPU usage
         cpu_percent = psutil.cpu_percent(interval=1)
-        
+
         # Memory usage
         memory = psutil.virtual_memory()
         memory_percent = memory.percent
-        
+
         # Disk usage
         disk = psutil.disk_usage('/')
         disk_percent = disk.percent
-        
+
         # Check if Nobel system is running
         nobel_running = False
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
@@ -307,20 +307,20 @@ def check_system_health():
                     break
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
-        
+
         # Log health status
         logger.info(f"System Health - CPU: {cpu_percent}%, Memory: {memory_percent}%, Disk: {disk_percent}%, Nobel Running: {nobel_running}")
-        
+
         # Alert if issues
         if cpu_percent > 80:
             logger.warning(f"High CPU usage: {cpu_percent}%")
-        
+
         if memory_percent > 80:
             logger.warning(f"High memory usage: {memory_percent}%")
-        
+
         if disk_percent > 90:
             logger.warning(f"High disk usage: {disk_percent}%")
-        
+
         if not nobel_running:
             logger.error("Nobel Hedge Fund System is not running!")
             # Try to restart
@@ -329,7 +329,7 @@ def check_system_health():
                 logger.info("Attempted to restart Nobel system")
             except subprocess.CalledProcessError:
                 logger.error("Failed to restart Nobel system")
-        
+
         return {
             'cpu_percent': cpu_percent,
             'memory_percent': memory_percent,
@@ -337,7 +337,7 @@ def check_system_health():
             'nobel_running': nobel_running,
             'timestamp': datetime.now().isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"Health check error: {e}")
         return None
@@ -345,7 +345,7 @@ def check_system_health():
 def main():
     """Main monitoring loop"""
     logger.info("Starting Nobel Hedge Fund System Monitor")
-    
+
     while True:
         try:
             health = check_system_health()
@@ -353,9 +353,9 @@ def main():
                 # Save health data
                 with open('logs/system_health.json', 'a') as f:
                     f.write(json.dumps(health) + '\n')
-            
+
             time.sleep(60)  # Check every minute
-            
+
         except KeyboardInterrupt:
             logger.info("Monitor stopped by user")
             break
@@ -395,24 +395,24 @@ def backup_database():
     try:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         backup_file = f"backups/daily/nobel_hedge_fund_{timestamp}.db"
-        
+
         # Create backup directory if it doesn't exist
         os.makedirs(os.path.dirname(backup_file), exist_ok=True)
-        
+
         # Copy database
         shutil.copy2('nobel_hedge_fund.db', backup_file)
-        
+
         # Compress backup
         with open(backup_file, 'rb') as f_in:
             with gzip.open(f"{backup_file}.gz", 'wb') as f_out:
                 shutil.copyfileobj(f_in, f_out)
-        
+
         # Remove uncompressed file
         os.remove(backup_file)
-        
+
         logger.info(f"Database backed up to {backup_file}.gz")
         return f"{backup_file}.gz"
-        
+
     except Exception as e:
         logger.error(f"Database backup error: {e}")
         return None
@@ -422,23 +422,23 @@ def backup_logs():
     try:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         backup_dir = f"backups/daily/logs_{timestamp}"
-        
+
         # Create backup directory
         os.makedirs(backup_dir, exist_ok=True)
-        
+
         # Copy log files
         log_files = ['nobel_hedge_fund.log', 'logs/live.log', 'logs/paper_run.log']
         for log_file in log_files:
             if os.path.exists(log_file):
                 shutil.copy2(log_file, backup_dir)
-        
+
         # Create tar.gz archive
         shutil.make_archive(backup_dir, 'gztar', backup_dir)
         shutil.rmtree(backup_dir)
-        
+
         logger.info(f"Logs backed up to {backup_dir}.tar.gz")
         return f"{backup_dir}.tar.gz"
-        
+
     except Exception as e:
         logger.error(f"Log backup error: {e}")
         return None
@@ -456,7 +456,7 @@ def cleanup_old_backups():
                     if datetime.now() - file_time > timedelta(days=7):
                         os.remove(file_path)
                         logger.info(f"Removed old backup: {file}")
-        
+
         # Clean up weekly backups older than 4 weeks
         weekly_backup_dir = "backups/weekly"
         if os.path.exists(weekly_backup_dir):
@@ -467,28 +467,28 @@ def cleanup_old_backups():
                     if datetime.now() - file_time > timedelta(weeks=4):
                         os.remove(file_path)
                         logger.info(f"Removed old weekly backup: {file}")
-        
+
         logger.info("Old backups cleaned up")
-        
+
     except Exception as e:
         logger.error(f"Backup cleanup error: {e}")
 
 def main():
     """Main backup function"""
     logger.info("Starting Nobel Hedge Fund System Backup")
-    
+
     try:
         # Backup database
         db_backup = backup_database()
-        
+
         # Backup logs
         log_backup = backup_logs()
-        
+
         # Clean up old backups
         cleanup_old_backups()
-        
+
         logger.info("Backup completed successfully")
-        
+
     except Exception as e:
         logger.error(f"Backup error: {e}")
 
@@ -563,11 +563,11 @@ if ps -p $NOBEL_PID > /dev/null; then
     print_status "Nobel Hedge Fund System started successfully (PID: $NOBEL_PID)"
     print_status "Monitor started (PID: $MONITOR_PID)"
     print_status "System is now running and monitoring markets..."
-    
+
     # Save PIDs
     echo $NOBEL_PID > nobel_system.pid
     echo $MONITOR_PID > monitor.pid
-    
+
     print_status "PIDs saved to nobel_system.pid and monitor.pid"
     print_status "To stop the system, run: ./stop_nobel_system.sh"
 else
@@ -615,13 +615,13 @@ if [ -f "nobel_system.pid" ]; then
         print_status "Stopping Nobel Hedge Fund System (PID: $NOBEL_PID)..."
         kill $NOBEL_PID
         sleep 2
-        
+
         # Force kill if still running
         if ps -p $NOBEL_PID > /dev/null; then
             print_warning "Force killing Nobel system..."
             kill -9 $NOBEL_PID
         fi
-        
+
         print_status "Nobel Hedge Fund System stopped"
     else
         print_warning "Nobel system not running"
@@ -787,7 +787,7 @@ import sys
 import importlib
 
 required_modules = [
-    'numpy', 'pandas', 'ccxt', 'sklearn', 'talib', 
+    'numpy', 'pandas', 'ccxt', 'sklearn', 'talib',
     'telegram', 'asyncio', 'websockets', 'aiohttp'
 ]
 

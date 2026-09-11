@@ -178,7 +178,7 @@ class DivineIntelligenceCore:
             # Get recent market data
             cursor.execute(
                 '''
-                SELECT * FROM market_data 
+                SELECT * FROM market_data
                 WHERE timestamp > datetime('now', '-1 hour')
                 ORDER BY timestamp DESC
             '''
@@ -296,7 +296,7 @@ class DivineIntelligenceCore:
                     cursor = self.db.cursor()
                     cursor.execute(
                         '''
-                        INSERT INTO model_performance 
+                        INSERT INTO model_performance
                         (symbol, timeframe, model_type, accuracy, precision, recall, f1_score)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     ''',
@@ -318,7 +318,7 @@ class DivineIntelligenceCore:
             cursor = self.db.cursor()
             cursor.execute(
                 '''
-                SELECT * FROM trading_signals 
+                SELECT * FROM trading_signals
                 WHERE timestamp > datetime('now', '-24 hours')
                 AND executed = TRUE
             '''
@@ -377,7 +377,7 @@ class DivineIntelligenceCore:
             cursor = self.db.cursor()
             cursor.execute(
                 '''
-                INSERT INTO strategy_evolution 
+                INSERT INTO strategy_evolution
                 (strategy_name, parameters, performance_score)
                 VALUES (?, ?, ?)
             ''',
@@ -555,7 +555,7 @@ class DivineIntelligenceCore:
             # Get recent performance
             cursor.execute(
                 '''
-                SELECT AVG(accuracy) FROM model_performance 
+                SELECT AVG(accuracy) FROM model_performance
                 WHERE timestamp > datetime('now', '-24 hours')
             '''
             )

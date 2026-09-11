@@ -72,7 +72,7 @@ class ExchangeRouter:
                 self.ex = PaperBroker(float(_env("PAPER_START_CASH", "5000")))
                 self.markets = self.ex.load_markets() if hasattr(self.ex, "load_markets") else {}
                 self._exchange_malformed = False
-                
+
                 # Apply guard hook for paper broker too (for consistency)
                 try:
                     from tools.guard_hook import enable_guard, print_intel_summary
@@ -169,7 +169,7 @@ class ExchangeRouter:
             if not klass:
                 raise RuntimeError(f"Unknown ccxt exchange id: {self.id}")
             self.ex = klass(opts)
-            
+
             # Apply guard hook for order safety and exchange intel
             try:
                 from tools.guard_hook import enable_guard, print_intel_summary
@@ -179,7 +179,7 @@ class ExchangeRouter:
                 _log.warning(f"Failed to apply guard hook: {e}")
                 enable_guard = None
                 print_intel_summary = None
-                
+
         except Exception as _e:
             raise RuntimeError(f"failed to initialize ccxt exchange '{self.id}': {_e}") from _e
             _ccxt = None

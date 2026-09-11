@@ -147,7 +147,7 @@ elif signal == "SELL":
 
 ### Will Orders Execute?
 
-**Previous**: 60% chance  
+**Previous**: 60% chance
 **Revised**: 80% chance ✅
 
 **Why Higher:**

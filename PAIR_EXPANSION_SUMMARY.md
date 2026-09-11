@@ -8,13 +8,13 @@
 - **Status**: ✅ Receiving 92 pairs correctly
 
 ### 2. Scalping Engines
-- **UltraScalpingEngine** (`ultra_scalping_engine.py`): 
+- **UltraScalpingEngine** (`ultra_scalping_engine.py`):
   - Added `universe` parameter
   - Replaced hardcoded 5-pair list with universe
   - **Status**: ✅ Fixed
 
 - **SmartScalpingEngine** (`SMART_SCALPING_ENGINE.py`):
-  - Added `universe` parameter  
+  - Added `universe` parameter
   - Replaced session-based hardcoded pairs with full universe
   - **Status**: ✅ Fixed (logs show "Universe: 92 pairs")
 

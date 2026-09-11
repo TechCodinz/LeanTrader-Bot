@@ -542,7 +542,7 @@ class CompleteGodTraderBot:
                 for model_name, accuracy in models.items():
                     cursor.execute(
                         '''
-                        INSERT INTO trades 
+                        INSERT INTO trades
                         (symbol, action, price, quantity, exchange)
                         VALUES (?, ?, ?, ?, ?)
                     ''',
@@ -612,7 +612,7 @@ class CompleteGodTraderBot:
                                 cursor = self.db.cursor()
                                 cursor.execute(
                                     '''
-                                    INSERT INTO arbitrage_opportunities 
+                                    INSERT INTO arbitrage_opportunities
                                     (symbol, buy_exchange, sell_exchange, buy_price, sell_price, profit_pct)
                                     VALUES (?, ?, ?, ?, ?, ?)
                                 ''',

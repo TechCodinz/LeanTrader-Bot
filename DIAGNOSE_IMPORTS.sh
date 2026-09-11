@@ -22,10 +22,10 @@ if [ -n "$ERROR" ]; then
     echo "❌ FOUND ERROR:"
     echo "   $ERROR"
     echo ""
-    
+
     # Extract module name
     MODULE=$(echo "$ERROR" | sed "s/.*No module named '\([^']*\)'.*/\1/")
-    
+
     echo "📦 Missing module: $MODULE"
     echo ""
     echo "🚀 QUICK FIX:"

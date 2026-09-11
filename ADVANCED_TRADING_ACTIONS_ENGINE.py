@@ -20,7 +20,7 @@ class AdvancedTradingActions:
     - Volatility
     - Position context
     """
-    
+
     # Trading action types
     ACTIONS = {
         'LONG': 'Open leveraged long position (futures/perpetual)',
@@ -39,11 +39,11 @@ class AdvancedTradingActions:
         'CLOSE_LONG': 'Close long position',
         'CLOSE_SHORT': 'Close short position',
     }
-    
+
     def __init__(self):
         logger.info("📊 Advanced Trading Actions initialized")
         logger.info(f"   Available actions: {len(self.ACTIONS)}")
-    
+
     def determine_action(
         self,
         symbol: str,
@@ -56,7 +56,7 @@ class AdvancedTradingActions:
     ) -> Dict[str, any]:
         """
         Determine optimal trading action based on multiple factors
-        
+
         Returns: {
             'action': action type,
             'reason': why this action,
@@ -64,7 +64,7 @@ class AdvancedTradingActions:
             'duration': expected hold time
         }
         """
-        
+
         # If we have an existing position, consider exit actions
         if has_position:
             if confidence < 0.70:
@@ -81,7 +81,7 @@ class AdvancedTradingActions:
                     'leverage': 1,
                     'duration': 'until trend break'
                 }
-        
+
         # HIGH CONFIDENCE (85%+) = Aggressive strategies
         if confidence >= 0.85:
             if timeframe in ['1m', '5m', '15m']:
@@ -92,7 +92,7 @@ class AdvancedTradingActions:
                     'leverage': 3 if direction == 'buy' else 3,
                     'duration': '1-5 minutes'
                 }
-            
+
             elif volatility > 0.03:
                 # High volatility + high confidence = LEVERAGE
                 if direction == 'buy':
@@ -109,7 +109,7 @@ class AdvancedTradingActions:
                         'leverage': 7,
                         'duration': '15min-2h'
                     }
-            
+
             elif timeframe in ['4h', '1d']:
                 # Long timeframe + high confidence = SWING
                 return {
@@ -118,7 +118,7 @@ class AdvancedTradingActions:
                     'leverage': 2,
                     'duration': '1-5 days'
                 }
-        
+
         # MEDIUM-HIGH CONFIDENCE (75-85%) = Moderate strategies
         elif confidence >= 0.75:
             if market_regime == 'sideways' or volatility < 0.01:
@@ -129,7 +129,7 @@ class AdvancedTradingActions:
                     'leverage': 1,
                     'duration': 'until breakout'
                 }
-            
+
             elif direction == 'buy' and volatility < 0.02:
                 # Stable uptrend = DCA
                 return {
@@ -138,7 +138,7 @@ class AdvancedTradingActions:
                     'leverage': 1,
                     'duration': 'hours to days'
                 }
-            
+
             else:
                 # Standard leveraged position
                 if direction == 'buy':
@@ -155,7 +155,7 @@ class AdvancedTradingActions:
                         'leverage': 3,
                         'duration': '1-4 hours'
                     }
-        
+
         # MEDIUM CONFIDENCE (65-75%) = Conservative strategies
         else:
             if volatility > 0.05:
@@ -166,7 +166,7 @@ class AdvancedTradingActions:
                     'leverage': 1,
                     'duration': 'until volatility drops'
                 }
-            
+
             else:
                 # Standard spot trade
                 if direction == 'buy':
@@ -183,7 +183,7 @@ class AdvancedTradingActions:
                         'leverage': 1,
                         'duration': 'flexible'
                     }
-    
+
     def check_arbitrage_opportunity(
         self,
         symbol: str,

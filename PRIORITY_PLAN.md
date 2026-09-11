@@ -37,7 +37,7 @@
 **What to do:**
 1. Let bot run as-is
 2. Check Bybit testnet in 4-6 hours
-3. Check Gate.io testnet  
+3. Check Gate.io testnet
 4. Look for orders in order history
 5. Check bot logs for "Trade executed"
 

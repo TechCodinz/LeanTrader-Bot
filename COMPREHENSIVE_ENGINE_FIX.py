@@ -31,25 +31,25 @@ def backup_file(filepath):
 def fix_ultra_core():
     """Add get_market_data() method to ultra_core.py"""
     print("\n🔧 Fixing ultra_core.py...")
-    
+
     filepath = "ultra_core.py"
     backup_file(filepath)
-    
+
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     # Find the analyze_market method and add get_market_data before it
     marker = "    def analyze_market(self, ohlcv):"
-    
+
     if marker in content and "def get_market_data(self" not in content:
         get_market_data_method = '''    async def get_market_data(self, symbol=None, timeframe='1h'):
         """
         Get market data for Ultra engines - compatibility wrapper
-        
+
         Args:
             symbol: Trading pair (e.g. 'BTC/USDT')
             timeframe: Timeframe (e.g. '1h', 'M5')
-            
+
         Returns:
             dict with market data including ohlcv, analysis, etc.
         """
@@ -60,14 +60,14 @@ def fix_ultra_core():
                     ohlcv = self.router.safe_fetch_ohlcv(symbol, timeframe=timeframe)
                 except:
                     ohlcv = []
-                
+
                 if ohlcv and len(ohlcv) > 0:
                     # Analyze the market data
                     analysis = self.analyze_market(ohlcv)
-                    
+
                     # Get current price
                     current_price = ohlcv[-1][4] if len(ohlcv) > 0 else 0
-                    
+
                     return {
                         'symbol': symbol,
                         'timeframe': timeframe,
@@ -85,21 +85,21 @@ def fix_ultra_core():
                         'close': 0,
                         'analysis': None
                     }
-            
+
             # Return general market scan if no symbol specified
             return self.scan_markets()
-            
+
         except Exception as e:
             if self.logger:
                 self.logger.debug(f"get_market_data error for {symbol}: {e}")
             return {'symbol': symbol, 'close': 0, 'analysis': None}
-    
+
 '''
         content = content.replace(marker, get_market_data_method + marker)
-        
+
         with open(filepath, 'w') as f:
             f.write(content)
-        
+
         print("✅ Added get_market_data() method to ultra_core.py")
         return True
     elif "def get_market_data(self" in content:
@@ -112,12 +112,12 @@ def fix_ultra_core():
 def verify_orchestrator_wiring():
     """Verify all engine wiring in orchestrator"""
     print("\n🔍 Verifying COMPLETE_ULTIMATE_ORCHESTRATOR.py...")
-    
+
     filepath = "COMPLETE_ULTIMATE_ORCHESTRATOR.py"
-    
+
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     checks = {
         'risk_engine alias': 'self.risk_engine = self.risk_engine_core' in content,
         '_moon_hunt_wrapper': 'async def _moon_hunt_wrapper' in content,
@@ -129,25 +129,25 @@ def verify_orchestrator_wiring():
         'Ultra Arb loop': 'run_ultra_arb()' in content,
         'Return tasks': 'return tasks' in content,
     }
-    
+
     all_pass = True
     for check_name, result in checks.items():
         status = "✅" if result else "❌"
         print(f"  {status} {check_name}")
         if not result:
             all_pass = False
-    
+
     return all_pass
 
 def enhance_moon_wrapper():
     """Make Moon Spotter wrapper generate intelligent signals"""
     print("\n🌙 Enhancing Moon Spotter wrapper...")
-    
+
     filepath = "COMPLETE_ULTIMATE_ORCHESTRATOR.py"
-    
+
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     # Check if moon wrapper needs enhancement
     if 'moon_pairs = [\'PEPE/USDT\'' in content and 'confidence\': 0.78' in content:
         print("  🔧 Moon wrapper exists but uses static confidence")
@@ -165,7 +165,7 @@ def create_summary():
     print("\n" + "="*70)
     print("🎉 COMPREHENSIVE ENGINE FIX SUMMARY")
     print("="*70)
-    
+
     print("\n✅ COMPLETED FIXES:")
     print("  1. Added get_market_data() to ultra_core.py")
     print("  2. Verified risk_engine alias for Ultra engines")
@@ -174,7 +174,7 @@ def create_summary():
     print("  5. Verified all engine initialization")
     print("  6. Verified all engine loops are created")
     print("  7. Confirmed tasks are returned properly")
-    
+
     print("\n📊 ENGINE STATUS:")
     print("  ✅ Smart Scalping - Already working, publishes 4-8 signals")
     print("  ✅ Moon Spotter - Wrapper publishes 6 meme coin signals")
@@ -183,7 +183,7 @@ def create_summary():
     print("  ✅ Evolution Engine - Runs in background, evolves models")
     print("  ✅ Swarm Consciousness - Initialized, can be wired")
     print("  ✅ Revolutionary AI - Has get_revolutionary_signal()")
-    
+
     print("\n🚀 DEPLOYMENT COMMANDS:")
     print("  # Apply fix:")
     print("  python3 COMPREHENSIVE_ENGINE_FIX.py")
@@ -195,14 +195,14 @@ def create_summary():
     print("")
     print("  # Monitor engines:")
     print("  timeout 120 tail -f bot.log | grep --line-buffered -E '🌙 MOON|ULTRA.*SCALP|ULTRA.*ARB|execute_trade'")
-    
+
     print("\n💰 EXPECTED RESULTS:")
     print("  - Moon Spotter: 6 signals every 5 minutes")
     print("  - Ultra Scalping: Continuous M1/M5 scalping signals")
     print("  - Ultra Arbitrage: Arb opportunities every 20 seconds")
     print("  - Smart Scalping: 4-8 signals per cycle (already working)")
     print("  - MICRO: Trades from ALL engines via CentralDataHub")
-    
+
     print("\n" + "="*70)
 
 def main():
@@ -223,14 +223,14 @@ def main():
     ║                                                                   ║
     ╚═══════════════════════════════════════════════════════════════════╝
     """)
-    
+
     # Run all fixes
     fixes = [
         ("Ultra Core", fix_ultra_core),
         ("Orchestrator Wiring", verify_orchestrator_wiring),
         ("Moon Wrapper", enhance_moon_wrapper),
     ]
-    
+
     results = []
     for name, fix_func in fixes:
         try:
@@ -239,7 +239,7 @@ def main():
         except Exception as e:
             print(f"❌ Error in {name}: {e}")
             results.append((name, False))
-    
+
     # Show results
     print("\n" + "="*70)
     print("RESULTS:")
@@ -247,10 +247,10 @@ def main():
     for name, result in results:
         status = "✅ PASS" if result else "❌ FAIL"
         print(f"  {status} - {name}")
-    
+
     # Create summary
     create_summary()
-    
+
     # Final status
     if all(r[1] for r in results):
         print("\n✅ ALL FIXES APPLIED SUCCESSFULLY!")

@@ -510,7 +510,7 @@ class AutoTradingBot:
             cursor = self.db.cursor()
             cursor.execute(
                 '''
-                INSERT INTO auto_trades 
+                INSERT INTO auto_trades
                 (symbol, side, amount, entry_price, current_price, status, tp1, tp2, tp3, stop_loss, confidence)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',
@@ -623,7 +623,7 @@ class AutoTradingBot:
                     cursor = self.db.cursor()
                     cursor.execute(
                         '''
-                        UPDATE auto_trades 
+                        UPDATE auto_trades
                         SET current_price = ?, unrealized_pnl = ?
                         WHERE symbol = ? AND status = 'OPEN'
                     ''',
@@ -661,7 +661,7 @@ class AutoTradingBot:
             cursor = self.db.cursor()
             cursor.execute(
                 '''
-                UPDATE auto_trades 
+                UPDATE auto_trades
                 SET status = 'CLOSED', exit_time = ?, exit_price = ?, final_pnl = ?
                 WHERE symbol = ? AND status = 'OPEN'
             ''',
@@ -765,7 +765,7 @@ class AutoTradingBot:
                     cursor = self.db.cursor()
                     cursor.execute(
                         '''
-                        INSERT INTO trading_signals 
+                        INSERT INTO trading_signals
                         (symbol, timeframe, signal, confidence, price, tp1, tp2, tp3, stop_loss, ai_score)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''',

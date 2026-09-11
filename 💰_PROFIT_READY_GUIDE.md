@@ -179,7 +179,7 @@ These are the **SECRET WEAPONS** nobody else has:
    ```bash
    nano ~/trading_bot/.env
    ```
-   
+
    Make sure you have:
    ```
    GATE_API_KEY=your_real_gate_api_key

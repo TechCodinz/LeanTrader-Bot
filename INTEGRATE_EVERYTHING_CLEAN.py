@@ -37,16 +37,16 @@ if 'ADAPTIVE_CONFIDENCE_ENGINE' in exec_content:
 else:
     # Add import at top
     lines = exec_content.split('\n')
-    
+
     # Find where to add import (after other imports)
     import_idx = 0
     for i, line in enumerate(lines):
         if line.startswith('import ') or line.startswith('from '):
             import_idx = i + 1
-    
+
     # Insert import
     lines.insert(import_idx, 'from ADAPTIVE_CONFIDENCE_ENGINE import get_adaptive_confidence_engine')
-    
+
     exec_content = '\n'.join(lines)
     print("   ✅ Added import")
 
@@ -54,16 +54,16 @@ else:
 if 'self.adaptive_confidence' not in exec_content:
     # Find the __init__ method of ExecutionOrchestrator class
     # Add after other initializations
-    
+
     # Find ExecutionOrchestrator __init__
     init_pattern = r'(class ExecutionOrchestrator:.*?def __init__\(self.*?\):)(.*?)((?=\n    def |\nclass |\Z))'
-    
+
     match = re.search(init_pattern, exec_content, re.DOTALL)
     if match:
         class_def = match.group(1)
         init_body = match.group(2)
         rest = match.group(3)
-        
+
         # Add adaptive confidence initialization
         if 'self.adaptive_confidence' not in init_body:
             # Find a good place to add it (after self.min_confidence)
@@ -71,7 +71,7 @@ if 'self.adaptive_confidence' not in exec_content:
                 init_body = init_body.replace(
                     'self.min_confidence = min_confidence',
                     '''self.min_confidence = min_confidence
-        
+
         # 🧠 ADAPTIVE CONFIDENCE ENGINE
         try:
             self.adaptive_confidence = get_adaptive_confidence_engine()
@@ -82,7 +82,7 @@ if 'self.adaptive_confidence' not in exec_content:
             self.adaptive_confidence = None
             self.use_adaptive_confidence = False'''
                 )
-                
+
                 exec_content = class_def + init_body + rest
                 print("   ✅ Added to __init__")
             else:
@@ -94,9 +94,9 @@ if 'self.adaptive_confidence' not in exec_content:
 if 'adaptive_threshold' not in exec_content:
     # Find where confidence is checked
     # Pattern: if confidence < self.min_confidence
-    
+
     confidence_check = r'if confidence < self\.min_confidence:'
-    
+
     if re.search(confidence_check, exec_content):
         # Replace with adaptive version
         exec_content = re.sub(
@@ -111,7 +111,7 @@ if 'adaptive_threshold' not in exec_content:
             logger.debug(f"🧠 Adaptive threshold for {symbol}: {adaptive_threshold:.1%} (base: {self.min_confidence:.1%})")
         else:
             adaptive_threshold = self.min_confidence
-        
+
         if confidence < adaptive_threshold:''',
             exec_content
         )
@@ -190,7 +190,7 @@ if 'UltraRareEnginesOrchestrator' not in orch_content:
             logger.info('⚡ Ultra Rare Engines initialized (10 engines!)')
         except Exception as e:
             logger.warning(f'Ultra Rare Engines unavailable: {e}')
-        
+
         logger.info('🎉 ALL 9 ADVANCED SYSTEMS INITIALIZED!')"""
         )
         print("   ✅ Added to initialization")
@@ -206,29 +206,29 @@ if 'run_ultra_rare_engines' not in orch_content:
         engine = self.advanced_systems.get('ultra_rare')
         if not engine:
             return
-            
+
         logger.info('⚡ Ultra Rare Engines active!')
-        
+
         while True:
             try:
                 # Get signals from all 10 engines
                 signals = await engine.generate_signals()
-                
+
                 if signals:
                     logger.info(f'⚡ Ultra Rare: {len(signals)} opportunities found!')
-                    
+
                     # Publish to data hub
                     if hasattr(self, 'data_hub'):
                         for signal in signals:
                             await self.data_hub.publish_signal(signal)
-                
+
                 await asyncio.sleep(10)  # Check every 10 seconds
-                
+
             except Exception as e:
                 logger.error(f'Ultra Rare Engines error: {e}')
                 await asyncio.sleep(30)
 '''
-    
+
     # Find where to insert (before the start method ends or near run_dynamic_pair_discovery)
     if 'async def run_dynamic_pair_discovery' in orch_content:
         orch_content = orch_content.replace(
@@ -236,14 +236,14 @@ if 'run_ultra_rare_engines' not in orch_content:
             run_method + '\n    async def run_dynamic_pair_discovery'
         )
         print("   ✅ Added run_ultra_rare_engines method")
-    
+
     # Add to background tasks in start()
     if 'run_dynamic_pair_discovery()' in orch_content:
         orch_content = orch_content.replace(
             'asyncio.create_task(self.run_dynamic_pair_discovery())',
             '''asyncio.create_task(self.run_dynamic_pair_discovery())
                 )
-                
+
                 # Ultra Rare Engines task
                 if self.advanced_systems.get('ultra_rare'):
                     background_tasks.append(

@@ -16,9 +16,8 @@ TELEGRAM_BOT_TOKEN = "8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg"
 TG_ADMIN_CHAT_ID = "5329503447"
 TG_FREE_CHAT_ID = "-1002930953007"
 TG_VIP_CHAT_ID = "-1002983007302"
-BYBIT_API_KEY = "g1mhPqKrOBp9rnqb4G"
-BYBIT_API_SECRET = "s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG"
-
+BYBIT_API_KEY = os.getenv("BYBIT_API_KEY", "")
+BYBIT_API_SECRET = os.getenv("BYBIT_API_SECRET", "")
 # Read the bot code
 with open('/workspace/ultimate_ultra_plus.py', 'r') as f:
     bot_code = f.read()
@@ -207,7 +206,7 @@ def run_command(cmd, check=True):
 def create_bot_files():
     """Create all the bot files locally"""
     print("📝 Creating bot files...")
-    
+
     # Create main bot file
     main_bot = '''#!/usr/bin/env python3
 """
@@ -229,7 +228,7 @@ class BybitTradingBot:
         self.api_key = "g1mhPqKrOBp9rnqb4G"
         self.secret_key = "s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG"
         self.sandbox = True
-        
+
     async def initialize(self):
         logger.info("🚀 Initializing Bybit Trading Bot...")
         try:
@@ -245,7 +244,7 @@ class BybitTradingBot:
         except Exception as e:
             logger.error(f"❌ Connection failed: {e}")
             return False
-    
+
     async def get_market_data(self, symbol='BTC/USDT'):
         try:
             ticker = await self.exchange.fetch_ticker(symbol)
@@ -253,13 +252,13 @@ class BybitTradingBot:
         except Exception as e:
             logger.error(f"Error getting {symbol}: {e}")
             return None
-    
+
     async def analyze_market(self, ticker):
         try:
             price = ticker['last']
             change_24h = ticker['change']
             volume = ticker['baseVolume']
-            
+
             # Simple analysis
             if change_24h < -500:  # Significant drop
                 return 'BUY', 0.8, f"Strong buy signal - Price dropped {change_24h}"
@@ -269,41 +268,41 @@ class BybitTradingBot:
                 return 'HOLD', 0.5, f"Neutral - Change: {change_24h}"
         except Exception as e:
             return 'HOLD', 0.0, f"Analysis error: {e}"
-    
+
     async def trading_loop(self):
         logger.info("🎯 Starting trading loop...")
         symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT']
-        
+
         while self.running:
             try:
                 logger.info(f"📊 Market Analysis - {datetime.now().strftime('%H:%M:%S')}")
-                
+
                 for symbol in symbols:
                     ticker = await self.get_market_data(symbol)
                     if ticker:
                         action, confidence, reasoning = await self.analyze_market(ticker)
                         logger.info(f"📈 {symbol}: ${ticker['last']:.2f} | {action} ({confidence:.0%}) | {reasoning}")
-                        
+
                         if confidence > 0.7 and action != 'HOLD':
                             logger.info(f"🎮 SIMULATION: Would {action} {symbol} at ${ticker['last']:.2f}")
-                
+
                 await asyncio.sleep(30)
-                
+
             except Exception as e:
                 logger.error(f"Trading loop error: {e}")
                 await asyncio.sleep(10)
-    
+
     async def start(self):
         logger.info("🚀 Starting Professional Bybit Trading Bot...")
         logger.info(f"🔑 API: {self.api_key[:10]}...")
         logger.info(f"🌐 Mode: {'Testnet' if self.sandbox else 'Live'}")
-        
+
         if await self.initialize():
             self.running = True
             await self.trading_loop()
         else:
             logger.error("❌ Failed to initialize bot")
-    
+
     async def stop(self):
         logger.info("🛑 Stopping bot...")
         self.running = False
@@ -326,10 +325,10 @@ if __name__ == "__main__":
     time.sleep(3)
     asyncio.run(main())
 '''
-    
+
     with open('bybit_bot.py', 'w') as f:
         f.write(main_bot)
-    
+
     # Create setup script
     setup_script = '''#!/bin/bash
 set -e
@@ -389,7 +388,7 @@ class BybitTradingBot:
         self.api_key = "g1mhPqKrOBp9rnqb4G"
         self.secret_key = "s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG"
         self.sandbox = True
-        
+
     async def initialize(self):
         logger.info("🚀 Initializing Bybit Trading Bot...")
         try:
@@ -405,7 +404,7 @@ class BybitTradingBot:
         except Exception as e:
             logger.error(f"❌ Connection failed: {e}")
             return False
-    
+
     async def get_market_data(self, symbol='BTC/USDT'):
         try:
             ticker = await self.exchange.fetch_ticker(symbol)
@@ -413,13 +412,13 @@ class BybitTradingBot:
         except Exception as e:
             logger.error(f"Error getting {symbol}: {e}")
             return None
-    
+
     async def analyze_market(self, ticker):
         try:
             price = ticker['last']
             change_24h = ticker['change']
             volume = ticker['baseVolume']
-            
+
             # Simple analysis
             if change_24h < -500:  # Significant drop
                 return 'BUY', 0.8, f"Strong buy signal - Price dropped {change_24h}"
@@ -429,41 +428,41 @@ class BybitTradingBot:
                 return 'HOLD', 0.5, f"Neutral - Change: {change_24h}"
         except Exception as e:
             return 'HOLD', 0.0, f"Analysis error: {e}"
-    
+
     async def trading_loop(self):
         logger.info("🎯 Starting trading loop...")
         symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT']
-        
+
         while self.running:
             try:
                 logger.info(f"📊 Market Analysis - {datetime.now().strftime('%H:%M:%S')}")
-                
+
                 for symbol in symbols:
                     ticker = await self.get_market_data(symbol)
                     if ticker:
                         action, confidence, reasoning = await self.analyze_market(ticker)
                         logger.info(f"📈 {symbol}: ${ticker['last']:.2f} | {action} ({confidence:.0%}) | {reasoning}")
-                        
+
                         if confidence > 0.7 and action != 'HOLD':
                             logger.info(f"🎮 SIMULATION: Would {action} {symbol} at ${ticker['last']:.2f}")
-                
+
                 await asyncio.sleep(30)
-                
+
             except Exception as e:
                 logger.error(f"Trading loop error: {e}")
                 await asyncio.sleep(10)
-    
+
     async def start(self):
         logger.info("🚀 Starting Professional Bybit Trading Bot...")
         logger.info(f"🔑 API: {self.api_key[:10]}...")
         logger.info(f"🌐 Mode: {'Testnet' if self.sandbox else 'Live'}")
-        
+
         if await self.initialize():
             self.running = True
             await self.trading_loop()
         else:
             logger.error("❌ Failed to initialize bot")
-    
+
     async def stop(self):
         logger.info("🛑 Stopping bot...")
         self.running = False
@@ -610,10 +609,10 @@ try:
     cmd = f'''
     sshpass -p '{VPS_PASS}' ssh -o StrictHostKeyChecking=no {VPS_USER}@{VPS_HOST} 'bash -s' < /tmp/deploy.sh
     '''
-    
+
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     print(result.stdout)
-    
+
     if result.returncode == 0:
         print("\n✅ DEPLOYMENT SUCCESSFUL!")
         print("\n📱 Your Telegram bot is now active!")
@@ -623,7 +622,7 @@ try:
     else:
         print("\n⚠ Deployment encountered issues:")
         print(result.stderr)
-        
+
 except Exception as e:
     print(f"Error: {e}")
     print("\nManual deployment needed. SSH to your VPS and run the commands.")
@@ -631,35 +630,35 @@ except Exception as e:
 # Note: The original file had orphaned bash code here that has been removed
 # to make the Python file syntactically valid. The deployment functionality
 # is already covered by the deployment_script and setup_script above.
-    
+
     print("✅ Bot files created!")
 
 def deploy_to_vps():
     """Deploy the bot to VPS automatically"""
     print("🚀 Starting automated deployment...")
-    
+
     # Create deployment package
     print("📦 Creating deployment package...")
     run_command("tar -czf bot_deploy.tar.gz bybit_bot.py auto_setup.sh", check=False)
-    
+
     # Upload to VPS
     print("📤 Uploading to VPS...")
     upload_cmd = "scp bot_deploy.tar.gz root@75.119.149.117:/tmp/"
     result = run_command(upload_cmd, check=False)
-    
+
     if result and result.returncode == 0:
         print("✅ Files uploaded successfully!")
-        
+
         # Execute setup on VPS
         print("🔧 Running setup on VPS...")
         setup_cmd = """ssh root@75.119.149.117 'cd /tmp && tar -xzf bot_deploy.tar.gz && chmod +x auto_setup.sh && ./auto_setup.sh'"""
-        
+
         print("🎯 Executing automated setup...")
         print("This may take a few minutes...")
-        
+
         # Run setup
         result = run_command(setup_cmd, check=False)
-        
+
         if result and result.returncode == 0:
             print("🎉 Bot deployed and started successfully!")
             print("\n📊 Your bot is now running!")
@@ -671,7 +670,7 @@ def deploy_to_vps():
     else:
         print("❌ Upload failed. Please check your VPS connection.")
         return False
-    
+
     # Cleanup
     run_command("rm bot_deploy.tar.gz", check=False)
     return True
@@ -686,10 +685,10 @@ def main():
     print("   ✅ Start the bot service")
     print("   ✅ Configure everything for Bybit testnet")
     print("")
-    
+
     # Create bot files
     create_bot_files()
-    
+
     # Try automated deployment
     if deploy_to_vps():
         print("\n🎉 SUCCESS! Your trading bot is running!")

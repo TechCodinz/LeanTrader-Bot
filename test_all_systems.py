@@ -23,10 +23,10 @@ async def test_core_infrastructure():
     logger.info("=" * 80)
     logger.info("TESTING PHASE 1: CORE INFRASTRUCTURE")
     logger.info("=" * 80)
-    
+
     tests_passed = 0
     tests_total = 9
-    
+
     # Test 1: ExchangeRouter
     try:
         from router import ExchangeRouter
@@ -37,7 +37,7 @@ async def test_core_infrastructure():
     except Exception as e:
         logger.error(f"❌ 1/9 - ExchangeRouter: {e}")
         ExchangeRouter = None
-    
+
     # Test 2: RiskEngine
     try:
         from risk_engine import RiskEngine
@@ -49,7 +49,7 @@ async def test_core_infrastructure():
     except Exception as e:
         logger.error(f"❌ 2/9 - RiskEngine: {e}")
         RiskEngine = None
-    
+
     # Test 3: Brain
     try:
         from brain import Brain
@@ -60,7 +60,7 @@ async def test_core_infrastructure():
     except Exception as e:
         logger.error(f"❌ 3/9 - Brain: {e}")
         Brain = None
-    
+
     # Test 4: PatternMemory
     try:
         from pattern_memory import PatternMemory
@@ -71,7 +71,7 @@ async def test_core_infrastructure():
     except Exception as e:
         logger.error(f"❌ 4/9 - PatternMemory: {e}")
         PatternMemory = None
-    
+
     # Test 5: Ledger
     try:
         from ledger import Ledger
@@ -82,7 +82,7 @@ async def test_core_infrastructure():
     except Exception as e:
         logger.error(f"❌ 5/9 - Ledger: {e}")
         Ledger = None
-    
+
     # Test 6: UltraCore
     try:
         from ultra_core import UltraCore
@@ -93,7 +93,7 @@ async def test_core_infrastructure():
     except Exception as e:
         logger.error(f"❌ 6/9 - UltraCore: {e}")
         UltraCore = None
-    
+
     # Test 7: SituationalAwareness
     try:
         from awareness import SituationalAwareness, AwarenessConfig
@@ -106,7 +106,7 @@ async def test_core_infrastructure():
         logger.error(f"❌ 7/9 - SituationalAwareness: {e}")
         SituationalAwareness = None
         AwarenessConfig = None
-    
+
     # Test 8: HiveCoordinator
     try:
         from hivemind import HiveCoordinator
@@ -117,7 +117,7 @@ async def test_core_infrastructure():
     except Exception as e:
         logger.error(f"❌ 8/9 - HiveCoordinator: {e}")
         HiveCoordinator = None
-    
+
     # Test 9: GlobalAwareness
     try:
         from gloaware import GlobalAwareness, AwarenessConfig as GloConfig
@@ -130,7 +130,7 @@ async def test_core_infrastructure():
         logger.error(f"❌ 9/9 - GlobalAwareness: {e}")
         GlobalAwareness = None
         GloConfig = None
-    
+
     logger.info(f"\nPhase 1 Result: {tests_passed}/{tests_total} systems operational")
     return tests_passed, tests_total
 
@@ -139,19 +139,19 @@ async def test_trading_engines():
     logger.info("\n" + "=" * 80)
     logger.info("TESTING PHASE 2: TRADING ENGINES")
     logger.info("=" * 80)
-    
+
     tests_passed = 0
     tests_total = 5
-    
+
     # Setup dependencies
     from router import ExchangeRouter
     from risk_engine import RiskEngine
     from ultra_core import UltraCore
-    
+
     router = ExchangeRouter()
     risk = RiskEngine()
     core = UltraCore(router, ["BTC/USDT"], logger)
-    
+
     # Test 1: UltraArbitrageEngine
     try:
         from ultra_arbitrage_engine import UltraArbitrageEngine
@@ -162,7 +162,7 @@ async def test_trading_engines():
     except Exception as e:
         logger.error(f"❌ 1/5 - UltraArbitrageEngine: {e}")
         UltraArbitrageEngine = None
-    
+
     # Test 2: UltraScalpingEngine
     try:
         from ultra_scalping_engine import UltraScalpingEngine
@@ -173,7 +173,7 @@ async def test_trading_engines():
     except Exception as e:
         logger.error(f"❌ 2/5 - UltraScalpingEngine: {e}")
         UltraScalpingEngine = None
-    
+
     # Test 3: UltraMoonSpotter
     try:
         from ultra_moon_spotter import UltraMoonSpotter
@@ -184,7 +184,7 @@ async def test_trading_engines():
     except Exception as e:
         logger.error(f"❌ 3/5 - UltraMoonSpotter: {e}")
         UltraMoonSpotter = None
-    
+
     # Test 4: RealProfitBot
     try:
         from REAL_PROFIT_BOT import RealProfitBot
@@ -195,7 +195,7 @@ async def test_trading_engines():
     except Exception as e:
         logger.error(f"❌ 4/5 - RealProfitBot: {e}")
         RealProfitBot = None
-    
+
     # Test 5: EnhancedTradingBot
     try:
         from enhanced_trading_bot import EnhancedTradingBot
@@ -207,7 +207,7 @@ async def test_trading_engines():
     except Exception as e:
         logger.error(f"❌ 5/5 - EnhancedTradingBot: {e}")
         EnhancedTradingBot = None
-    
+
     logger.info(f"\nPhase 2 Result: {tests_passed}/{tests_total} systems operational")
     return tests_passed, tests_total
 
@@ -216,19 +216,19 @@ async def test_ai_ml_systems():
     logger.info("\n" + "=" * 80)
     logger.info("TESTING PHASE 3: AI/ML SYSTEMS")
     logger.info("=" * 80)
-    
+
     tests_passed = 0
     tests_total = 6
-    
+
     # Setup dependencies
     from router import ExchangeRouter
     from risk_engine import RiskEngine
     from ultra_core import UltraCore
-    
+
     router = ExchangeRouter()
     risk = RiskEngine()
     core = UltraCore(router, ["BTC/USDT"], logger)
-    
+
     # Test 1: EvolutionEngine
     try:
         from EVOLUTION_ENGINE import ULTIMATE_EVOLUTION_ENGINE
@@ -239,7 +239,7 @@ async def test_ai_ml_systems():
     except Exception as e:
         logger.error(f"❌ 1/6 - EvolutionEngine: {e}")
         ULTIMATE_EVOLUTION_ENGINE = None
-    
+
     # Test 2: 450+ Models Bot
     try:
         from working_450_models_bot import working_450_models_bot
@@ -250,7 +250,7 @@ async def test_ai_ml_systems():
     except Exception as e:
         logger.error(f"❌ 2/6 - 450+ Models Bot: {e}")
         working_450_models_bot = None
-    
+
     # Test 3: SwarmConsciousness
     try:
         from ultra_swarm_consciousness import UltraSwarmConsciousness
@@ -261,7 +261,7 @@ async def test_ai_ml_systems():
     except Exception as e:
         logger.error(f"❌ 3/6 - SwarmConsciousness: {e}")
         UltraSwarmConsciousness = None
-    
+
     # Test 4: DivineIntelligence
     try:
         from divine_intelligence_core import DivineIntelligence
@@ -272,7 +272,7 @@ async def test_ai_ml_systems():
     except Exception as e:
         logger.error(f"❌ 4/6 - DivineIntelligence: {e}")
         DivineIntelligence = None
-    
+
     # Test 5: MLStrategyEngine
     try:
         from ml_strategy_engine import MLStrategyEngine
@@ -283,7 +283,7 @@ async def test_ai_ml_systems():
     except Exception as e:
         logger.error(f"❌ 5/6 - MLStrategyEngine: {e}")
         MLStrategyEngine = None
-    
+
     # Test 6: OnlineLearner
     try:
         from online_learner import OnlineLearner
@@ -294,7 +294,7 @@ async def test_ai_ml_systems():
     except Exception as e:
         logger.error(f"❌ 6/6 - OnlineLearner: {e}")
         OnlineLearner = None
-    
+
     logger.info(f"\nPhase 3 Result: {tests_passed}/{tests_total} systems operational")
     return tests_passed, tests_total
 
@@ -303,19 +303,19 @@ async def test_advanced_intelligence():
     logger.info("\n" + "=" * 80)
     logger.info("TESTING PHASE 4: ADVANCED INTELLIGENCE")
     logger.info("=" * 80)
-    
+
     tests_passed = 0
     tests_total = 3
-    
+
     # Setup dependencies
     from router import ExchangeRouter
     from risk_engine import RiskEngine
     from ultra_core import UltraCore
-    
+
     router = ExchangeRouter()
     risk = RiskEngine()
     core = UltraCore(router, ["BTC/USDT"], logger)
-    
+
     # Test 1: QuantumIntelligence
     try:
         from ultra_quantum_intelligence import UltraQuantumIntelligence
@@ -326,7 +326,7 @@ async def test_advanced_intelligence():
     except Exception as e:
         logger.error(f"❌ 1/3 - QuantumIntelligence: {e}")
         UltraQuantumIntelligence = None
-    
+
     # Test 2: FluidMechanics
     try:
         from ultra_fluid_mechanics import UltraFluidMechanics
@@ -337,7 +337,7 @@ async def test_advanced_intelligence():
     except Exception as e:
         logger.error(f"❌ 2/3 - FluidMechanics: {e}")
         UltraFluidMechanics = None
-    
+
     # Test 3: BacktestEngine
     try:
         from ultra_backtest_engine import UltraBacktestEngine
@@ -348,7 +348,7 @@ async def test_advanced_intelligence():
     except Exception as e:
         logger.error(f"❌ 3/3 - BacktestEngine: {e}")
         UltraBacktestEngine = None
-    
+
     logger.info(f"\nPhase 4 Result: {tests_passed}/{tests_total} systems operational")
     return tests_passed, tests_total
 
@@ -360,30 +360,30 @@ async def main():
     ║              Testing All 26 Systems                          ║
     ╚══════════════════════════════════════════════════════════════╝
     """)
-    
+
     total_passed = 0
     total_tests = 0
-    
+
     # Phase 1: Core Infrastructure
     p1_passed, p1_total = await test_core_infrastructure()
     total_passed += p1_passed
     total_tests += p1_total
-    
+
     # Phase 2: Trading Engines
     p2_passed, p2_total = await test_trading_engines()
     total_passed += p2_passed
     total_tests += p2_total
-    
+
     # Phase 3: AI/ML Systems
     p3_passed, p3_total = await test_ai_ml_systems()
     total_passed += p3_passed
     total_tests += p3_total
-    
+
     # Phase 4: Advanced Intelligence
     p4_passed, p4_total = await test_advanced_intelligence()
     total_passed += p4_total
     total_tests += p4_total
-    
+
     # Final Results
     logger.info("\n" + "=" * 80)
     logger.info("FINAL RESULTS")
@@ -395,7 +395,7 @@ async def main():
     logger.info("=" * 80)
     logger.info(f"TOTAL: {total_passed}/{total_tests} systems operational ({total_passed/total_tests*100:.1f}%)")
     logger.info("=" * 80)
-    
+
     if total_passed == total_tests:
         logger.info("🎉 100% SUCCESS - ALL SYSTEMS OPERATIONAL!")
         return 0

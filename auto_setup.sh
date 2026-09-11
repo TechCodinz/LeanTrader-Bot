@@ -57,7 +57,7 @@ class BybitTradingBot:
         self.api_key = "g1mhPqKrOBp9rnqb4G"
         self.secret_key = "s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG"
         self.sandbox = True
-        
+
     async def initialize(self):
         logger.info("🚀 Initializing Bybit Trading Bot...")
         try:
@@ -73,7 +73,7 @@ class BybitTradingBot:
         except Exception as e:
             logger.error(f"❌ Connection failed: {e}")
             return False
-    
+
     async def get_market_data(self, symbol='BTC/USDT'):
         try:
             ticker = await self.exchange.fetch_ticker(symbol)
@@ -81,13 +81,13 @@ class BybitTradingBot:
         except Exception as e:
             logger.error(f"Error getting {symbol}: {e}")
             return None
-    
+
     async def analyze_market(self, ticker):
         try:
             price = ticker['last']
             change_24h = ticker['change']
             volume = ticker['baseVolume']
-            
+
             # Simple analysis
             if change_24h < -500:  # Significant drop
                 return 'BUY', 0.8, f"Strong buy signal - Price dropped {change_24h}"
@@ -97,41 +97,41 @@ class BybitTradingBot:
                 return 'HOLD', 0.5, f"Neutral - Change: {change_24h}"
         except Exception as e:
             return 'HOLD', 0.0, f"Analysis error: {e}"
-    
+
     async def trading_loop(self):
         logger.info("🎯 Starting trading loop...")
         symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT']
-        
+
         while self.running:
             try:
                 logger.info(f"📊 Market Analysis - {datetime.now().strftime('%H:%M:%S')}")
-                
+
                 for symbol in symbols:
                     ticker = await self.get_market_data(symbol)
                     if ticker:
                         action, confidence, reasoning = await self.analyze_market(ticker)
                         logger.info(f"📈 {symbol}: ${ticker['last']:.2f} | {action} ({confidence:.0%}) | {reasoning}")
-                        
+
                         if confidence > 0.7 and action != 'HOLD':
                             logger.info(f"🎮 SIMULATION: Would {action} {symbol} at ${ticker['last']:.2f}")
-                
+
                 await asyncio.sleep(30)
-                
+
             except Exception as e:
                 logger.error(f"Trading loop error: {e}")
                 await asyncio.sleep(10)
-    
+
     async def start(self):
         logger.info("🚀 Starting Professional Bybit Trading Bot...")
         logger.info(f"🔑 API: {self.api_key[:10]}...")
         logger.info(f"🌐 Mode: {'Testnet' if self.sandbox else 'Live'}")
-        
+
         if await self.initialize():
             self.running = True
             await self.trading_loop()
         else:
             logger.error("❌ Failed to initialize bot")
-    
+
     async def stop(self):
         logger.info("🛑 Stopping bot...")
         self.running = False

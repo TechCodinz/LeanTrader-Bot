@@ -3,19 +3,19 @@
 ## ✅ **CRITICAL FIXES:**
 
 ### 1. **Market Scanner Bug Fixed** 🔧
-**Problem:** `object dict can't be used in 'await' expression`  
-**Root Cause:** Scanner receiving wrong object type from orchestrator  
-**Fix:** Now uses `arbitrage_engine.exchanges` (already extracted ccxt objects)  
-**Result:** Will scan Gate.io, Binance, MEXC, Bybit successfully  
+**Problem:** `object dict can't be used in 'await' expression`
+**Root Cause:** Scanner receiving wrong object type from orchestrator
+**Fix:** Now uses `arbitrage_engine.exchanges` (already extracted ccxt objects)
+**Result:** Will scan Gate.io, Binance, MEXC, Bybit successfully
 
 ### 2. **Lowered Market Scanner Thresholds** 📊
-**Before:** $5M volume, 3% price change (too strict)  
-**After:** $1M volume, 1.5% price change (relaxed)  
+**Before:** $5M volume, 3% price change (too strict)
+**After:** $1M volume, 1.5% price change (relaxed)
 **Result:** Will find 50-100+ pairs instead of 0
 
 ### 3. **Arbitrage Real Execution** 💰
-**Before:** "Simulated execution" (logged but didn't trade)  
-**After:** Real buy/sell logic with safety limits  
+**Before:** "Simulated execution" (logged but didn't trade)
+**After:** Real buy/sell logic with safety limits
 **Result:** Actual arbitrage profits!
 
 ### 4. **Daily Profit Tracking** 📈
@@ -42,7 +42,7 @@
 📰 News signal: DOGE trending (conf: 78%)
 Symbol: DOGE/USDT
 Side: BUY
-Reasoning: "Trending on CoinGecko (rank #12, score 8). 
+Reasoning: "Trending on CoinGecko (rank #12, score 8).
            High social momentum and search volume detected."
 ```
 

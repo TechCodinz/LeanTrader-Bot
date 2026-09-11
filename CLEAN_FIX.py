@@ -26,33 +26,33 @@ for i, line in enumerate(lines):
         fixed_lines.append(safety_check)
         fixed_lines.append(line)
         print(f"✅ Fixed position size calculation (line {i+1})")
-    
-    # Fix 2: Line ~381 - amount calculation  
+
+    # Fix 2: Line ~381 - amount calculation
     elif 'amount = position_size_usd / price' in line and 'if price' not in lines[i-1]:
         indent = len(line) - len(line.lstrip())
         safety_check = ' ' * indent + 'price = max(0.01, price)  # Prevent division by zero\n'
         fixed_lines.append(safety_check)
         fixed_lines.append(line)
         print(f"✅ Fixed amount calculation (line {i+1})")
-    
+
     # Fix 3: Any other division that could be zero
     elif '/ volatility' in line or '/ balance' in line:
         # Add safety check before the line
         indent = len(line) - len(line.lstrip())
-        
+
         if '/ volatility' in line:
             safety = ' ' * indent + 'volatility = max(0.01, volatility)  # Prevent division by zero\n'
         elif '/ balance' in line:
             safety = ' ' * indent + 'balance = max(1.0, balance)  # Prevent division by zero\n'
         else:
             safety = ''
-        
+
         if safety and safety not in fixed_lines[-1] if fixed_lines else True:
             fixed_lines.append(safety)
             print(f"✅ Fixed division safety (line {i+1})")
-        
+
         fixed_lines.append(line)
-    
+
     else:
         fixed_lines.append(line)
 

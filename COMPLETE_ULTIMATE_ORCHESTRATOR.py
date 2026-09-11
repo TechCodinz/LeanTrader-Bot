@@ -165,7 +165,7 @@ from SENTIENT_TRADING_BRAIN import SentientTradingBrain
 from REAL_PROFIT_BOT import REAL_PROFIT_BOT
 
 # Import AUTO LIVE TRIGGER - Intelligent testnet→live switching
-from AUTO_LIVE_TRIGGER import AutoLiveTrigger
+from AUTO_LIVE_TRIGGER import AutoLiveTrigger, auto_trigger, auto_trigger, auto_trigger
 
 # Import UTILITY INTEGRATION LAYER - All utility functions
 from UTILITY_INTEGRATION_LAYER import UtilityIntegrationLayer
@@ -332,7 +332,7 @@ try:
     from analyzer import Analyzer
 except: Analyzer = None
 try:
-    from OMNISCIENT_EXECUTION_ENGINE import OmniscientExecutionEngine
+    from OMNISCIENT_EXECUTION_ENGINE import OmniscientExecutionEngine, get_omniscient_engine
 except: OmniscientExecutionEngine = None
 try:
     from OMNISCIENT_TRADING_MODE import OmniscientTradingMode
@@ -424,18 +424,18 @@ class AdvancedScoutingOrchestrator:
     Advanced scouting with UltraScout integration
     Adds: News, Social, Web crawling, On-chain data
     """
-    
+
     def __init__(self, data_hub: CentralDataHub, ultra_scout: UltraScout):
         self.data_hub = data_hub
         self.ultra_scout = ultra_scout
         self.scouting_active = True
-        
+
         logger.info("🔍 Advanced Scouting Orchestrator initialized")
-    
+
     async def run_advanced_scouting(self):
         """Run advanced scouting with all features"""
         logger.info("🌐 Starting advanced scouting (News, Social, On-chain)...")
-        
+
         while self.scouting_active:
             try:
                 # 1. Scan news and social media
@@ -443,36 +443,36 @@ class AdvancedScoutingOrchestrator:
                     await self.scout_news_and_social()
                 except Exception as e:
                     logger.debug(f"News/social scout: {e}")
-                
+
                 # 2. Analyze on-chain data
                 try:
                     await self.scout_onchain()
                 except Exception as e:
                     logger.debug(f"On-chain scout: {e}")
-                
+
                 # 3. Web pattern discovery
                 try:
                     await self.scout_web_patterns()
                 except Exception as e:
                     logger.debug(f"Web pattern scout: {e}")
-                
+
                 logger.info("🌐 Advanced scouting cycle complete")
-                
+
                 await asyncio.sleep(300)  # Every 5 minutes
-                
+
             except Exception as e:
                 logger.error(f"Advanced scouting error: {e}")
                 await asyncio.sleep(300)
-    
+
     async def scout_news_and_social(self):
         """Scout news and social media"""
         # Scan all sources
         self.ultra_scout.scan_all_sources()
-        
+
         # Get sentiment
         sentiment = self.ultra_scout.sentiment
         trends = self.ultra_scout.trends
-        
+
         if sentiment or trends:
             finding = {
                 'type': 'news_social',
@@ -481,10 +481,10 @@ class AdvancedScoutingOrchestrator:
                 'trends': trends,
                 'timestamp': datetime.now()
             }
-            
+
             await self.data_hub.publish_signal(finding)
             logger.info(f"📰 News/Social: {len(sentiment)} sentiments, {len(trends)} trends")
-    
+
     async def scout_onchain(self):
         """Scout on-chain data"""
         # Example tokens to track
@@ -492,11 +492,11 @@ class AdvancedScoutingOrchestrator:
             '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',  # WETH
             '0xdac17f958d2ee523a2206206994597c13d831ec7',  # USDT
         ]
-        
+
         for token in tokens:
             try:
                 analytics = self.ultra_scout.fetch_onchain_analytics(token)
-                
+
                 if analytics and 'whale_transactions' in analytics:
                     if analytics['whale_transactions']:
                         finding = {
@@ -506,16 +506,16 @@ class AdvancedScoutingOrchestrator:
                             'data': analytics,
                             'timestamp': datetime.now()
                         }
-                        
+
                         await self.data_hub.publish_signal(finding)
                         logger.info(f"🐋 On-chain: Whale activity detected")
             except Exception as e:
                 logger.debug(f"On-chain {token}: {e}")
-    
+
     async def scout_web_patterns(self):
         """Scout for web patterns"""
         patterns = self.ultra_scout.patterns
-        
+
         if patterns:
             finding = {
                 'type': 'web_patterns',
@@ -523,7 +523,7 @@ class AdvancedScoutingOrchestrator:
                 'patterns': patterns,
                 'timestamp': datetime.now()
             }
-            
+
             await self.data_hub.publish_signal(finding)
             logger.info(f"🕸️ Web patterns: {len(patterns)} discovered")
 
@@ -533,34 +533,34 @@ class ForexTradingOrchestrator:
     Forex trading orchestrator
     Handles EURUSD, GBPUSD, USDJPY, XAUUSD
     """
-    
+
     def __init__(self, data_hub: CentralDataHub):
         self.data_hub = data_hub
         self.pairs = ['EURUSD', 'GBPUSD', 'USDJPY', 'XAUUSD']
         self.forex_active = True
-        
+
         logger.info("💱 Forex Trading Orchestrator initialized")
-    
+
     async def run_forex_trading(self):
         """Run forex trading loop"""
         logger.info("💱 Starting forex trading...")
-        
+
         while self.forex_active:
             try:
                 for pair in self.pairs:
                     # Generate forex signals
                     signal = await self.generate_forex_signal(pair)
-                    
+
                     if signal:
                         await self.data_hub.publish_signal(signal)
                         logger.info(f"💱 Forex signal: {pair} - {signal.get('side', 'unknown')}")
-                
+
                 await asyncio.sleep(180)  # Every 3 minutes
-                
+
             except Exception as e:
                 logger.error(f"Forex trading error: {e}")
                 await asyncio.sleep(180)
-    
+
     async def generate_forex_signal(
         self,
         pair: str,
@@ -703,51 +703,51 @@ class DeepLearningOrchestrator:
     Deep learning orchestrator
     LSTM and Transformer models for price prediction
     """
-    
+
     def __init__(self, data_hub: CentralDataHub):
         self.data_hub = data_hub
         self.dl_active = True
         self.models_loaded = False
-        
+
         logger.info("🧠 Deep Learning Orchestrator initialized")
-    
+
     async def initialize_models(self):
         """Initialize deep learning models"""
         try:
             # Would load LSTM/Transformer models
             logger.info("🧠 Initializing deep learning models...")
-            
+
             # Placeholder for model loading
             self.models_loaded = True
-            
+
             logger.info("✅ Deep learning models ready")
         except Exception as e:
             logger.warning(f"DL models: {e}")
-    
+
     async def run_deep_learning(self):
         """Run deep learning predictions"""
         if not self.models_loaded:
             await self.initialize_models()
-        
+
         logger.info("🧠 Starting deep learning predictions...")
-        
+
         while self.dl_active:
             try:
                 # Generate predictions
                 predictions = await self.generate_predictions()
-                
+
                 if predictions:
                     for pred in predictions:
                         await self.data_hub.publish_signal(pred)
-                    
+
                     logger.info(f"🧠 DL predictions: {len(predictions)} generated")
-                
+
                 await asyncio.sleep(300)  # Every 5 minutes
-                
+
             except Exception as e:
                 logger.error(f"Deep learning error: {e}")
                 await asyncio.sleep(300)
-    
+
     async def generate_predictions(self) -> List[Dict[str, Any]]:
         """Generate deep learning predictions"""
         # Placeholder - would use real LSTM/Transformer models
@@ -825,34 +825,34 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
     - Forex trading
     - Deep learning
     - Advanced features from Nobel system
-    
+
     TOTAL: 26 core + 8 additional = 34 SYSTEMS
     """
-    
+
     def __init__(self, mode: str = "testnet"):
         super().__init__(mode)
-        
+
         # Additional advanced systems
         self.advanced_systems = {}
         self.advanced_orchestrators = {}
-        
+
         # ========================================================================
         # LOAD LEARNED MEMORY - Don't start from scratch!
         # ========================================================================
         logger.info("\n🧠 Loading learned memory from previous runs...")
         try:
             self.persistence_manager, self.learned_state = initialize_persistence()
-            
+
             # Log what we loaded
             total_db_rows = sum(
                 sum(t['rows'] for t in db.get('tables', []))
                 for db in self.learned_state.get('databases', {}).values()
             )
-            
+
             history_trades = 0
             if 'history' in self.learned_state and 'csv' in self.learned_state['history']:
                 history_trades = self.learned_state['history']['csv'].get('trades', 0)
-            
+
             logger.info(f"✅ Loaded {len(self.learned_state.get('databases', {}))} databases with {total_db_rows} rows of learned data")
             logger.info(f"✅ Loaded {history_trades:,} historical trades")
             logger.info("✅ Bot will use previous knowledge - NOT starting from scratch!")
@@ -861,20 +861,20 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning("   Bot will start fresh (no previous knowledge)")
             self.persistence_manager = None
             self.learned_state = {}
-        
+
         logger.info("🚀 Complete Ultimate Orchestrator initialized")
-    
+
     async def initialize_all_systems(self):
         """Initialize ALL systems including advanced ones"""
-        
+
         # First initialize base 26 systems
         await super().initialize_all_systems()
-        
+
         # Now add advanced systems
         logger.info("\n" + "=" * 80)
         logger.info("🌟 Phase 6: Advanced Systems...")
         logger.info("=" * 80)
-        
+
         # 1. UltraScout
         try:
             self.advanced_systems['ultra_scout'] = UltraScout(max_threads=4)
@@ -882,12 +882,12 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"UltraScout: {e}")
             self.advanced_systems['ultra_scout'] = None
-        
+
         # ====================================================================
         # ALL 20 ULTRA SYSTEMS - COMPLETE INITIALIZATION
         # ====================================================================
         logger.info("\n🌟 Initializing ALL 20 ULTRA SYSTEMS...")
-        
+
         # 2. ULTRA MOON SPOTTER - Find 1,000,000x micro cap gems
         try:
             self.ultra_moon_system = UltraMoonSystem()
@@ -898,7 +898,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Ultra Moon: {e}")
             self.ultra_moon_system = None
-        
+
         # 3. ULTRA FOREX MASTER - Professional forex trading
         try:
             self.forex_master = UltraForexMaster()
@@ -907,7 +907,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Forex Master: {e}")
             self.forex_master = None
-        
+
         # 4. ULTRA BUSINESS SYSTEM - 52KB business intelligence
         try:
             self.business_system = UltraBusinessSystem()
@@ -916,7 +916,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Business System: {e}")
             self.business_system = None
-        
+
         # 5. ULTRA ML PIPELINE - Complete ML infrastructure
         try:
             self.ml_pipeline = UltraMLPipeline()
@@ -925,7 +925,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  ML Pipeline: {e}")
             self.ml_pipeline = None
-        
+
         # 6. ULTRA TELEGRAM MASTER - Advanced Telegram control
         try:
             self.telegram_master = UltraTelegramMaster()
@@ -948,7 +948,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Telegram Master: {e}")
             self.telegram_master = None
-        
+
         # 7. ULTRA CONTINUOUS TRADING - 24/7 never-stop
         try:
             ultra_core_ref = self.ultra_core if hasattr(self, 'ultra_core') else None
@@ -958,7 +958,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Continuous Trading: {e}")
             self.continuous_trading = None
-        
+
         # 8. ULTRA MULTI-PLATFORM SCANNER
         try:
             self.multi_platform = UltraMultiPlatformScanner(ultra_core_ref, self.risk_engine)
@@ -967,34 +967,68 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Multi-Platform: {e}")
             self.multi_platform = None
-        
+
         # 9. ULTRA BACKTEST ENGINE
         try:
-            self.backtest_engine = UltraBacktestEngine(self.ultra_core, self.risk_engine)
+            self.backtest_engine = (
+                getattr(
+                    self,
+                    "backtest",
+                    None,
+                )
+                or UltraBacktestEngine(
+                    self.ultra_core,
+                    self.risk_engine,
+                )
+            )
             self.advanced_systems['backtest_engine'] = self.backtest_engine
             logger.info("✅ 📊 ULTRA BACKTEST ENGINE!")
         except Exception as e:
             logger.warning(f"⚠️  Backtest Engine: {e}")
             self.backtest_engine = None
-        
+
         # 10. ULTRA SCALPING ENGINE
         try:
-            self.ultra_scalping = UltraScalpingEngine(self.ultra_core, self.risk_engine)
+            self.ultra_scalping = (
+                getattr(
+                    self,
+                    "trading_engines",
+                    {},
+                ).get(
+                    "scalping"
+                )
+                or UltraScalpingEngine(
+                    self.ultra_core,
+                    self.risk_engine,
+                )
+            )
             self.advanced_systems['ultra_scalping'] = self.ultra_scalping
             logger.info("✅ ⚡ ULTRA SCALPING ENGINE!")
         except Exception as e:
             logger.warning(f"⚠️  Ultra Scalping: {e}")
             self.ultra_scalping = None
-        
+
         # 11. ULTRA ARBITRAGE ENGINE
         try:
-            self.ultra_arbitrage = UltraArbitrageEngine(self.ultra_core, self.risk_engine)
+            self.ultra_arbitrage = (
+                getattr(
+                    self,
+                    "trading_engines",
+                    {},
+                ).get(
+                    "arbitrage"
+                )
+                or UltraArbitrageEngine(
+                    self.ultra_core,
+                    self.risk_engine,
+                )
+            )
             self.advanced_systems['ultra_arbitrage'] = self.ultra_arbitrage
             logger.info("✅ 💰 ULTRA ARBITRAGE ENGINE!")
         except Exception as e:
             logger.warning(f"⚠️  Ultra Arbitrage: {e}")
             self.ultra_arbitrage = None
-        
+
         # 12-14. Additional ultra systems
         try:
             self.testnet_trader = UltraTestnetTrader(
@@ -1008,7 +1042,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("✅ 🚀 ULTRA TESTNET + BOT + LAUNCHER!")
         except Exception as e:
             logger.warning(f"⚠️  Additional Ultra: {e}")
-        
+
         # 15-20. Ultra Core, Fluid, God Mode, Quantum, Swarm, Advanced
         #
         # This block used to call UltraCore() with no arguments, but UltraCore
@@ -1030,14 +1064,50 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
 
         for attr, factory, label in (
             ("ultra_god", lambda: UltraGodMode(), "Ultra God Mode"),
-            ("swarm_consciousness", lambda: SwarmConsciousnessSystem(
-                self.ultra_core, self.risk_engine,
+            ("swarm_consciousness", lambda: (
+                getattr(
+                    self,
+                    "ai_systems",
+                    {},
+                ).get(
+                    "swarm"
+                )
+                or SwarmConsciousnessSystem(
+                    self.ultra_core,
+                    self.risk_engine,
+                )
             ), "Swarm Consciousness"),
-            ("evolution_engine", lambda: ULTIMATE_EVOLUTION_ENGINE(
-                data_hub=getattr(self, "data_hub", None),
-                universe=getattr(self, "trading_universe", None),
+            ("evolution_engine", lambda: (
+                getattr(
+                    self,
+                    "ai_systems",
+                    {},
+                ).get(
+                    "evolution"
+                )
+                or ULTIMATE_EVOLUTION_ENGINE(
+                    data_hub=getattr(
+                        self,
+                        "data_hub",
+                        None,
+                    ),
+                    universe=getattr(
+                        self,
+                        "trading_universe",
+                        None,
+                    ),
+                )
             ), "Evolution Engine"),
-            ("bot_450", lambda: UltimateBot450Models(), "450 Models"),
+            ("bot_450", lambda: (
+                getattr(
+                    self,
+                    "ai_systems",
+                    {},
+                ).get(
+                    "models_450"
+                )
+                or UltimateBot450Models()
+            ), "450 Models"),
         ):
             try:
                 instance = factory()
@@ -1075,7 +1145,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 "testnet_trader"
             ] = self.testnet_trader
 
-        
+
         # REVOLUTIONARY AI MANAGER
         try:
             self.revolutionary_ai = RevolutionaryAIManager()
@@ -1084,12 +1154,12 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Revolutionary AI: {e}")
             self.revolutionary_ai = None
-        
+
         # ====================================================================
         # CRITICAL MISSING SYSTEMS - Online Learning, News, Alpha, Awareness
         # ====================================================================
         logger.info("\n🔥 Initializing CRITICAL MISSING SYSTEMS...")
-        
+
         # ONLINE LEARNER - Real-time SGD learning
         try:
             self.online_learner = OnlineLearner()
@@ -1098,7 +1168,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Online Learner: {e}")
             self.online_learner = None
-        
+
         # NEWS SERVICE - News harvesting & sentiment
         try:
             self.news_harvester = NewsHarvester() if 'NewsHarvester' in dir() else None
@@ -1110,7 +1180,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f"⚠️  News Service: {e}")
             self.news_harvester = None
             self.news_adapter = None
-        
+
         # ADAPTIVE CONFIDENCE ENGINE - Dynamic thresholds
         try:
             self.adaptive_confidence = AdaptiveConfidenceEngine()
@@ -1119,7 +1189,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Adaptive Confidence: {e}")
             self.adaptive_confidence = None
-        
+
         # ALPHA ENGINES - Multiple alpha generation strategies
         try:
             self.alpha_router = AlphaRouter()
@@ -1128,7 +1198,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Alpha Engines: {e}")
             self.alpha_router = None
-        
+
         # SITUATIONAL AWARENESS - Market regime detection
         try:
             awareness_config = AwarenessConfig()
@@ -1138,12 +1208,12 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Situational Awareness: {e}")
             self.situational_awareness = None
-        
+
         # ====================================================================
         # ULTRA-DEEP SYSTEMS - Routers, Nobel, Omniscient, Premium (18!)
         # ====================================================================
         logger.info("\n🚀 Initializing ULTRA-DEEP SYSTEMS (18 routers, nobel, omniscient)...")
-        
+
         # MAIN ROUTER - Core routing system (48KB!)
         try:
             self.exchange_router = ExchangeRouter()
@@ -1152,7 +1222,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Exchange Router: {e}")
             self.exchange_router = None
-        
+
         # RISK ENGINE CORE - Advanced risk management (INFINITE LIMITS!)
         try:
             self.risk_engine_core = RiskEngineCore()
@@ -1173,7 +1243,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Risk Engine Core: {e}")
             self.risk_engine_core = None
-        
+
         # EXCHANGE MANAGER - Multi-exchange management (20KB)
         try:
             self.exchange_manager = ExchangeManager()
@@ -1182,7 +1252,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Exchange Manager: {e}")
             self.exchange_manager = None
-        
+
         # ML STRATEGY ENGINE - Machine learning strategies
         try:
             self.ml_strategy = MLStrategyEngine()
@@ -1191,7 +1261,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  ML Strategy: {e}")
             self.ml_strategy = None
-        
+
         # OMNISCIENT EXECUTION ENGINE - Trade everything (9KB)
         try:
             self.omniscient_execution = get_omniscient_engine()
@@ -1200,7 +1270,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Omniscient Execution: {e}")
             self.omniscient_execution = None
-        
+
         # OMNISCIENT TRADING MODE - Ultimate trading (16KB)
         try:
             self.omniscient_mode = get_omniscient_engine()
@@ -1209,7 +1279,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Omniscient Mode: {e}")
             self.omniscient_mode = None
-        
+
         # PREMIUM VIP TELEGRAM - Subscription system (35KB!)
         try:
             self.premium_telegram = PremiumVIPTelegramSystem() if 'PremiumVIPTelegramSystem' in dir() else None
@@ -1218,7 +1288,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Premium Telegram: {e}")
             self.premium_telegram = None
-        
+
         # NOBEL COMPLETE SYSTEM - Full Nobel system (66KB!)
         try:
             self.nobel_complete = NobelCompleteSystem()
@@ -1227,7 +1297,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Nobel Complete: {e}")
             self.nobel_complete = None
-        
+
         # NOBEL HEDGE FUND - Hedge fund strategies (72KB!)
         try:
             self.nobel_hedge_fund = NobelHedgeFundSystem()
@@ -1236,7 +1306,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Nobel Hedge Fund: {e}")
             self.nobel_hedge_fund = None
-        
+
         # NOBEL RISK MANAGEMENT - Advanced risk (46KB)
         try:
             self.nobel_risk = NobelRiskManagement()
@@ -1245,7 +1315,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Nobel Risk: {e}")
             self.nobel_risk = None
-        
+
         # UNIFIED TRADING SYSTEM - Unified approach (17KB)
         try:
             self.unified_trading = UnifiedTradingSystem()
@@ -1254,7 +1324,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Unified Trading: {e}")
             self.unified_trading = None
-        
+
         # NOVEMBER GROWTH STRATEGY - Special strategy (27KB)
         try:
             self.november_growth = NovemberGrowthStrategy(self.ultra_core, self.risk_engine)
@@ -1263,12 +1333,12 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  November Growth: {e}")
             self.november_growth = None
-        
+
         # ====================================================================
         # STEADY PROFIT & ADVANCED EXECUTION (10 systems - THE MONEY MAKERS!)
         # ====================================================================
         logger.info("\n💰 Initializing STEADY PROFIT & EXECUTION SYSTEMS...")
-        
+
         # STEADY PROFIT EXTRACTOR - THE CORE PROFIT ENGINE! (9KB)
         try:
             self.steady_profit = SteadyProfitExtractor(self.data_hub, self.advanced_orchestrators.get('execution'))
@@ -1279,7 +1349,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Steady Profit: {e}")
             self.steady_profit = None
-        
+
         # SESSION CLOCK & FILTER - Session awareness
         try:
             self.session_clock = SessionClock()
@@ -1290,7 +1360,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Session Clock: {e}")
             self.session_clock = None
-        
+
         # ADVANCED EXECUTION - Maker/Taker optimization
         try:
             if hasattr(self, 'exchange_router'):
@@ -1300,7 +1370,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Limit Maker: {e}")
             self.limit_maker = None
-        
+
         # PORTFOLIO ALLOCATOR - Dynamic sizing
         try:
             self.portfolio_allocator = Portfolio() if 'Portfolio' in dir() else None
@@ -1309,7 +1379,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Portfolio Allocator: {e}")
             self.portfolio_allocator = None
-        
+
         # FUTURES SIGNALS - Futures/margin trading
         try:
             self.futures_signals = FuturesSignalGenerator()
@@ -1318,14 +1388,14 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Futures Signals: {e}")
             self.futures_signals = None
-        
+
         logger.info("✅ STEADY PROFIT & EXECUTION SYSTEMS - ALL MONEY MAKERS READY!")
-        
+
         # ====================================================================
         # MICRO WALLET GROWER & CONTINUOUS ULTRA - THE $1 TO INFINITE ENGINES!
         # ====================================================================
         logger.info("\n💎 Initializing MICRO WALLET GROWER ($1 → ∞)...")
-        
+
         # MICRO_GATE_BOT - Grows ANY wallet from $1 to infinite!
         try:
             self.micro_wallet_grower = MICRO_GATE_BOT()
@@ -1337,7 +1407,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Micro Wallet Grower: {e}")
             self.micro_wallet_grower = None
-        
+
         # CONTINUOUS ULTRA BOT - Never stops trading!
         try:
             self.continuous_ultra = ContinuousUltraTradingSystem()
@@ -1350,14 +1420,14 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Continuous Ultra: {e}")
             self.continuous_ultra = None
-        
+
         logger.info("✅ MICRO WALLET GROWER & CONTINUOUS ULTRA - GROWTH ENGINES READY!")
-        
+
         # ====================================================================
         # SAFETY & AUTO-SWITCH SYSTEMS - TESTNET→REAL PROTECTION! 🛡️
         # ====================================================================
         logger.info("\n🛡️ Initializing SAFETY & AUTO-SWITCH SYSTEMS...")
-        
+
         # GUARDRAILS - Trade safety limits (INFINITE TRADES!)
         try:
             guard_config = GuardConfig(
@@ -1377,10 +1447,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Trade Guard: {e}")
             self.trade_guard = None
-        
+
         # AUTO LIVE TRIGGER - Testnet→Real auto-switching!
         try:
-            self.auto_live_trigger = AutoLiveTrigger()
+            self.auto_live_trigger = auto_trigger
             self.advanced_systems['auto_live_trigger'] = self.auto_live_trigger
             logger.info("✅ 🤖 AUTO LIVE TRIGGER - Testnet→Real auto-switch!")
             logger.info("   → Monitors testnet performance")
@@ -1390,9 +1460,9 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  Auto Live Trigger: {e}")
             self.auto_live_trigger = None
-        
+
         logger.info("✅ SAFETY & AUTO-SWITCH SYSTEMS - PROTECTION READY!")
-        
+
         logger.info("\n" + "=" * 80)
         logger.info("✅ ALL 116+ SYSTEMS INITIALIZED!")
         logger.info("   - 26 core systems")
@@ -1417,15 +1487,38 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("🛡️ SAFETY SYSTEMS: Guardrails, Risk protection, Auto-switch!")
         logger.info("🤖 AUTO TESTNET→REAL: Learns on testnet, trades on real!")
         logger.info("=" * 80)
-    
+
+
+        # PASS4_FINAL_ENGINE_REGISTRY
+        try:
+            from engine_runtime_registry import (
+                finalize_runtime_intelligence,
+            )
+
+            self.engine_runtime_report = (
+                finalize_runtime_intelligence(
+                    self,
+                    logger,
+                )
+            )
+
+        except Exception as exc:
+            logger.exception(
+                "Engine registry / Frequency Harmony "
+                "/ Apex initialization failed: %s",
+                exc,
+            )
+
+            raise
+
     async def wire_all_systems(self):
         """Wire ALL systems including advanced ones"""
-        
+
         # First do base wiring
         await super().wire_all_systems()
-        
+
         logger.info("\n🔌 WIRING ADVANCED SYSTEMS...")
-        
+
         # 1. Advanced Scouting Orchestrator
         if self.advanced_systems.get('ultra_scout'):
             self.advanced_orchestrators['advanced_scouting'] = AdvancedScoutingOrchestrator(
@@ -1433,19 +1526,19 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 self.advanced_systems['ultra_scout']
             )
             logger.info("✅ Advanced Scouting Orchestrator wired")
-        
+
         # 2. Forex Trading Orchestrator
         self.advanced_orchestrators['forex'] = ForexTradingOrchestrator(
             self.data_hub
         )
         logger.info("✅ Forex Trading Orchestrator wired")
-        
+
         # 3. Deep Learning Orchestrator
         self.advanced_orchestrators['deep_learning'] = DeepLearningOrchestrator(
             self.data_hub
         )
         logger.info("✅ Deep Learning Orchestrator wired")
-        
+
         # 4. EXECUTION ORCHESTRATOR - THE CRITICAL PIECE!
         self.advanced_orchestrators['execution'] = ExecutionOrchestrator(
             self.data_hub,
@@ -1455,7 +1548,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             mode=self.mode
         )
         logger.info("✅ ⚡ EXECUTION ORCHESTRATOR WIRED - TRADES WILL NOW EXECUTE!")
-        
+
         # 5. TELEGRAM ORCHESTRATOR - Complete notifications & remote trading!
         self.advanced_orchestrators['telegram'] = TelegramOrchestrator(
             self.data_hub,
@@ -1463,11 +1556,11 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             mode=self.mode
         )
         logger.info("✅ 📱 TELEGRAM ORCHESTRATOR WIRED - Admin, VIP, Free channels + Remote trading!")
-        
+
         # 6. IBM QUANTUM ENGINE - Quantum computing advantage!
         self.advanced_orchestrators['quantum'] = IBMQuantumEngine(mode=self.mode)
         logger.info("✅ 🔮 IBM QUANTUM ENGINE WIRED - Quantum predictions, optimization, risk!")
-        
+
         # 7. ULTRASONIC RARE STRATEGIES - PhD-level techniques!
         try:
             from ULTRASONIC_RARE_STRATEGIES import UltrasonicStrategiesManager
@@ -1478,11 +1571,11 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️  ULTRASONIC not available: {e}")
             UltrasonicStrategiesManager = None
-        
+
         # 8. UTILITY INTEGRATION LAYER - All utility functions!
         self.advanced_orchestrators['utilities'] = UtilityIntegrationLayer()
         logger.info("✅ ⚙️  UTILITY LAYER WIRED - Sizing, guardrails, indicators, skillbook!")
-        
+
         # 8. DEX ORCHESTRATOR - DEX trading with Moon Spotting & MEV protection!
         dex_config = DEXConfig(
             enabled=True,
@@ -1494,27 +1587,27 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             mev_protection=True
         )
         self.advanced_orchestrators['dex'] = DEXOrchestrator(
-            config=dex_config, 
+            config=dex_config,
             data_hub=self.data_hub
         )
         logger.info("✅ 🌙 DEX ORCHESTRATOR WIRED - Moon spotting, MEV protection, multi-chain!")
-        
+
         # ====================================================================
         # 9. CRITICAL PROFIT FEATURES - The Missing 50-100% Profit Boost 🚀
         # ====================================================================
         if CRITICAL_FEATURES_AVAILABLE:
             logger.info("\n💰 Wiring CRITICAL PROFIT FEATURES...")
-            
+
             # Get initial balance
             initial_capital = 1000.0  # Will update from exchange
-            
+
             self.trailing_stops = TrailingStopManager(trail_percent=0.02)
             self.compound_engine = CompoundEngine(initial_capital=initial_capital, compound_rate=0.5)
             self.partial_tp = PartialTPManager()
             self.emergency_stop = EmergencyStop(max_loss=0.10, max_trades_per_min=10)
             self.funding_arb = FundingArbitrage(min_spread=0.001)
             self.volume_analyzer = VolumeProfileAnalyzer()
-            
+
             # Store in advanced orchestrators for easy access
             self.advanced_orchestrators['profit_features'] = {
                 'trailing_stops': self.trailing_stops,
@@ -1524,7 +1617,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 'funding_arb': self.funding_arb,
                 'volume_analyzer': self.volume_analyzer
             }
-            
+
             logger.info("✅ 💰 CRITICAL PROFIT FEATURES WIRED - Expected +50-100% profit boost!")
         else:
             logger.warning("⚠️  Critical profit features NOT available")
@@ -1534,48 +1627,48 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             self.emergency_stop = None
             self.funding_arb = None
             self.volume_analyzer = None
-        
+
         # ====================================================================
         # 10. ULTRA-RARE GOLDMINE FEATURES - Cutting-Edge Advantage 🌟
         # ====================================================================
         if ULTRA_FEATURES_AVAILABLE:
             logger.info("\n🌟 Wiring ULTRA GOLDMINE FEATURES...")
-            
+
             self.ultra_goldmine = UltraGoldmineManager()
             self.advanced_orchestrators['ultra_goldmine'] = self.ultra_goldmine
-            
+
             logger.info("✅ 🌟 ULTRA GOLDMINE FEATURES WIRED - Expected +200-500% profit boost!")
         else:
             logger.warning("⚠️  Ultra goldmine features NOT available")
             self.ultra_goldmine = None
-        
+
         # ====================================================================
         # 11. DIVINE INTELLIGENCE FEATURES - Consciousness-Level Entity 🔮
         # ====================================================================
         if DIVINE_FEATURES_AVAILABLE:
             logger.info("\n🔮 Wiring DIVINE INTELLIGENCE FEATURES...")
-            
+
             self.divine_intelligence = DivineIntelligenceManager()
             self.advanced_orchestrators['divine_intelligence'] = self.divine_intelligence
-            
+
             logger.info("✅ 🔮 DIVINE INTELLIGENCE WIRED - Expected +300-1000% profit boost!")
             logger.info("   Using: Quantum mechanics, Chaos theory, Game theory")
             logger.info("   Using: Information theory, Fractal geometry")
         else:
             logger.warning("⚠️  Divine intelligence features NOT available")
             self.divine_intelligence = None
-        
+
         # ========================================================================
         # CROSS-EXCHANGE ARBITRAGE ENGINE
         # ========================================================================
-        
+
         logger.info("💰 Wiring Cross-Exchange Arbitrage...")
-        
+
         # Prepare exchanges for arbitrage
         import ccxt
         import os
         arb_exchanges = {}
-        
+
         # Initialize exchanges from environment variables
         # Handle Gate.io mode (testnet vs live)
         gateio_mode = os.getenv('GATEIO_MODE', 'testnet')
@@ -1585,13 +1678,13 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         else:
             gate_key_env = os.getenv('GATEIO_TESTNET_API_KEY') or os.getenv('GATE_API_KEY')
             gate_secret_env = os.getenv('GATEIO_TESTNET_SECRET') or os.getenv('GATE_SECRET')
-        
+
         exchange_configs = {
             'mexc': ('MEXC_API_KEY', 'MEXC_SECRET'),
             'binance': ('BINANCE_API_KEY', 'BINANCE_SECRET'),
             'bybit': ('BYBIT_API_KEY', 'BYBIT_SECRET'),
         }
-        
+
         # Add Gate.io with mode-aware configuration
         if gate_key_env and gate_secret_env:
             try:
@@ -1608,18 +1701,18 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             'private': 'https://fx-api-testnet.gateio.ws/api/v4'
                         }
                     }
-                
+
                 exchange = resolve_exchange_class(ccxt, "gateio")(gate_config)
                 arb_exchanges['gateio'] = exchange
                 logger.info(f"   ✅ GATE.IO ({gateio_mode}) added to arbitrage")
             except Exception as e:
                 logger.warning(f"   ⚠️  GATE.IO: {str(e)[:50]}")
-        
+
         # Add other exchanges
         for exchange_name, (key_env, secret_env) in exchange_configs.items():
             api_key = os.getenv(key_env)
             secret = os.getenv(secret_env)
-            
+
             if api_key and secret:
                 try:
                     exchange_class = resolve_exchange_class(ccxt, exchange_name)
@@ -1634,23 +1727,23 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     logger.warning(f"   ⚠️  {exchange_name.upper()}: {str(e)[:50]}")
             else:
                 logger.debug(f"   ⚠️  {exchange_name.upper()}: No API keys")
-        
+
         # Also check existing engines
         if hasattr(self, 'engines') and self.engines:
             for exchange_name, exchange in self.engines.items():
                 if exchange and exchange_name not in arb_exchanges:
                     arb_exchanges[exchange_name] = exchange
                     logger.info(f"   ✅ {exchange_name.upper()} (from engines) added to arbitrage")
-        
+
         if len(arb_exchanges) >= 2:
             # Initialize arbitrage engine
             self.arbitrage_engine = CrossExchangeArbitrage(arb_exchanges, self.data_hub)
             self.advanced_orchestrators['arbitrage'] = self.arbitrage_engine
-            
+
             # Initialize P2P scanner
             self.p2p_scanner = P2PArbitrageScanner(arb_exchanges, self.data_hub)
             self.advanced_orchestrators['p2p_arbitrage'] = self.p2p_scanner
-            
+
             logger.info("✅ 💰 ARBITRAGE ENGINE WIRED - Risk-free profits enabled!")
             logger.info(f"   Monitoring {len(arb_exchanges)} exchanges")
             logger.info("   Expected: +10-30% extra profit via arbitrage")
@@ -1658,15 +1751,21 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f"⚠️  Need 2+ exchanges for arbitrage (have {len(arb_exchanges)})")
             self.arbitrage_engine = None
             self.p2p_scanner = None
-        
+
         # ========================================================================
         # REAL PROFIT BOT - 35 Pairs with Smart Sizing!
         # ========================================================================
         logger.info("💰 Wiring Real Profit Bot...")
-        
+
         try:
             # MODE-AWARE: Bybit testnet ($17k) or Gate.io live
-            self.real_profit_bot = REAL_PROFIT_BOT(mode=self.mode)
+            self.real_profit_bot = REAL_PROFIT_BOT(
+                universe=getattr(
+                    self,
+                    "trading_universe",
+                    None,
+                )
+            )
             self.trading_engines['real_profit'] = self.real_profit_bot
             logger.info(f"✅ 💰 REAL PROFIT BOT WIRED - {self.mode.upper()} mode")
             logger.info(f"   Exchange: {'Bybit Testnet' if self.mode == 'testnet' else 'Gate.io Live'}")
@@ -1675,12 +1774,12 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         except Exception as e:
             logger.warning(f"⚠️ REAL PROFIT BOT failed: {e}")
             self.real_profit_bot = None
-        
+
         # ========================================================================
         # DYNAMIC MARKET SCANNER - Auto-discover trending pairs
         # ========================================================================
         logger.info("🔍 Wiring Dynamic Market Scanner...")
-        
+
         # CRITICAL FIX: Use arbitrage engine's extracted exchanges, not raw dict!
         if self.arbitrage_engine and len(self.arbitrage_engine.exchanges) >= 1:
             self.market_scanner = DynamicMarketScanner(self.arbitrage_engine.exchanges, self.data_hub)
@@ -1696,35 +1795,35 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         else:
             logger.warning("⚠️  Need at least 1 exchange for market scanning")
             self.market_scanner = None
-        
+
         # ========================================================================
         # NEWS TRADING ENGINE - Fundamental analysis via news
         # ========================================================================
         logger.info("📰 Wiring News Trading Engine...")
-        
+
         self.news_engine = NewsTradingEngine(self.data_hub)
         self.advanced_orchestrators['news_trading'] = self.news_engine
         logger.info("✅ 📰 NEWS TRADING ENGINE WIRED - Fundamental analysis active!")
         logger.info("   Monitors: CoinGecko trending, sentiment, breaking news")
-        
+
         # ========================================================================
         # SESSION-AWARE TRADING - Trade at optimal times
         # ========================================================================
         logger.info("⏰ Wiring Session-Aware Trading...")
-        
+
         self.session_trader = SessionAwareTrading()
         self.advanced_orchestrators['session_aware'] = self.session_trader
-        
+
         current_session = self.session_trader.get_current_session()
         logger.info("✅ ⏰ SESSION-AWARE TRADING WIRED!")
         logger.info(f"   Current session: {current_session}")
         logger.info("   Auto-adjusts confidence based on market hours")
-        
+
         # ========================================================================
         # HEDGE FUND ARSENAL - Ultra-rare professional strategies
         # ========================================================================
         logger.info("🏦 Wiring Hedge Fund Arsenal...")
-        
+
         self.hedge_fund = HedgeFundArsenal(self.data_hub)
         self.advanced_orchestrators['hedge_fund'] = self.hedge_fund
         logger.info("✅ 🏦 HEDGE FUND ARSENAL WIRED!")
@@ -1732,12 +1831,12 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("   • Volatility Mean Reversion")
         logger.info("   • Smart Order Routing")
         logger.info("   Expected: +20-50% from professional strategies")
-        
+
         # ========================================================================
         # SENTIENT TRADING BRAIN - Living intelligence
         # ========================================================================
         logger.info("🧠 Wiring Sentient Trading Brain...")
-        
+
         # Get execution engine (it's stored as self.execution_engine)
         execution_engine = self.advanced_orchestrators.get('execution')
         self.sentient_brain = SentientTradingBrain(self.data_hub, execution_engine)
@@ -1747,17 +1846,17 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("   Every strategy tested in sandbox before going live")
         logger.info("   Continuous learning: Profit even from losses")
         logger.info("   Real-time adaptation: Market-aware intelligence")
-        
+
         # ========================================================================
         # 🔥 SMART SCALPING ENGINE - THE MISSING PROFIT ENGINE! 🔥
         # ========================================================================
         logger.info("\n⚡ Wiring SMART SCALPING ENGINE...")
-        
+
         try:
             # Import and get ultra_core from base system
             from ultra_core import UltraCore
             ultra_core_instance = self.ultra_core if hasattr(self, 'ultra_core') else None
-            
+
             self.smart_scalping = SmartScalpingEngine(
                 ultra_core=ultra_core_instance,
                 risk_engine=self.risk_engine
@@ -1772,16 +1871,16 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.error(f"❌ Smart Scalping Engine failed to wire: {e}")
             self.smart_scalping = None
             UltraCore = None
-        
+
         # ========================================================================
         # 💧 ULTRA FLUID MECHANICS - SENTINEL BRILLIANCE SYSTEM
         # ========================================================================
         logger.info("\n💧 Wiring ULTRA FLUID MECHANICS...")
-        
+
         try:
             from ultra_fluid_mechanics import FluidMechanicsEngine
             ultra_core_instance = self.ultra_core if hasattr(self, 'ultra_core') else None
-            
+
             self.fluid_mechanics = FluidMechanicsEngine(
                 ultra_core=ultra_core_instance,
                 risk_engine=self.risk_engine
@@ -1794,7 +1893,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.error(f"❌ Fluid Mechanics failed to wire: {e}")
             self.fluid_mechanics = None
             FluidMechanicsEngine = None
-        
+
         logger.info("\n" + "=" * 80)
         logger.info("✅ ALL ADVANCED SYSTEMS WIRED!")
         logger.info("   🎯 Core: 26 orchestrators")
@@ -1811,7 +1910,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info(f"   🔄 ARBITRAGE ENGINE: Active ({len(arb_exchanges)} exchanges)")
             logger.info("      → Cross-exchange arbitrage | P2P arbitrage")
         logger.info("=" * 80)
-    
+
     def _schedule_once(self, key: str, factory):
         """Create a task for a continuous loop at most once per orchestrator.
 
@@ -1831,58 +1930,58 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
 
     async def start_all_orchestrators(self):
         """Start ALL orchestrators including advanced ones"""
-        
+
         tasks = []
 
         def _add_task(task):
             if task is not None:
                 tasks.append(task)
-        
+
         # Start base orchestrators
         if 'learning' in self.orchestrators:
             _add_task(
                 self._schedule_once('learning.run_learning_loop', self.orchestrators['learning'].run_learning_loop)
             )
             logger.info("✅ Learning loop started")
-        
+
         if 'scouting' in self.orchestrators:
             tasks.append(
                 asyncio.create_task(self.orchestrators['scouting'].run_unified_scouting())
             )
             logger.info("✅ Scouting loop started")
-        
+
         if 'decision' in self.orchestrators:
             _add_task(
                 self._schedule_once('decision.run_decision_loop', self.orchestrators['decision'].run_decision_loop)
             )
             logger.info("✅ Decision loop started")
-        
+
         # Start advanced orchestrators
         if 'advanced_scouting' in self.advanced_orchestrators:
             tasks.append(
                 asyncio.create_task(self.advanced_orchestrators['advanced_scouting'].run_advanced_scouting())
             )
             logger.info("✅ Advanced scouting started (news, social, on-chain)")
-        
+
         if 'forex' in self.advanced_orchestrators:
             tasks.append(
                 asyncio.create_task(self.advanced_orchestrators['forex'].run_forex_trading())
             )
             logger.info("✅ Forex trading started")
-        
+
         if 'deep_learning' in self.advanced_orchestrators:
             tasks.append(
                 asyncio.create_task(self.advanced_orchestrators['deep_learning'].run_deep_learning())
             )
             logger.info("✅ Deep learning started")
-        
+
         # START EXECUTION ORCHESTRATOR - THE CRITICAL PIECE!
         if 'execution' in self.advanced_orchestrators:
             tasks.append(
                 asyncio.create_task(self.advanced_orchestrators['execution'].run_execution_loop())
             )
             logger.info("✅ ⚡ EXECUTION LOOP STARTED - BOT WILL NOW TRADE!")
-        
+
         # START TELEGRAM ORCHESTRATOR - Notifications & Remote Trading!
         if 'telegram' in self.advanced_orchestrators:
             if self.advanced_orchestrators['telegram'].enabled:
@@ -1895,80 +1994,80 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 logger.info("✅ 📱 TELEGRAM LOOP STARTED - Notifications active!")
             else:
                 logger.info("⚠️  Telegram disabled (no bot token)")
-        
+
         # START IBM QUANTUM ENGINE - Quantum Analysis!
         if 'quantum' in self.advanced_orchestrators:
             tasks.append(
                 asyncio.create_task(self.advanced_orchestrators['quantum'].run_quantum_loop())
             )
             logger.info("✅ 🔮 QUANTUM LOOP STARTED - Quantum advantage active!")
-        
+
         # START DEX ORCHESTRATOR - Moon Spotting & DEX Trading!
         if 'dex' in self.advanced_orchestrators:
             tasks.append(
                 asyncio.create_task(self.advanced_orchestrators['dex'].start())
             )
             logger.info("✅ 🌙 DEX ORCHESTRATOR STARTING - Moon spotting across 5 chains!")
-        
+
         # START ARBITRAGE ENGINE - Risk-free profits!
         if getattr(self, 'arbitrage_engine', None):
             tasks.append(
                 asyncio.create_task(self.arbitrage_engine.run_arbitrage_scanner())
             )
             logger.info("✅ 💰 ARBITRAGE SCANNER STARTED - Finding risk-free profits!")
-        
+
         # START P2P ARBITRAGE SCANNER
         if getattr(self, 'p2p_scanner', None):
             tasks.append(
                 asyncio.create_task(self.p2p_scanner.run_p2p_scanner())
             )
             logger.info("✅ 💰 P2P ARBITRAGE SCANNER STARTED!")
-        
+
         # START REAL PROFIT BOT - 35 Pairs Trading!
         if hasattr(self, 'real_profit_bot') and self.real_profit_bot:
             # Wrap sync run() in async
             async def run_real_profit_loop():
                 await asyncio.to_thread(self.real_profit_bot.run)
-            
+
             tasks.append(asyncio.create_task(run_real_profit_loop()))
             logger.info("✅ 💰 REAL PROFIT BOT STARTED - Trading 35 pairs!")
-        
+
         # START DYNAMIC MARKET SCANNER - Auto-discover trending pairs!
         if getattr(self, 'market_scanner', None):
             tasks.append(
                 asyncio.create_task(self.market_scanner.run_continuous_scanning())
             )
             logger.info("✅ 🔍 DYNAMIC MARKET SCANNER STARTED - Auto-discovering 50-100+ pairs!")
-        
+
         # START NEWS TRADING ENGINE - Fundamental analysis!
         if getattr(self, 'news_engine', None):
             tasks.append(
                 asyncio.create_task(self.news_engine.run_news_monitor())
             )
             logger.info("✅ 📰 NEWS TRADING ENGINE STARTED - Monitoring trending & sentiment!")
-        
+
         # START HEDGE FUND ARSENAL - Professional strategies!
         if getattr(self, 'hedge_fund', None):
             tasks.append(
                 asyncio.create_task(self.hedge_fund.run_hedge_fund_strategies())
             )
             logger.info("✅ 🏦 HEDGE FUND ARSENAL STARTED - Pairs trading, volatility, smart routing!")
-        
+
         # 🔥 START SMART SCALPING ENGINE - THE MISSING PROFIT ENGINE! 🔥
         if hasattr(self, 'smart_scalping') and self.smart_scalping:
             tasks.append(
                 asyncio.create_task(self.run_smart_scalping_loop())
             )
             logger.info("✅ ⚡ SMART SCALPING LOOP STARTED - Micro-profits accumulating!")
-        
+
         # Start enhanced main loop
         _add_task(self._schedule_once('enhanced_trading_loop', self.enhanced_trading_loop))
-        
+
         # ====================================================================
         # AUTO-START ALL 20 ULTRA SYSTEMS - THEY ALL WORK TOGETHER!
         # ====================================================================
         logger.info("\n🚀 AUTO-STARTING ALL 20 ULTRA SYSTEMS...")
-        
+
         # ULTRA MOON SPOTTER - Continuously hunt for 1,000,000x gems
         if getattr(self, 'ultra_moon_system', None):
             async def run_moon_hunting():
@@ -1979,10 +2078,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     except Exception as e:
                         logger.debug(f"Moon hunting: {e}")
                         await asyncio.sleep(300)
-            
+
             tasks.append(asyncio.create_task(run_moon_hunting()))
             logger.info("✅ 🌙 MOON SPOTTER HUNTING - Scanning for 1,000,000x gems!")
-        
+
         # ULTRA FOREX MASTER - Trade forex continuously
         if getattr(self, 'forex_master', None):
             async def run_forex_master():
@@ -1993,10 +2092,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     except Exception as e:
                         logger.debug(f"Forex master: {e}")
                         await asyncio.sleep(60)
-            
+
             tasks.append(asyncio.create_task(run_forex_master()))
             logger.info("✅ 💱 FOREX MASTER TRADING - Major + Exotic pairs!")
-        
+
         # ULTRA CONTINUOUS TRADING - 24/7 execution
         if getattr(self, 'continuous_trading', None):
             async def run_continuous():
@@ -2007,10 +2106,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     except Exception as e:
                         logger.debug(f"Continuous trading: {e}")
                         await asyncio.sleep(30)
-            
+
             tasks.append(asyncio.create_task(run_continuous()))
             logger.info("✅ 🔄 CONTINUOUS TRADING ACTIVE - Never stops!")
-        
+
         # ULTRA ML PIPELINE - Continuous model training
         if getattr(self, 'ml_pipeline', None):
             async def run_ml_training():
@@ -2021,10 +2120,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     except Exception as e:
                         logger.debug(f"ML pipeline: {e}")
                         await asyncio.sleep(600)
-            
+
             tasks.append(asyncio.create_task(run_ml_training()))
             logger.info("✅ 🤖 ML PIPELINE TRAINING - Continuous learning!")
-        
+
         # ULTRA SCALPING ENGINE
         if getattr(self, 'ultra_scalping', None):
             async def run_ultra_scalping():
@@ -2035,10 +2134,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     except Exception as e:
                         logger.debug(f"Ultra scalping: {e}")
                         await asyncio.sleep(10)
-            
+
             tasks.append(asyncio.create_task(run_ultra_scalping()))
             logger.info("✅ ⚡ ULTRA SCALPING ACTIVE - Micro-profits!")
-        
+
         # ULTRA ARBITRAGE ENGINE
         if getattr(self, 'ultra_arbitrage', None):
             async def run_ultra_arb():
@@ -2049,10 +2148,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     except Exception as e:
                         logger.debug(f"Ultra arbitrage: {e}")
                         await asyncio.sleep(20)
-            
+
             tasks.append(asyncio.create_task(run_ultra_arb()))
             logger.info("✅ 💰 ULTRA ARBITRAGE SCANNING!")
-        
+
         # ULTRA MULTI-PLATFORM SCANNER
         if getattr(self, 'multi_platform', None):
             async def run_multi_scan():
@@ -2063,10 +2162,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     except Exception as e:
                         logger.debug(f"Multi-platform: {e}")
                         await asyncio.sleep(180)
-            
+
             tasks.append(asyncio.create_task(run_multi_scan()))
             logger.info("✅ 🔍 MULTI-PLATFORM SCANNING!")
-        
+
         # REVOLUTIONARY AI - All 10 cutting-edge features
         if getattr(self, 'revolutionary_ai', None):
             async def run_revolutionary():
@@ -2080,10 +2179,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     except Exception as e:
                         logger.debug(f"Revolutionary AI: {e}")
                         await asyncio.sleep(120)
-            
+
             tasks.append(asyncio.create_task(run_revolutionary()))
             logger.info("✅ 🎯 REVOLUTIONARY AI ACTIVE - 10 cutting-edge features!")
-        
+
         # EVOLUTION ENGINE - Spawn strategies every 5 min
         if getattr(self, 'evolution_engine', None):
             async def run_evolution():
@@ -2094,10 +2193,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     except Exception as e:
                         logger.debug(f"Evolution: {e}")
                         await asyncio.sleep(300)
-            
+
             tasks.append(asyncio.create_task(run_evolution()))
             logger.info("✅ 🧬 EVOLUTION ENGINE - Spawning strategies!")
-        
+
         # SWARM CONSCIOUSNESS - 20 agents collaborating
         if getattr(self, 'swarm_consciousness', None):
             async def run_swarm():
@@ -2108,10 +2207,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     except Exception as e:
                         logger.debug(f"Swarm: {e}")
                         await asyncio.sleep(60)
-            
+
             tasks.append(asyncio.create_task(run_swarm()))
             logger.info("✅ 🐝 SWARM CONSCIOUSNESS - 20 agents active!")
-        
+
         # 450 MODELS BOT - Train continuously
         if getattr(self, 'bot_450', None):
             async def run_450_models():
@@ -2122,15 +2221,15 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     except Exception as e:
                         logger.debug(f"450 models: {e}")
                         await asyncio.sleep(60)
-            
+
             tasks.append(asyncio.create_task(run_450_models()))
             logger.info("✅ 🤖 450 MODELS TRAINING!")
-        
+
         # ====================================================================
         # CRITICAL SYSTEMS AUTO-START - News, Online Learning, Alpha
         # ====================================================================
         logger.info("\n🔥 AUTO-STARTING CRITICAL SYSTEMS...")
-        
+
         # NEWS HARVESTING - Continuous news monitoring
         if self.news_harvester or hasattr(self, 'news_adapter'):
             async def run_news_harvesting():
@@ -2140,40 +2239,40 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         count = harvest_rss(limit_per_feed=20)
                         if count > 0:
                             logger.info(f"📰 Harvested {count} news items")
-                        
+
                         # Get latest analyzed news
                         news = get_latest_clean(limit=10)
                         if news:
                             logger.debug(f"📰 Processing {len(news)} news items for signals")
-                        
+
                         await asyncio.sleep(300)  # Every 5 min
                     except Exception as e:
                         logger.debug(f"News harvesting: {e}")
                         await asyncio.sleep(300)
-            
+
             tasks.append(asyncio.create_task(run_news_harvesting()))
             logger.info("✅ 📰 NEWS HARVESTING ACTIVE - RSS feeds every 5 min!")
-        
+
         # ONLINE LEARNER - Updates from every trade
         # (This is passive - updates when trades close, no loop needed)
         if getattr(self, 'online_learner', None):
             logger.info("✅ 🧠 ONLINE LEARNER ACTIVE - Updates from every trade!")
-        
+
         # ADAPTIVE CONFIDENCE - Adjusts thresholds dynamically
         # (This is passive - called during decision making, no loop needed)
         if getattr(self, 'adaptive_confidence', None):
             logger.info("✅ 🎯 ADAPTIVE CONFIDENCE ACTIVE - Dynamic 65-95% thresholds!")
-        
+
         # ALPHA ROUTER - Multi-strategy alpha generation
         # (This is passive - called during signal generation, no loop needed)
         if getattr(self, 'alpha_router', None):
             logger.info("✅ 🎲 ALPHA ROUTER ACTIVE - Multi-strategy signals!")
-        
+
         # SITUATIONAL AWARENESS - Market regime monitoring
         # (This is passive - called during decision making, no loop needed)
         if getattr(self, 'situational_awareness', None):
             logger.info("✅ 👁️  SITUATIONAL AWARENESS ACTIVE - Regime detection!")
-        
+
         # ====================================================================
         # STEADY PROFIT EXTRACTOR - THE MONEY PRINTER! 🎰
         # ====================================================================
@@ -2191,42 +2290,42 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     try:
                         # Get current balance for dynamic sizing
                         balance = 42.0  # Will update from exchange
-                        
+
                         # Check all timeframes
                         for tf in ['1m', '5m', '15m', '1h', '4h']:
                             # Get signals from data hub
                             signals = []  # self.data_hub would provide these
-                            
+
                             for signal in signals:
                                 # Analyze if good for extraction
                                 extraction_signal = await self.steady_profit.analyze_signal_for_extraction(signal)
-                                
+
                                 if extraction_signal:
                                     # Execute with proper sizing
                                     logger.info(f"💰 STEADY PROFIT: {signal['symbol']} {signal['side']} on {tf}")
                                     logger.info(f"   Size: ${extraction_signal['notional']:.2f}, SL: {extraction_signal['stop_loss']:.5f}, TP: {extraction_signal['take_profit']:.5f}")
-                                    
+
                                     # Execute via execution engine
                                     if getattr(self, 'execution', None):
                                         await self.execution.execute_signal(extraction_signal)
-                        
+
                         await asyncio.sleep(30)  # Check every 30 seconds
-                        
+
                     except Exception as e:
                         logger.debug(f"Steady profit: {e}")
                         await asyncio.sleep(30)
-            
+
             tasks.append(asyncio.create_task(run_steady_profit()))
             logger.info("✅ 💰 STEADY PROFIT EXTRACTOR ACTIVE - $10-40 daily, ALL timeframes!")
-        
+
         # SESSION FILTER - Best session trading
         if self.session_clock and self.session_filter:
             logger.info("✅ 🕐 SESSION FILTER ACTIVE - Trades during best sessions!")
-        
+
         # FUTURES SIGNALS - Leverage trading
         if getattr(self, 'futures_signals', None):
             logger.info("✅ 📊 FUTURES SIGNALS ACTIVE - Margin & leverage trading!")
-        
+
         # ====================================================================
         # MICRO WALLET GROWER - $1 TO INFINITE AUTO-GROWTH! 💎
         # ====================================================================
@@ -2244,7 +2343,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     try:
                         # Check current balance
                         balance = self.micro_wallet_grower.check_gate_balance()
-                        
+
                         # AUTO-CLOSE OPEN INVENTORY THROUGH THE UNIVERSAL ROUTER ONLY
                         #
                         # Paper:
@@ -2467,7 +2566,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                                 if discovered:
                                     self.micro_wallet_grower.crypto_pairs = discovered[:50]  # Top 50
                                     logger.info(f"✅ MICRO using {len(self.micro_wallet_grower.crypto_pairs)} DISCOVERED pairs!")
-                            
+
                             # Fallback: Use signals from data hub
                             if not self.micro_wallet_grower.crypto_pairs:
                                 hub_signals = self.data_hub.get_signals(limit=30)
@@ -2475,7 +2574,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                                 if unique_pairs:
                                     self.micro_wallet_grower.crypto_pairs = unique_pairs
                                     logger.info(f"✅ MICRO using {len(unique_pairs)} pairs from SIGNAL ENGINES!")
-                            
+
                             # Last resort fallback (MORE AGGRESSIVE)
                             if not self.micro_wallet_grower.crypto_pairs:
                                 self.micro_wallet_grower.crypto_pairs = [
@@ -2484,39 +2583,39 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                                     'AVAX/USDT', 'DOT/USDT', 'LINK/USDT', 'UNI/USDT', 'ATOM/USDT'
                                 ]
                                 logger.warning(f"⚠️  MICRO using 15 fallback pairs (discovery engines not ready)")
-                        
+
                         # Analyze and trade all configured pairs
                         logger.info(f"🔍 MICRO scanning {len(self.micro_wallet_grower.crypto_pairs)} pairs...")
                         trades_attempted = 0
                         for symbol in self.micro_wallet_grower.crypto_pairs:
                             action, confidence, price, change_24h, quote_volume = self.micro_wallet_grower.analyze_market(symbol)
-                            
+
                             if action in ['BUY', 'SELL'] and confidence >= 70.0:
                                 trades_attempted += 1
                                 logger.info(f"💎 MICRO TRADE #{trades_attempted}: {action} {symbol} @ {confidence:.0f}%")
                                 # Execute micro trade
                                 result = self.micro_wallet_grower.execute_trade(symbol, action, price)
-                                
+
                                 if isinstance(result, dict) and result.get('ok'):
                                     logger.info(f"💎 MICRO GROWTH: {symbol} {action} @ ${price:.6f}")
                                     logger.info(f"   Balance: ${balance:.2f}, Conf: {confidence:.0f}%")
                                 else:
                                     logger.warning(f"⚠️  MICRO trade failed for {symbol}")
-                        
+
                         if trades_attempted == 0:
                             logger.info(f"💤 MICRO: No high-confidence signals this cycle (checked {len(self.micro_wallet_grower.crypto_pairs)} pairs)")
-                        
+
                         await asyncio.sleep(60)  # Check every minute
-                        
+
                     except Exception as e:
                         logger.error(f"❌ Micro wallet growth error: {e}")
                         import traceback
                         logger.error(traceback.format_exc())
                         await asyncio.sleep(60)
-            
+
             tasks.append(asyncio.create_task(run_micro_wallet_growth()))
             logger.info("✅ 💎 MICRO WALLET GROWER ACTIVE - $1 to INFINITE growth!")
-        
+
         # CONTINUOUS ULTRA BOT - Never stops scanning & trading!
         if getattr(self, 'continuous_ultra', None):
             async def run_continuous_ultra():
@@ -2534,19 +2633,19 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         if not self.continuous_ultra.running:
                             await self.continuous_ultra.initialize()
                             self.continuous_ultra.running = True
-                        
+
                         # Run continuous trading (has its own loop)
                         await self.continuous_ultra.run_continuous_trading()
-                        
+
                         await asyncio.sleep(1)  # Minimal delay
-                        
+
                     except Exception as e:
                         logger.debug(f"Continuous ultra: {e}")
                         await asyncio.sleep(30)
-            
+
             tasks.append(asyncio.create_task(run_continuous_ultra()))
             logger.info("✅ 🔄 CONTINUOUS ULTRA ACTIVE - Scanning ALL exchanges & patterns!")
-        
+
         # ====================================================================
         # AUTO LIVE TRIGGER - TESTNET→REAL AUTO-SWITCHING! 🤖
         # ====================================================================
@@ -2570,27 +2669,27 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                                 logger.info(f"🚀 AUTO-STARTING LIVE BOT!")
                                 logger.info(f"   Approved strategies: {', '.join(approved)}")
                                 await self.auto_live_trigger.start_live_bot()
-                        
+
                         # Check if should pause live bot
                         if self.auto_live_trigger.should_pause_live_bot():
                             logger.warning("⚠️  AUTO-PAUSING LIVE BOT (performance drop)")
                             await self.auto_live_trigger.pause_live_bot()
-                        
+
                         # Log status every 5 minutes
                         self.auto_live_trigger.log_status()
-                        
+
                         await asyncio.sleep(300)  # Check every 5 minutes
-                        
+
                     except Exception as e:
                         logger.debug(f"Auto live trigger: {e}")
                         await asyncio.sleep(300)
-            
+
             tasks.append(asyncio.create_task(run_auto_live_trigger()))
             logger.info("✅ 🤖 AUTO LIVE TRIGGER ACTIVE - Testnet→Real auto-switching!")
             logger.info("   → Starts in TESTNET (safe!)")
             logger.info("   → Learns & validates strategies")
             logger.info("   → Auto-switches to REAL when 60%+ win rate!")
-        
+
         logger.info("\n" + "=" * 80)
         logger.info("🎉 ALL 88+ SYSTEMS RUNNING TOGETHER!")
         logger.info("🎉 CEX + DEX + 20 ULTRA + EXECUTION + TELEGRAM + QUANTUM!")
@@ -2607,31 +2706,31 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         if CRITICAL_FEATURES_AVAILABLE:
             logger.info("💰 CRITICAL PROFIT FEATURES: ACTIVE")
         if ULTRA_FEATURES_AVAILABLE:
-            logger.info("🌟 ULTRA GOLDMINE FEATURES: ACTIVE")  
+            logger.info("🌟 ULTRA GOLDMINE FEATURES: ACTIVE")
         if DIVINE_FEATURES_AVAILABLE:
             logger.info("🔮 DIVINE INTELLIGENCE: ACTIVE - CONSCIOUSNESS-LEVEL TRADING!")
         logger.info("=" * 80)
         logger.info("\n✨ EVERYTHING AUTO-LEARNS, AUTO-EVOLVES, AUTO-PROFITS! ✨\n")
-        
+
         return tasks
-    
+
     async def start(self):
         """Override start to run ALL task loops including parent's!"""
         logger.info("="*80)
         logger.info("⚡ STARTING ALL ACTIVE ENGINES...")
         logger.info("="*80)
-        
+
         # Initialize and wire (from parent)
         await self.initialize_all_systems()
         await self.wire_all_systems()
-        
+
         # Collect ALL tasks (parent's + our new ones)
         all_tasks = []
 
         def _add(task):
             if task is not None:
                 all_tasks.append(task)
-        
+
         # Parent's background tasks
         if self.orchestrators.get('learning'):
             _add(
@@ -2642,70 +2741,70 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 self._schedule_once('decision.run_decision_loop', self.orchestrators['decision'].run_decision_loop)
             )
         _add(self._schedule_once('enhanced_trading_loop', self.enhanced_trading_loop))
-        
+
         # OUR NEW TASK LOOPS (MICRO, execution, signals, etc.)
         new_tasks = await self.start_all_orchestrators()
         all_tasks.extend(new_tasks)
-        
+
         logger.info("="*80)
         logger.info(f"✅ {len(all_tasks)} TOTAL TASK LOOPS CREATED!")
         logger.info(f"   → {len(new_tasks)} NEW active engines (MICRO, signals, execution)")
         logger.info(f"   → 3 parent engines (learning, decision, main loop)")
         logger.info("="*80)
-        
+
         # RUN ALL TASKS CONCURRENTLY!
         await asyncio.gather(*all_tasks, return_exceptions=True)
-    
+
     async def run_smart_scalping_loop(self):
         """
         🔥 SMART SCALPING LOOP - THE PROFIT ENGINE! 🔥
         Generates micro-profits continuously via multi-timeframe confluence scalping
         """
         logger.info("\n⚡ SMART SCALPING LOOP ACTIVE...")
-        
+
         cycle = 0
-        
+
         while self.is_running:
             try:
                 cycle += 1
-                
+
                 if cycle % 10 == 0:
                     logger.info(f"⚡ Scalping cycle {cycle} - Scanning for micro-profit opportunities...")
-                
+
                 # Scan markets with session + timeframe awareness
                 scalp_signals = await self.smart_scalping.scan_markets()
-                
+
                 if scalp_signals:
                     logger.info(f"📈 Scalper generated {len(scalp_signals)} signals")
-                    
+
                     # Publish signals to data hub for execution
                     for signal in scalp_signals:
                         await self.data_hub.publish_signal(signal)
-                    
+
                     logger.info(f"✅ Published {len(scalp_signals)} signals to data hub")
-                
+
                 # Scalp frequently (every 30 seconds)
                 await asyncio.sleep(30)
-                
+
             except Exception as e:
                 logger.error(f"Scalping loop error: {e}")
                 await asyncio.sleep(60)
-    
+
     async def enhanced_trading_loop(self):
         """Enhanced main loop with complete orchestration + Profit Features"""
         logger.info("\n🔄 ENHANCED TRADING LOOP ACTIVE (ALL SYSTEMS + GOLDMINE FEATURES)...")
-        
+
         cycle = 0
-        
+
         while self.is_running:
             try:
                 cycle += 1
                 cycle_start = datetime.now()
-                
+
                 logger.info(f"\n{'━' * 80}")
                 logger.info(f"🔄 COMPLETE CYCLE {cycle} - ALL 34 SYSTEMS + PROFIT GOLDMINE")
                 logger.info(f"{'━' * 80}")
-                
+
                 # ============================================================
                 # CRITICAL: Check Emergency Stop FIRST
                 # ============================================================
@@ -2714,21 +2813,21 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                         # Get current balance
                         balance = await self._get_account_balance()
                         initial_balance = self.compound_engine.initial_capital if self.compound_engine else 1000.0
-                        
+
                         # Check if emergency stop should trigger
                         should_stop = self.emergency_stop.check_conditions(
                             account_balance=balance,
                             initial_balance=initial_balance
                         )
-                        
+
                         if should_stop:
                             logger.error("🚨 EMERGENCY STOP TRIGGERED!")
                             logger.error("   Reason: Max loss or too many trades")
                             logger.error("   CLOSING ALL POSITIONS AND STOPPING BOT...")
-                            
+
                             # Close all positions
                             await self._emergency_close_all_positions()
-                            
+
                             # Send Telegram alert
                             if 'telegram' in self.advanced_orchestrators:
                                 try:
@@ -2737,25 +2836,25 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                                     )
                                 except:
                                     pass
-                            
+
                             # Stop the bot
                             self.is_running = False
                             return
                     except Exception as e:
                         logger.debug(f"Emergency stop check error: {e}")
-                
+
                 # Phase 1: All Scouting
                 logger.info("🔭 Phase 1: Complete Scouting...")
                 logger.info("   • Base scouting (arbitrage, scalping, moon)")
                 logger.info("   • Advanced scouting (news, social, on-chain)")
                 logger.info("   • Forex scanning")
-                
+
                 # Phase 2: All Intelligence + ACTIVE COMPUTING
                 logger.info("🧠 Phase 2: Complete Intelligence...")
                 logger.info("   • Collective AI (swarm, brain, awareness)")
                 logger.info("   • Deep learning predictions")
                 logger.info("   • ML strategy generation")
-                
+
                 # ACTIVATE QUANTUM PREDICTIONS (EXPLICIT LOGGING)
                 if 'quantum' in self.advanced_orchestrators:
                     try:
@@ -2771,7 +2870,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             logger.info(f"🔮 Quantum active: {len(quantum_results)} predictions generated")
                     except Exception as e:
                         logger.error(f"Quantum prediction error: {e}")
-                
+
                 # ACTIVATE ULTRASONIC STRATEGIES
                 if 'ultrasonic' in self.advanced_orchestrators:
                     try:
@@ -2781,7 +2880,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             logger.info(f"🌌 ULTRASONIC: {len(ultrasonic_signals)} signals generated")
                     except Exception as e:
                         logger.debug(f"Ultrasonic signals: {e}")
-                
+
                 # ACTIVATE GOLDMINE FEATURES (EXPLICIT LOGGING)
                 if ULTRA_FEATURES_AVAILABLE and hasattr(self, 'ultra_goldmine') and self.ultra_goldmine:
                     try:
@@ -2799,7 +2898,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             logger.info(f"💎 GOLDMINE active: {goldmine_count} total signals across all pairs")
                     except Exception as e:
                         logger.error(f"Goldmine signals error: {e}")
-                
+
                 # ACTIVATE DIVINE INTELLIGENCE (EXPLICIT LOGGING)
                 if DIVINE_FEATURES_AVAILABLE and hasattr(self, 'divine_intelligence') and self.divine_intelligence:
                     try:
@@ -2861,34 +2960,34 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             logger.info(f"🔮 DIVINE active: {len(divine_signals)} consciousness features computed")
                     except Exception as e:
                         logger.error(f"Divine signals error: {e}")
-                
+
                 # Phase 3: All Learning
                 logger.info("🎓 Phase 3: Complete Learning...")
                 logger.info("   • Evolution engine updating")
                 logger.info("   • Divine intelligence learning")
                 logger.info("   • Online learner adapting")
                 logger.info("   • Deep learning training")
-                
+
                 # Phase 4: System Status
                 logger.info("📊 Phase 4: Complete System Status...")
-                
+
                 logger.info(f"   Data Hub:")
                 logger.info(f"      • Market Data: {len(self.data_hub.recent_market_data)} recent")
                 logger.info(f"      • Signals: {len(self.data_hub.recent_signals)} recent")
                 logger.info(f"      • Trades: {len(self.data_hub.recent_trades)} recent")
-                
+
                 if getattr(self, 'learning_pipeline', None):
                     logger.info(f"      • Learning Buffer: {len(self.learning_pipeline.training_buffer)} samples")
-                
+
                 if getattr(self, 'scouting_pipeline', None):
                     logger.info(f"      • Findings Buffer: {len(self.scouting_pipeline.findings_buffer)} findings")
-                
+
                 # Systems status
                 logger.info(f"   Active Systems:")
                 logger.info(f"      • Core: 26 systems ✅")
                 logger.info(f"      • Advanced: {len([s for s in self.advanced_systems.values() if s])} systems ✅")
                 logger.info(f"      • Orchestrators: {len(self.orchestrators) + len(self.advanced_orchestrators)} running ✅")
-                
+
                 # Execution stats
                 if 'execution' in self.advanced_orchestrators:
                     exec_stats = self.advanced_orchestrators['execution'].get_stats()
@@ -2898,13 +2997,13 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     logger.info(f"      • Total Profit: ${exec_stats['total_profit']:.2f}")
                     logger.info(f"      • Open Positions: {exec_stats['open_positions']}")
                     logger.info(f"      • Daily P&L: ${exec_stats['daily_pnl']:.2f}")
-                
+
                 # Cycle metrics
                 cycle_duration = (datetime.now() - cycle_start).total_seconds()
-                
+
                 logger.info(f"✅ Complete cycle {cycle} finished in {cycle_duration:.2f}s")
                 logger.info(f"{'━' * 80}\n")
-                
+
                 # Send cycle update to admin
                 if 'telegram' in self.advanced_orchestrators:
                     telegram = self.advanced_orchestrators['telegram']
@@ -2916,9 +3015,9 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             f"Profit: ${exec_stats.get('total_profit', 0):.2f}",
                             level="info"
                         )
-                
+
                 await asyncio.sleep(60)  # Main cycle every 60 seconds
-                
+
             except KeyboardInterrupt:
                 logger.info("🛑 Shutdown requested")
                 self.is_running = False
@@ -2926,56 +3025,56 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             except Exception as e:
                 logger.error(f"Enhanced loop error: {e}")
                 await asyncio.sleep(60)
-    
+
     async def monitor_signals_for_telegram(self):
         """Monitor signals and route to Telegram channels"""
-        
+
         logger.info("📱 Starting Telegram signal monitor...")
-        
+
         telegram = self.advanced_orchestrators.get('telegram')
         if not telegram or not telegram.enabled:
             logger.info("📱 Telegram not enabled - skipping monitor")
             return
-        
+
         # Track sent signals to avoid duplicates
         sent_signals = set()
         sent_trades = set()
         last_signal_count = 0
-        
+
         while self.is_running:
             try:
                 # Check recent_signals for anything new
                 current_signal_count = len(self.data_hub.recent_signals)
-                
+
                 if current_signal_count > last_signal_count:
                     # New signals available!
                     new_signals = list(self.data_hub.recent_signals)[last_signal_count:]
-                    
+
                     for signal in new_signals:
                         # Extract data (handle both nested and flat structures)
                         signal_data = signal.get('data', signal)
-                        
+
                         confidence = signal_data.get('confidence', signal_data.get('score', 0))
                         symbol = signal_data.get('symbol', signal_data.get('pair', 'UNKNOWN'))
                         side = signal_data.get('side', signal_data.get('action', 'buy'))
-                        
+
                         # Skip invalid signals
                         if symbol == 'UNKNOWN' or confidence == 0:
                             continue
-                        
+
                         # Create unique ID
                         signal_id = f"{symbol}_{int(confidence*1000)}_{side}"
-                        
+
                         if signal_id in sent_signals:
                             continue
-                        
+
                         sent_signals.add(signal_id)
-                        
+
                         # Apply session-aware adjustment
                         if hasattr(self, 'session_trader') and self.session_trader:
                             signal_data = self.session_trader.adjust_signal_for_session(signal_data)
                             confidence = signal_data.get('confidence', confidence)
-                        
+
                     # High confidence → VIP channel
                     if confidence >= 0.80:
                         logger.info(f"🔍 Sending VIP signal: {symbol} {side.upper()} (conf: {confidence*100:.0f}%)")
@@ -2984,7 +3083,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             logger.info(f"✅ VIP signal sent: {symbol} {side.upper()}")
                         except Exception as e:
                             logger.error(f"❌ VIP send failed: {e}")
-                    
+
                     # Medium confidence → Free channel
                     elif confidence >= 0.65:
                         logger.info(f"🔍 Sending FREE signal: {symbol} {side.upper()} (conf: {confidence*100:.0f}%)")
@@ -2993,40 +3092,40 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             logger.info(f"✅ FREE signal sent: {symbol} {side.upper()}")
                         except Exception as e:
                             logger.error(f"❌ FREE send failed: {e}")
-                    
+
                     last_signal_count = current_signal_count
-                
+
                 # Also check signal_queue
                 while not self.data_hub.signal_queue.empty():
                     signal = await self.data_hub.signal_queue.get()
-                    
+
                     signal_data = signal.get('data', signal)
                     confidence = signal_data.get('confidence', 0)
                     symbol = signal_data.get('symbol', 'UNKNOWN')
                     side = signal_data.get('side', 'buy')
-                    
+
                     if symbol != 'UNKNOWN' and confidence > 0:
                         signal_id = f"{symbol}_{int(confidence*1000)}_{side}"
-                        
+
                         if signal_id not in sent_signals:
                             sent_signals.add(signal_id)
-                            
+
                             if confidence >= 0.80:
                                 await telegram.send_signal_to_vip(signal_data)
                                 logger.info(f"📱 VIP signal sent: {symbol} (conf: {confidence*100:.0f}%)")
                             elif confidence >= 0.65:
                                 await telegram.send_signal_to_free(signal_data)
                                 logger.info(f"📱 Free signal sent: {symbol} (conf: {confidence*100:.0f}%)")
-                
+
                 # Monitor trade queue
                 if not self.data_hub.trade_data_queue.empty():
                     trade = await self.data_hub.trade_data_queue.get()
-                    
+
                     trade_id = f"{trade.get('symbol', '')}_{trade.get('status', '')}"
-                    
+
                     if trade_id not in sent_trades:
                         sent_trades.add(trade_id)
-                        
+
                         if hasattr(telegram, 'send_admin_notification'):
                             if trade.get('status') == 'open':
                                 msg = f"💰 Trade opened: {trade.get('symbol')} {trade.get('side')}"
@@ -3035,25 +3134,25 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                                 pnl = trade.get('pnl', 0)
                                 msg = f"{'💵 Profit' if pnl > 0 else '📉 Loss'}: {trade.get('symbol')} ${pnl:.2f}"
                                 await telegram.send_admin_notification(msg, 'profit' if pnl > 0 else 'warning')
-                
+
                 # Keep only recent signal IDs (prevent memory leak)
                 if len(sent_signals) > 100:
                     sent_signals.clear()
                 if len(sent_trades) > 50:
                     sent_trades.clear()
-                
+
                 await asyncio.sleep(0.5)  # Check twice per second for faster delivery
-                
+
             except ZeroDivisionError:
                 await asyncio.sleep(1)
             except Exception as e:
                 logger.error(f"Telegram monitor error: {e}")
                 await asyncio.sleep(5)
-    
+
     # ========================================================================
     # HELPER METHODS FOR PROFIT FEATURES
     # ========================================================================
-    
+
     async def _get_account_balance(self) -> float:
         """Get current account balance"""
         try:
@@ -3062,7 +3161,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 exec_orch = self.advanced_orchestrators['execution']
                 if hasattr(exec_orch, 'position_sizer'):
                     return exec_orch.position_sizer.balance
-            
+
             # Try to get from exchange
             if hasattr(self, 'trading_engines') and self.trading_engines:
                 for engine_name, engine in self.trading_engines.items():
@@ -3073,25 +3172,25 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             return float(usdt_balance)
                     except:
                         continue
-            
+
             # Default
             return 1000.0
-            
+
         except Exception as e:
             logger.debug(f"Balance fetch error: {e}")
             return 1000.0
-    
+
     async def _emergency_close_all_positions(self):
         """Emergency close ALL positions"""
         try:
             logger.warning("⚠️  EMERGENCY CLOSING ALL POSITIONS...")
-            
+
             if 'execution' in self.advanced_orchestrators:
                 exec_orch = self.advanced_orchestrators['execution']
-                
+
                 if hasattr(exec_orch, 'risk_manager'):
                     open_positions = list(exec_orch.risk_manager.open_positions.keys())
-                    
+
                     for symbol in open_positions:
                         try:
                             logger.warning(f"   Emergency closing: {symbol}")
@@ -3099,9 +3198,9 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                             logger.warning(f"   Position closed: {symbol} | P&L: ${pnl:.2f}")
                         except Exception as e:
                             logger.error(f"   Failed to close {symbol}: {e}")
-                    
+
                     logger.warning(f"✅ Emergency close complete: {len(open_positions)} positions")
-                
+
         except Exception as e:
             logger.error(f"❌ Emergency close failed: {e}")
 
@@ -3110,10 +3209,10 @@ async def main():
     """Main entry point"""
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', choices=['testnet', 'paper', 'live'], 
+    parser.add_argument('--mode', choices=['testnet', 'paper', 'live'],
                        default='testnet')
     args = parser.parse_args()
-    
+
     orchestrator = CompleteUltimateOrchestrator(mode=args.mode)
     await orchestrator.start()
 
@@ -3171,5 +3270,5 @@ if __name__ == "__main__":
     ║                                                                   ║
     ╚═══════════════════════════════════════════════════════════════════╝
     """)
-    
+
     asyncio.run(main())

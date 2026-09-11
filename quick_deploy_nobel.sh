@@ -146,12 +146,12 @@ if [ -f "nobel_system.pid" ]; then
         echo "🛑 Stopping Nobel system (PID: $NOBEL_PID)..."
         kill $NOBEL_PID
         sleep 2
-        
+
         if ps -p $NOBEL_PID > /dev/null; then
             echo "⚠️ Force killing Nobel system..."
             kill -9 $NOBEL_PID
         fi
-        
+
         echo "✅ Nobel Hedge Fund System stopped"
     else
         echo "⚠️ Nobel system not running"

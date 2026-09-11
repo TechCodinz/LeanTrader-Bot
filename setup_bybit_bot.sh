@@ -53,11 +53,11 @@ fi
 # Update .env file on VPS
 ssh $VPS_USER@$VPS_IP << EOF
     cd /home/root/trading-bot
-    
+
     # Update .env file with Bybit keys
     sed -i "s/your_bybit_api_key/$BYBIT_API_KEY/g" .env
     sed -i "s/your_bybit_secret_key/$BYBIT_SECRET_KEY/g" .env
-    
+
     echo "✅ Bybit API keys configured"
 EOF
 
@@ -66,17 +66,17 @@ echo ""
 echo "🚀 Step 4: Starting the trading bot..."
 ssh $VPS_USER@$VPS_IP << 'EOF'
     cd /home/root/trading-bot
-    
+
     # Start the bot service
     sudo systemctl start trading-bot
-    
+
     # Wait a moment for it to start
     sleep 5
-    
+
     # Check status
     echo "📊 Bot Status:"
     sudo systemctl status trading-bot --no-pager
-    
+
     echo ""
     echo "📋 Recent logs:"
     journalctl -u trading-bot --since "1 minute ago" --no-pager
@@ -87,13 +87,13 @@ echo ""
 echo "📊 Step 5: Starting dashboard..."
 ssh $VPS_USER@$VPS_IP << 'EOF'
     cd /home/root/trading-bot
-    
+
     # Start dashboard in background
     nohup ./start_dashboard.sh > dashboard.log 2>&1 &
-    
+
     echo "✅ Dashboard starting..."
     sleep 3
-    
+
     echo "📊 Dashboard should be available at: http://75.119.149.117:8501"
 EOF
 

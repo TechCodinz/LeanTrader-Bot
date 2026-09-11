@@ -25,7 +25,7 @@ def send(text):
     requests.post(url, data=data, timeout=10)
 
 # Get status
-status = subprocess.run(['systemctl', 'is-active', 'trading-bot'], 
+status = subprocess.run(['systemctl', 'is-active', 'trading-bot'],
                        capture_output=True, text=True).stdout.strip()
 
 # Get recent activity

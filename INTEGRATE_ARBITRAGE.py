@@ -42,11 +42,11 @@ if len(arb_exchanges) >= 2:
     # Initialize arbitrage engine
     self.arbitrage_engine = CrossExchangeArbitrage(arb_exchanges, self.data_hub)
     self.advanced_orchestrators['arbitrage'] = self.arbitrage_engine
-    
+
     # Initialize P2P scanner
     self.p2p_scanner = P2PArbitrageScanner(arb_exchanges, self.data_hub)
     self.advanced_orchestrators['p2p_arbitrage'] = self.p2p_scanner
-    
+
     logger.info("✅ 💰 ARBITRAGE ENGINE WIRED - Risk-free profits enabled!")
     logger.info(f"   Monitoring {len(arb_exchanges)} exchanges")
     logger.info("   Expected: +10-30% extra profit")

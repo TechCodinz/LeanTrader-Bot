@@ -21,10 +21,10 @@ if crontab -l 2>/dev/null | grep -q "AUTO_COMMIT.sh"; then
 else
     # Add cron job
     echo "📥 Adding auto-commit cron job..."
-    
+
     # Get current crontab, add new job
     (crontab -l 2>/dev/null; echo "$CRON_CMD") | crontab -
-    
+
     if [ $? -eq 0 ]; then
         echo "✅ Auto-commit cron job added successfully!"
         echo ""

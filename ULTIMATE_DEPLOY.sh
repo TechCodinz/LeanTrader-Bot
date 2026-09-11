@@ -56,11 +56,11 @@ class UltimateTradingBot:
         self.admin_chat_id = "5329503447"
         self.free_chat_id = "-1002930953007"
         self.vip_chat_id = "-1002983007302"
-        
+
         # Bybit Configuration
         self.bybit_api_key = "g1mhPqKrOBp9rnqb4G"
         self.bybit_api_secret = "s9KCIelCqPwJOOWAXNoWqFHtiauRQr9PLeqG"
-        
+
         # Initialize all components
         self.setup_logging()
         self.setup_database()
@@ -69,15 +69,15 @@ class UltimateTradingBot:
         self.setup_ml_models()
         self.setup_market_data()
         self.running = True
-        
+
     def setup_logging(self):
         logger.add("ultimate_bot.log", rotation="500 MB", retention="10 days")
         logger.info("🤖 Ultimate Trading Bot Initialized")
-        
+
     def setup_database(self):
         self.conn = sqlite3.connect('ultimate_trading_bot.db', check_same_thread=False)
         cursor = self.conn.cursor()
-        
+
         # Create all necessary tables
         tables = [
             '''CREATE TABLE IF NOT EXISTS trading_signals (
@@ -165,13 +165,13 @@ class UltimateTradingBot:
                 category TEXT
             )'''
         ]
-        
+
         for table in tables:
             cursor.execute(table)
-        
+
         self.conn.commit()
         logger.info("📊 Database initialized with all tables")
-        
+
     def setup_exchanges(self):
         self.exchanges = {
             'bybit': ccxt.bybit({
@@ -200,11 +200,11 @@ class UltimateTradingBot:
             'cryptocom': ccxt.cryptocom({'enableRateLimit': True})
         }
         logger.info(f"🔗 Initialized {len(self.exchanges)} exchanges")
-        
+
     def setup_telegram(self):
         self.bot = Bot(token=self.telegram_bot_token)
         logger.info("📱 Telegram bot initialized")
-        
+
     def setup_ml_models(self):
         # 450+ AI Models across different categories
         self.ml_models = {}
@@ -337,14 +337,14 @@ class UltimateTradingBot:
             'compositional_gp', 'additive_gp', 'multiplicative_gp', 'spectral_gp',
             'spectral_mixture_gp', 'neural_spectral_gp', 'deep_spectral_gp'
         ]
-        
+
         # Initialize models with different algorithms
         algorithms = [
             RandomForestClassifier, GradientBoostingClassifier, ExtraTreesClassifier,
             AdaBoostClassifier, MLPClassifier, LogisticRegression, SVC,
             KNeighborsClassifier, GaussianNB, DecisionTreeClassifier
         ]
-        
+
         model_count = 0
         for model_type in self.model_types:
             for algorithm in algorithms:
@@ -357,7 +357,7 @@ class UltimateTradingBot:
                         model = algorithm(n_neighbors=5)
                     else:
                         model = algorithm(random_state=42)
-                    
+
                     model_name = f"{model_type}_{algorithm.__name__}_{model_count}"
                     self.ml_models[model_name] = {
                         'model': model,
@@ -370,9 +370,9 @@ class UltimateTradingBot:
                     model_count += 1
                 except Exception as e:
                     logger.warning(f"Failed to initialize {model_type}_{algorithm.__name__}: {e}")
-        
+
         logger.info(f"🧠 Initialized {len(self.ml_models)} AI models")
-        
+
     def setup_market_data(self):
         # Comprehensive market data setup
         self.crypto_pairs = [
@@ -382,26 +382,26 @@ class UltimateTradingBot:
             'TRX/USDT', 'ETC/USDT', 'HBAR/USDT', 'NEAR/USDT', 'ALGO/USDT', 'MANA/USDT',
             'SAND/USDT', 'CRO/USDT', 'APE/USDT', 'LRC/USDT', 'ENJ/USDT', 'CHZ/USDT'
         ]
-        
+
         self.forex_pairs = [
             'EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF', 'AUD/USD', 'USD/CAD',
             'NZD/USD', 'EUR/GBP', 'EUR/JPY', 'GBP/JPY', 'AUD/JPY', 'CHF/JPY',
             'EUR/CHF', 'GBP/CHF', 'AUD/CHF', 'NZD/JPY', 'CAD/JPY', 'EUR/AUD',
             'GBP/AUD', 'EUR/CAD', 'GBP/CAD', 'AUD/CAD', 'NZD/CAD', 'EUR/NZD'
         ]
-        
+
         self.commodities = [
             'XAU/USD', 'XAG/USD', 'XPD/USD', 'XPT/USD', 'WTI/USD', 'BRENT/USD',
             'NATGAS/USD', 'COPPER/USD', 'CORN/USD', 'WHEAT/USD', 'SOYBEAN/USD'
         ]
-        
+
         self.indices = [
             'SPX500', 'NAS100', 'US30', 'UK100', 'GER30', 'FRA40', 'JPN225',
             'AUS200', 'HK50', 'CHINA50', 'IND50', 'SG20'
         ]
-        
+
         logger.info(f"📊 Market data setup: {len(self.crypto_pairs)} crypto, {len(self.forex_pairs)} forex, {len(self.commodities)} commodities, {len(self.indices)} indices")
-        
+
     async def send_telegram_message(self, chat_id, message, buttons=None):
         try:
             if buttons:
@@ -416,37 +416,37 @@ class UltimateTradingBot:
                 await self.bot.send_message(chat_id=chat_id, text=message, parse_mode='HTML')
         except Exception as e:
             logger.error(f"Failed to send Telegram message: {e}")
-            
+
     def calculate_indicators(self, prices):
         """Calculate technical indicators"""
         if len(prices) < 20:
             return {}
-            
+
         df = pd.DataFrame({'close': prices})
-        
+
         # RSI
         delta = df['close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
         rsi = 100 - (100 / (1 + rs))
-        
+
         # Moving Averages
         sma_20 = df['close'].rolling(window=20).mean()
         ema_12 = df['close'].ewm(span=12).mean()
         ema_26 = df['close'].ewm(span=26).mean()
-        
+
         # MACD
         macd = ema_12 - ema_26
         macd_signal = macd.ewm(span=9).mean()
         macd_histogram = macd - macd_signal
-        
+
         # Bollinger Bands
         bb_middle = sma_20
         bb_std = df['close'].rolling(window=20).std()
         bb_upper = bb_middle + (bb_std * 2)
         bb_lower = bb_middle - (bb_std * 2)
-        
+
         return {
             'rsi': rsi.iloc[-1] if not rsi.empty else 50,
             'macd': macd.iloc[-1] if not macd.empty else 0,
@@ -457,17 +457,17 @@ class UltimateTradingBot:
             'ema_12': ema_12.iloc[-1] if not ema_12.empty else prices[-1],
             'ema_26': ema_26.iloc[-1] if not ema_26.empty else prices[-1]
         }
-        
+
     async def get_market_data(self, symbol, exchange_name='bybit'):
         """Get real-time market data"""
         try:
             exchange = self.exchanges[exchange_name]
             ticker = exchange.fetch_ticker(symbol)
             ohlcv = exchange.fetch_ohlcv(symbol, '1h', limit=100)
-            
+
             prices = [candle[4] for candle in ohlcv]  # closing prices
             indicators = self.calculate_indicators(prices)
-            
+
             return {
                 'symbol': symbol,
                 'price': ticker['last'],
@@ -483,13 +483,13 @@ class UltimateTradingBot:
         except Exception as e:
             logger.error(f"Failed to get market data for {symbol}: {e}")
             return None
-            
+
     def generate_signal_with_ai(self, market_data):
         """Generate trading signal using AI models"""
         try:
             if not market_data or 'indicators' not in market_data:
                 return None
-                
+
             # Prepare features
             features = np.array([[
                 market_data['indicators'].get('rsi', 50),
@@ -498,11 +498,11 @@ class UltimateTradingBot:
                 market_data['change_24h'] or 0,
                 market_data['volume'] or 0
             ]])
-            
+
             # Generate predictions from multiple models
             predictions = []
             confidences = []
-            
+
             for model_name, model_info in list(self.ml_models.items())[:50]:  # Use top 50 models for speed
                 try:
                     if model_info['trained']:
@@ -511,18 +511,18 @@ class UltimateTradingBot:
                             confidence = max(model_info['model'].predict_proba(features)[0])
                         else:
                             confidence = 0.7
-                        
+
                         predictions.append(prediction)
                         confidences.append(confidence)
                 except Exception as e:
                     continue
-            
+
             if not predictions:
                 # Fallback to simple technical analysis
                 rsi = market_data['indicators'].get('rsi', 50)
                 macd = market_data['indicators'].get('macd', 0)
                 macd_signal = market_data['indicators'].get('macd_signal', 0)
-                
+
                 if rsi < 30 and macd > macd_signal:
                     signal_type = 'BUY'
                     confidence = 0.75
@@ -536,20 +536,20 @@ class UltimateTradingBot:
                 # Ensemble prediction
                 buy_votes = sum(1 for p in predictions if p == 1)
                 sell_votes = sum(1 for p in predictions if p == 0)
-                
+
                 if buy_votes > sell_votes:
                     signal_type = 'BUY'
                 elif sell_votes > buy_votes:
                     signal_type = 'SELL'
                 else:
                     signal_type = 'HOLD'
-                
+
                 confidence = np.mean(confidences) if confidences else 0.5
-            
+
             # Calculate TP/SL levels
             current_price = market_data['price']
             volatility = abs(market_data['change_24h']) / 100 if market_data['change_24h'] else 0.02
-            
+
             if signal_type == 'BUY':
                 tp1 = current_price * (1 + volatility * 1.5)
                 tp2 = current_price * (1 + volatility * 2.5)
@@ -562,7 +562,7 @@ class UltimateTradingBot:
                 stop_loss = current_price * (1 + volatility * 1.2)
             else:
                 tp1 = tp2 = tp3 = stop_loss = current_price
-            
+
             return {
                 'symbol': market_data['symbol'],
                 'signal_type': signal_type,
@@ -575,30 +575,30 @@ class UltimateTradingBot:
                 'timestamp': datetime.now().isoformat(),
                 'timeframe': '1h'
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to generate AI signal: {e}")
             return None
-            
+
     async def execute_trade_on_bybit(self, signal):
         """Execute trade on Bybit testnet"""
         try:
             exchange = self.exchanges['bybit']
             symbol = signal['symbol']
-            
+
             # Get account balance
             balance = exchange.fetch_balance()
             usdt_balance = balance['USDT']['free'] if 'USDT' in balance else 0
-            
+
             if usdt_balance < 10:  # Minimum $10 to trade
                 logger.warning("Insufficient balance for trading")
                 return False
-            
+
             # Calculate position size (risk 2% of balance)
             risk_amount = usdt_balance * 0.02
             entry_price = signal['entry_price']
             stop_loss = signal['stop_loss']
-            
+
             if signal['signal_type'] == 'BUY':
                 stop_distance = abs(entry_price - stop_loss) / entry_price
                 position_size = risk_amount / (entry_price * stop_distance)
@@ -607,43 +607,43 @@ class UltimateTradingBot:
                 position_size = risk_amount / (entry_price * stop_distance)
             else:
                 return False
-            
+
             # Round position size
             position_size = round(position_size, 6)
-            
+
             if position_size < 0.001:  # Minimum position size
                 logger.warning("Position size too small")
                 return False
-            
+
             # Place market order
             side = 'buy' if signal['signal_type'] == 'BUY' else 'sell'
             order = exchange.create_market_order(symbol, side, position_size)
-            
+
             logger.info(f"✅ Executed {signal['signal_type']} order for {symbol}: {position_size} @ {entry_price}")
-            
+
             # Store trade in database
             cursor = self.conn.cursor()
-            cursor.execute('''INSERT INTO trading_signals 
+            cursor.execute('''INSERT INTO trading_signals
                             (timestamp, exchange, symbol, signal_type, entry_price, tp1, tp2, tp3, stop_loss, confidence, timeframe, status)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                           (signal['timestamp'], 'bybit', symbol, signal['signal_type'], entry_price,
                            signal['tp1'], signal['tp2'], signal['tp3'], stop_loss, signal['confidence'], '1h', 'executed'))
             self.conn.commit()
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to execute trade: {e}")
             return False
-            
+
     async def detect_arbitrage_opportunities(self):
         """Detect arbitrage opportunities across exchanges"""
         try:
             arbitrage_opportunities = []
-            
+
             for symbol in self.crypto_pairs[:10]:  # Check top 10 pairs
                 prices = {}
-                
+
                 # Get prices from multiple exchanges
                 for exchange_name, exchange in list(self.exchanges.items())[:5]:  # Check 5 exchanges
                     try:
@@ -651,16 +651,16 @@ class UltimateTradingBot:
                         prices[exchange_name] = ticker['last']
                     except Exception as e:
                         continue
-                
+
                 if len(prices) >= 2:
                     # Find arbitrage opportunities
                     min_price = min(prices.values())
                     max_price = max(prices.values())
                     min_exchange = [k for k, v in prices.items() if v == min_price][0]
                     max_exchange = [k for k, v in prices.items() if v == max_price][0]
-                    
+
                     profit_percentage = ((max_price - min_price) / min_price) * 100
-                    
+
                     if profit_percentage > 0.5:  # Minimum 0.5% profit
                         opportunity = {
                             'symbol': symbol,
@@ -671,18 +671,18 @@ class UltimateTradingBot:
                             'profit_percentage': profit_percentage,
                             'timestamp': datetime.now().isoformat()
                         }
-                        
+
                         arbitrage_opportunities.append(opportunity)
-                        
+
                         # Store in database
                         cursor = self.conn.cursor()
-                        cursor.execute('''INSERT INTO arbitrage_opportunities 
+                        cursor.execute('''INSERT INTO arbitrage_opportunities
                                         (timestamp, symbol, exchange1, exchange2, price1, price2, profit_percentage, status)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
                                       (opportunity['timestamp'], symbol, min_exchange, max_exchange,
                                        min_price, max_price, profit_percentage, 'detected'))
                         self.conn.commit()
-            
+
             if arbitrage_opportunities:
                 # Send notification
                 message = f"🔄 <b>ARBITRAGE OPPORTUNITIES DETECTED</b>\n\n"
@@ -691,47 +691,47 @@ class UltimateTradingBot:
                     message += f"📈 Buy: {opp['exchange1']} @ ${opp['price1']:.4f}\n"
                     message += f"📉 Sell: {opp['exchange2']} @ ${opp['price2']:.4f}\n"
                     message += f"💰 Profit: {opp['profit_percentage']:.2f}%\n\n"
-                
+
                 await self.send_telegram_message(self.admin_chat_id, message)
-                
+
             return arbitrage_opportunities
-            
+
         except Exception as e:
             logger.error(f"Failed to detect arbitrage opportunities: {e}")
             return []
-            
+
     async def spot_moon_tokens(self):
         """Spot potential moon tokens"""
         try:
             moon_tokens = []
-            
+
             # Get trending tokens from CoinGecko
             url = "https://api.coingecko.com/api/v3/search/trending"
             response = requests.get(url)
-            
+
             if response.status_code == 200:
                 data = response.json()
-                
+
                 for coin in data.get('coins', [])[:10]:
                     try:
                         coin_id = coin['item']['id']
-                        
+
                         # Get detailed coin data
                         detail_url = f"https://api.coingecko.com/api/v3/coins/{coin_id}"
                         detail_response = requests.get(detail_url)
-                        
+
                         if detail_response.status_code == 200:
                             coin_data = detail_response.json()
-                            
+
                             market_data = coin_data.get('market_data', {})
                             current_price = market_data.get('current_price', {}).get('usd', 0)
                             market_cap = market_data.get('market_cap', {}).get('usd', 0)
                             volume_24h = market_data.get('total_volume', {}).get('usd', 0)
                             price_change_24h = market_data.get('price_change_percentage_24h', 0)
-                            
+
                             # Calculate moon score
                             moon_score = 0
-                            
+
                             # Price change factor
                             if price_change_24h > 50:
                                 moon_score += 30
@@ -739,13 +739,13 @@ class UltimateTradingBot:
                                 moon_score += 20
                             elif price_change_24h > 10:
                                 moon_score += 10
-                            
+
                             # Volume factor
                             if volume_24h > 1000000:  # $1M+ volume
                                 moon_score += 20
                             elif volume_24h > 100000:  # $100K+ volume
                                 moon_score += 10
-                            
+
                             # Market cap factor (lower is better for moon potential)
                             if market_cap < 1000000:  # Under $1M
                                 moon_score += 25
@@ -753,13 +753,13 @@ class UltimateTradingBot:
                                 moon_score += 15
                             elif market_cap < 100000000:  # Under $100M
                                 moon_score += 10
-                            
+
                             # Social factor (trending)
                             moon_score += 15
-                            
+
                             if moon_score >= 50:  # Minimum moon score
                                 buy_signal = "STRONG BUY" if moon_score >= 70 else "BUY"
-                                
+
                                 moon_token = {
                                     'token_name': coin_data.get('name', 'Unknown'),
                                     'token_symbol': coin_data.get('symbol', 'UNK').upper(),
@@ -772,13 +772,13 @@ class UltimateTradingBot:
                                     'buy_signal': buy_signal,
                                     'timestamp': datetime.now().isoformat()
                                 }
-                                
+
                                 moon_tokens.append(moon_token)
-                                
+
                                 # Store in database
                                 cursor = self.conn.cursor()
-                                cursor.execute('''INSERT INTO moon_tokens 
-                                                (timestamp, token_name, token_symbol, contract_address, current_price, 
+                                cursor.execute('''INSERT INTO moon_tokens
+                                                (timestamp, token_name, token_symbol, contract_address, current_price,
                                                  market_cap, volume_24h, price_change_24h, moon_score, buy_signal, status)
                                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                                               (moon_token['timestamp'], moon_token['token_name'], moon_token['token_symbol'],
@@ -787,7 +787,7 @@ class UltimateTradingBot:
                                 self.conn.commit()
                     except Exception as e:
                         continue
-            
+
             if moon_tokens:
                 # Send notification
                 message = f"🌙 <b>MOON TOKENS DETECTED</b>\n\n"
@@ -798,32 +798,32 @@ class UltimateTradingBot:
                     message += f"📈 24h Change: {token['price_change_24h']:.2f}%\n"
                     message += f"🌟 Moon Score: {token['moon_score']}/100\n"
                     message += f"🎯 Signal: {token['buy_signal']}\n\n"
-                
+
                 await self.send_telegram_message(self.vip_chat_id, message)
-                
+
             return moon_tokens
-            
+
         except Exception as e:
             logger.error(f"Failed to spot moon tokens: {e}")
             return []
-            
+
     async def quantum_portfolio_optimization(self):
         """Simulate quantum computing for portfolio optimization"""
         try:
             # Simulate quantum portfolio optimization
             symbols = self.crypto_pairs[:10]  # Top 10 cryptos
-            
+
             quantum_signals = []
-            
+
             for symbol in symbols:
                 # Simulate quantum probability calculations
                 quantum_probability = np.random.beta(2, 2)  # Beta distribution for probability
                 expected_return = np.random.normal(0.05, 0.15)  # Expected return
                 risk_score = np.random.uniform(0.1, 0.9)  # Risk score
-                
+
                 # Calculate optimal portfolio weight using quantum-inspired algorithm
                 portfolio_weight = quantum_probability * (1 - risk_score) * max(0, expected_return)
-                
+
                 if portfolio_weight > 0.05:  # Minimum 5% allocation
                     quantum_signal = {
                         'symbol': symbol,
@@ -834,18 +834,18 @@ class UltimateTradingBot:
                         'portfolio_weight': portfolio_weight,
                         'timestamp': datetime.now().isoformat()
                     }
-                    
+
                     quantum_signals.append(quantum_signal)
-                    
+
                     # Store in database
                     cursor = self.conn.cursor()
-                    cursor.execute('''INSERT INTO quantum_trades 
+                    cursor.execute('''INSERT INTO quantum_trades
                                     (timestamp, symbol, quantum_signal, probability, expected_return, risk_score, portfolio_weight, status)
                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
                                   (quantum_signal['timestamp'], symbol, quantum_signal['quantum_signal'],
                                    quantum_probability, expected_return, risk_score, portfolio_weight, 'pending'))
                     self.conn.commit()
-            
+
             if quantum_signals:
                 # Send quantum analysis to admin only
                 message = f"⚛️ <b>QUANTUM PORTFOLIO ANALYSIS</b>\n\n"
@@ -856,44 +856,44 @@ class UltimateTradingBot:
                     message += f"📈 Expected Return: {signal['expected_return']:.2%}\n"
                     message += f"⚠️ Risk Score: {signal['risk_score']:.2f}\n"
                     message += f"⚖️ Portfolio Weight: {signal['portfolio_weight']:.2%}\n\n"
-                
+
                 await self.send_telegram_message(self.admin_chat_id, message)
-                
+
             return quantum_signals
-            
+
         except Exception as e:
             logger.error(f"Failed quantum portfolio optimization: {e}")
             return []
-            
+
     async def web_scraping_analysis(self):
         """Web scraping for news and sentiment analysis"""
         try:
             scraped_data = []
-            
+
             # News sources
             news_sources = [
                 "https://cointelegraph.com/rss",
                 "https://www.coindesk.com/arc/outboundfeeds/rss/",
                 "https://cryptonews.com/news/feed/"
             ]
-            
+
             for source in news_sources:
                 try:
                     response = requests.get(source, timeout=10)
                     if response.status_code == 200:
                         # Simple sentiment analysis based on keywords
                         content = response.text.lower()
-                        
+
                         positive_keywords = ['bullish', 'surge', 'rally', 'pump', 'moon', 'breakout', 'gain', 'profit']
                         negative_keywords = ['bearish', 'crash', 'dump', 'fall', 'decline', 'loss', 'sell-off']
-                        
+
                         positive_count = sum(content.count(word) for word in positive_keywords)
                         negative_count = sum(content.count(word) for word in negative_keywords)
-                        
+
                         sentiment_score = (positive_count - negative_count) / max(1, positive_count + negative_count)
                         relevance_score = min(1.0, (positive_count + negative_count) / 10)
                         impact_score = sentiment_score * relevance_score
-                        
+
                         scraped_item = {
                             'source': source,
                             'content': content[:500],  # First 500 chars
@@ -903,43 +903,43 @@ class UltimateTradingBot:
                             'category': 'news',
                             'timestamp': datetime.now().isoformat()
                         }
-                        
+
                         scraped_data.append(scraped_item)
-                        
+
                         # Store in database
                         cursor = self.conn.cursor()
-                        cursor.execute('''INSERT INTO web_scraped_data 
+                        cursor.execute('''INSERT INTO web_scraped_data
                                         (timestamp, source, content, sentiment_score, relevance_score, impact_score, category)
                                         VALUES (?, ?, ?, ?, ?, ?, ?)''',
                                       (scraped_item['timestamp'], source, scraped_item['content'],
                                        sentiment_score, relevance_score, impact_score, 'news'))
                         self.conn.commit()
-                        
+
                 except Exception as e:
                     continue
-            
+
             # Calculate overall market sentiment
             if scraped_data:
                 overall_sentiment = np.mean([item['sentiment_score'] for item in scraped_data])
                 overall_impact = np.mean([item['impact_score'] for item in scraped_data])
-                
+
                 sentiment_text = "BULLISH" if overall_sentiment > 0.1 else "BEARISH" if overall_sentiment < -0.1 else "NEUTRAL"
-                
+
                 message = f"📰 <b>MARKET SENTIMENT ANALYSIS</b>\n\n"
                 message += f"📊 Overall Sentiment: {sentiment_text}\n"
                 message += f"📈 Sentiment Score: {overall_sentiment:.2f}\n"
                 message += f"💥 Impact Score: {overall_impact:.2f}\n"
                 message += f"📋 Sources Analyzed: {len(scraped_data)}\n\n"
                 message += f"🕒 Updated: {datetime.now().strftime('%H:%M:%S')}"
-                
+
                 await self.send_telegram_message(self.free_chat_id, message)
-                
+
             return scraped_data
-            
+
         except Exception as e:
             logger.error(f"Failed web scraping analysis: {e}")
             return []
-            
+
     async def continuous_model_training(self):
         """Continuously train AI models with new data"""
         try:
@@ -947,20 +947,20 @@ class UltimateTradingBot:
             cursor = self.conn.cursor()
             cursor.execute('''SELECT * FROM market_data ORDER BY timestamp DESC LIMIT 1000''')
             market_data = cursor.fetchall()
-            
+
             if len(market_data) < 100:
                 logger.info("Not enough data for model training")
                 return
-            
+
             # Prepare training data
             features = []
             labels = []
-            
+
             for i, row in enumerate(market_data[:-1]):
                 try:
                     current_price = row[3]  # price column
                     next_price = market_data[i + 1][3] if i + 1 < len(market_data) else current_price
-                    
+
                     # Features: price, volume, volatility, rsi, macd
                     feature_row = [
                         row[3],  # price
@@ -969,78 +969,78 @@ class UltimateTradingBot:
                         row[6] or 50,  # rsi
                         row[7] or 0   # macd
                     ]
-                    
+
                     # Label: 1 if price goes up, 0 if down
                     label = 1 if next_price > current_price else 0
-                    
+
                     features.append(feature_row)
                     labels.append(label)
                 except Exception as e:
                     continue
-            
+
             if len(features) < 50:
                 return
-            
+
             X = np.array(features)
             y = np.array(labels)
-            
+
             # Train random selection of models
             models_to_train = list(self.ml_models.keys())[:20]  # Train 20 models at a time
-            
+
             trained_count = 0
             for model_name in models_to_train:
                 try:
                     model_info = self.ml_models[model_name]
                     model = model_info['model']
-                    
+
                     # Split data
                     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-                    
+
                     # Train model
                     model.fit(X_train, y_train)
-                    
+
                     # Evaluate model
                     y_pred = model.predict(X_test)
                     accuracy = accuracy_score(y_test, y_pred)
-                    
+
                     # Update model info
                     self.ml_models[model_name]['trained'] = True
                     self.ml_models[model_name]['accuracy'] = accuracy
-                    
+
                     # Store in database
-                    cursor.execute('''INSERT INTO ai_models 
+                    cursor.execute('''INSERT INTO ai_models
                                     (model_name, model_type, accuracy, precision_score, recall_score, f1_score, last_trained, status)
                                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                                  (model_name, model_info['type'], accuracy, 0.0, 0.0, 0.0, 
+                                  (model_name, model_info['type'], accuracy, 0.0, 0.0, 0.0,
                                    datetime.now().isoformat(), 'trained'))
                     self.conn.commit()
-                    
+
                     trained_count += 1
-                    
+
                 except Exception as e:
                     logger.error(f"Failed to train model {model_name}: {e}")
                     continue
-            
+
             if trained_count > 0:
                 logger.info(f"🧠 Trained {trained_count} AI models")
-                
+
                 # Send training update to admin
                 message = f"🧠 <b>AI MODEL TRAINING UPDATE</b>\n\n"
                 message += f"✅ Models Trained: {trained_count}\n"
                 message += f"📊 Training Data Points: {len(features)}\n"
                 message += f"🎯 Average Accuracy: {np.mean([self.ml_models[m]['accuracy'] for m in models_to_train if self.ml_models[m]['trained']]):.2%}\n"
                 message += f"🕒 Training Time: {datetime.now().strftime('%H:%M:%S')}"
-                
+
                 await self.send_telegram_message(self.admin_chat_id, message)
-                
+
         except Exception as e:
             logger.error(f"Failed continuous model training: {e}")
-            
+
     async def analyze_and_trade(self):
         """Main analysis and trading loop"""
         try:
             logger.info("🔄 Starting market analysis cycle...")
-            
+
             # Analyze crypto markets
             for symbol in self.crypto_pairs[:5]:  # Analyze top 5 cryptos
                 try:
@@ -1048,7 +1048,7 @@ class UltimateTradingBot:
                     if market_data:
                         # Store market data
                         cursor = self.conn.cursor()
-                        cursor.execute('''INSERT INTO market_data 
+                        cursor.execute('''INSERT INTO market_data
                                         (timestamp, symbol, price, volume, volatility, rsi, macd, bollinger_upper, bollinger_lower)
                                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                                       (market_data['timestamp'], symbol, market_data['price'],
@@ -1058,13 +1058,13 @@ class UltimateTradingBot:
                                        market_data['indicators'].get('bb_upper', market_data['price']),
                                        market_data['indicators'].get('bb_lower', market_data['price'])))
                         self.conn.commit()
-                        
+
                         # Generate signal
                         signal = self.generate_signal_with_ai(market_data)
                         if signal and signal['signal_type'] in ['BUY', 'SELL']:
                             # Execute trade
                             trade_executed = await self.execute_trade_on_bybit(signal)
-                            
+
                             # Send signal to VIP channel with buttons
                             buttons = [
                                 [
@@ -1081,7 +1081,7 @@ class UltimateTradingBot:
                                     {'text': '📊 CHART', 'callback': f'chart_{symbol}'}
                                 ]
                             ]
-                            
+
                             message = f"🤖 <b>AI TRADING SIGNAL</b>\n\n"
                             message += f"📊 Symbol: {signal['symbol']}\n"
                             message += f"📈 Signal: <b>{signal['signal_type']}</b>\n"
@@ -1093,9 +1093,9 @@ class UltimateTradingBot:
                             message += f"🎲 Confidence: {signal['confidence']:.1%}\n"
                             message += f"⚡ Auto-Trade: {'✅ EXECUTED' if trade_executed else '❌ FAILED'}\n\n"
                             message += f"🕒 {datetime.now().strftime('%H:%M:%S')}"
-                            
+
                             await self.send_telegram_message(self.vip_chat_id, message, buttons)
-                            
+
                             # Send to free channel (without buttons)
                             free_message = f"📊 <b>FREE SIGNAL</b>\n\n"
                             free_message += f"📊 {signal['symbol']}: <b>{signal['signal_type']}</b>\n"
@@ -1103,61 +1103,61 @@ class UltimateTradingBot:
                             free_message += f"🎯 TP1: ${signal['tp1']:.4f}\n"
                             free_message += f"🛑 SL: ${signal['stop_loss']:.4f}\n"
                             free_message += f"🕒 {datetime.now().strftime('%H:%M:%S')}"
-                            
+
                             await self.send_telegram_message(self.free_chat_id, free_message)
-                            
+
                 except Exception as e:
                     logger.error(f"Failed to analyze {symbol}: {e}")
                     continue
-                    
+
                 await asyncio.sleep(2)  # Small delay between symbols
-                
+
         except Exception as e:
             logger.error(f"Failed market analysis: {e}")
-            
+
     async def run_advanced_features(self):
         """Run advanced features periodically"""
         try:
             # Run arbitrage detection
             await self.detect_arbitrage_opportunities()
             await asyncio.sleep(5)
-            
+
             # Run moon spotter
             await self.spot_moon_tokens()
             await asyncio.sleep(5)
-            
+
             # Run quantum optimization
             await self.quantum_portfolio_optimization()
             await asyncio.sleep(5)
-            
+
             # Run web scraping
             await self.web_scraping_analysis()
             await asyncio.sleep(5)
-            
+
             # Run model training
             await self.continuous_model_training()
-            
+
         except Exception as e:
             logger.error(f"Failed advanced features: {e}")
-            
+
     async def send_status_update(self):
         """Send status update to admin"""
         try:
             # Get statistics
             cursor = self.conn.cursor()
-            
+
             cursor.execute("SELECT COUNT(*) FROM trading_signals WHERE status = 'executed'")
             executed_trades = cursor.fetchone()[0]
-            
+
             cursor.execute("SELECT COUNT(*) FROM ai_models WHERE status = 'trained'")
             trained_models = cursor.fetchone()[0]
-            
+
             cursor.execute("SELECT COUNT(*) FROM arbitrage_opportunities")
             arbitrage_count = cursor.fetchone()[0]
-            
+
             cursor.execute("SELECT COUNT(*) FROM moon_tokens")
             moon_tokens_count = cursor.fetchone()[0]
-            
+
             message = f"🤖 <b>ULTIMATE TRADING BOT STATUS</b>\n\n"
             message += f"⚡ Status: <b>RUNNING</b>\n"
             message += f"🔄 Uptime: Continuous\n"
@@ -1171,16 +1171,16 @@ class UltimateTradingBot:
             message += f"💱 Forex Pairs: {len(self.forex_pairs)}\n\n"
             message += f"🔋 System Health: ✅ OPTIMAL\n"
             message += f"🕒 Last Update: {datetime.now().strftime('%H:%M:%S')}"
-            
+
             await self.send_telegram_message(self.admin_chat_id, message)
-            
+
         except Exception as e:
             logger.error(f"Failed to send status update: {e}")
-            
+
     async def main_loop(self):
         """Main continuous loop"""
         logger.info("🚀 Ultimate Trading Bot Started!")
-        
+
         # Send startup message
         startup_message = f"🤖 <b>ULTIMATE TRADING BOT ACTIVATED</b>\n\n"
         startup_message += f"⚡ Status: ONLINE\n"
@@ -1196,30 +1196,30 @@ class UltimateTradingBot:
         startup_message += f"🧠 Continuous Learning: ✅\n"
         startup_message += f"🎯 Auto Trading: ✅\n\n"
         startup_message += f"🚀 Ready to dominate the markets!"
-        
+
         await self.send_telegram_message(self.admin_chat_id, startup_message)
-        
+
         cycle_count = 0
-        
+
         while self.running:
             try:
                 cycle_count += 1
                 logger.info(f"🔄 Starting cycle {cycle_count}")
-                
+
                 # Main analysis and trading
                 await self.analyze_and_trade()
-                
+
                 # Advanced features (every 5th cycle)
                 if cycle_count % 5 == 0:
                     await self.run_advanced_features()
-                
+
                 # Status update (every 20th cycle)
                 if cycle_count % 20 == 0:
                     await self.send_status_update()
-                
+
                 # Wait before next cycle
                 await asyncio.sleep(60)  # 1 minute between cycles
-                
+
             except KeyboardInterrupt:
                 logger.info("Bot stopped by user")
                 break
@@ -1227,7 +1227,7 @@ class UltimateTradingBot:
                 logger.error(f"Error in main loop: {e}")
                 await asyncio.sleep(30)  # Wait 30 seconds on error
                 continue
-                
+
         logger.info("🛑 Ultimate Trading Bot Stopped")
 
 # Run the bot
@@ -1333,7 +1333,7 @@ echo "🎯 The bot will now run 24/7 and dominate the markets!"
 
 1. **🔧 AUTOMATICALLY INSTALL** all dependencies
 2. **📝 CREATE THE COMPLETE BOT** with ALL 450+ AI models
-3. **🚀 DEPLOY AND START** the service automatically  
+3. **🚀 DEPLOY AND START** the service automatically
 4. **🔄 RUN CONTINUOUSLY** with systemd (auto-restart on crash)
 5. **📱 SEND SIGNALS** to your Telegram channels immediately
 6. **💹 AUTO-TRADE** on Bybit testnet

@@ -29,7 +29,7 @@ for file in tools/market_data.py tools/ultra_trainer.py ultra_ml_pipeline.py \
             ultra_arbitrage_engine.py ultra_scalping_engine.py \
             ultra_quantum_intelligence.py ultra_swarm_consciousness.py \
             ultra_fluid_mechanics.py; do
-    
+
     if [ -f "$file" ]; then
         # Check if file needs typing but doesn't have it
         if grep -q "Optional\|Dict\[" "$file" && ! grep -q "^from typing import" "$file"; then
@@ -61,13 +61,13 @@ new_lines = []
 i = 0
 while i < len(lines):
     line = lines[i]
-    
+
     # Check if this is a Ultra system initialization line
     if re.match(r'(\s+)self\.(ultra_\w+|trade_planner|models_450|trader_core|unified_trading) = \w+\(\)\s*$', line):
         indent = len(line) - len(line.lstrip())
         var_name = re.search(r'self\.(\w+)', line).group(1)
         class_name = re.search(r'= (\w+)\(\)', line).group(1)
-        
+
         # Wrap in try-except
         new_lines.append(' ' * indent + 'try:\n')
         new_lines.append(line)
@@ -78,7 +78,7 @@ while i < len(lines):
         new_lines.append(' ' * (indent + 4) + f"self.{var_name} = None\n")
         i += 1
         continue
-    
+
     new_lines.append(line)
     i += 1
 

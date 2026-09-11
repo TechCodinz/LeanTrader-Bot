@@ -36,22 +36,22 @@ pattern = r'# Get adaptive threshold based on market conditions\s+adaptive_resul
 
 if re.search(pattern, content):
     print("✅ Found the problematic adaptive check")
-    
+
     # The issue is we need to ensure the try block is properly structured
     # Let's find and fix it
-    
+
     # Find the section with the adaptive check
     lines = content.split('\n')
     fixed_lines = []
     in_adaptive_block = False
     indent_level = 0
-    
+
     for i, line in enumerate(lines):
         # Check if this is the adaptive threshold line
         if 'adaptive_result = self.adaptive_confidence.get_adaptive_threshold(' in line:
             in_adaptive_block = True
             indent_level = len(line) - len(line.lstrip())
-            
+
             # Make sure we're in a try block or not in a try block at all
             # Look backwards to find if we're in a try block
             in_try = False
@@ -62,7 +62,7 @@ if re.search(pattern, content):
                 if lines[j].strip() and not lines[j].strip().startswith('#'):
                     # Found non-comment code before try
                     break
-            
+
             if in_try:
                 # We're in a try block, need to add except/finally
                 # Add the adaptive check
@@ -73,17 +73,17 @@ if re.search(pattern, content):
                 fixed_lines.append(line)
         else:
             fixed_lines.append(line)
-    
+
     # This is complex, let's use a simpler approach:
     # Just wrap the adaptive check in a try-except if it's not already
-    
+
     content_fixed = content.replace(
         '# Get adaptive threshold based on market conditions\n        adaptive_result = self.adaptive_confidence.get_adaptive_threshold(',
         '''# Get adaptive threshold based on market conditions
         try:
             adaptive_result = self.adaptive_confidence.get_adaptive_threshold('''
     )
-    
+
     # Now find where the adaptive block ends and add except
     # Look for "if confidence < adaptive_threshold"
     content_fixed = content_fixed.replace(
@@ -93,12 +93,12 @@ if re.search(pattern, content):
             logger.warning(f"Adaptive confidence error: {e}")
             adaptive_threshold = self.min_confidence'''
     )
-    
+
     # Actually, this is getting too complex. Let's just restore the original
     # and NOT use adaptive confidence for now
     print("⚠️  Adaptive confidence integration has syntax errors")
     print("   Restoring to version without adaptive confidence")
-    
+
     # Restore from backup
     import os
     if os.path.exists('EXECUTION_ORCHESTRATOR.py.before_adaptive'):

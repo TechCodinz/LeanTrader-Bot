@@ -44,12 +44,12 @@ class DynamicPairDiscovery:
     - All crypto exchanges (Bybit, Binance, OKX, etc.)
     - Continuously adds new pairs based on volume, volatility, momentum
     """
-    
+
     def __init__(self):
         self.discovered_pairs = set()
         self.active_pairs = set()
         self.pair_performance = {}
-        
+
         # Initialize exchanges for discovery
         self.exchanges = {
             'bybit': ccxt.bybit({'enableRateLimit': True}),
@@ -57,52 +57,52 @@ class DynamicPairDiscovery:
             'okx': ccxt.okx({'enableRateLimit': True}),
             'kucoin': ccxt.kucoin({'enableRateLimit': True}),
         }
-        
+
         logger.info("🔍 Dynamic Pair Discovery initialized")
-    
+
     async def discover_all_markets(self):
         """Discover ALL available trading pairs across all exchanges"""
-        
+
         all_pairs = set()
-        
+
         for exchange_name, exchange in self.exchanges.items():
             try:
                 logger.info(f"🔍 Scanning {exchange_name} for all markets...")
-                
+
                 markets = await asyncio.to_thread(exchange.load_markets)
-                
+
                 for symbol in markets.keys():
                     # Add all USDT pairs (most liquid)
                     if '/USDT' in symbol or '/USD' in symbol:
                         all_pairs.add(symbol)
                         self.discovered_pairs.add(symbol)
-                
+
                 logger.info(f"✅ {exchange_name}: Found {len([s for s in all_pairs if s in markets])} pairs")
-                
+
             except Exception as e:
                 logger.error(f"❌ {exchange_name} discovery error: {e}")
-        
+
         logger.info(f"🌍 TOTAL DISCOVERED: {len(all_pairs)} tradeable pairs across all exchanges!")
         return list(all_pairs)
-    
+
     async def filter_profitable_pairs(self, all_pairs):
         """
         Filter pairs by profitability criteria:
         - High volume (liquidity)
         - Good volatility (profit opportunity)
         """
-        
+
         profitable_pairs = []
-        
+
         for pair in all_pairs[:500]:  # Process top 500
             try:
                 ticker = await asyncio.to_thread(
                     self.exchanges['bybit'].fetch_ticker, pair
                 )
-                
+
                 volume_usd = ticker.get('quoteVolume', 0)
                 price_change = abs(ticker.get('percentage', 0))
-                
+
                 # Criteria: Volume > $50k/day AND Price change > 0.5%
                 if volume_usd > 50000 and price_change > 0.5:
                     profitable_pairs.append({
@@ -111,37 +111,37 @@ class DynamicPairDiscovery:
                         'volatility': price_change,
                         'score': volume_usd * price_change
                     })
-                
+
             except:
                 continue
-        
+
         profitable_pairs.sort(key=lambda x: x['score'], reverse=True)
         logger.info(f"💰 Found {len(profitable_pairs)} highly profitable pairs!")
-        
+
         return [p['symbol'] for p in profitable_pairs]
-    
+
     async def continuous_discovery(self):
         """Continuously discover new profitable pairs (every 30 min)"""
-        
+
         while True:
             try:
                 logger.info("🔍 Starting market discovery scan...")
-                
+
                 all_pairs = await self.discover_all_markets()
                 profitable = await self.filter_profitable_pairs(all_pairs)
-                
+
                 new_pairs = set(profitable) - self.active_pairs
                 if new_pairs:
                     self.active_pairs.update(new_pairs)
                     logger.info(f"✅ Added {len(new_pairs)} new profitable pairs!")
                     logger.info(f"📊 TOTAL ACTIVE PAIRS: {len(self.active_pairs)}")
-                
+
                 await asyncio.sleep(1800)  # 30 minutes
-                
+
             except Exception as e:
                 logger.error(f"Discovery error: {e}")
                 await asyncio.sleep(300)
-    
+
     def get_active_pairs(self):
         """Get current list of active profitable pairs"""
         return list(self.active_pairs)
@@ -187,22 +187,22 @@ if pgrep -f "RUN_BOT.py" > /dev/null; then
     echo "  FREE Signals: $(grep -c '✅ FREE' bot.log 2>/dev/null || echo 0)"
     echo "  Unique Pairs: $(grep 'Decision:' bot.log 2>/dev/null | grep -oE '[A-Z]{2,5}/[A-Z]{2,5}' | sort -u | wc -l)"
     echo ""
-    
+
     read -p "Restart bot to enable 3000+ pair discovery? (y/n): " -n 1 -r
     echo ""
-    
+
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo ""
         echo "🔄 Restarting bot with new features..."
-        
+
         # Stop
         pkill -9 -f RUN_BOT.py 2>/dev/null
         screen -S trading_bot -X quit 2>/dev/null
         sleep 3
-        
+
         # Clear cache
         rm -rf __pycache__ */__pycache__ 2>/dev/null
-        
+
         # Start
         export TELEGRAM_BOT_TOKEN='8291641352:AAFTGq-hIY_iS47aMOoGXrBDFlR_B3nCupg'
         export VIP_CHANNEL_ID='-1002983007302'
@@ -212,11 +212,11 @@ if pgrep -f "RUN_BOT.py" > /dev/null; then
         export MAX_POSITION_SIZE='50'
         export MAX_DAILY_TRADES='20'
         export MIN_CONFIDENCE='0.80'
-        
+
         screen -dmS trading_bot bash -c "cd ~/trading_bot && python3 -B RUN_BOT.py > bot.log 2>&1"
-        
+
         sleep 5
-        
+
         if pgrep -f "RUN_BOT.py" > /dev/null; then
             echo ""
             echo "✅ Bot restarted successfully! (PID: $(pgrep -f RUN_BOT.py))"

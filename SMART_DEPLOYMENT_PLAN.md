@@ -133,8 +133,8 @@ Bybit/Gate.io:
 # Verify execution works
 ```
 
-**Cost**: $0  
-**Risk**: None  
+**Cost**: $0
+**Risk**: None
 **Benefit**: Trained models, verified execution
 
 ### **Week 3: Go Live with $40 on Gate.io**
@@ -145,8 +145,8 @@ Bybit/Gate.io:
 # Monitor constantly
 ```
 
-**Cost**: $40  
-**Risk**: Might lose $10-20 in learning  
+**Cost**: $40
+**Risk**: Might lose $10-20 in learning
 **Benefit**: Real trading data, real validation
 
 ### **Week 4-6: Let It Learn**
@@ -157,8 +157,8 @@ Bybit/Gate.io:
 # Tune parameters
 ```
 
-**Cost**: $0 additional  
-**Risk**: The original $40  
+**Cost**: $0 additional
+**Risk**: The original $40
 **Benefit**: Bot learns from real trades
 
 ### **Month 2: Evaluate**
@@ -166,7 +166,7 @@ Bybit/Gate.io:
 If profitable after 1 month:
   ✅ Add $100-200 more
   ✅ Scale gradually
-  
+
 If not profitable:
   ⚠️ Stop and debug
   ⚠️ Tune parameters

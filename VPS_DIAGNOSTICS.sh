@@ -126,7 +126,7 @@ echo ""
 if [ -f "bot.log" ]; then
     VIP_COUNT=$(grep -c "✅ VIP #" bot.log 2>/dev/null || echo 0)
     FREE_COUNT=$(grep -c "✅ FREE #" bot.log 2>/dev/null || echo 0)
-    
+
     echo "  VIP Signals Sent: $VIP_COUNT"
     echo "  FREE Signals Sent: $FREE_COUNT"
     echo ""

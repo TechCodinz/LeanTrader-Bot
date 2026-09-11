@@ -98,7 +98,7 @@ Trade 1: 85% confidence
 → Position size: $120 (12% of $1,000)
 → Win +10%: Balance now $1,100
 
-Trade 2: 90% confidence  
+Trade 2: 90% confidence
 → Position size: $145 (13.2% of $1,100)
 → Scales up with balance! ✅
 → Higher confidence = bigger size! ✅
@@ -246,7 +246,7 @@ From your logs:
 
 ### Week 2-4: Optimization
 - Starting: $1,300
-- Expected: $1,700-2,500 (30-90% growth)  
+- Expected: $1,700-2,500 (30-90% growth)
 - Focus: Remove losing strategies, boost winners
 
 ### Month 2-3: Acceleration

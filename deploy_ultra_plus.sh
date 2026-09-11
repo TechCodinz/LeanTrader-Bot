@@ -40,13 +40,13 @@ BACKUP_PATH="$BACKUP_DIR/ultra_plus_backup_$TIMESTAMP"
 if [ -d "$BOT_DIR" ]; then
     echo "Backing up existing installation..."
     sudo tar -czf "$BACKUP_PATH.tar.gz" -C /opt leantraderbot 2>/dev/null || true
-    
+
     # Backup database separately
     if [ -f "$DB_PATH" ]; then
         sudo cp "$DB_PATH" "$BACKUP_PATH.db"
         echo -e "${GREEN}✓ Database backed up${NC}"
     fi
-    
+
     echo -e "${GREEN}✓ Backup created: $BACKUP_PATH.tar.gz${NC}"
 else
     echo "No existing installation found, skipping backup"

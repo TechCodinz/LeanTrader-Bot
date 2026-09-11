@@ -167,32 +167,32 @@ async def test_all():
         'binance': ccxt.binance,
         'bybit': ccxt.bybit
     }
-    
+
     for name, exchange_class in exchanges.items():
         try:
             key_env = f'{name.upper()}_API_KEY'
             secret_env = f'{name.upper()}_SECRET'
-            
+
             api_key = os.getenv(key_env)
             secret = os.getenv(secret_env)
-            
+
             if not api_key:
                 print(f'⚠️  {name.upper()}: No API key set')
                 continue
-            
+
             exchange = exchange_class({
                 'apiKey': api_key,
                 'secret': secret,
                 'enableRateLimit': True
             })
-            
+
             balance = await exchange.fetch_balance()
             total_usd = balance.get('total', {}).get('USDT', 0)
-            
+
             print(f'✅ {name.upper()}: Connected! Balance: ${total_usd:.2f} USDT')
-            
+
             await exchange.close()
-            
+
         except Exception as e:
             print(f'❌ {name.upper()}: Failed - {e}')
 

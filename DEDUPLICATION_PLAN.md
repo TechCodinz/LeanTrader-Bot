@@ -7,7 +7,7 @@
 #### 1. router.py (4 versions)
 - `./router.py` (49,242 bytes) ← **KEEP** - Most complete
 - `./traders_core/router.py` (8,343 bytes) - Delete
-- `./traders_core/execution/router.py` (6,824 bytes) - Delete  
+- `./traders_core/execution/router.py` (6,824 bytes) - Delete
 - `./src/leantrader/execution/router.py` (979 bytes) - Delete
 
 #### 2. pipeline.py (6 versions)

@@ -68,7 +68,7 @@ load_dotenv()
 
 async def test_all():
     results = []
-    
+
     # Test MEXC
     try:
         exchange = ccxt.mexc({
@@ -83,7 +83,7 @@ async def test_all():
         await exchange.close()
     except Exception as e:
         print(f'❌ MEXC: {str(e)[:60]}')
-    
+
     # Test Bitget (needs passphrase)
     passphrase = os.getenv('BITGET_PASSPHRASE')
     if passphrase and passphrase != 'your_bitget_passphrase':
@@ -103,7 +103,7 @@ async def test_all():
             print(f'❌ Bitget: {str(e)[:60]}')
     else:
         print('⚠️  Bitget: Need passphrase (from Bitget API settings)')
-    
+
     # Test OKX (needs password)
     okx_pass = os.getenv('OKX_PASSWORD')
     if okx_pass and okx_pass != 'your_okx_password':
@@ -123,7 +123,7 @@ async def test_all():
             print(f'❌ OKX: {str(e)[:60]}')
     else:
         print('⚠️  OKX: Need password (from OKX API settings)')
-    
+
     # Test KuCoin (needs password)
     kucoin_pass = os.getenv('KUCOIN_PASSWORD')
     if kucoin_pass and kucoin_pass != 'your_kucoin_password':
@@ -143,7 +143,7 @@ async def test_all():
             print(f'❌ KuCoin: {str(e)[:60]}')
     else:
         print('⚠️  KuCoin: Need password (from KuCoin API settings)')
-    
+
     # Test Gate.io
     try:
         exchange = ccxt.gateio({
@@ -158,7 +158,7 @@ async def test_all():
         await exchange.close()
     except Exception as e:
         print(f'❌ Gate.io: {str(e)[:60]}')
-    
+
     # Test Binance
     try:
         exchange = ccxt.binance({
@@ -173,7 +173,7 @@ async def test_all():
         await exchange.close()
     except Exception as e:
         print(f'❌ Binance: {str(e)[:60]}')
-    
+
     # Test Bybit
     try:
         exchange = ccxt.bybit({
@@ -188,15 +188,15 @@ async def test_all():
         await exchange.close()
     except Exception as e:
         print(f'❌ Bybit: {str(e)[:60]}')
-    
+
     print(f'\n📊 Result: {len(results)}/7 exchanges connected')
-    
+
     if len(results) >= 2:
         print(f'\n✅ Arbitrage will work with {len(results)} exchanges!')
         print(f'   Connected: {", ".join([e.upper() for e in results])}')
     else:
         print('\n⚠️  Need at least 2 exchanges for arbitrage')
-    
+
     return len(results)
 
 num = asyncio.run(test_all())
@@ -212,10 +212,10 @@ if [ $CONNECTED -eq 0 ]; then
     echo ""
     echo "Restarting bot..."
     sudo systemctl restart trading-bot
-    
+
     echo "Waiting 30 seconds..."
     sleep 30
-    
+
     echo ""
     echo "Checking for arbitrage..."
     journalctl -u trading-bot --since "30 seconds ago" | grep -i "arbitrage.*active\|exchange.*connected" | head -5
@@ -230,7 +230,7 @@ else
     echo "  3. Add to .env: BITGET_PASSPHRASE=your_passphrase"
     echo ""
     echo "For OKX:"
-    echo "  1. Go to OKX → API Management"  
+    echo "  1. Go to OKX → API Management"
     echo "  2. Find your API password"
     echo "  3. Add to .env: OKX_PASSWORD=your_password"
     echo ""

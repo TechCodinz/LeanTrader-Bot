@@ -158,8 +158,8 @@ Risk/Reward: 2.9:1
 
 AI Analysis:
 Multi-system confirmation with divine intelligence.
-Quantum entanglement detected with ETH. Fractal 
-dimension shows strong trending regime. Information 
+Quantum entanglement detected with ETH. Fractal
+dimension shows strong trending regime. Information
 entropy low = high predictability.
 
 ⚡ TRADE NOW - One Click!

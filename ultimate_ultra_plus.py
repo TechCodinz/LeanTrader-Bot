@@ -223,7 +223,7 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute(
                 '''
-                INSERT OR IGNORE INTO signals 
+                INSERT OR IGNORE INTO signals
                 (engine, symbol, side, confidence, price, metadata, hash)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ''',
@@ -252,8 +252,8 @@ class DatabaseManager:
         cursor = conn.cursor()
         cursor.execute(
             '''
-            SELECT * FROM signals 
-            ORDER BY timestamp DESC 
+            SELECT * FROM signals
+            ORDER BY timestamp DESC
             LIMIT ?
         ''',
             (limit,),
@@ -931,7 +931,7 @@ class TelegramBot:
         welcome = """
 🚀 **Ultimate Ultra+ Bot Active**
 
-Trading Mode: {} 
+Trading Mode: {}
 Risk Level: Conservative
 Max Slots: {}
 

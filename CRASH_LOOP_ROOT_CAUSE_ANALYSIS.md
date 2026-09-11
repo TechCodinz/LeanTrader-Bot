@@ -93,11 +93,11 @@ async def start(self):
     """Start DEX orchestrator"""
     self.running = True
     logger.info("🚀 DEX Orchestrator STARTED")
-    
+
     # Connect to all enabled chains
     for chain in self.config.chains:
         await self.web3_manager.connect_chain(chain)
-    
+
     # Start scanning loop
     asyncio.create_task(self._scanning_loop())  # ← CRASHES HERE!
     asyncio.create_task(self._position_monitoring_loop())
@@ -108,22 +108,22 @@ async def start(self):
 async def start(self):
     """Start DEX orchestrator"""
     self.running = True
-    
+
     # Check if we have private key for trading
     private_key = os.getenv('DEX_PRIVATE_KEY', '')
-    
+
     if not private_key:
         logger.info("⚠️  DEX Orchestrator: No private key - Monitoring only (no trading)")
         logger.info("   Add DEX_PRIVATE_KEY to .env to enable DEX trading")
         # Don't start async loops without private key to avoid crashes
         return  # ← SKIP ASYNC LOOPS!
-    
+
     logger.info("🚀 DEX Orchestrator STARTED")
-    
+
     # Connect to all enabled chains
     for chain in self.config.chains:
         await self.web3_manager.connect_chain(chain)
-    
+
     # Start scanning loop (only if we have private key)
     asyncio.create_task(self._scanning_loop())
     asyncio.create_task(self._position_monitoring_loop())
@@ -429,11 +429,11 @@ Now it checks "Do I have a wallet key?" and if not, it says "OK, I'll skip DEX t
 
 ## ✅ Status: RESOLVED
 
-**Date Fixed:** 2025-10-15  
-**Root Cause:** DEX async loops without private key  
-**Solution:** Private key validation before async tasks  
-**Severity:** Critical (prevented all trading)  
-**Impact:** Fully resolved, bot operational  
+**Date Fixed:** 2025-10-15
+**Root Cause:** DEX async loops without private key
+**Solution:** Private key validation before async tasks
+**Severity:** Critical (prevented all trading)
+**Impact:** Fully resolved, bot operational
 
 **Next Action:** Deploy fix to VPS and verify stable operation.
 

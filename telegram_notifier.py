@@ -30,7 +30,7 @@ def send_message(text):
 def get_bot_status():
     """Get bot status from systemctl"""
     try:
-        result = subprocess.run(['systemctl', 'is-active', 'trading-bot'], 
+        result = subprocess.run(['systemctl', 'is-active', 'trading-bot'],
                               capture_output=True, text=True)
         return result.stdout.strip()
     except:
@@ -44,11 +44,11 @@ def check_recent_trades():
             capture_output=True, text=True
         )
         logs = result.stdout
-        
+
         trade_count = logs.lower().count('trade executed')
         order_count = logs.lower().count('order placed')
         signal_count = logs.lower().count('signal')
-        
+
         return trade_count, order_count, signal_count
     except:
         return 0, 0, 0
@@ -68,11 +68,11 @@ def check_databases():
 # Main status update
 if __name__ == "__main__":
     print("Gathering bot status...")
-    
+
     status = get_bot_status()
     trades, orders, signals = check_recent_trades()
     db_count = check_databases()
-    
+
     # Create status message
     message = f"""<b>🤖 BOT STATUS UPDATE</b>
 

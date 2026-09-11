@@ -89,20 +89,20 @@ echo "════════════════════════�
 # Check if running
 if systemctl is-active --quiet trading-bot; then
     echo "✅ Bot is RUNNING"
-    
+
     # Show status
     echo ""
     echo "Status:"
     systemctl status trading-bot --no-pager | head -15
-    
+
     echo ""
     echo "═══════════════════════════════════════════════════════════════════════"
     echo "📱 Checking for Signals..."
     echo "═══════════════════════════════════════════════════════════════════════"
-    
+
     echo "Checking recent logs..."
     sleep 5
-    
+
     # Check for signal routing
     if journalctl -u trading-bot --since "2 minutes ago" | grep -q "signal sent"; then
         echo "✅ SIGNALS ARE BEING SENT!"
@@ -113,7 +113,7 @@ if systemctl is-active --quiet trading-bot; then
         echo "   Run this to watch live:"
         echo "   journalctl -u trading-bot -f | grep signal"
     fi
-    
+
     echo ""
     echo "═══════════════════════════════════════════════════════════════════════"
     echo "✅ DEPLOYMENT COMPLETE!"
@@ -133,7 +133,7 @@ if systemctl is-active --quiet trading-bot; then
     echo ""
     echo "💰 Check balance in Bybit account"
     echo ""
-    
+
 else
     echo "❌ Bot is NOT running!"
     echo ""

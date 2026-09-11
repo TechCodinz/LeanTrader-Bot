@@ -30,42 +30,42 @@ except ImportError:
 
 class WorkingTelegramBot:
     """Simple, working Telegram bot for sending trading signals"""
-    
+
     def __init__(self):
         self.bot = None
         self.vip_chat_id = TG_VIP_CHAT_ID
         self.free_chat_id = TG_FREE_CHAT_ID
-        
+
         if not TELEGRAM_AVAILABLE:
             logger.error("❌ Telegram library not available!")
             return
-        
+
         if not TELEGRAM_BOT_TOKEN:
             logger.error("❌ TELEGRAM_BOT_TOKEN not set in .env!")
             return
-        
+
         try:
             self.bot = Bot(token=TELEGRAM_BOT_TOKEN)
             logger.info("✅ Telegram bot initialized successfully!")
-            
+
             if self.vip_chat_id:
                 logger.info(f"✅ VIP channel configured: {self.vip_chat_id}")
             else:
                 logger.warning("⚠️  TG_VIP_CHAT_ID not set in .env")
-            
+
             if self.free_chat_id:
                 logger.info(f"✅ FREE channel configured: {self.free_chat_id}")
             else:
                 logger.warning("⚠️  TG_FREE_CHAT_ID not set in .env")
-                
+
         except Exception as e:
             logger.error(f"❌ Failed to initialize Telegram bot: {e}")
-    
+
     async def send_message(self, chat_id: str, text: str, parse_mode: str = 'HTML') -> bool:
         """Send a message to a Telegram chat"""
         if not self.bot:
             return False
-        
+
         try:
             await self.bot.send_message(
                 chat_id=chat_id,
@@ -79,7 +79,7 @@ class WorkingTelegramBot:
         except Exception as e:
             logger.error(f"Unexpected error sending Telegram message: {e}")
             return False
-    
+
     async def send_vip_signal(
         self,
         symbol: str,
@@ -92,10 +92,10 @@ class WorkingTelegramBot:
         sl: float
     ) -> bool:
         """Send VIP signal with full details"""
-        
+
         if not self.vip_chat_id:
             return False
-        
+
         # Format signal message
         message = f"""
 🔥 <b>VIP SIGNAL #{datetime.now().strftime('%H%M')}</b> 🔥
@@ -117,9 +117,9 @@ class WorkingTelegramBot:
 
 <i>💎 VIP Premium Signal - Trade Carefully!</i>
 """
-        
+
         return await self.send_message(self.vip_chat_id, message)
-    
+
     async def send_free_signal(
         self,
         symbol: str,
@@ -127,10 +127,10 @@ class WorkingTelegramBot:
         confidence: float
     ) -> bool:
         """Send FREE signal with basic info"""
-        
+
         if not self.free_chat_id:
             return False
-        
+
         # Format free signal message
         message = f"""
 📢 <b>FREE SIGNAL</b>
@@ -143,9 +143,9 @@ class WorkingTelegramBot:
 
 <i>🆓 Join VIP for detailed signals!</i>
 """
-        
+
         return await self.send_message(self.free_chat_id, message)
-    
+
     async def send_trade_notification(
         self,
         symbol: str,
@@ -155,10 +155,10 @@ class WorkingTelegramBot:
         status: str = "EXECUTED"
     ) -> bool:
         """Send trade execution notification to VIP"""
-        
+
         if not self.vip_chat_id:
             return False
-        
+
         message = f"""
 ⚡ <b>TRADE {status}</b> ⚡
 
@@ -169,7 +169,7 @@ class WorkingTelegramBot:
 
 ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
-        
+
         return await self.send_message(self.vip_chat_id, message)
 
 
@@ -180,10 +180,10 @@ _telegram_bot = None
 def get_telegram_bot() -> WorkingTelegramBot:
     """Get or create the global Telegram bot instance"""
     global _telegram_bot
-    
+
     if _telegram_bot is None:
         _telegram_bot = WorkingTelegramBot()
-    
+
     return _telegram_bot
 
 
@@ -192,12 +192,12 @@ if __name__ == "__main__":
     async def test():
         print("Testing Telegram bot...")
         bot = get_telegram_bot()
-        
+
         if bot.bot:
             print("✅ Bot initialized!")
             print(f"VIP Chat: {bot.vip_chat_id}")
             print(f"FREE Chat: {bot.free_chat_id}")
-            
+
             # Test VIP signal
             success = await bot.send_vip_signal(
                 symbol="BTC/USDT",
@@ -210,7 +210,7 @@ if __name__ == "__main__":
                 sl=49500
             )
             print(f"VIP signal sent: {success}")
-            
+
             # Test FREE signal
             success = await bot.send_free_signal(
                 symbol="ETH/USDT",
@@ -220,5 +220,5 @@ if __name__ == "__main__":
             print(f"FREE signal sent: {success}")
         else:
             print("❌ Bot not initialized!")
-    
+
     asyncio.run(test())

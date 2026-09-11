@@ -23,20 +23,20 @@ try:
         'secret': api_keys['bybit_live']['secret'],
         'enableRateLimit': True
     })
-    
+
     balance = bybit.fetch_balance()
     total = balance.get('total', {})
-    
+
     # Show significant balances
     print(f"   Bybit LIVE balances:")
     for currency, amount in total.items():
         if amount and amount > 0.01:
             print(f"      {currency}: {amount}")
-    
+
     # Check USDT specifically
     usdt = total.get('USDT', 0)
     print(f"\n   💰 Bybit USDT: ${usdt:.2f}")
-    
+
 except Exception as e:
     print(f"   ❌ Bybit error: {e}")
 

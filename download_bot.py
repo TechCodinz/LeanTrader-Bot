@@ -21,7 +21,7 @@ def run_command(cmd):
 def main():
     print("🚀 Setting up Professional Bybit Trading Bot")
     print("=" * 50)
-    
+
     # Create main bot file
     print("📝 Creating main.py...")
     main_py = '''#!/usr/bin/env python3
@@ -53,7 +53,7 @@ from src.database import Database
 
 class TradingBotOrchestrator:
     """Main orchestrator for the trading bot system"""
-    
+
     def __init__(self):
         self.bot = None
         self.data_collector = None
@@ -63,15 +63,15 @@ class TradingBotOrchestrator:
         self.dashboard = None
         self.database = None
         self.running = False
-        
+
         # Setup logging
         self.setup_logging()
-        
+
     def setup_logging(self):
         """Configure logging system"""
         log_dir = Path("logs")
         log_dir.mkdir(exist_ok=True)
-        
+
         logger.remove()  # Remove default handler
         logger.add(
             "logs/trading/trading_bot.log",
@@ -85,32 +85,32 @@ class TradingBotOrchestrator:
             level=os.getenv("LOG_LEVEL", "INFO"),
             format="<green>{time:HH:mm:ss}</green> | <level>{level}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> | {message}"
         )
-        
+
     async def initialize(self):
         """Initialize all bot components"""
         try:
             logger.info("🚀 Initializing Professional Trading Bot...")
-            
+
             # Initialize database
             self.database = Database()
             await self.database.initialize()
-            
+
             # Initialize notification manager
             self.notification_manager = NotificationManager()
             await self.notification_manager.initialize()
-            
+
             # Initialize risk manager
             self.risk_manager = RiskManager(self.database)
             await self.risk_manager.initialize()
-            
+
             # Initialize ML engine
             self.ml_engine = MLEngine(self.database, self.risk_manager)
             await self.ml_engine.initialize()
-            
+
             # Initialize data collector
             self.data_collector = DataCollector(self.database)
             await self.data_collector.initialize()
-            
+
             # Initialize trading bot
             self.bot = TradingBot(
                 data_collector=self.data_collector,
@@ -120,26 +120,26 @@ class TradingBotOrchestrator:
                 database=self.database
             )
             await self.bot.initialize()
-            
+
             logger.info("✅ All components initialized successfully")
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to initialize bot: {e}")
             raise
-            
+
     async def start(self):
         """Start the trading bot system"""
         try:
             logger.info("🎯 Starting trading bot system...")
-            
+
             # Send startup notification
             await self.notification_manager.send_notification(
                 "🚀 Trading Bot Started",
                 f"Professional Trading Bot v{os.getenv('VERSION', '1.0.0')} is now running on {os.getenv('BOT_NAME', 'TradingBot')}"
             )
-            
+
             self.running = True
-            
+
             # Start all components concurrently
             tasks = [
                 asyncio.create_task(self.data_collector.start()),
@@ -147,10 +147,10 @@ class TradingBotOrchestrator:
                 asyncio.create_task(self.bot.start()),
                 asyncio.create_task(self.monitor_system())
             ]
-            
+
             # Wait for all tasks
             await asyncio.gather(*tasks, return_exceptions=True)
-            
+
         except Exception as e:
             logger.error(f"❌ Error in main loop: {e}")
             await self.notification_manager.send_notification(
@@ -158,12 +158,12 @@ class TradingBotOrchestrator:
                 f"Critical error occurred: {str(e)}"
             )
             raise
-            
+
     async def stop(self):
         """Gracefully stop the trading bot system"""
         logger.info("🛑 Stopping trading bot system...")
         self.running = False
-        
+
         # Stop all components
         if self.bot:
             await self.bot.stop()
@@ -171,16 +171,16 @@ class TradingBotOrchestrator:
             await self.data_collector.stop()
         if self.ml_engine:
             await self.ml_engine.stop()
-            
+
         logger.info("✅ Trading bot system stopped")
-        
+
     async def monitor_system(self):
         """Monitor system health and performance"""
         while self.running:
             try:
                 # Wait before next check
                 await asyncio.sleep(60)  # Check every minute
-                
+
             except Exception as e:
                 logger.error(f"Error in system monitoring: {e}")
                 await asyncio.sleep(60)
@@ -188,20 +188,20 @@ class TradingBotOrchestrator:
 async def main():
     """Main entry point"""
     orchestrator = TradingBotOrchestrator()
-    
+
     # Setup signal handlers for graceful shutdown
     def signal_handler(signum, frame):
         logger.info(f"Received signal {signum}, initiating graceful shutdown...")
         asyncio.create_task(orchestrator.stop())
-        
+
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
+
     try:
         # Initialize and start the bot
         await orchestrator.initialize()
         await orchestrator.start()
-        
+
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt")
     except Exception as e:
@@ -213,7 +213,7 @@ async def main():
 if __name__ == "__main__":
     # Ensure we're in the right directory
     os.chdir(Path(__file__).parent)
-    
+
     # Run the bot
     try:
         asyncio.run(main())
@@ -223,15 +223,15 @@ if __name__ == "__main__":
         logger.error(f"Bot crashed: {e}")
         sys.exit(1)
 '''
-    
+
     with open('main.py', 'w') as f:
         f.write(main_py)
-    
+
     # Create src directory and __init__.py
     os.makedirs('src', exist_ok=True)
     with open('src/__init__.py', 'w') as f:
         f.write('# Trading Bot Package\n')
-    
+
     print("✅ Basic bot structure created")
     print("🎯 Bot ready to run with: python main.py")
     print("📊 Dashboard will be available at: http://75.119.149.117:8501")

@@ -7,13 +7,13 @@
 ### 🏦 CEX (Centralized Exchange) - **THIS IS WHAT YOU HAVE**
 
 **Your bot uses:** Bybit API
-**Trades:** 
+**Trades:**
 - ✅ Spot (BTC/USDT, ETH/USDT, etc)
 - ✅ Futures (BTCUSDT perpetual)
 - ✅ Leverage trading
 - ✅ All major coins
 
-**Current status:** 
+**Current status:**
 - ✅ Connected (you see "Bybit API Key: Set")
 - ⚠️ **TESTNET MODE** - Not real trades!
 - ⚠️ "Cannot get price" errors in testnet
@@ -237,14 +237,14 @@ async def debug():
     bot = CompleteUltimateOrchestrator(mode='testnet')
     await bot.initialize_all_systems()
     await bot.wire_all_systems()
-    
+
     # Wait for some signals
     await asyncio.sleep(30)
-    
+
     # Print actual signals
     print("\n=== SIGNALS IN DATA HUB ===")
     print(f"Recent signals: {len(bot.data_hub.recent_signals)}")
-    
+
     if bot.data_hub.recent_signals:
         print("\nFirst 5 signals:")
         for i, sig in enumerate(list(bot.data_hub.recent_signals)[:5]):
@@ -252,7 +252,7 @@ async def debug():
             print(f"  Type: {type(sig)}")
             print(f"  Keys: {sig.keys() if isinstance(sig, dict) else 'NOT A DICT'}")
             print(f"  Data: {sig}")
-    
+
     print(f"\nSignal queue size: {bot.data_hub.signal_queue.qsize()}")
 
 asyncio.run(debug())

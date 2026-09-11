@@ -26,17 +26,17 @@ from collections import defaultdict
 
 try:
     from telegram import (
-        Update, 
-        InlineKeyboardButton, 
-        InlineKeyboardMarkup, 
+        Update,
+        InlineKeyboardButton,
+        InlineKeyboardMarkup,
         Bot,
         LabeledPrice,
         PreCheckoutQuery
     )
     from telegram.ext import (
-        Application, 
-        CommandHandler, 
-        CallbackQueryHandler, 
+        Application,
+        CommandHandler,
+        CallbackQueryHandler,
         ContextTypes,
         MessageHandler,
         filters,
@@ -70,11 +70,11 @@ logger = logging.getLogger(__name__)
 
 class UserDatabase:
     """Manages user subscriptions and API keys"""
-    
+
     def __init__(self, db_file: str = "users_db.json"):
         self.db_file = db_file
         self.users = self._load_database()
-        
+
     def _load_database(self) -> Dict:
         """Load user database from file"""
         try:
@@ -83,9 +83,9 @@ class UserDatabase:
                     return json.load(f)
         except Exception as e:
             logger.error(f"Failed to load user database: {e}")
-        
+
         return {}
-    
+
     def _save_database(self):
         """Save user database to file"""
         try:
@@ -93,7 +93,7 @@ class UserDatabase:
                 json.dump(self.users, f, indent=2, default=str)
         except Exception as e:
             logger.error(f"Failed to save user database: {e}")
-    
+
     def add_user(self, user_id: str, username: str = None):
         """Add new user"""
         if user_id not in self.users:
@@ -109,33 +109,33 @@ class UserDatabase:
             }
             self._save_database()
             logger.info(f"New user added: {user_id} ({username})")
-    
+
     def is_vip(self, user_id: str) -> bool:
         """Check if user has active VIP subscription"""
         user = self.users.get(str(user_id))
         if not user:
             return False
-        
+
         if user['tier'] == 'admin':
             return True
-        
+
         if user['tier'] == 'vip':
             expires = user.get('subscription_expires')
             if expires:
                 expires_dt = datetime.fromisoformat(expires) if isinstance(expires, str) else expires
                 return datetime.now() < expires_dt
-        
+
         return False
-    
+
     def subscribe_user(self, user_id: str, months: int = 1, amount_paid: float = 0):
         """Subscribe user to VIP"""
         user_id = str(user_id)
         if user_id not in self.users:
             self.add_user(user_id)
-        
+
         user = self.users[user_id]
         user['tier'] = 'vip'
-        
+
         # Calculate expiry
         current_expiry = user.get('subscription_expires')
         if current_expiry:
@@ -144,53 +144,53 @@ class UserDatabase:
                 start_date = datetime.now()
         else:
             start_date = datetime.now()
-        
+
         new_expiry = start_date + timedelta(days=30 * months)
         user['subscription_expires'] = new_expiry.isoformat()
         user['total_paid'] += amount_paid
-        
+
         self._save_database()
-        
+
         logger.info(f"User {user_id} subscribed until {new_expiry}")
         return new_expiry
-    
+
     def add_exchange_api(self, user_id: str, exchange: str, api_key: str, secret: str):
         """Add user's exchange API keys"""
         user_id = str(user_id)
         if user_id not in self.users:
             self.add_user(user_id)
-        
+
         # Hash the keys for security
         api_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]
-        
+
         self.users[user_id]['exchanges'][exchange] = {
             'api_key': api_key,
             'secret': secret,
             'added_date': datetime.now().isoformat(),
             'api_hash': api_hash
         }
-        
+
         self._save_database()
         logger.info(f"Exchange API added for user {user_id}: {exchange}")
-    
+
     def get_user_exchange(self, user_id: str, exchange: str = None):
         """Get user's exchange connection"""
         user = self.users.get(str(user_id))
         if not user:
             return None
-        
+
         exchanges = user.get('exchanges', {})
-        
+
         # If exchange specified, return that one
         if exchange and exchange in exchanges:
             return exchanges[exchange]
-        
+
         # Otherwise return first available
         if exchanges:
             return list(exchanges.values())[0]
-        
+
         return None
-    
+
     def record_trade(self, user_id: str, profit: float):
         """Record user trade"""
         user = self.users.get(str(user_id))
@@ -206,12 +206,12 @@ class UserDatabase:
 
 class PaymentProcessor:
     """Handles USDT payments for VIP subscriptions"""
-    
+
     def __init__(self, wallet_address: str = None):
         self.wallet_address = wallet_address or os.getenv('PAYMENT_WALLET_ADDRESS', '')
         self.pending_payments = {}
         self.payment_history = []
-        
+
         # Subscription pricing
         self.pricing = {
             '1_month': 50.0,   # $50 USDT per month
@@ -219,7 +219,7 @@ class PaymentProcessor:
             '6_months': 210.0,  # $210 USDT for 6 months (30% discount)
             '12_months': 360.0  # $360 USDT for 12 months (40% discount)
         }
-    
+
     async def create_payment_request(
         self,
         user_id: str,
@@ -227,16 +227,16 @@ class PaymentProcessor:
     ) -> Dict:
         """
         Create payment request for user
-        
+
         Returns payment details including wallet address and amount
         """
         amount = self.pricing.get(plan, 50.0)
         months = int(plan.split('_')[0])
-        
+
         payment_id = hashlib.sha256(
             f"{user_id}:{plan}:{datetime.now().isoformat()}".encode()
         ).hexdigest()[:16]
-        
+
         self.pending_payments[payment_id] = {
             'user_id': user_id,
             'plan': plan,
@@ -245,7 +245,7 @@ class PaymentProcessor:
             'created': datetime.now(),
             'status': 'pending'
         }
-        
+
         return {
             'payment_id': payment_id,
             'wallet_address': self.wallet_address,
@@ -255,7 +255,7 @@ class PaymentProcessor:
             'months': months,
             'expires_in_minutes': 30
         }
-    
+
     async def verify_payment(
         self,
         payment_id: str,
@@ -263,23 +263,23 @@ class PaymentProcessor:
     ) -> Dict:
         """
         Verify payment was received
-        
+
         In production, would check blockchain for transaction
         For now, manual verification
         """
         payment = self.pending_payments.get(payment_id)
         if not payment:
             return {'verified': False, 'error': 'Payment not found'}
-        
+
         # In production: Check blockchain for tx_hash
         # For now: Admin verifies manually
-        
+
         payment['status'] = 'verified'
         payment['tx_hash'] = tx_hash
         payment['verified_at'] = datetime.now()
-        
+
         self.payment_history.append(payment)
-        
+
         return {
             'verified': True,
             'user_id': payment['user_id'],
@@ -295,7 +295,7 @@ class PaymentProcessor:
 class PremiumVIPTelegramSystem:
     """
     COMPLETE PREMIUM VIP TELEGRAM SYSTEM
-    
+
     Features:
     - Admin notifications for all bot activity
     - Free channel for basic signals
@@ -305,89 +305,89 @@ class PremiumVIPTelegramSystem:
     - Interactive trading from Telegram
     - Multi-user support
     """
-    
+
     def __init__(self, data_hub, execution_orchestrator, mode: str = "testnet"):
-        
+
         if not TELEGRAM_AVAILABLE:
             logger.warning("❌ Telegram not available - install python-telegram-bot")
             self.enabled = False
             return
-        
+
         self.data_hub = data_hub
         self.execution = execution_orchestrator
         self.mode = mode
-        
+
         # Get config
         self.bot_token = os.getenv('TELEGRAM_BOT_TOKEN', '')
         self.admin_chat_id = os.getenv('TG_ADMIN_CHAT_ID', '')
         self.vip_chat_id = os.getenv('TG_VIP_CHAT_ID', '')
         self.free_chat_id = os.getenv('TG_FREE_CHAT_ID', '')
         self.payment_wallet = os.getenv('PAYMENT_WALLET_ADDRESS', '')
-        
+
         if not self.bot_token:
             logger.warning("❌ TELEGRAM_BOT_TOKEN not set")
             self.enabled = False
             return
-        
+
         self.enabled = True
         self.bot = Bot(token=self.bot_token)
         self.app = Application.builder().token(self.bot_token).build()
-        
+
         # User management
         self.user_db = UserDatabase()
         self.payment_processor = PaymentProcessor(self.payment_wallet)
-        
+
         # User exchange connections (user_id -> ccxt exchange)
         self.user_exchanges = {}
-        
+
         # Setup handlers
         self._setup_handlers()
-        
+
         logger.info("✅ PREMIUM VIP TELEGRAM SYSTEM INITIALIZED")
         logger.info(f"   Admin: {self.admin_chat_id}")
         logger.info(f"   VIP: {self.vip_chat_id}")
         logger.info(f"   Free: {self.free_chat_id}")
         logger.info(f"   Payment Wallet: {self.payment_wallet[:10]}..." if self.payment_wallet else "   Payment Wallet: Not configured")
-    
+
     def _setup_handlers(self):
         """Setup all Telegram command handlers"""
-        
+
         # Public commands
         self.app.add_handler(CommandHandler("start", self.cmd_start))
         self.app.add_handler(CommandHandler("help", self.cmd_help))
         self.app.add_handler(CommandHandler("subscribe", self.cmd_subscribe))
         self.app.add_handler(CommandHandler("status", self.cmd_status))
-        
+
         # VIP commands
         self.app.add_handler(CommandHandler("addapi", self.cmd_add_api))
         self.app.add_handler(CommandHandler("trade", self.cmd_trade))
         self.app.add_handler(CommandHandler("close", self.cmd_close))
         self.app.add_handler(CommandHandler("positions", self.cmd_positions))
         self.app.add_handler(CommandHandler("balance", self.cmd_balance))
-        
+
         # Admin commands
         self.app.add_handler(CommandHandler("verify", self.cmd_verify_payment))
         self.app.add_handler(CommandHandler("users", self.cmd_list_users))
-        
+
         # Button callbacks
         self.app.add_handler(CallbackQueryHandler(self.handle_callback))
-        
+
         logger.info("✅ Telegram handlers registered")
-    
+
     # ========================================================================
     # COMMAND HANDLERS
     # ========================================================================
-    
+
     async def cmd_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Welcome message"""
         user_id = str(update.effective_user.id)
         username = update.effective_user.username
-        
+
         # Add user to database
         self.user_db.add_user(user_id, username)
-        
+
         is_vip = self.user_db.is_vip(user_id)
-        
+
         message = f"""
 🤖 <b>Welcome to the Divine AI Trading Bot!</b>
 
@@ -417,12 +417,12 @@ VIP members can add their exchange API and trade with ONE CLICK from the channel
 
 {'🌟 You have VIP access!' if is_vip else '📢 Join VIP to unlock premium features!'}
         """
-        
+
         await update.message.reply_text(message, parse_mode='HTML')
-    
+
     async def cmd_subscribe(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show subscription plans"""
-        
+
         keyboard = [
             [
                 InlineKeyboardButton("1 Month - $50 USDT", callback_data="subscribe_1_month"),
@@ -433,7 +433,7 @@ VIP members can add their exchange API and trade with ONE CLICK from the channel
                 InlineKeyboardButton("12 Months - $360 USDT (save 40%)", callback_data="subscribe_12_months")
             ]
         ]
-        
+
         message = """
 💎 <b>VIP SUBSCRIPTION PLANS</b>
 
@@ -456,24 +456,24 @@ Pay with USDT (TRC20/ERC20/BEP20)
 
 Select a plan below:
         """
-        
+
         await update.message.reply_text(
             message,
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='HTML'
         )
-    
+
     async def cmd_add_api(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Add exchange API keys (VIP only)"""
         user_id = str(update.effective_user.id)
-        
+
         if not self.user_db.is_vip(user_id):
             await update.message.reply_text(
                 "🔒 This feature is for VIP members only.\n\nUse /subscribe to join VIP!",
                 parse_mode='HTML'
             )
             return
-        
+
         # Usage: /addapi bybit API_KEY API_SECRET
         if len(context.args) < 3:
             message = """
@@ -499,16 +499,16 @@ Supported exchanges:
             """
             await update.message.reply_text(message, parse_mode='HTML')
             return
-        
+
         exchange = context.args[0].lower()
         api_key = context.args[1]
         api_secret = context.args[2]
-        
+
         # Validate exchange
         if exchange not in ['bybit', 'binance', 'gateio', 'okx', 'kucoin']:
             await update.message.reply_text(f"❌ Exchange '{exchange}' not supported")
             return
-        
+
         # Test API keys
         test_exchange = None
         try:
@@ -518,26 +518,26 @@ Supported exchanges:
                 'secret': api_secret,
                 'enableRateLimit': True
             })
-            
+
             # Test by fetching balance
             balance = await test_exchange.fetch_balance()
-            
+
             # Keys work! Save them
             self.user_db.add_exchange_api(user_id, exchange, api_key, api_secret)
-            
+
             # Delete the message with API keys for security
             try:
                 await update.message.delete()
             except:
                 pass
-            
+
             await update.effective_user.send_message(
                 f"✅ <b>{exchange.upper()} API added successfully!</b>\n\n"
                 f"You can now trade {exchange.upper()} from Telegram!\n\n"
                 f"Your message with API keys has been deleted for security.",
                 parse_mode='HTML'
             )
-            
+
         except Exception as e:
             await update.message.reply_text(
                 f"❌ Failed to connect to {exchange}: {str(e)}\n\n"
@@ -548,15 +548,15 @@ Supported exchanges:
             # Clean up exchange connection
             if test_exchange:
                 await test_exchange.close()
-    
+
     async def cmd_trade(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Execute trade (VIP only)"""
         user_id = str(update.effective_user.id)
-        
+
         if not self.user_db.is_vip(user_id):
             await update.message.reply_text("🔒 VIP feature only. /subscribe to join!")
             return
-        
+
         # Check if user has exchange API
         user_exchange = self.user_db.get_user_exchange(user_id)
         if not user_exchange:
@@ -566,7 +566,7 @@ Supported exchanges:
                 parse_mode='HTML'
             )
             return
-        
+
         # Usage: /trade BTC/USDT buy 0.001
         if len(context.args) < 3:
             await update.message.reply_text(
@@ -576,16 +576,16 @@ Supported exchanges:
                 parse_mode='HTML'
             )
             return
-        
+
         symbol = context.args[0]
         side = context.args[1].lower()
         amount = float(context.args[2])
-        
+
         # Execute via user's exchange
         try:
             # Would execute real trade here
             result = await self._execute_user_trade(user_id, symbol, side, amount)
-            
+
             if result['success']:
                 await update.message.reply_text(
                     f"✅ <b>Trade Executed!</b>\n\n"
@@ -601,25 +601,25 @@ Supported exchanges:
                     f"❌ Trade failed: {result.get('error', 'Unknown error')}",
                     parse_mode='HTML'
                 )
-                
+
         except Exception as e:
             await update.message.reply_text(f"❌ Error: {str(e)}", parse_mode='HTML')
-    
+
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle button callbacks"""
         query = update.callback_query
         await query.answer()
-        
+
         user_id = str(update.effective_user.id)
         data = query.data
-        
+
         # Subscription buttons
         if data.startswith('subscribe_'):
             plan = data.replace('subscribe_', '')
-            
+
             # Create payment request
             payment = await self.payment_processor.create_payment_request(user_id, plan)
-            
+
             message = f"""
 💰 <b>VIP Subscription Payment</b>
 
@@ -643,9 +643,9 @@ Supported exchanges:
 
 <b>Payment expires in 30 minutes</b>
             """
-            
+
             await query.edit_message_text(message, parse_mode='HTML')
-        
+
         # Trading buttons (from signal)
         elif data.startswith('trade_'):
             # trade_buy_BTCUSDT_0.001
@@ -653,14 +653,14 @@ Supported exchanges:
             side = parts[1]
             symbol = parts[2].replace('USDT', '/USDT')
             amount = float(parts[3])
-            
+
             if not self.user_db.is_vip(user_id):
                 await query.edit_message_text("🔒 VIP feature only. /subscribe to join!")
                 return
-            
+
             # Execute trade
             result = await self._execute_user_trade(user_id, symbol, side, amount)
-            
+
             if result['success']:
                 await query.edit_message_text(
                     f"✅ Trade executed!\n\n"
@@ -670,17 +670,17 @@ Supported exchanges:
                 )
             else:
                 await query.edit_message_text(f"❌ Trade failed: {result['error']}")
-    
+
     # ========================================================================
     # ADMIN NOTIFICATIONS
     # ========================================================================
-    
+
     async def send_admin_notification(self, message: str, level: str = "info"):
         """Send notification to admin"""
-        
+
         if not self.enabled or not self.admin_chat_id:
             return
-        
+
         emoji_map = {
             'info': 'ℹ️',
             'success': '✅',
@@ -689,10 +689,10 @@ Supported exchanges:
             'trade': '💰',
             'profit': '💵'
         }
-        
+
         emoji = emoji_map.get(level, 'ℹ️')
         formatted = f"{emoji} <b>{level.upper()}</b>\n\n{message}"
-        
+
         try:
             await self.bot.send_message(
                 chat_id=self.admin_chat_id,
@@ -701,7 +701,7 @@ Supported exchanges:
             )
         except Exception as e:
             logger.error(f"Admin notification failed: {e}")
-    
+
     async def send_bot_startup_notification(self):
         """Send notification when bot starts"""
         message = f"""
@@ -722,19 +722,19 @@ Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 Bot will start trading in 15-60 minutes!
         """
-        
+
         await self.send_admin_notification(message, 'success')
-    
+
     # ========================================================================
     # SIGNAL DISTRIBUTION
     # ========================================================================
-    
+
     async def send_signal_to_free(self, signal: Dict):
         """Send basic signal to free channel"""
-        
+
         if not self.enabled or not self.free_chat_id:
             return
-        
+
         message = f"""
 📢 <b>TRADING SIGNAL</b>
 
@@ -749,7 +749,7 @@ Take Profit: ${signal.get('take_profit', 0):.2f}
 🌟 VIP members can trade this with ONE CLICK!
 Use /subscribe to join VIP
         """
-        
+
         try:
             await self.bot.send_message(
                 chat_id=self.free_chat_id,
@@ -758,23 +758,23 @@ Use /subscribe to join VIP
             )
         except Exception as e:
             logger.error(f"Free channel send failed: {e}")
-    
+
     async def send_signal_to_vip(self, signal: Dict):
         """Send premium signal to VIP channel with trading buttons"""
-        
+
         if not self.enabled or not self.vip_chat_id:
             return
-        
+
         symbol = signal.get('symbol', 'BTC/USDT')
         side = signal.get('side', 'buy').lower()
         price = signal.get('price', 0)
         sl = signal.get('stop_loss', 0)
         tp = signal.get('take_profit', 0)
         confidence = signal.get('confidence', 0) * 100
-        
+
         # Create trading buttons
         symbol_clean = symbol.replace('/', '')
-        
+
         keyboard = [
             [
                 InlineKeyboardButton(
@@ -801,7 +801,7 @@ Use /subscribe to join VIP
                 InlineKeyboardButton("📈 Full Analysis", callback_data=f"analysis_{symbol_clean}")
             ]
         ]
-        
+
         message = f"""
 🌟 <b>VIP PREMIUM SIGNAL</b>
 
@@ -821,7 +821,7 @@ Use /subscribe to join VIP
 <b>⚡ TRADE NOW - One Click!</b>
 Select amount below to execute instantly:
         """
-        
+
         try:
             await self.bot.send_message(
                 chat_id=self.vip_chat_id,
@@ -829,16 +829,16 @@ Select amount below to execute instantly:
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
-            
+
             logger.info(f"✅ VIP signal sent: {symbol} {side.upper()}")
-            
+
         except Exception as e:
             logger.error(f"VIP channel send failed: {e}")
-    
+
     # ========================================================================
     # HELPER METHODS
     # ========================================================================
-    
+
     async def _execute_user_trade(
         self,
         user_id: str,
@@ -847,31 +847,31 @@ Select amount below to execute instantly:
         amount_usd: float
     ) -> Dict:
         """Execute trade for a specific user using their exchange API"""
-        
+
         exchange = None
         try:
             # Get user's exchange
             user_exchange_data = self.user_db.get_user_exchange(user_id)
-            
+
             if not user_exchange_data:
                 return {'success': False, 'error': 'No exchange API configured'}
-            
+
             # Create exchange instance
             # (In production, cache these)
             exchange_name = list(self.user_db.users[user_id]['exchanges'].keys())[0]
             exchange_class = resolve_exchange_class(ccxt, exchange_name)
-            
+
             exchange = exchange_class({
                 'apiKey': user_exchange_data['api_key'],
                 'secret': user_exchange_data['secret'],
                 'enableRateLimit': True
             })
-            
+
             # Calculate amount in base currency
             ticker = await exchange.fetch_ticker(symbol)
             price = ticker['last']
             amount = amount_usd / price
-            
+
             # Telegram is control/input, not an order executor. The intent goes
             # to the unified execution authority, which resolves the profile,
             # backend and account. route_legacy_order_async is the router's own
@@ -893,11 +893,11 @@ Select amount below to execute instantly:
                 }
 
             order = receipt.get('order') or receipt
-            
+
             # Record trade
             profit = 0  # Will update on close
             self.user_db.record_trade(user_id, profit)
-            
+
             return {
                 'success': True,
                 'order_id': order['id'],
@@ -905,7 +905,7 @@ Select amount below to execute instantly:
                 'amount': amount,
                 'filled': order.get('filled', amount)
             }
-            
+
         except Exception as e:
             logger.error(f"User trade execution failed: {e}")
             return {'success': False, 'error': str(e)}
@@ -913,19 +913,19 @@ Select amount below to execute instantly:
             # Clean up exchange connection
             if exchange:
                 await exchange.close()
-    
+
     async def run(self):
         """Run the Telegram system"""
-        
+
         if not self.enabled:
             logger.info("📱 Telegram disabled")
             return
-        
+
         logger.info("📱 Starting Premium VIP Telegram System...")
-        
+
         # Send startup notification
         await self.send_bot_startup_notification()
-        
+
         # Start bot
         await self.app.run_polling()
 
@@ -936,10 +936,10 @@ Select amount below to execute instantly:
 
 class AdminNotifier:
     """Sends all bot updates to admin Telegram"""
-    
+
     def __init__(self, vip_system: PremiumVIPTelegramSystem):
         self.vip_system = vip_system
-        
+
     async def notify_trade_executed(self, trade: Dict):
         """Notify admin when bot executes a trade"""
         message = f"""
@@ -954,14 +954,14 @@ Value: ${trade.get('value_usd', 0):.2f}
 Strategy: {trade.get('strategy', 'Unknown')}
 Confidence: {trade.get('confidence', 0) * 100:.0f}%
         """
-        
+
         await self.vip_system.send_admin_notification(message, 'trade')
-    
+
     async def notify_position_closed(self, trade: Dict):
         """Notify admin when position closes"""
         pnl = trade.get('pnl', 0)
         pnl_pct = trade.get('pnl_pct', 0) * 100
-        
+
         message = f"""
 {'💵 PROFIT' if pnl > 0 else '📉 LOSS'} <b>POSITION CLOSED</b>
 
@@ -974,9 +974,9 @@ P&L: {'+'if pnl > 0 else ''}{pnl:.2f} USDT ({pnl_pct:+.1f}%)
 Duration: {trade.get('duration', 'N/A')}
 Reason: {trade.get('close_reason', 'Unknown')}
         """
-        
+
         await self.vip_system.send_admin_notification(message, 'profit' if pnl > 0 else 'warning')
-    
+
     async def notify_daily_summary(self, stats: Dict):
         """Send daily summary to admin"""
         message = f"""
@@ -1001,7 +1001,7 @@ Date: {datetime.now().strftime('%Y-%m-%d')}
 
 All systems operational! 🚀
         """
-        
+
         await self.vip_system.send_admin_notification(message, 'info')
 
 

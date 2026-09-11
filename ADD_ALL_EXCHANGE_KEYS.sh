@@ -98,43 +98,43 @@ async def test_all():
         'binance': ccxt.binance,
         'bybit': ccxt.bybit
     }
-    
+
     connected = []
-    
+
     for name, exchange_class in exchanges_config.items():
         key_name = name.upper() if name != 'gateio' else 'GATE'
         api_key = os.getenv(f'{key_name}_API_KEY')
         secret = os.getenv(f'{key_name}_SECRET')
-        
+
         if not api_key:
             print(f'⚠️  {name.upper()}: No API key')
             continue
-        
+
         try:
             exchange = exchange_class({
                 'apiKey': api_key,
                 'secret': secret,
                 'enableRateLimit': True
             })
-            
+
             balance = await exchange.fetch_balance()
             total_usd = balance.get('total', {}).get('USDT', 0) or balance.get('total', {}).get('USD', 0)
-            
+
             if total_usd > 0:
                 print(f'✅ {name.upper()}: Connected! Balance: ${total_usd:.2f} USDT')
             else:
                 print(f'✅ {name.upper()}: Connected! (Balance: $0 or non-USDT)')
-            
+
             connected.append(name)
-            
+
             await exchange.close()
-            
+
         except Exception as e:
             error_msg = str(e)[:80]
             print(f'❌ {name.upper()}: {error_msg}')
-    
+
     print(f'\n📊 Result: {len(connected)}/7 exchanges connected')
-    
+
     if len(connected) >= 2:
         print('\n✅ Arbitrage will work with', len(connected), 'exchanges!')
     else:

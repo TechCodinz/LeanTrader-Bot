@@ -22,7 +22,7 @@
 2. Click "Spot Wallet"
 3. For EACH coin (except USDT):
    - Click "Trade"
-   - Click "Sell"  
+   - Click "Sell"
    - Enter 100% (max amount)
    - Select "Market Order"
    - Click "Sell" to confirm

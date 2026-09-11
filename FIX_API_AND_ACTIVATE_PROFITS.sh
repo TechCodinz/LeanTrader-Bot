@@ -50,17 +50,17 @@ echo "Checking .env file..."
 if [ -f ".env" ]; then
     echo "✅ .env file exists"
     echo ""
-    
+
     # Check which exchanges have keys
     echo "API Keys configured:"
-    
+
     for EXCHANGE in BYBIT GATE BINANCE OKX KUCOIN; do
         KEY_VAR="${EXCHANGE}_API_KEY"
         SECRET_VAR="${EXCHANGE}_API_SECRET"
-        
+
         KEY=$(grep "^${KEY_VAR}=" .env 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'")
         SECRET=$(grep "^${SECRET_VAR}=" .env 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'")
-        
+
         if [ -n "$KEY" ] && [ "$KEY" != "your_key_here" ] && [ -n "$SECRET" ]; then
             KEY_LEN=${#KEY}
             echo "  ✅ $EXCHANGE (key: ${KEY_LEN} chars)"
@@ -68,9 +68,9 @@ if [ -f ".env" ]; then
             echo "  ❌ $EXCHANGE (missing or incomplete)"
         fi
     done
-    
+
     echo ""
-    
+
     # Check testnet vs mainnet
     echo "Mode check:"
     if grep -q "ENABLE_LIVE=true" .env; then
@@ -78,7 +78,7 @@ if [ -f ".env" ]; then
     else
         echo "  ⚠️  TESTNET mode (ENABLE_LIVE not true)"
     fi
-    
+
 else
     echo "❌ .env file not found!"
     echo ""
@@ -103,46 +103,46 @@ cat > config_profit.yml << 'PROFITCONFIG'
 trading:
   mode: live
   aggressive: true
-  
+
   # Execution settings
   min_confidence: 0.70  # Lower threshold = more trades
   max_daily_trades: 50  # Increased from 20
   max_open_positions: 10  # Increased from 5
-  
+
   # Position sizing
   risk_per_trade: 0.02  # 2% per trade
   max_position_pct: 0.15  # Up to 15% per position
-  
+
   # Exchanges (prioritize Gate.io)
   primary_exchange: gateio
   backup_exchanges:
     - bybit
     - binance
     - okx
-  
+
 # Advanced features
 features:
   dynamic_pair_discovery: true
   adaptive_confidence: true
   ultra_rare_engines: true
-  
+
   # Discovery settings
   min_volume_usd: 50000  # $50k minimum
   min_volatility: 0.005  # 0.5% minimum
   scan_interval: 3600  # 1 hour
-  
+
 # Risk management
 risk:
   max_daily_loss: 0.05  # 5% max daily loss
   emergency_stop: 0.10  # Emergency stop at 10% loss
-  
+
 # Profit taking
 profit:
   take_profit_levels:
     - 0.015  # 1.5%
     - 0.03   # 3%
     - 0.05   # 5%
-  
+
   trailing_stop: true
   trailing_stop_pct: 0.01  # 1% trailing
 PROFITCONFIG

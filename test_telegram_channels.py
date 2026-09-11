@@ -23,18 +23,18 @@ async def test_channels():
     free_id = os.getenv('TELEGRAM_FREE_CHANNEL')
     vip_id = os.getenv('TELEGRAM_VIP_CHANNEL')
     admin_id = os.getenv('TELEGRAM_ADMIN_CHAT_ID')
-    
+
     print("═" * 70)
     print("📱 TELEGRAM CHANNEL DIAGNOSTIC TEST")
     print("═" * 70)
     print()
-    
+
     if not token:
         print("❌ No TELEGRAM_BOT_TOKEN in .env")
         return
-    
+
     bot = Bot(token=token)
-    
+
     # Get bot info
     try:
         me = await bot.get_me()
@@ -44,7 +44,7 @@ async def test_channels():
     except Exception as e:
         print(f"❌ Bot connection failed: {e}")
         return
-    
+
     # Test admin chat
     print("Testing ADMIN chat...")
     if admin_id:
@@ -58,9 +58,9 @@ async def test_channels():
             print(f"❌ ADMIN: {e}")
     else:
         print("⚠️  ADMIN: No chat ID set")
-    
+
     print()
-    
+
     # Test FREE channel
     print("Testing FREE channel...")
     print(f"Channel ID: {free_id}")
@@ -85,9 +85,9 @@ async def test_channels():
             print(f"❌ FREE: {type(e).__name__}: {e}")
     else:
         print("⚠️  FREE: No channel ID set")
-    
+
     print()
-    
+
     # Test VIP channel
     print("Testing VIP channel...")
     print(f"Channel ID: {vip_id}")
@@ -112,7 +112,7 @@ async def test_channels():
             print(f"❌ VIP: {type(e).__name__}: {e}")
     else:
         print("⚠️  VIP: No channel ID set")
-    
+
     print()
     print("═" * 70)
     print("✅ TEST COMPLETE")

@@ -17,7 +17,7 @@ old_line = '        position_size = (base_risk / stop_loss_pct) * kelly_fraction
 new_line = '''        # Safety check for division by zero
         if stop_loss_pct <= 0:
             stop_loss_pct = 0.01  # Default 1%
-        
+
         position_size = (base_risk / stop_loss_pct) * kelly_fraction * volatility_adjustment * confidence_adjustment'''
 
 if old_line in content:
@@ -44,7 +44,7 @@ content = content.replace(
     '''        # Safety: Ensure balance is not zero
         if self.position_sizer.balance <= 0:
             self.position_sizer.balance = 10.0  # Minimum
-        
+
         position_size_usd = self.position_sizer.calculate_position_size('''
 )
 
@@ -55,7 +55,7 @@ content = content.replace(
             if price <= 0:
                 logger.error(f"Invalid price: {price}")
                 return None
-            
+
             amount = position_size_usd / price'''
 )
 

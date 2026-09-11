@@ -116,7 +116,7 @@ class UltraCore:
     def __init__(self, router, universe, logger=None):
         # restore previous behavior: use router directly
         self.router = router
-        
+
         # Initialize copy signals ingestor
         self.copy_signals_enabled = False
         try:
@@ -216,11 +216,11 @@ class UltraCore:
     async def get_market_data(self, symbol=None, timeframe='1h'):
         """
         Get market data for Ultra engines - compatibility wrapper
-        
+
         Args:
             symbol: Trading pair (e.g. 'BTC/USDT')
             timeframe: Timeframe (e.g. '1h', 'M5')
-            
+
         Returns:
             dict with market data including ohlcv, analysis, etc.
         """
@@ -231,14 +231,14 @@ class UltraCore:
                     ohlcv = self.router.safe_fetch_ohlcv(symbol, timeframe=timeframe)
                 except:
                     ohlcv = []
-                
+
                 if ohlcv and len(ohlcv) > 0:
                     # Analyze the market data
                     analysis = self.analyze_market(ohlcv)
-                    
+
                     # Get current price
                     current_price = ohlcv[-1][4] if len(ohlcv) > 0 else 0
-                    
+
                     return {
                         'symbol': symbol,
                         'timeframe': timeframe,
@@ -256,15 +256,15 @@ class UltraCore:
                         'close': 0,
                         'analysis': None
                     }
-            
+
             # Return general market scan if no symbol specified
             return self.scan_markets()
-            
+
         except Exception as e:
             if self.logger:
                 self.logger.debug(f"get_market_data error for {symbol}: {e}")
             return {'symbol': symbol, 'close': 0, 'analysis': None}
-    
+
     def analyze_market(self, ohlcv):
         """Advanced reasoning: pattern recognition, anomaly detection, regime analysis."""
         # Enhanced: LSTM-based regime prediction

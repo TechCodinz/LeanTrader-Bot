@@ -182,7 +182,7 @@ The system provides real-time performance metrics:
 
 ## 🚨 Risk Warnings
 
-⚠️ **IMPORTANT**: 
+⚠️ **IMPORTANT**:
 - Cryptocurrency trading involves substantial risk
 - Past performance does not guarantee future results
 - Never trade with money you cannot afford to lose

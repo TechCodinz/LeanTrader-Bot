@@ -33,9 +33,9 @@ async def main():
     print("   ✅ Positions closed")
     print("   💵 Profits realized")
     print("\n" + "="*80 + "\n")
-    
+
     orch = CompleteUltimateOrchestrator()
-    
+
     # Check what's loaded
     print(f"\n✅ Systems loaded:")
     if hasattr(orch, 'real_profit_bot') and orch.real_profit_bot:
@@ -44,19 +44,19 @@ async def main():
         print(f"   ✅ EXECUTION_ORCHESTRATOR")
     if hasattr(orch, 'micro_wallet_grower') and orch.micro_wallet_grower:
         print(f"   ✅ MICRO_WALLET_GROWER")
-    
+
     print("\n🚀 Starting trading...\n")
-    
+
     # Run for 3 minutes (180 seconds)
     task = asyncio.create_task(orch.start())
-    
+
     # Print status every 30 seconds
     for i in range(6):
         await asyncio.sleep(30)
         print(f"\n⏰ [{(i+1)*30}s] Still monitoring...")
-    
+
     task.cancel()
-    
+
     print("\n" + "="*80)
     print("✅ 3-MINUTE TEST COMPLETE")
     print("="*80 + "\n")

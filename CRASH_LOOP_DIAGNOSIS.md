@@ -78,16 +78,16 @@ You saw:
 async def start(self):
     """Start DEX orchestrator"""
     self.running = True
-    
+
     # Check if we have private key for trading
     private_key = os.getenv('DEX_PRIVATE_KEY', '')
-    
+
     if not private_key:
         logger.info("⚠️  DEX Orchestrator: No private key - Monitoring only (no trading)")
         logger.info("   Add DEX_PRIVATE_KEY to .env to enable DEX trading")
         # Don't start async loops without private key to avoid crashes
         return  # ← THIS PREVENTS THE CRASH!
-    
+
     # Rest of start logic...
 ```
 

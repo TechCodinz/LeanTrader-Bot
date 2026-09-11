@@ -31,7 +31,7 @@ $42 balance:
 As balance grows:
 $100 balance:
 - Position size: $30 per trade
-- Profit target: 1.2% = $0.36 per trade  
+- Profit target: 1.2% = $0.36 per trade
 - 20 trades/day × $0.36 = $7.20/day
 - 30 days × $7.20 = $216/month
 

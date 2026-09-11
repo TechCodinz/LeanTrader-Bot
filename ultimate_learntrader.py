@@ -636,7 +636,7 @@ class UltimateLearntraderBot:
                 for model_name, accuracy in models.items():
                     cursor.execute(
                         '''
-                        INSERT INTO model_performance 
+                        INSERT INTO model_performance
                         (model_name, timeframe, accuracy, precision_score, recall_score, f1_score)
                         VALUES (?, ?, ?, ?, ?, ?)
                     ''',
@@ -797,7 +797,7 @@ class UltimateLearntraderBot:
                                 cursor = self.db.cursor()
                                 cursor.execute(
                                     '''
-                                    INSERT INTO arbitrage_opportunities 
+                                    INSERT INTO arbitrage_opportunities
                                     (symbol, buy_exchange, sell_exchange, buy_price, sell_price, profit_pct)
                                     VALUES (?, ?, ?, ?, ?, ?)
                                 ''',
@@ -873,7 +873,7 @@ class UltimateLearntraderBot:
                         cursor = self.db.cursor()
                         cursor.execute(
                             '''
-                            INSERT INTO micro_moons 
+                            INSERT INTO micro_moons
                             (symbol, name, price, market_cap, change_24h, volume, potential)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
                         ''',

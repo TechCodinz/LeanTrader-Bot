@@ -68,14 +68,14 @@ Add to `run_dynamic_pair_discovery()` in COMPLETE_ULTIMATE_ORCHESTRATOR:
 # After discovery finds new pairs
 if len(new_pairs) > 0:
     self.dynamic_pairs.extend(new_pairs)
-    
+
     # 🔌 UPDATE PARENT'S UNIVERSE
     if hasattr(self, 'ultra_core'):
         self.ultra_core.pairs = self.dynamic_pairs
-        
+
     if hasattr(self, 'trading_universe'):
         self.trading_universe = self.dynamic_pairs
-    
+
     logger.info(f"🔄 ALL ENGINES NOW TRADING {len(self.dynamic_pairs)} PAIRS!")
 ```
 
@@ -111,7 +111,7 @@ If yes, bot will use Gate.io and ignore Bybit errors!
 
 Your bot is CRUSHING IT:
 - 94.9% confidence on LTC
-- 94.3% confidence on APT  
+- 94.3% confidence on APT
 - 94.0% confidence on WLD
 - 92.7% confidence on MATIC
 - 92.5% confidence on NEAR

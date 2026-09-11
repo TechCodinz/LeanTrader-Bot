@@ -11,7 +11,7 @@ echo "║                                                                       
 echo "╚══════════════════════════════════════════════════════════════════════════════╝"
 echo ""
 
-cd /root/trading_bot 2>/dev/null || cd ~/trading_bot || { 
+cd /root/trading_bot 2>/dev/null || cd ~/trading_bot || {
     echo "❌ ERROR: trading_bot directory not found!"
     echo "   Tried: /root/trading_bot and ~/trading_bot"
     exit 1
@@ -211,7 +211,7 @@ if [ -f ".env" ]; then
         "PRIVATE_KEY"
         "OPENAI_API_KEY"
     )
-    
+
     for key in "${KEYS[@]}"; do
         if grep -q "^${key}=" .env 2>/dev/null; then
             VALUE=$(grep "^${key}=" .env | cut -d'=' -f2 | tr -d '"' | tr -d "'")

@@ -16,7 +16,7 @@ See `QUICKSTART.md` for commands, and `data/keywords` for the machine-readable k
 Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`. The service will push formatted signals when rules fire.
 
 ## API
-Run with: `uvicorn leantrader.api.app:app --reload --host ${API_HOST:-0.0.0.0} --port ${API_PORT:-8000}`  
+Run with: `uvicorn leantrader.api.app:app --reload --host ${API_HOST:-0.0.0.0} --port ${API_PORT:-8000}`
 Endpoint: `/signal?pair=EURUSD` reads CSVs from `data/ohlc/` and emits the latest signal (also posts to Telegram if env is set).
 
 ## CLI
@@ -37,9 +37,9 @@ Use `leantrader.agents.orchestrator.spawn_agents` to start per-pair workers that
 
 
 ## Global Risk Lock & News Filter
-- `risk/global_lock.py`: Redis-based lock to pause all agents after daily max drawdown breach.  
-- `risk/news_filter.py`: stub for high-impact event blackout windows (extend with API fetch).  
-Configure `REDIS_URL` in `.env` or docker-compose.  
+- `risk/global_lock.py`: Redis-based lock to pause all agents after daily max drawdown breach.
+- `risk/news_filter.py`: stub for high-impact event blackout windows (extend with API fetch).
+Configure `REDIS_URL` in `.env` or docker-compose.
 
 
 ## Interactive Telegram (Premium)

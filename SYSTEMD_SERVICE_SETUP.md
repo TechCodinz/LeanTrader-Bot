@@ -392,9 +392,9 @@ sudo bash PRODUCTION_DEPLOYMENT.sh
 
 ---
 
-**Total setup time: 20 minutes**  
-**Bot lifetime: Forever (until you stop it)** ♾️  
-**Auto-restart: Yes** ✅  
-**Survives reboots: Yes** ✅  
+**Total setup time: 20 minutes**
+**Bot lifetime: Forever (until you stop it)** ♾️
+**Auto-restart: Yes** ✅
+**Survives reboots: Yes** ✅
 
 **DEPLOY NOW! 🚀**

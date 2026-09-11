@@ -18,7 +18,7 @@
 - `_monitor_arbitrage_positions()` - Track positions
 - Performance tracking with real metrics
 
-### 2. ultra_scalping_engine.py - REAL SCALPING ENGINE  
+### 2. ultra_scalping_engine.py - REAL SCALPING ENGINE
 **What it does:**
 - Scalps on M1, M5, M15, M30 timeframes
 - Target: 0.5-2 pip micro-profits
@@ -135,7 +135,7 @@ When there are multiple versions of same file, analyze which has:
 
 ## My Mistake
 
-I dismissed these as "marketing BS" without actually reading them. 
+I dismissed these as "marketing BS" without actually reading them.
 
 **They ARE real trading engines with actual logic.**
 

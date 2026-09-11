@@ -53,14 +53,14 @@ async def enhanced_send_signal(signal):
     # Send to Telegram with VIP features
     if business_system.telegram_bot:
         await business_system.telegram_bot.send_signal(signal)
-    
+
     # Execute on managed accounts
     if signal.get('confidence', 0) > 0.8:
         await business_system.multi_account_manager.execute_trade_all_accounts(signal)
-    
+
     # Track for revenue
     business_system._track_signal_revenue(signal)
-    
+
     # Original function
     if original_send_signal:
         await original_send_signal(signal)
@@ -71,23 +71,23 @@ bot.send_signal = enhanced_send_signal
 async def auto_trade_loop():
     """Run auto-trading with $50 start."""
     print("💰 Starting auto-trading with $50...")
-    
+
     while True:
         try:
             # Get market data
             market_data = await bot.exchange.fetch_ticker('BTC/USDT')
-            
+
             # Auto trade
             result = await business_system.auto_trading.analyze_and_trade(market_data)
-            
+
             if result['action'] == 'trade':
                 print(f"✅ Auto-trade executed: {result['trade']}")
-                
+
                 # Send as signal
                 await enhanced_send_signal(result['signal'])
-            
+
             await asyncio.sleep(60)
-            
+
         except Exception as e:
             print(f"Auto-trade error: {e}")
             await asyncio.sleep(30)
@@ -312,27 +312,27 @@ from datetime import datetime, timedelta
 def get_metrics():
     conn = sqlite3.connect('/opt/leantraderbot/business.db')
     cursor = conn.cursor()
-    
+
     # Users
     cursor.execute("SELECT COUNT(*) FROM users")
     total_users = cursor.fetchone()[0]
-    
+
     cursor.execute("SELECT COUNT(*) FROM users WHERE subscription_tier = 'vip'")
     vip_users = cursor.fetchone()[0]
-    
+
     # Revenue
     cursor.execute("SELECT SUM(amount) FROM revenue WHERE timestamp > date('now', '-30 days')")
     monthly_revenue = cursor.fetchone()[0] or 0
-    
+
     cursor.execute("SELECT SUM(amount) FROM revenue WHERE timestamp > date('now', '-1 days')")
     daily_revenue = cursor.fetchone()[0] or 0
-    
+
     # Trading
     cursor.execute("SELECT capital, total_pnl FROM trading_accounts LIMIT 1")
     trading = cursor.fetchone()
-    
+
     conn.close()
-    
+
     print("=" * 50)
     print("ULTRA+ BUSINESS DASHBOARD")
     print("=" * 50)

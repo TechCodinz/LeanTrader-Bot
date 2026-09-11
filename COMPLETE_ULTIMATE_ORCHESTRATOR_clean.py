@@ -182,18 +182,18 @@ class AdvancedScoutingOrchestrator:
     Advanced scouting with UltraScout integration
     Adds: News, Social, Web crawling, On-chain data
     """
-    
+
     def __init__(self, data_hub: CentralDataHub, ultra_scout: UltraScout):
         self.data_hub = data_hub
         self.ultra_scout = ultra_scout
         self.scouting_active = True
-        
+
         logger.info("🔍 Advanced Scouting Orchestrator initialized")
-    
+
     async def run_advanced_scouting(self):
         """Run advanced scouting with all features"""
         logger.info("🌐 Starting advanced scouting (News, Social, On-chain)...")
-        
+
         while self.scouting_active:
             try:
                 # 1. Scan news and social media
@@ -201,36 +201,36 @@ class AdvancedScoutingOrchestrator:
                     await self.scout_news_and_social()
                 except Exception as e:
                     logger.debug(f"News/social scout: {e}")
-                
+
                 # 2. Analyze on-chain data
                 try:
                     await self.scout_onchain()
                 except Exception as e:
                     logger.debug(f"On-chain scout: {e}")
-                
+
                 # 3. Web pattern discovery
                 try:
                     await self.scout_web_patterns()
                 except Exception as e:
                     logger.debug(f"Web pattern scout: {e}")
-                
+
                 logger.info("🌐 Advanced scouting cycle complete")
-                
+
                 await asyncio.sleep(300)  # Every 5 minutes
-                
+
             except Exception as e:
                 logger.error(f"Advanced scouting error: {e}")
                 await asyncio.sleep(300)
-    
+
     async def scout_news_and_social(self):
         """Scout news and social media"""
         # Scan all sources
         self.ultra_scout.scan_all_sources()
-        
+
         # Get sentiment
         sentiment = self.ultra_scout.sentiment
         trends = self.ultra_scout.trends
-        
+
         if sentiment or trends:
             finding = {
                 'type': 'news_social',
@@ -239,10 +239,10 @@ class AdvancedScoutingOrchestrator:
                 'trends': trends,
                 'timestamp': datetime.now()
             }
-            
+
             await self.data_hub.publish_signal(finding)
             logger.info(f"📰 News/Social: {len(sentiment)} sentiments, {len(trends)} trends")
-    
+
     async def scout_onchain(self):
         """Scout on-chain data"""
         # Example tokens to track
@@ -250,11 +250,11 @@ class AdvancedScoutingOrchestrator:
             '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',  # WETH
             '0xdac17f958d2ee523a2206206994597c13d831ec7',  # USDT
         ]
-        
+
         for token in tokens:
             try:
                 analytics = self.ultra_scout.fetch_onchain_analytics(token)
-                
+
                 if analytics and 'whale_transactions' in analytics:
                     if analytics['whale_transactions']:
                         finding = {
@@ -264,16 +264,16 @@ class AdvancedScoutingOrchestrator:
                             'data': analytics,
                             'timestamp': datetime.now()
                         }
-                        
+
                         await self.data_hub.publish_signal(finding)
                         logger.info(f"🐋 On-chain: Whale activity detected")
             except Exception as e:
                 logger.debug(f"On-chain {token}: {e}")
-    
+
     async def scout_web_patterns(self):
         """Scout for web patterns"""
         patterns = self.ultra_scout.patterns
-        
+
         if patterns:
             finding = {
                 'type': 'web_patterns',
@@ -281,7 +281,7 @@ class AdvancedScoutingOrchestrator:
                 'patterns': patterns,
                 'timestamp': datetime.now()
             }
-            
+
             await self.data_hub.publish_signal(finding)
             logger.info(f"🕸️ Web patterns: {len(patterns)} discovered")
 
@@ -291,39 +291,39 @@ class ForexTradingOrchestrator:
     Forex trading orchestrator
     Handles EURUSD, GBPUSD, USDJPY, XAUUSD
     """
-    
+
     def __init__(self, data_hub: CentralDataHub):
         self.data_hub = data_hub
         self.pairs = ['EURUSD', 'GBPUSD', 'USDJPY', 'XAUUSD']
         self.forex_active = True
-        
+
         logger.info("💱 Forex Trading Orchestrator initialized")
-    
+
     async def run_forex_trading(self):
         """Run forex trading loop"""
         logger.info("💱 Starting forex trading...")
-        
+
         while self.forex_active:
             try:
                 for pair in self.pairs:
                     # Generate forex signals
                     signal = await self.generate_forex_signal(pair)
-                    
+
                     if signal:
                         await self.data_hub.publish_signal(signal)
                         logger.info(f"💱 Forex signal: {pair} - {signal.get('side', 'unknown')}")
-                
+
                 await asyncio.sleep(180)  # Every 3 minutes
-                
+
             except Exception as e:
                 logger.error(f"Forex trading error: {e}")
                 await asyncio.sleep(180)
-    
+
     async def generate_forex_signal(self, pair: str) -> Optional[Dict[str, Any]]:
         """Generate forex signal for pair"""
         # Placeholder - would use real FX data and ML models
         import random
-        
+
         if random.random() > 0.8:  # 20% chance
             return {
                 'type': 'forex',
@@ -333,7 +333,7 @@ class ForexTradingOrchestrator:
                 'confidence': random.uniform(0.6, 0.9),
                 'timestamp': datetime.now()
             }
-        
+
         return None
 
 
@@ -342,51 +342,51 @@ class DeepLearningOrchestrator:
     Deep learning orchestrator
     LSTM and Transformer models for price prediction
     """
-    
+
     def __init__(self, data_hub: CentralDataHub):
         self.data_hub = data_hub
         self.dl_active = True
         self.models_loaded = False
-        
+
         logger.info("🧠 Deep Learning Orchestrator initialized")
-    
+
     async def initialize_models(self):
         """Initialize deep learning models"""
         try:
             # Would load LSTM/Transformer models
             logger.info("🧠 Initializing deep learning models...")
-            
+
             # Placeholder for model loading
             self.models_loaded = True
-            
+
             logger.info("✅ Deep learning models ready")
         except Exception as e:
             logger.warning(f"DL models: {e}")
-    
+
     async def run_deep_learning(self):
         """Run deep learning predictions"""
         if not self.models_loaded:
             await self.initialize_models()
-        
+
         logger.info("🧠 Starting deep learning predictions...")
-        
+
         while self.dl_active:
             try:
                 # Generate predictions
                 predictions = await self.generate_predictions()
-                
+
                 if predictions:
                     for pred in predictions:
                         await self.data_hub.publish_signal(pred)
-                    
+
                     logger.info(f"🧠 DL predictions: {len(predictions)} generated")
-                
+
                 await asyncio.sleep(300)  # Every 5 minutes
-                
+
             except Exception as e:
                 logger.error(f"Deep learning error: {e}")
                 await asyncio.sleep(300)
-    
+
     async def generate_predictions(self) -> List[Dict[str, Any]]:
         """Generate deep learning predictions"""
         # Placeholder - would use real LSTM/Transformer models
@@ -402,24 +402,24 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
     - Deep learning
     - Advanced features from Nobel system
     - DYNAMIC PAIR DISCOVERY (auto-discover 5000+ pairs!)
-    
+
     TOTAL: 26 core + 8 additional = 34 SYSTEMS
     """
-    
+
     def __init__(self, mode: str = "testnet"):
         super().__init__(mode)
-        
+
         # Additional advanced systems
         self.advanced_systems = {}
         self.advanced_orchestrators = {}
-        
+
         # Dynamic pair list (will be updated by discovery engine)
         self.dynamic_pairs = []
         self.last_pair_update = datetime.now()
-        
+
         logger.info("🚀 Complete Ultimate Orchestrator initialized")
-    
-    
+
+
     def update_trading_universe(self):
         """Update parent's trading universe with discovered pairs"""
         if hasattr(self, 'dynamic_pairs') and self.dynamic_pairs:
@@ -428,11 +428,11 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 # Update ultra_core's pair list
                 self.ultra_core.pairs = self.dynamic_pairs
                 logger.info(f'🔄 Updated ultra_core universe: {len(self.dynamic_pairs)} pairs')
-            
+
             if hasattr(self, 'trading_universe'):
                 self.trading_universe = self.dynamic_pairs
                 logger.info(f'🔄 Updated trading_universe: {len(self.dynamic_pairs)} pairs')
-            
+
             # Update engines if they exist
             if hasattr(self, 'engines'):
                 for engine_name, engine in self.engines.items():
@@ -445,67 +445,67 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         Continuously discover and add profitable trading pairs
         Updates every 30 minutes with new opportunities
         """
-        
+
         discovery_engine = self.advanced_systems.get('pair_discovery')
         if not discovery_engine:
             logger.warning("⚠️  Pair discovery not available, skipping...")
             return
-        
+
         logger.info("🔍 Starting Dynamic Pair Discovery loop...")
-        
+
         while True:
             try:
                 logger.info("\n" + "━" * 80)
                 logger.info("🔍 DYNAMIC PAIR DISCOVERY CYCLE")
                 logger.info("━" * 80)
-                
+
                 # 1. Discover all available markets
                 all_pairs = await discovery_engine.discover_all_markets()
                 logger.info(f"✅ Discovered {len(all_pairs)} total pairs")
-                
+
                 # 2. Filter for profitable ones (high volume, good volatility)
                 profitable_pairs = await discovery_engine.filter_profitable_pairs(all_pairs)
                 logger.info(f"💰 Found {len(profitable_pairs)} profitable pairs")
-                
+
                 # 3. Update active pairs
                 new_pairs = set(profitable_pairs) - set(self.dynamic_pairs)
                 if new_pairs:
                     self.dynamic_pairs.extend(list(new_pairs))
                     logger.info(f"✅ AUTO-ADDED {len(new_pairs)} NEW PAIRS TO TRADING!")
                     logger.info(f"📊 TOTAL ACTIVE PAIRS: {len(self.dynamic_pairs)}")
-                    
+
                     # Show top 10 new pairs
                     logger.info("📋 New pairs added:")
                     for i, pair in enumerate(list(new_pairs)[:10], 1):
                         logger.info(f"   {i}. {pair}")
-                
+
                 # 4. Update last update time
                 self.last_pair_update = datetime.now()
-                
+
                 logger.info("━" * 80 + "\n")
-                
+
                 # Wait 30 minutes before next discovery
                 await asyncio.sleep(1800)
-                
+
             except Exception as e:
                 logger.error(f"❌ Pair discovery error: {e}")
                 await asyncio.sleep(300)  # Retry in 5 minutes
-    
+
     def get_active_pairs(self):
         """Get current list of actively traded pairs"""
         return self.dynamic_pairs if self.dynamic_pairs else ['BTC/USDT', 'ETH/USDT']  # Fallback pairs
-    
+
     async def initialize_all_systems(self):
         """Initialize ALL systems including advanced ones"""
-        
+
         # First initialize base 26 systems
         await super().initialize_all_systems()
-        
+
         # Now add advanced systems
         logger.info("\n" + "=" * 80)
         logger.info("🌟 Phase 6: Advanced Systems...")
         logger.info("=" * 80)
-        
+
         # 1. UltraScout
         try:
             self.advanced_systems['ultra_scout'] = UltraScout(max_threads=4)
@@ -516,22 +516,22 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         # ================================================================
         # 7 NEW ULTRA SYSTEMS - COMPLETE INTEGRATION (ALL MUST WORK!)
         # ================================================================
-        
+
         # Import UltraCore for systems that need it
         from ultra_core import UltraCore
-        
+
         # 1. Ultra Moon System
         logger.info('🌙 Initializing Ultra Moon System...')
         from ultra_moon_spotter import UltraMoonSystem
         self.advanced_systems['ultra_moon'] = UltraMoonSystem()
         logger.info('✅ Ultra Moon System ready')
-        
+
 
 
         # ================================================================
         # 7 NEW ULTRA SYSTEMS - CORRECT IMPLEMENTATION
         # ================================================================
-        
+
         # 1. Ultra Moon System
         try:
             logger.info('🌙 Initializing Ultra Moon System...')
@@ -542,7 +542,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f'⚠️  Ultra Moon System: {e}')
             self.advanced_systems['ultra_moon'] = None
             UltraMoonSystem = None
-        
+
         # 2. Ultra God Mode
         try:
             logger.info('⚡ Initializing Ultra God Mode...')
@@ -553,7 +553,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f'⚠️  Ultra God Mode: {e}')
             self.advanced_systems['god_mode'] = None
             UltraGodMode = None
-        
+
         # 3. Ultra Forex Master
         try:
             logger.info('💱 Initializing Ultra Forex Master...')
@@ -564,7 +564,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f'⚠️  Ultra Forex Master: {e}')
             self.advanced_systems['forex_master'] = None
             UltraForexMaster = None
-        
+
         # 4. Ultra Continuous Trading
         try:
             logger.info('🔄 Initializing Ultra Continuous Trading...')
@@ -576,7 +576,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f'⚠️  Ultra Continuous Trading: {e}')
             self.advanced_systems['continuous_trading'] = None
             UltraContinuousTradingOrchestrator = None
-        
+
         # 5. Ultra Multi-Platform Scanner
         try:
             logger.info('🔍 Initializing Ultra Multi-Platform Scanner...')
@@ -588,7 +588,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f'⚠️  Ultra Multi-Platform Scanner: {e}')
             self.advanced_systems['multi_platform_scanner'] = None
             UltraMultiPlatformScanner = None
-        
+
         # 6. 450+ Models Bot
         try:
             logger.info('🤖 Initializing 450+ Models Bot...')
@@ -599,7 +599,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f'⚠️  450+ Models Bot: {e}')
             self.advanced_systems['models_450'] = None
             UltimateBot450Models = None
-        
+
         # 7. Trade Planner
         try:
             logger.info('📊 Loading Trade Planner module...')
@@ -610,9 +610,9 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f'⚠️  Trade Planner: {e}')
             self.trade_planner = None
             tp_module = None
-        
+
         logger.info('🎉 ALL 7 NEW SYSTEMS INITIALIZED!')
-        
+
         # ================================================================
         # 8. DYNAMIC PAIR DISCOVERY - Auto-discover 3000+ profitable pairs
         # ================================================================
@@ -625,7 +625,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f'⚠️  Dynamic Pair Discovery: {e}')
             self.advanced_systems['pair_discovery'] = None
             get_discovery_engine = None
-        
+
         # ================================================================
         # 9. ULTRA RARE ENGINES - 10 advanced profit engines
         # ================================================================
@@ -638,7 +638,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f'⚠️  Ultra Rare Engines: {e}')
             self.advanced_systems['ultra_rare'] = None
             UltraRareEnginesOrchestrator = None
-        
+
         # ================================================================
         # 10. ADVANCED TRADING ACTIONS - 15 professional strategies
         # ================================================================
@@ -654,24 +654,24 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.warning(f'⚠️  Ultra Rare Engines: {e}')
             self.advanced_systems['ultra_rare'] = None
             get_advanced_actions = None
-        
+
         logger.info('🎉 ALL 10 ADVANCED SYSTEMS INITIALIZED!')
-    
-    
+
+
 
     def enhance_decision_with_action(self, decision: Dict) -> Dict:
         """Add advanced action type to decision"""
         if not self.advanced_actions:
             return decision
-        
+
         try:
             symbol = decision.get('symbol', '')
             confidence = decision.get('confidence', 0.5)
             action_type = decision.get('action', 'UNKNOWN')
-            
+
             # Convert BUY/SELL to direction
             direction = 'buy' if 'BUY' in str(action_type).upper() else 'sell'
-            
+
             # Get advanced action
             advanced_action = self.advanced_actions.determine_action(
                 symbol=symbol,
@@ -681,15 +681,15 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 volatility=decision.get('volatility', 0.02),
                 market_regime=decision.get('market_regime', 'neutral')
             )
-            
+
             # Enhance decision
             decision['advanced_action'] = advanced_action['action']
             decision['action_reason'] = advanced_action['reason']
             decision['suggested_leverage'] = advanced_action['leverage']
             decision['duration'] = advanced_action['duration']
-            
+
             return decision
-            
+
         except Exception as e:
             logger.error(f"Error enhancing decision: {e}")
             return decision
@@ -699,36 +699,36 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         try:
             # Initialize all systems (base + advanced)
             await self.initialize_all_systems()
-            
+
             # Wire everything
             await self.wire_all_systems()
-            
+
             # Start all background tasks
             background_tasks = []
-            
+
             # Base system tasks
             if self.orchestrators.get('learning'):
                 background_tasks.append(
                     asyncio.create_task(self.orchestrators['learning'].run_learning_loop())
                 )
-            
+
             if self.orchestrators.get('decision'):
                 background_tasks.append(
                     asyncio.create_task(self.orchestrators['decision'].run_decision_loop())
                 )
-            
+
             # Enhanced main trading loop
             background_tasks.append(
                 asyncio.create_task(self.enhanced_trading_loop())
             )
-            
+
             # ★ DYNAMIC PAIR DISCOVERY - Continuous market scanning ★
             if self.advanced_systems.get('pair_discovery'):
                 background_tasks.append(
                     asyncio.create_task(self.run_dynamic_pair_discovery())
                 )
                 logger.info("✅ Dynamic Pair Discovery loop started!")
-            
+
             logger.info("\n" + "=" * 80)
             logger.info("🎉 ALL SYSTEMS RUNNING - INCLUDING PAIR DISCOVERY!")
             logger.info("=" * 80)
@@ -736,10 +736,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             logger.info("🔍 Scanning 5000+ pairs across ALL exchanges")
             logger.info("💰 Auto-adding high-volume, high-volatility opportunities")
             logger.info("=" * 80 + "\n")
-            
+
             # Run all tasks
             await asyncio.gather(*background_tasks)
-            
+
         except KeyboardInterrupt:
             logger.info("🛑 Shutdown requested")
         except Exception as e:
@@ -747,7 +747,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             raise
         finally:
             logger.info("👋 Complete Ultimate Orchestrator shutting down...")
-        
+
 
 
 # ============================================================================
@@ -758,10 +758,10 @@ async def main():
     """Main entry point for Complete Ultimate Orchestrator"""
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', choices=['testnet', 'paper', 'live'], 
+    parser.add_argument('--mode', choices=['testnet', 'paper', 'live'],
                        default='testnet')
     args = parser.parse_args()
-    
+
     orchestrator = CompleteUltimateOrchestrator(mode=args.mode)
     await orchestrator.start()
 
@@ -787,5 +787,5 @@ if __name__ == "__main__":
     ║                                                                   ║
     ╚═══════════════════════════════════════════════════════════════════╝
     """)
-    
+
     asyncio.run(main())

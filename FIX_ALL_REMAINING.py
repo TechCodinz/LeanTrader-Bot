@@ -10,11 +10,11 @@ def fix_file(filepath, fixes):
     """Apply fixes to a file"""
     try:
         content = filepath.read_text()
-        
+
         for old, new in fixes:
             if old in content and new not in content:
                 content = content.replace(old, new)
-        
+
         filepath.write_text(content)
         return True
     except Exception as e:

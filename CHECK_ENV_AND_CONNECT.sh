@@ -113,16 +113,16 @@ load_dotenv()
 async def test_telegram():
     token = os.getenv('TELEGRAM_BOT_TOKEN')
     admin_id = os.getenv('TELEGRAM_ADMIN_CHAT_ID')
-    
+
     if not token or token == 'your_telegram_bot_token_here':
         print('❌ Bot token not configured')
         return False
-    
+
     try:
         bot = Bot(token=token)
         me = await bot.get_me()
         print(f'✅ Bot connected: @{me.username}')
-        
+
         if admin_id and admin_id != 'your_admin_chat_id_here':
             try:
                 result = await bot.send_message(
@@ -138,7 +138,7 @@ async def test_telegram():
         else:
             print('⚠️  Admin chat ID not set, skipping message test')
             return True
-            
+
     except Exception as e:
         print(f'❌ Telegram connection failed: {e}')
         return False
@@ -172,17 +172,17 @@ async def test_exchanges():
         'binance': {'key_env': 'BINANCE_API_KEY', 'secret_env': 'BINANCE_SECRET'},
         'bybit': {'key_env': 'BYBIT_API_KEY', 'secret_env': 'BYBIT_SECRET'}
     }
-    
+
     connected = []
-    
+
     for name, config in exchanges_config.items():
         api_key = os.getenv(config['key_env'])
         secret = os.getenv(config['secret_env'])
-        
+
         if not api_key or api_key.startswith('your_'):
             print(f'⚠️  {name.upper()}: Not configured')
             continue
-        
+
         try:
             exchange_class = getattr(ccxt, name)
             exchange = exchange_class({
@@ -190,18 +190,18 @@ async def test_exchanges():
                 'secret': secret,
                 'enableRateLimit': True
             })
-            
+
             balance = await exchange.fetch_balance()
             total_usd = balance.get('total', {}).get('USDT', 0)
-            
+
             print(f'✅ {name.upper()}: Connected! Balance: ${total_usd:.2f} USDT')
             connected.append(name)
-            
+
             await exchange.close()
-            
+
         except Exception as e:
             print(f'❌ {name.upper()}: Failed - {str(e)[:50]}')
-    
+
     print(f'\n📊 Summary: {len(connected)}/7 exchanges connected')
     return len(connected)
 

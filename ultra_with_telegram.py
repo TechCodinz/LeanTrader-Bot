@@ -579,7 +579,7 @@ Your professional trading system is now live! 🚀📈"""
                 for model_name, accuracy in models.items():
                     cursor.execute(
                         '''
-                        INSERT INTO trades 
+                        INSERT INTO trades
                         (symbol, action, price, quantity, exchange, model_used)
                         VALUES (?, ?, ?, ?, ?, ?)
                     ''',
@@ -656,7 +656,7 @@ Your professional trading system is now live! 🚀📈"""
                                 cursor = self.db.cursor()
                                 cursor.execute(
                                     '''
-                                    INSERT INTO arbitrage_opportunities 
+                                    INSERT INTO arbitrage_opportunities
                                     (symbol, buy_exchange, sell_exchange, buy_price, sell_price, profit_pct)
                                     VALUES (?, ?, ?, ?, ?, ?)
                                 ''',
@@ -731,7 +731,7 @@ Your professional trading system is now live! 🚀📈"""
                         cursor = self.db.cursor()
                         cursor.execute(
                             '''
-                            INSERT INTO micro_moons 
+                            INSERT INTO micro_moons
                             (symbol, name, price, market_cap, change_24h, volume, potential)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
                         ''',
@@ -786,7 +786,7 @@ Your professional trading system is now live! 🚀📈"""
                 cursor = self.db.cursor()
                 cursor.execute(
                     '''
-                    INSERT INTO telegram_messages 
+                    INSERT INTO telegram_messages
                     (message_type, message_text, sent)
                     VALUES (?, ?, ?)
                 ''',
@@ -802,7 +802,7 @@ Your professional trading system is now live! 🚀📈"""
                 cursor = self.db.cursor()
                 cursor.execute(
                     '''
-                    INSERT INTO telegram_messages 
+                    INSERT INTO telegram_messages
                     (message_type, message_text, sent)
                     VALUES (?, ?, ?)
                 ''',

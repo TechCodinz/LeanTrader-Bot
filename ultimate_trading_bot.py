@@ -454,7 +454,7 @@ class UltimateTradingBot:
                     cursor = self.db.cursor()
                     cursor.execute(
                         '''
-                        INSERT INTO trading_signals 
+                        INSERT INTO trading_signals
                         (symbol, timeframe, signal, confidence, price, tp1, tp2, tp3, stop_loss, ai_score)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ''',

@@ -37,7 +37,7 @@ python3 SIMPLE_PAIR_DISCOVERY_TEST.py
 # Option A: Run with startup script
 bash START_BOT_WITH_PAIR_DISCOVERY.sh
 
-# Option B: Run directly  
+# Option B: Run directly
 python3 COMPLETE_ULTIMATE_ORCHESTRATOR.py --mode=testnet
 
 # Option C: Run in background

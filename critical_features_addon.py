@@ -453,19 +453,19 @@ def integrate_critical_features(bot):
     # Update trailing stops
     for symbol, position in bot.open_positions.items():
         new_stop = bot.trailing_stop.update(
-            symbol, 
+            symbol,
             current_price,
             position['entry_price'],
             position['stop_loss']
         )
-        
+
         if new_stop > position['stop_loss']:
             # Update stop on exchange
             await exchange.modify_order(position['stop_order_id'], stop_price=new_stop)
-    
+
     # Calculate position size with compounding
     position_size = bot.compound_engine.calculate_position_size(base_size=100)
-    
+
     # Check partial TPs
     tp_orders = await bot.partial_tp.check_tp_levels(symbol, current_price)
     for tp in tp_orders:
@@ -480,12 +480,12 @@ def integrate_critical_features(bot):
             price=tp.get('price'),
             params=tp.get('params'),
         )
-    
+
     # Find funding arbitrage
     arb_opportunities = await bot.funding_arb.find_opportunities(exchanges)
     for opp in arb_opportunities[:3]:  # Top 3
         print(f"💎 Funding Arb: {opp['symbol']} - {opp['profit_per_8h']:.2f}% per 8h")
-    
+
     # Check emergency conditions
     if bot.emergency_stop.check_conditions(account_balance, initial_balance):
         # CLOSE ALL POSITIONS
@@ -542,7 +542,7 @@ if __name__ == "__main__":
     ║     • 2-3x faster account growth                                ║
     ║                                                                  ║
     ╚══════════════════════════════════════════════════════════════════╝
-    
+
     Add these to your bot for MAXIMUM PROFITS!
     """
     )

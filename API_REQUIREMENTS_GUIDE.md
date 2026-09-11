@@ -87,7 +87,7 @@ while since < exchange.milliseconds():
 - Free tier: 500 calls/day
 - Get API key: Sign up → Get Free API Key
 
-**RECOMMENDATION**: 
+**RECOMMENDATION**:
 ✅ **Use Bybit via ccxt** (already working, free, sufficient)
 
 **Priority**: 🔥 **CRITICAL** (for ML training)
@@ -120,7 +120,7 @@ while since < exchange.milliseconds():
 - **Website**: https://finnhub.io/
 - **Cost**: FREE
 
-**RECOMMENDATION**: 
+**RECOMMENDATION**:
 ✅ **NewsAPI.org** (best for crypto news)
 
 **Priority**: 🟡 MEDIUM (nice to have, not critical)
@@ -172,7 +172,7 @@ while since < exchange.milliseconds():
 - **Website**: https://honeypot.is/
 - **Cost**: FREE (rate limited)
 
-**RECOMMENDATION**: 
+**RECOMMENDATION**:
 ✅ **GoPlus Labs** (essential for DEX safety)
 
 **Priority**: 🟡 MEDIUM (critical if trading new tokens on DEX)
@@ -271,34 +271,34 @@ timeframes = ['1h', '4h', '1d']
 for symbol in symbols:
     for timeframe in timeframes:
         print(f"Downloading {symbol} {timeframe}...")
-        
+
         # Get max history (1000 candles at a time)
         all_data = []
         since = exchange.parse8601('2023-01-01T00:00:00Z')
-        
+
         while since < exchange.milliseconds():
             try:
                 ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since, 1000)
                 if not ohlcv:
                     break
-                
+
                 all_data.extend(ohlcv)
                 since = ohlcv[-1][0] + 1
-                
+
                 print(f"  Downloaded {len(all_data)} candles")
                 time.sleep(1)  # Rate limit
-                
+
             except Exception as e:
                 print(f"  Error: {e}")
                 break
-        
+
         # Save to CSV
         df = pd.DataFrame(all_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-        
+
         filename = f"data/{symbol.replace('/', '_')}_{timeframe}.csv"
         df.to_csv(filename, index=False)
-        
+
         print(f"  Saved {len(df)} candles to {filename}")
 
 print("✅ All data downloaded!")
@@ -337,7 +337,7 @@ The orchestrator saves data as it runs. You can:
 3. 🔥 **NewsAPI** - For news sentiment
    - Sign up: https://newsapi.org/
    - Free tier sufficient for testing
-   
+
 4. 🔥 **Etherscan API** (if doing DEX)
    - Sign up: https://etherscan.io/
    - FREE, takes 2 minutes
@@ -345,14 +345,14 @@ The orchestrator saves data as it runs. You can:
 ### **THIS MONTH (For Full Features):**
 5. 🟡 **GoPlus Labs** - For token safety
    - Sign up: https://gopluslabs.io/
-   
+
 6. 🟡 **BSCScan API** (if doing BSC DEX)
    - Sign up: https://bscscan.com/
 
 ### **OPTIONAL (Nice to Have):**
 7. 🟢 **IBM Quantum** - For quantum features
    - Sign up: https://quantum.ibm.com/
-   
+
 8. 🟢 **CryptoCompare** - For more historical data
    - Sign up: https://www.cryptocompare.com/
 
@@ -461,12 +461,12 @@ Your bot already has:
 
 **Good news!** You already have enough to:
 
-✅ Trade on testnet  
-✅ Get OHLCV data (via ccxt)  
-✅ Send Telegram notifications  
-✅ Train ML models (on live data)  
-✅ Generate signals  
-✅ Execute trades  
+✅ Trade on testnet
+✅ Get OHLCV data (via ccxt)
+✅ Send Telegram notifications
+✅ Train ML models (on live data)
+✅ Generate signals
+✅ Execute trades
 
 **What you're missing:**
 - News sentiment (get NewsAPI this week)

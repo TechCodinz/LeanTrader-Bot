@@ -27,15 +27,15 @@ The fix is **already in the code** in this branch (`cursor/check-and-update-trad
 async def start(self):
     """Start DEX orchestrator"""
     self.running = True
-    
+
     # Check if we have private key for trading
     private_key = os.getenv('DEX_PRIVATE_KEY', '')
-    
+
     if not private_key:
         logger.info("⚠️  DEX Orchestrator: No private key - Monitoring only")
         # Don't start async loops without private key
         return  # ← THIS PREVENTS THE CRASH!
-    
+
     # Only start loops if we have private key...
 ```
 

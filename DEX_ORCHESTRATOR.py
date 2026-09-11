@@ -40,7 +40,7 @@ class DEXConfig:
     min_liquidity_usd: float = 5000.0  # Minimum pool liquidity
     use_private_tx: bool = True  # Use Flashbots/private relays
     mev_protection: bool = True  # Enable MEV protection
-    
+
     def __post_init__(self):
         if self.chains is None:
             self.chains = ['ethereum', 'bsc', 'polygon', 'arbitrum', 'solana']
@@ -72,7 +72,7 @@ class DEXOpportunity:
 
 class Web3Manager:
     """Manages Web3 connections across multiple chains"""
-    
+
     def __init__(self):
         self.connections = {}
         self.rpcs = {
@@ -84,7 +84,7 @@ class Web3Manager:
             'fantom': 'https://rpc.ftm.tools',
             'optimism': 'https://mainnet.optimism.io',
         }
-        
+
         self.dex_routers = {
             'ethereum': {
                 'uniswap_v2': '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
@@ -105,28 +105,28 @@ class Web3Manager:
                 'sushiswap': '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506',
             }
         }
-        
+
     async def connect_chain(self, chain: str) -> Optional[Web3]:
         """Connect to a blockchain"""
         if Web3 is None:
             logger.warning("Web3 not installed - DEX trading disabled")
             return None
-            
+
         if chain in self.connections:
             return self.connections[chain]
-            
+
         try:
             rpc_url = self.rpcs.get(chain)
             if not rpc_url:
                 logger.warning(f"No RPC for {chain}")
                 return None
-                
+
             w3 = Web3(Web3.HTTPProvider(rpc_url))
-            
+
             # Add PoA middleware for BSC, Polygon
             if chain in ['bsc', 'polygon']:
                 w3.middleware_onion.inject(geth_poa_middleware, layer=0)
-                
+
             if w3.is_connected():
                 self.connections[chain] = w3
                 logger.info(f"✅ Connected to {chain} - Block: {w3.eth.block_number}")
@@ -134,11 +134,11 @@ class Web3Manager:
             else:
                 logger.warning(f"Failed to connect to {chain}")
                 return None
-                
+
         except Exception as e:
             logger.error(f"Error connecting to {chain}: {e}")
             return None
-    
+
     def get_dex_router(self, chain: str, dex: str) -> Optional[str]:
         """Get DEX router address for a chain"""
         return self.dex_routers.get(chain, {}).get(dex)
@@ -146,27 +146,60 @@ class Web3Manager:
 
 class DEXExecutor:
     """Executes DEX swaps with MEV protection"""
-    
+
     def __init__(self, config: DEXConfig):
         self.config = config
         self.mempool_monitors = {}
         self.private_client = None
         self.swap_engines = {}  # Cache of swap engines per chain
-        
+
         # Initialize private transaction client if enabled
         if config.use_private_tx:
             try:
-                self.private_client = PrivateTxClient(
-                    endpoint="https://rpc.flashbots.net",
-                    api_key=""  # Set from env
+                # PASS4_PRIVATE_TX_ADAPTER_BOUNDARY
+                private_sender = (
+                    getattr(
+                        self,
+                        "private_tx_sender",
+                        None,
+                    )
+                    or getattr(
+                        self,
+                        "tx_sender",
+                        None,
+                    )
+                    or getattr(
+                        self,
+                        "sender",
+                        None,
+                    )
                 )
+
+                if private_sender is not None:
+                    self.private_client = (
+                        PrivateTxClient(
+                            private_sender
+                        )
+                    )
+                    self.private_client_status = (
+                        "ACTIVE"
+                    )
+                else:
+                    self.private_client = None
+                    self.private_client_status = (
+                        "CONFIG_REQUIRED"
+                    )
+                    print(
+                        "⚠️ Private TX client CONFIG_REQUIRED: "
+                        "no compatible sender adapter configured"
+                    )
             except Exception as e:
                 logger.warning(f"Private TX client init failed: {e}")
-    
+
     def get_swap_engine(self, chain: str, w3: Web3, router_address: str) -> Optional[DEXSwapEngine]:
         """Get or create swap engine for chain"""
         key = f"{chain}:{router_address}"
-        
+
         if key not in self.swap_engines:
             try:
                 # Get factory address for this chain/dex
@@ -175,35 +208,35 @@ class DEXExecutor:
                     if chain in factories:
                         factory_address = list(factories[chain].values())[0]
                         break
-                
+
                 if not factory_address:
                     logger.warning(f"No factory address for {chain}")
                     return None
-                
+
                 engine = DEXSwapEngine(chain, w3, router_address, factory_address)
                 self.swap_engines[key] = engine
                 logger.info(f"✅ Swap engine created for {chain}")
             except Exception as e:
                 logger.error(f"Failed to create swap engine: {e}")
                 return None
-        
+
         return self.swap_engines.get(key)
-    
+
     async def execute_buy(
-        self, 
+        self,
         opportunity: DEXOpportunity,
         amount_usd: float,
         w3: Web3,
         router_address: str
     ) -> Dict[str, Any]:
         """Execute a DEX buy with REAL implementation"""
-        
+
         try:
             # Get swap engine
             engine = self.get_swap_engine(opportunity.chain, w3, router_address)
             if not engine:
                 return {'success': False, 'error': 'Swap engine not available'}
-            
+
             # Convert USD to native token amount (ETH/BNB/MATIC)
             # For simplicity, using fixed conversion. In production, get real price
             # Assuming ~$2000 per ETH, ~$300 per BNB, ~$0.50 per MATIC
@@ -214,10 +247,10 @@ class DEXExecutor:
                 'arbitrum': 2000,
                 'solana': 100
             }
-            
+
             native_price = price_map.get(opportunity.chain, 1000)
             amount_native = amount_usd / native_price
-            
+
             # Calculate slippage based on safety score
             # Lower safety = higher slippage tolerance
             base_slippage = self.config.max_slippage_bps
@@ -225,17 +258,17 @@ class DEXExecutor:
                 slippage = min(base_slippage * 2, 500)  # Max 5%
             else:
                 slippage = base_slippage
-            
+
             logger.info(f"Buying {opportunity.symbol} with {amount_native:.6f} native tokens")
             logger.info(f"Slippage: {slippage} bps")
-            
+
             # Execute real swap
             result = engine.buy_token(
                 token_address=opportunity.token_address,
                 amount_eth=amount_native,
                 slippage_bps=slippage
             )
-            
+
             if result.get('success'):
                 logger.info(f"✅ DEX Buy executed: {opportunity.symbol}")
                 logger.info(f"   TX: {result.get('tx_hash')}")
@@ -243,13 +276,13 @@ class DEXExecutor:
                 logger.info(f"   Price impact: {result.get('price_impact', 0):.2%}")
             else:
                 logger.error(f"❌ DEX buy failed: {result.get('error')}")
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(f"DEX buy failed for {opportunity.symbol}: {e}")
             return {'success': False, 'error': str(e)}
-    
+
     async def execute_sell(
         self,
         opportunity: DEXOpportunity,
@@ -258,31 +291,31 @@ class DEXExecutor:
         router_address: str
     ) -> Dict[str, Any]:
         """Execute a DEX sell with REAL implementation"""
-        
+
         try:
             # Get swap engine
             engine = self.get_swap_engine(opportunity.chain, w3, router_address)
             if not engine:
                 return {'success': False, 'error': 'Swap engine not available'}
-            
+
             logger.info(f"Selling {amount_tokens} of {opportunity.symbol}")
-            
+
             # Execute real swap
             result = engine.sell_token(
                 token_address=opportunity.token_address,
                 amount_tokens=amount_tokens,
                 slippage_bps=self.config.max_slippage_bps
             )
-            
+
             if result.get('success'):
                 logger.info(f"✅ DEX Sell executed: {opportunity.symbol}")
                 logger.info(f"   TX: {result.get('tx_hash')}")
                 logger.info(f"   Amount out: {result.get('amount_out')} wei")
             else:
                 logger.error(f"❌ DEX sell failed: {result.get('error')}")
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(f"DEX sell failed: {e}")
             return {'success': False, 'error': str(e)}
@@ -296,22 +329,22 @@ class DEXOrchestrator:
     - Executes trades with MEV protection
     - Manages positions across DEXs
     """
-    
+
     def __init__(self, config: Optional[DEXConfig] = None, data_hub: Optional[Any] = None):
         self.config = config or DEXConfig()
         self.data_hub = data_hub
-        
+
         # Core components
         self.moon_spotter = MicroMoonSpotter()
         self.web3_manager = Web3Manager()
         self.executor = DEXExecutor(self.config)
-        
+
         # State
         self.opportunities = []
         self.positions = {}
         self.watchlist = []
         self.running = False
-        
+
         # Stats
         self.stats = {
             'opportunities_found': 0,
@@ -321,49 +354,49 @@ class DEXOrchestrator:
             'total_volume_usd': 0.0,
             'total_profit_usd': 0.0,
         }
-        
+
         logger.info("✅ DEX Orchestrator initialized")
         logger.info(f"   Chains: {', '.join(self.config.chains)}")
         logger.info(f"   MEV Protection: {self.config.mev_protection}")
         logger.info(f"   Private TX: {self.config.use_private_tx}")
-    
+
     async def start(self):
         """Start DEX orchestrator"""
         self.running = True
-        
+
         # Check if we have private key for trading
         private_key = os.getenv('DEX_PRIVATE_KEY', '')
-        
+
         if not private_key:
             logger.info("⚠️  DEX Orchestrator: No private key - Monitoring only (no trading)")
             logger.info("   Add DEX_PRIVATE_KEY to .env to enable DEX trading")
             # Don't start async loops without private key to avoid crashes
             return
-        
+
         logger.info("🚀 DEX Orchestrator STARTED")
-        
+
         # Connect to all enabled chains
         for chain in self.config.chains:
             await self.web3_manager.connect_chain(chain)
-        
+
         # Start scanning loop (only if we have private key)
         asyncio.create_task(self._scanning_loop())
         asyncio.create_task(self._position_monitoring_loop())
-    
+
     async def stop(self):
         """Stop DEX orchestrator"""
         self.running = False
         logger.info("🛑 DEX Orchestrator STOPPED")
-    
+
     async def _scanning_loop(self):
         """Continuously scan for new opportunities"""
         while self.running:
             try:
                 # Scan for new gems
                 gems = await self.moon_spotter.scan_for_new_gems()
-                
+
                 logger.info(f"🔍 Moon Spotter found {len(gems)} potential gems")
-                
+
                 # Convert to opportunities
                 opportunities = []
                 for gem in gems[:20]:  # Top 20
@@ -388,11 +421,11 @@ class DEXOrchestrator:
                         social_signals=gem.get('social_signals', {}),
                         timestamp=datetime.now()
                     )
-                    
+
                     # Filter by criteria
                     if self._should_trade(opp):
                         opportunities.append(opp)
-                        
+
                         # Send to data hub
                         if self.data_hub and hasattr(self.data_hub, 'signal_queue'):
                             signal = {
@@ -409,76 +442,76 @@ class DEXOrchestrator:
                                 'timestamp': opp.timestamp.isoformat()
                             }
                             await self.data_hub.signal_queue.put(signal)
-                
+
                 self.opportunities = opportunities
                 self.stats['opportunities_found'] += len(opportunities)
-                
+
                 # Auto-trade high-confidence opportunities
                 for opp in opportunities:
                     if opp.potential_score >= 80 and opp.safety_score >= 70:
                         await self._execute_opportunity(opp)
-                
+
                 # Wait before next scan
                 await asyncio.sleep(60)  # Scan every 60 seconds
-                
+
             except Exception as e:
                 logger.error(f"Scanning loop error: {e}")
                 await asyncio.sleep(30)
-    
+
     def _should_trade(self, opp: DEXOpportunity) -> bool:
         """Determine if an opportunity should be traded"""
-        
+
         # Safety checks
         if opp.honeypot_risk:
             return False
-        
+
         if opp.safety_score < 50:
             return False
-        
+
         if opp.liquidity_usd < self.config.min_liquidity_usd:
             return False
-        
+
         # Tax checks
         if opp.buy_tax > 15.0 or opp.sell_tax > 15.0:  # Max 15% tax
             return False
-        
+
         # Potential checks
         if opp.potential_score < 60:
             return False
-        
+
         return True
-    
+
     async def _execute_opportunity(self, opp: DEXOpportunity):
         """Execute a trading opportunity"""
-        
+
         try:
             # Get Web3 connection
             w3 = await self.web3_manager.connect_chain(opp.chain)
             if not w3:
                 logger.warning(f"No Web3 connection for {opp.chain}")
                 return
-            
+
             # Get DEX router
             router = self.web3_manager.get_dex_router(opp.chain, opp.dex)
             if not router:
                 logger.warning(f"No router for {opp.dex} on {opp.chain}")
                 return
-            
+
             # Calculate position size (start small for micro caps)
             position_size = min(
                 self.config.max_position_usd,
                 opp.liquidity_usd * 0.01,  # Max 1% of liquidity
                 50.0  # Max $50 for micro caps
             )
-            
+
             # Execute buy
             result = await self.executor.execute_buy(opp, position_size, w3, router)
-            
+
             if result.get('ok') or result.get('success'):
                 self.stats['trades_executed'] += 1
                 self.stats['successful_trades'] += 1
                 self.stats['total_volume_usd'] += position_size
-                
+
                 # Track position
                 self.positions[opp.token_address] = {
                     'opportunity': opp,
@@ -488,7 +521,7 @@ class DEXOrchestrator:
                     'chain': opp.chain,
                     'dex': opp.dex,
                 }
-                
+
                 logger.info(f"✅ TRADE EXECUTED: {opp.symbol} on {opp.chain}")
                 logger.info(f"   Entry: ${opp.price_usd:.8f}")
                 logger.info(f"   Size: ${position_size:.2f}")
@@ -496,11 +529,11 @@ class DEXOrchestrator:
             else:
                 self.stats['failed_trades'] += 1
                 logger.warning(f"❌ Trade failed: {opp.symbol}")
-                
+
         except Exception as e:
             logger.error(f"Execute opportunity error: {e}")
             self.stats['failed_trades'] += 1
-    
+
     async def _position_monitoring_loop(self):
         """Monitor open positions and take profit/stop loss"""
         while self.running:
@@ -512,34 +545,34 @@ class DEXOrchestrator:
                         position_size = position['position_size']
                         entry_time = position['entry_time']
                         chain = position['chain']
-                        
+
                         # Get Web3 connection
                         w3 = await self.web3_manager.connect_chain(chain)
                         if not w3:
                             continue
-                        
+
                         # Get router
                         router = self.web3_manager.get_dex_router(chain, position.get('dex', 'uniswap_v2'))
                         if not router:
                             continue
-                        
+
                         # Get token balance
                         engine = self.executor.get_swap_engine(chain, w3, router)
                         if not engine:
                             continue
-                        
+
                         balance = engine.get_token_balance(opp.token_address)
                         if balance == 0:
                             # Already sold
                             del self.positions[address]
                             continue
-                        
+
                         # Calculate current price (rough estimate from pool)
                         current_price = opp.price_usd  # Would need to query pool for real price
-                        
+
                         # Calculate PnL
                         price_change = (current_price - entry_price) / entry_price
-                        
+
                         # Take profit at 2x
                         if price_change >= 1.0:  # 100% gain
                             logger.info(f"🎯 Taking profit on {opp.symbol}: {price_change:.1%} gain")
@@ -549,12 +582,12 @@ class DEXOrchestrator:
                                 w3=w3,
                                 router_address=router
                             )
-                            
+
                             if result.get('success'):
                                 self.stats['total_profit_usd'] += position_size * price_change
                                 del self.positions[address]
                                 logger.info(f"✅ Sold {opp.symbol} for {price_change:.1%} profit!")
-                        
+
                         # Stop loss at -50%
                         elif price_change <= -0.5:  # 50% loss
                             logger.warning(f"🛑 Stop loss on {opp.symbol}: {price_change:.1%} loss")
@@ -564,26 +597,26 @@ class DEXOrchestrator:
                                 w3=w3,
                                 router_address=router
                             )
-                            
+
                             if result.get('success'):
                                 self.stats['total_profit_usd'] += position_size * price_change  # Negative
                                 del self.positions[address]
                                 logger.info(f"✅ Closed {opp.symbol} at {price_change:.1%} loss")
-                        
+
                         # Log status for positions in between
                         else:
                             logger.info(f"📊 {opp.symbol}: {price_change:+.1%} (holding)")
-                    
+
                     except Exception as e:
                         logger.error(f"Error monitoring position {address}: {e}")
                         continue
-                
+
                 await asyncio.sleep(30)  # Check every 30 seconds
-                
+
             except Exception as e:
                 logger.error(f"Position monitoring error: {e}")
                 await asyncio.sleep(30)
-    
+
     async def get_stats(self) -> Dict[str, Any]:
         """Get DEX trading statistics"""
         return {
@@ -595,7 +628,7 @@ class DEXOrchestrator:
                 if self.stats['trades_executed'] > 0 else 0.0
             )
         }
-    
+
     async def get_opportunities(self, min_score: float = 60.0) -> List[DEXOpportunity]:
         """Get current opportunities above a threshold"""
         return [
@@ -616,19 +649,19 @@ if __name__ == "__main__":
             use_private_tx=False,  # Disable for testing
             mev_protection=True
         )
-        
+
         orchestrator = DEXOrchestrator(config)
         await orchestrator.start()
-        
+
         # Run for 5 minutes
         await asyncio.sleep(300)
-        
+
         stats = await orchestrator.get_stats()
         print(f"\n📊 DEX Stats:")
         print(f"   Opportunities: {stats['opportunities_found']}")
         print(f"   Trades: {stats['trades_executed']}")
         print(f"   Win Rate: {stats['win_rate']:.1%}")
-        
+
         await orchestrator.stop()
-    
+
     asyncio.run(main())

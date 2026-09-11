@@ -102,7 +102,7 @@ Check these:
 
 **Before:** Trading 5-20 hardcoded pairs
 
-**After:** 
+**After:**
 - Discovering 3000+ pairs every 30 minutes
 - Trading 100-500 high-profit pairs
 - More signals, more trades, more profits!

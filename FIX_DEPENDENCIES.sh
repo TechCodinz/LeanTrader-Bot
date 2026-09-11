@@ -17,7 +17,7 @@ if [ $? -eq 0 ]; then
     echo "✅ Dependencies installed via pip"
 else
     echo "⚠️  Pip install had issues, trying apt..."
-    
+
     # Method 2: Install via apt (Debian packages)
     echo "Method 2: Installing via apt..."
     sudo apt update
@@ -29,10 +29,10 @@ else
         python3-bs4 \
         python3-dateutil \
         python3-pytz
-    
+
     # Install ccxt and web3 via pip (not in apt)
     pip3 install --break-system-packages ccxt web3 python-telegram-bot qiskit tensorflow scikit-learn
-    
+
     echo "✅ Dependencies installed via apt + pip"
 fi
 

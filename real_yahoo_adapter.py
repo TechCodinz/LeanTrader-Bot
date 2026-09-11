@@ -12,7 +12,7 @@ import pandas as pd
 from curl_cffi import requests as curl_requests
 
 
-EXPLICIT_IMPERSONATION = "chrome136"
+EXPLICIT_IMPERSONATION = "chrome"
 
 
 SYMBOL_MAP = {

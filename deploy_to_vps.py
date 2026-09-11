@@ -162,7 +162,7 @@ talib-binary==0.4.26
 web3==6.11.3
 pycryptodome==3.19.0
 EOF
-        
+
         /opt/leantraderbot/venv/bin/pip install --upgrade pip setuptools wheel
         /opt/leantraderbot/venv/bin/pip install -r /tmp/requirements.txt
         echo "✓ Python packages installed"
@@ -248,7 +248,7 @@ MODEL_SAVE_PATH=/opt/leantraderbot/models
 MODEL_BACKUP_ENABLED=true
 MODEL_VERSION_CONTROL=true
 EOF
-        
+
         chmod 600 /opt/leantraderbot/.env
         echo "✓ Configuration created"
     """,
@@ -294,7 +294,7 @@ SyslogIdentifier=ultra_plus
 [Install]
 WantedBy=multi-user.target
 EOF
-        
+
         systemctl daemon-reload
         systemctl enable ultra_plus
         echo "✓ Service installed and enabled"
@@ -316,23 +316,23 @@ while true; do
         echo "$(date): Bot stopped, restarting..."
         systemctl start ultra_plus
     fi
-    
+
     # Check memory usage
     MEM_USED=$(free | grep Mem | awk '{print ($3/$2) * 100.0}')
     if (( $(echo "$MEM_USED > 90" | bc -l) )); then
         echo "$(date): High memory usage, restarting bot..."
         systemctl restart ultra_plus
     fi
-    
+
     sleep 60
 done
 EOF
-        
+
         chmod +x /opt/leantraderbot/monitor.sh
-        
+
         # Add to crontab for startup
         (crontab -l 2>/dev/null; echo "@reboot /opt/leantraderbot/monitor.sh &") | crontab -
-        
+
         echo "✓ Monitoring configured"
     """,
     )
@@ -354,18 +354,18 @@ except:
 # Enhanced configuration for maximum profit
 class EnhancedConfig(Config):
     """Enhanced configuration with all features."""
-    
+
     # Quantum features
     ENABLE_QUANTUM = os.getenv('ENABLE_QUANTUM', 'true').lower() == 'true'
     ENABLE_NEURAL_SWARM = os.getenv('ENABLE_NEURAL_SWARM', 'true').lower() == 'true'
     ENABLE_FRACTAL = os.getenv('ENABLE_FRACTAL', 'true').lower() == 'true'
     ENABLE_SMART_MONEY = os.getenv('ENABLE_SMART_MONEY', 'true').lower() == 'true'
-    
+
     # Advanced intervals optimized for profit
     QUANTUM_INTERVAL = 15  # Quantum analysis every 15s
     SWARM_INTERVAL = 30    # Swarm optimization every 30s
     FRACTAL_INTERVAL = 20  # Fractal analysis every 20s
-    
+
     # Model persistence
     MODEL_SAVE_PATH = Path('/opt/leantraderbot/models')
     MODEL_BACKUP_ENABLED = True
@@ -444,7 +444,7 @@ EOF
 1. ADD YOUR API KEYS:
    ssh root@75.119.149.117
    nano /opt/leantraderbot/.env
-   
+
    Add these keys:
    - BYBIT_TESTNET_API_KEY (get from testnet.bybit.com)
    - BYBIT_TESTNET_API_SECRET

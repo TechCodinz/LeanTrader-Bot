@@ -25,24 +25,24 @@ class PersistenceManager:
     - Trading history
     - Strategy scores
     """
-    
+
     def __init__(self):
         self.workspace = Path('/workspace')
         self.data_dir = self.workspace / 'data'
         self.models_dir = self.workspace / 'models'
         self.runtime_dir = self.workspace / 'runtime'
-        
+
         # Ensure directories exist
         self.data_dir.mkdir(exist_ok=True)
         self.models_dir.mkdir(exist_ok=True)
         self.runtime_dir.mkdir(exist_ok=True)
-        
+
         self.loaded_databases = {}
         self.loaded_memories = {}
         self.loaded_models = {}
-        
+
         logger.info("🧠 Persistence Manager initialized")
-    
+
     def load_all_learned_data(self) -> Dict[str, Any]:
         """
         Load ALL learned data from previous runs
@@ -51,7 +51,7 @@ class PersistenceManager:
         logger.info("\n" + "=" * 80)
         logger.info("🔄 LOADING LEARNED MEMORY - Restoring previous knowledge...")
         logger.info("=" * 80)
-        
+
         state = {
             'databases': {},
             'patterns': {},
@@ -60,34 +60,34 @@ class PersistenceManager:
             'scores': {},
             'memory': {}
         }
-        
+
         # 1. Load all .db files
         state['databases'] = self._load_databases()
-        
+
         # 2. Load pattern memory
         state['patterns'] = self._load_pattern_memory()
-        
+
         # 3. Load trading history
         state['history'] = self._load_trading_history()
-        
+
         # 4. Load strategy scores
         state['scores'] = self._load_strategy_scores()
-        
+
         # 5. Load brain memory
         state['memory'] = self._load_brain_memory()
-        
+
         # 6. Load model weights
         state['models'] = self._load_model_weights()
-        
+
         logger.info("\n✅ LEARNED MEMORY LOADED - Bot will use previous knowledge!")
         logger.info("=" * 80)
-        
+
         return state
-    
+
     def _load_databases(self) -> Dict[str, Any]:
         """Load all SQLite databases"""
         databases = {}
-        
+
         db_files = [
             'ultra_trading_system.db',
             'evolution_engine.db',
@@ -97,7 +97,7 @@ class PersistenceManager:
             'divine_intelligence.db',
             'enhanced_trading_bot.db'
         ]
-        
+
         for db_file in db_files:
             db_path = self.workspace / db_file
             if db_path.exists():
@@ -107,30 +107,30 @@ class PersistenceManager:
                     cursor = conn.cursor()
                     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
                     tables = cursor.fetchall()
-                    
+
                     db_data = {'path': str(db_path), 'tables': []}
                     for table in tables:
                         table_name = table[0]
                         cursor.execute(f"SELECT COUNT(*) FROM {table_name};")
                         count = cursor.fetchone()[0]
                         db_data['tables'].append({'name': table_name, 'rows': count})
-                    
+
                     conn.close()
                     databases[db_file] = db_data
-                    
+
                     total_rows = sum(t['rows'] for t in db_data['tables'])
                     logger.info(f"  ✅ {db_file}: {len(db_data['tables'])} tables, {total_rows} total rows")
-                    
+
                 except Exception as e:
                     logger.warning(f"  ⚠️  {db_file}: {e}")
-        
+
         logger.info(f"📊 Loaded {len(databases)} databases with learned data")
         return databases
-    
+
     def _load_pattern_memory(self) -> Dict[str, Any]:
         """Load pattern memory from CSV and JSON"""
         patterns = {}
-        
+
         # Pattern memory CSV
         pattern_csv = self.data_dir / 'pattern_memory.csv'
         if pattern_csv.exists():
@@ -146,7 +146,7 @@ class PersistenceManager:
             except Exception as e:
                 logger.warning(f"  ⚠️  pattern_memory.csv: {e}")
                 pd = None
-        
+
         # Pattern scores JSON
         scores_json = self.data_dir / 'pattern_scores.json'
         if scores_json.exists():
@@ -161,14 +161,14 @@ class PersistenceManager:
                 logger.info(f"  ✅ pattern_scores.json: {len(scores) if isinstance(scores, dict) else 0} scored patterns")
             except Exception as e:
                 logger.warning(f"  ⚠️  pattern_scores.json: {e}")
-        
+
         logger.info(f"🎯 Loaded {len(patterns)} pattern memory systems")
         return patterns
-    
+
     def _load_trading_history(self) -> Dict[str, Any]:
         """Load trading history"""
         history = {}
-        
+
         history_csv = self.data_dir / 'history.csv'
         if history_csv.exists():
             try:
@@ -183,14 +183,14 @@ class PersistenceManager:
             except Exception as e:
                 logger.warning(f"  ⚠️  history.csv: {e}")
                 pd = None
-        
+
         logger.info(f"📈 Loaded trading history")
         return history
-    
+
     def _load_strategy_scores(self) -> Dict[str, Any]:
         """Load strategy performance scores"""
         scores = {}
-        
+
         # Best params
         best_params = self.workspace / 'best_params.json'
         if best_params.exists():
@@ -205,14 +205,14 @@ class PersistenceManager:
                 logger.info(f"  ✅ best_params.json: Best parameters for strategies loaded")
             except Exception as e:
                 logger.warning(f"  ⚠️  best_params.json: {e}")
-        
+
         logger.info(f"🏆 Loaded strategy scores")
         return scores
-    
+
     def _load_brain_memory(self) -> Dict[str, Any]:
         """Load brain/memory state"""
         memory = {}
-        
+
         brain_json = self.runtime_dir / 'brain.json'
         if brain_json.exists():
             try:
@@ -227,14 +227,14 @@ class PersistenceManager:
                 logger.info(f"  ✅ brain.json: {memory['brain']['positions']} positions, {memory['brain']['trades']} trades")
             except Exception as e:
                 logger.warning(f"  ⚠️  brain.json: {e}")
-        
+
         logger.info(f"🧠 Loaded brain memory")
         return memory
-    
+
     def _load_model_weights(self) -> Dict[str, Any]:
         """Load ML model weights"""
         models = {}
-        
+
         # Look for .pkl files
         pkl_files = list(self.workspace.glob('*.pkl'))
         for pkl_file in pkl_files[:10]:  # Limit to 10
@@ -250,12 +250,12 @@ class PersistenceManager:
                 logger.info(f"  ✅ {pkl_file.name}: Model weights loaded ({models[pkl_file.name]['size_kb']:.1f} KB)")
             except Exception as e:
                 logger.debug(f"  ⚠️  {pkl_file.name}: {e}")
-        
+
         if models:
             logger.info(f"🤖 Loaded {len(models)} model weight files")
-        
+
         return models
-    
+
     def save_state(self, state: Dict[str, Any]) -> None:
         """Save current state for next run"""
         try:
@@ -289,7 +289,7 @@ if __name__ == "__main__":
     # Test loading
     logging.basicConfig(level=logging.INFO)
     manager, state = initialize_persistence()
-    
+
     print("\n" + "=" * 80)
     print("LEARNED DATA SUMMARY")
     print("=" * 80)

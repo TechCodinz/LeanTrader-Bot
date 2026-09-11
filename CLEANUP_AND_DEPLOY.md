@@ -1,7 +1,7 @@
 # ✅ FOUND YOUR OLD BOT - CLEANUP AND DEPLOY
 
-**Location**: `/opt/Lean-Trader` (with venv and Docker)  
-**Status**: Docker container stopped ✅  
+**Location**: `/opt/Lean-Trader` (with venv and Docker)
+**Status**: Docker container stopped ✅
 **Next**: Clean up and deploy new bot
 
 ---
@@ -191,9 +191,9 @@ screen -r trading_bot
 
 ## ✅ SUMMARY
 
-**Found**: Old bot in /opt/Lean-Trader + Docker ✅  
-**Stopped**: Docker container killed ✅  
-**Next**: Clean up directory and wait 10 min ⏰  
+**Found**: Old bot in /opt/Lean-Trader + Docker ✅
+**Stopped**: Docker container killed ✅
+**Next**: Clean up directory and wait 10 min ⏰
 **Then**: Deploy new bot to ~/trading_bot 🚀
 
 **Run cleanup commands now, then WAIT before deploying!** ⏰

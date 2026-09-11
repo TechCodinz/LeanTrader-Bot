@@ -178,7 +178,7 @@ class Ledger:
     @staticmethod
     def log_entry(*args, **kwargs):
         return log_entry(*args, **kwargs)
-    
+
     @staticmethod
     def log_exit(*args, **kwargs):
         return log_exit(*args, **kwargs)

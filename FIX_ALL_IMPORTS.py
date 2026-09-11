@@ -8,7 +8,7 @@ output = []
 i = 0
 while i < len(lines):
     line = lines[i]
-    
+
     # Check if it's a problematic import line
     if line.startswith('from ') and 'import' in line:
         # Check if already wrapped in try/except
@@ -16,24 +16,24 @@ while i < len(lines):
             output.append(line)
             i += 1
             continue
-        
+
         # Skip if it's a safe import
         safe_imports = ['typing', 'datetime', 'pathlib', 'asyncio', 'logging', 'collections']
         if any(safe in line for safe in safe_imports):
             output.append(line)
             i += 1
             continue
-        
+
         # Check if it's in the ultra/deep systems section (lines 150-310 roughly)
         if 150 <= i <= 310 and ('ultra_' in line or 'router' in line.lower() or 'nobel' in line.lower() or '_ENGINE' in line):
             # Make it optional
             module_name = line.split('from ')[1].split(' import')[0].strip()
             import_parts = line.split(' import ')[1].strip()
-            
+
             output.append(f'try:\n')
             output.append(line)
             output.append(f'except (ImportError, ModuleNotFoundError, AttributeError):\n')
-            
+
             # Create None assignments
             if ',' in import_parts:
                 classes = [c.strip().split(' as ')[0] for c in import_parts.split(',')]
@@ -45,7 +45,7 @@ while i < len(lines):
             output.append('\n')
             i += 1
             continue
-    
+
     output.append(line)
     i += 1
 

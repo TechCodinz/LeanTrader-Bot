@@ -271,7 +271,7 @@ class ContinuousUltraTradingSystem:
             )
 
             session = curl_requests.Session(
-                impersonate="chrome136"
+                impersonate="chrome"
             )
 
             try:
@@ -494,7 +494,7 @@ class ContinuousUltraTradingSystem:
                 cursor = self.db.cursor()
                 cursor.execute(
                     '''
-                    INSERT INTO telegram_messages 
+                    INSERT INTO telegram_messages
                     (message_type, message_text, sent)
                     VALUES (?, ?, ?)
                 ''',
@@ -1021,7 +1021,7 @@ class ContinuousUltraTradingSystem:
 
             def fetch():
                 session = curl_requests.Session(
-                    impersonate="chrome136"
+                    impersonate="chrome"
                 )
 
                 try:

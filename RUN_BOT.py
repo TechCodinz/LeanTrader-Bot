@@ -86,22 +86,22 @@ async def main():
     print(f"🚀 STARTING BOT IN {mode.upper()} MODE")
     print("=" * 80)
     print()
-    
+
     # Create orchestrator
     bot = CompleteUltimateOrchestrator(mode=mode)
-    
+
     # Initialize
     print("⏳ Initializing all systems...")
     await bot.initialize_all_systems()
-    
+
     # Wire
     print("\n⏳ Wiring all systems...")
     await bot.wire_all_systems()
-    
+
     # Start
     print("\n⏳ Starting all orchestrators...")
     tasks = await bot.start_all_orchestrators()
-    
+
     print()
     print("=" * 80)
     print("✅ BOT IS RUNNING!")
@@ -117,7 +117,7 @@ async def main():
     print("Press Ctrl+C to stop")
     print("=" * 80)
     print()
-    
+
     # Run forever
     try:
         await asyncio.gather(*tasks)

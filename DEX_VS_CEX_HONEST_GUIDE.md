@@ -88,8 +88,8 @@
 ```
 Trade 1: Buy token
   - Gas fee: $5-15 (12-37% of capital gone!)
-  
-Trade 2: Sell token  
+
+Trade 2: Sell token
   - Gas fee: $5-15 (another 12-37% gone!)
 
 Total fees: $10-30 = 25-75% of your $40!
@@ -184,7 +184,7 @@ sudo systemctl restart trading-bot
 ```
 Week 4: $40 → $100 (add $60 more)
 Week 5: $100 → $250
-Week 6: $250 → $500  
+Week 6: $250 → $500
 Week 8: $500 → $1,000+
 ```
 

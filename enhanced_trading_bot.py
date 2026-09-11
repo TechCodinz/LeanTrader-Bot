@@ -284,7 +284,7 @@ class EnhancedTradingBot:
             cursor = self.db.cursor()
             cursor.execute(
                 '''
-                INSERT INTO bybit_trades 
+                INSERT INTO bybit_trades
                 (symbol, side, amount, entry_price, current_price, status)
                 VALUES (?, ?, ?, ?, ?, ?)
             ''',
@@ -329,7 +329,7 @@ class EnhancedTradingBot:
             cursor = self.db.cursor()
             cursor.execute(
                 '''
-                SELECT COUNT(*) FROM bybit_trades 
+                SELECT COUNT(*) FROM bybit_trades
                 WHERE symbol = ? AND status = 'OPEN'
             ''',
                 (symbol,),
@@ -495,7 +495,7 @@ class EnhancedTradingBot:
                         cursor = self.db.cursor()
                         cursor.execute(
                             '''
-                            INSERT INTO trading_signals 
+                            INSERT INTO trading_signals
                             (symbol, timeframe, signal, confidence, price, tp1, tp2, tp3, stop_loss, ai_score)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ''',

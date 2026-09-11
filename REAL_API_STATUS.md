@@ -8,7 +8,7 @@ Your real exchange API keys have been successfully integrated and are working pe
 
 ### **✅ Fully Operational (5/7)**
 - **OKX**: ✅ 2,381 symbols loaded, real prices
-- **KuCoin**: ✅ 1,316 symbols loaded, real prices  
+- **KuCoin**: ✅ 1,316 symbols loaded, real prices
 - **Gate.io**: ✅ 6,028 symbols loaded, real prices + balance access
 - **Bitget**: ✅ 1,461 symbols loaded, real prices
 - **MEXC**: ✅ Working with IP whitelist (needs VPS IP)
@@ -21,7 +21,7 @@ Your real exchange API keys have been successfully integrated and are working pe
 
 ### **Current Live Opportunities**
 - **BTC/USDT**: 1.26% profit (Binance → Gate.io)
-- **ETH/USDT**: 0.36% profit (Bybit → Bitget)  
+- **ETH/USDT**: 0.36% profit (Bybit → Bitget)
 - **BNB/USDT**: 0.88% profit (Binance → OKX)
 
 ### **Real-Time Price Differences**

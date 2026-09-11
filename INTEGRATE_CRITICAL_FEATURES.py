@@ -82,7 +82,7 @@ for symbol, position in self.risk_manager.open_positions.items():
         # Get current price
         ticker = await self.engines.get('bybit').fetch_ticker(symbol)
         current_price = ticker['last']
-        
+
         # Update trailing stop
         new_stop = self.data_hub.orchestrator.trailing_stops.update(
             symbol=symbol,
@@ -90,13 +90,13 @@ for symbol, position in self.risk_manager.open_positions.items():
             entry_price=position['entry_price'],
             initial_stop=position.get('stop_loss', current_price * 0.98)
         )
-        
+
         # If stop was raised, update on exchange
         if new_stop > position.get('stop_loss', 0):
             logger.info(f"📈 Trailing stop updated: {symbol} → ${new_stop:.2f}")
             # TODO: Update actual stop order on exchange
             position['stop_loss'] = new_stop
-            
+
     except Exception as e:
         logger.debug(f"Trailing stop update error for {symbol}: {e}")
 """
@@ -114,17 +114,17 @@ for symbol, position in list(self.risk_manager.open_positions.items()):
         # Get current price
         ticker = await self.engines.get('bybit').fetch_ticker(symbol)
         current_price = ticker['last']
-        
+
         # Check partial TP levels
         tp_orders = await self.data_hub.orchestrator.partial_tp.check_tp_levels(
             symbol=symbol,
             current_price=current_price
         )
-        
+
         # Execute partial TPs
         for order in tp_orders:
             logger.info(f"🎯 Partial TP triggered: {order['tp_level']} for {symbol}")
-            
+
             # Execute partial sell
             await self._execute_partial_close(
                 symbol=order['symbol'],
@@ -132,7 +132,7 @@ for symbol, position in list(self.risk_manager.open_positions.items()):
                 price=current_price,
                 tp_level=order['tp_level']
             )
-            
+
     except Exception as e:
         logger.debug(f"Partial TP check error for {symbol}: {e}")
 """
@@ -158,7 +158,7 @@ base_size = self.position_sizer.calculate_position_size(
 
 # Apply compounding multiplier
 compound_multiplier = (
-    self.data_hub.orchestrator.compound_engine.current_capital / 
+    self.data_hub.orchestrator.compound_engine.current_capital /
     self.data_hub.orchestrator.compound_engine.initial_capital
 )
 position_size = base_size * compound_multiplier
@@ -172,40 +172,40 @@ logger.info(f"   Base size: ${base_size:.2f} → Compound size: ${position_size:
 # ============================================================================
 
 """
-In CompleteUltimateOrchestrator.enhanced_trading_loop(), 
+In CompleteUltimateOrchestrator.enhanced_trading_loop(),
 at the start of each cycle, add:
 
 # Check emergency stop conditions
 try:
     # Get current balance
     balance = await self._get_account_balance()
-    
+
     # Check if emergency stop should trigger
     should_stop = self.emergency_stop.check_conditions(
         account_balance=balance,
         initial_balance=self.compound_engine.initial_capital
     )
-    
+
     if should_stop:
         logger.error("🚨 EMERGENCY STOP TRIGGERED!")
         logger.error("   Reason: Max loss or too many trades")
         logger.error("   Closing all positions and stopping bot...")
-        
+
         # Close all positions
         for symbol in list(self.orchestrators['execution'].risk_manager.open_positions.keys()):
             await self._emergency_close_position(symbol)
-        
+
         # Stop the bot
         self.is_running = False
-        
+
         # Send Telegram alert
         if 'telegram' in self.advanced_orchestrators:
             await self.advanced_orchestrators['telegram'].send_alert(
                 "🚨 EMERGENCY STOP TRIGGERED - Bot halted"
             )
-        
+
         return  # Exit loop
-        
+
 except Exception as e:
     logger.debug(f"Emergency stop check error: {e}")
 """
@@ -246,16 +246,16 @@ async def _execute_partial_close(self, symbol: str, size: float, price: float, t
     try:
         logger.info(f"🎯 Executing partial close: {symbol} - {tp_level}")
         logger.info(f"   Size: {size} @ ${price:.2f}")
-        
+
         # Execute sell order
         if 'bybit' in self.engines:
             order = await self.engines['bybit'].create_market_sell_order(
                 symbol=symbol,
                 amount=size
             )
-            
+
             logger.info(f"✅ Partial TP executed: {order.get('id')}")
-            
+
             # Record in ledger
             if self.ledger:
                 await self.ledger.record_trade({
@@ -266,9 +266,9 @@ async def _execute_partial_close(self, symbol: str, size: float, price: float, t
                     'type': f'partial_tp_{tp_level}',
                     'timestamp': datetime.now()
                 })
-            
+
             return True
-            
+
     except Exception as e:
         logger.error(f"❌ Partial close failed: {e}")
         return False
@@ -283,20 +283,20 @@ async def _emergency_close_position(self, symbol: str):
     '''Emergency close a position'''
     try:
         logger.warning(f"⚠️  Emergency closing position: {symbol}")
-        
+
         # Get position info
         if 'execution' in self.orchestrators:
             position = self.orchestrators['execution'].risk_manager.open_positions.get(symbol)
-            
+
             if position:
                 # Close via execution orchestrator
                 await self.orchestrators['execution']._close_position(
                     symbol=symbol,
                     reason="emergency_stop"
                 )
-                
+
                 logger.warning(f"✅ Emergency close complete: {symbol}")
-                
+
     except Exception as e:
         logger.error(f"❌ Emergency close failed for {symbol}: {e}")
 """
@@ -313,15 +313,15 @@ async def _get_account_balance(self) -> float:
         if 'execution' in self.orchestrators:
             balance = self.orchestrators['execution'].position_sizer.balance
             return balance
-        
+
         # Fallback: Get from exchange
         if self.engines.get('bybit'):
             balance_info = await self.engines['bybit'].fetch_balance()
             return float(balance_info.get('USDT', {}).get('free', 1000.0))
-        
+
         # Default
         return 1000.0
-        
+
     except Exception as e:
         logger.debug(f"Balance fetch error: {e}")
         return 1000.0
@@ -338,7 +338,7 @@ def verify_integration():
     print("=" * 80)
     print("VERIFYING CRITICAL FEATURES INTEGRATION")
     print("=" * 80)
-    
+
     checks = {
         'Trailing Stops': False,
         'Compound Engine': False,
@@ -347,16 +347,16 @@ def verify_integration():
         'Funding Arb': False,
         'Volume Analyzer': False,
     }
-    
+
     try:
         from COMPLETE_ULTIMATE_ORCHESTRATOR import CompleteUltimateOrchestrator
-        
+
         # Create instance (won't fully initialize without data_hub)
         # but we can check if attributes exist
-        
+
         # Check if features were imported
         import COMPLETE_ULTIMATE_ORCHESTRATOR as orch_module
-        
+
         if hasattr(orch_module, 'TrailingStopManager'):
             checks['Trailing Stops'] = True
         if hasattr(orch_module, 'CompoundEngine'):
@@ -369,28 +369,28 @@ def verify_integration():
             checks['Funding Arb'] = True
         if hasattr(orch_module, 'VolumeProfileAnalyzer'):
             checks['Volume Analyzer'] = True
-            
+
     except Exception as e:
         print(f"⚠️  Could not verify: {e}")
         CompleteUltimateOrchestrator = None
         orch_module = None
-    
+
     print("\nResults:")
     for feature, status in checks.items():
         icon = "✅" if status else "❌"
         print(f"  {icon} {feature}")
-    
+
     total = sum(checks.values())
     print(f"\n{'=' * 80}")
     print(f"Integration Status: {total}/6 features active")
-    
+
     if total == 6:
         print("🎉 ALL FEATURES INTEGRATED - Ready for 50-100% profit boost!")
     elif total > 0:
         print(f"⚠️  {6-total} features still need integration")
     else:
         print("❌ No features integrated yet - Start with Step 1 above")
-    
+
     print("=" * 80)
 
 # ============================================================================
@@ -421,8 +421,8 @@ if __name__ == "__main__":
 ║                                                                      ║
 ╚══════════════════════════════════════════════════════════════════════╝
     """)
-    
+
     print("\nRun verify_integration() after making changes to check status.\n")
-    
+
     # Run verification
     verify_integration()

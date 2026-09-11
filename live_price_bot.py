@@ -423,7 +423,7 @@ class LivePriceProfessionalBot:
                         cursor = self.db.cursor()
                         cursor.execute(
                             '''
-                            INSERT INTO live_prices 
+                            INSERT INTO live_prices
                             (symbol, price, volume, change_24h, high_24h, low_24h, source)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
                         ''',
@@ -669,7 +669,7 @@ class LivePriceProfessionalBot:
             cursor = self.db.cursor()
             cursor.execute(
                 '''
-                INSERT INTO trading_signals 
+                INSERT INTO trading_signals
                 (symbol, timeframe, signal, confidence, price, tp1, tp2, tp3, stop_loss)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''',

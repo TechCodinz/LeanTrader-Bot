@@ -18,34 +18,34 @@ scp ultimate_bot_deployment.tar.gz $VPS_USER@$VPS_IP:~/
 echo "🔧 Deploying on VPS..."
 ssh $VPS_USER@$VPS_IP << 'EOF'
     echo "🚀 ULTIMATE BOT VPS DEPLOYMENT STARTING..."
-    
+
     # Stop any existing bot processes
     pkill -f "ultimate_bot_working.py" || true
     pkill -f "python.*bot" || true
-    
+
     # Extract deployment
     tar -xzf ultimate_bot_deployment.tar.gz
     rm ultimate_bot_deployment.tar.gz
-    
+
     # Activate virtual environment
     source venv/bin/activate
-    
+
     # Install dependencies
     pip install aiogram ccxt scikit-learn loguru numpy
-    
+
     # Make script executable
     chmod +x ultimate_bot_working.py
-    
+
     # Start the bot in background
     echo "🚀 STARTING ULTIMATE 450+ MODELS TRADING BOT..."
     nohup python3 ultimate_bot_working.py > bot.log 2>&1 &
-    
+
     # Get process ID
     BOT_PID=$!
     echo "🤖 Bot started with PID: $BOT_PID"
     echo "📊 Bot is running in background"
     echo "📝 Logs: tail -f bot.log"
-    
+
     # Wait a moment and check if running
     sleep 5
     if ps -p $BOT_PID > /dev/null; then

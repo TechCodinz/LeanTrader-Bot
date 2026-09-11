@@ -157,16 +157,16 @@ class TrailingStopManager:
     def __init__(self, trail_percent=0.02):
         self.trail_percent = trail_percent
         self.highest_prices = {}
-    
+
     def update_stop(self, symbol, current_price, position):
         if symbol not in self.highest_prices:
             self.highest_prices[symbol] = current_price
-        
+
         if current_price > self.highest_prices[symbol]:
             self.highest_prices[symbol] = current_price
-            
+
         trail_stop = self.highest_prices[symbol] * (1 - self.trail_percent)
-        
+
         if trail_stop > position['stop_loss']:
             # Update stop loss
             return trail_stop
@@ -180,11 +180,11 @@ class CompoundManager:
         self.base_size = initial_size
         self.total_profit = 0
         self.compound_rate = 0.5  # Reinvest 50% of profits
-    
+
     def calculate_position_size(self):
         compound_addition = self.total_profit * self.compound_rate
         return self.base_size + compound_addition
-    
+
     def update_profits(self, pnl):
         if pnl > 0:
             self.total_profit += pnl
@@ -196,21 +196,21 @@ def analyze_volume_profile(df):
     """Find high-volume price levels."""
     price_bins = pd.cut(df['close'], bins=50)
     volume_profile = df.groupby(price_bins)['volume'].sum()
-    
+
     # Find POC (Point of Control)
     poc = volume_profile.idxmax()
-    
+
     # Find value area (70% of volume)
     total_volume = volume_profile.sum()
     cumsum = 0
     value_area = []
-    
+
     for price, vol in volume_profile.items():
         cumsum += vol
         value_area.append(price)
         if cumsum >= total_volume * 0.7:
             break
-    
+
     return {
         'poc': poc,
         'value_area_high': max(value_area),
@@ -222,16 +222,16 @@ def analyze_volume_profile(df):
 ```python
 async def check_funding_arbitrage():
     """Find funding rate opportunities."""
-    
+
     # Get funding rates from multiple exchanges
     bybit_funding = await get_bybit_funding()
     binance_funding = await get_binance_funding()
-    
+
     opportunities = []
-    
+
     for symbol in common_symbols:
         diff = abs(bybit_funding[symbol] - binance_funding[symbol])
-        
+
         if diff > 0.001:  # 0.1% difference
             opportunities.append({
                 'symbol': symbol,
@@ -239,7 +239,7 @@ async def check_funding_arbitrage():
                 'exchange_short': 'binance' if bybit_funding[symbol] < binance_funding[symbol] else 'bybit',
                 'profit_per_8h': diff * 100  # Percentage
             })
-    
+
     return opportunities
 ```
 
@@ -249,11 +249,11 @@ class SocialScanner:
     def __init__(self):
         self.twitter_keywords = ['moon', 'pump', 'breaking', 'launched']
         self.reddit_subs = ['CryptoMoonShots', 'SatoshiStreetBets']
-        
+
     async def scan_twitter(self):
         # Use Twitter API or scraper
         tweets = await get_recent_tweets(self.twitter_keywords)
-        
+
         for tweet in tweets:
             if tweet['retweets'] > 100:  # Viral tweet
                 # Extract tickers
@@ -296,7 +296,7 @@ class SocialScanner:
 
 ## 💡 RECOMMENDED IMMEDIATE ACTIONS
 
-1. **Add Trailing Stops** 
+1. **Add Trailing Stops**
    - Prevents giving back profits
    - Simple to implement
    - Huge impact

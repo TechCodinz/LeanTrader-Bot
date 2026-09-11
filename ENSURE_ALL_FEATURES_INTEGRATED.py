@@ -22,17 +22,17 @@ critical_files = {
     # Core
     "COMPLETE_ULTIMATE_ORCHESTRATOR.py": "Main orchestrator",
     "RUN_BOT.py": "Bot runner",
-    
+
     # Discovery & Pairing
     "DYNAMIC_PAIR_DISCOVERY.py": "Dynamic pair discovery (5000+ pairs)",
-    
+
     # Advanced Features
     "ULTRA_GOLDMINE_FEATURES.py": "Ultra goldmine features (+200-500%)",
     "DIVINE_INTELLIGENCE_FEATURES.py": "Divine intelligence (+300-1000%)",
     "critical_features_addon.py": "Critical profit features (+50-100%)",
     "ULTRA_RARE_ENGINES.py": "10 ultra rare engines",
     "ADAPTIVE_CONFIDENCE_ENGINE.py": "Adaptive confidence",
-    
+
     # Trading Systems
     "ADVANCED_TRADING_ACTIONS.py": "Advanced trading actions",
     "ADVANCED_TRADING_ACTIONS_ENGINE.py": "Trading actions engine",
@@ -40,7 +40,7 @@ critical_files = {
     "IBM_QUANTUM_ENGINE.py": "Quantum engine",
     "NEWS_TRADING_ENGINE.py": "News trading",
     "DEX_SWAP_ENGINE.py": "DEX swaps",
-    
+
     # Execution
     "OMNISCIENT_TRADING_MODE.py": "Omniscient mode",
     "OMNISCIENT_EXECUTION_ENGINE.py": "Execution engine",
@@ -118,11 +118,11 @@ print()
 
 if os.path.exists("venv/bin/python"):
     print("   ✅ Virtual environment exists")
-    
+
     # Check key packages
     try:
         result = subprocess.run(
-            ["./venv/bin/python", "-c", 
+            ["./venv/bin/python", "-c",
              "import ccxt, pandas, numpy, tensorflow, torch; print('OK')"],
             capture_output=True,
             text=True,
@@ -146,13 +146,13 @@ print()
 if os.path.exists(".env"):
     with open(".env", "r") as f:
         env_content = f.read()
-    
+
     required_vars = [
         ("TELEGRAM_BOT_TOKEN", "Telegram bot"),
         ("BYBIT_API_KEY", "Bybit trading (can be testnet or live)"),
         ("TRADING_MODE", "Trading mode setting"),
     ]
-    
+
     for var, description in required_vars:
         if var in env_content and "YOUR_" not in env_content.split(var)[1].split("\n")[0]:
             print(f"   ✅ {var:<25} configured - {description}")
@@ -174,7 +174,7 @@ try:
     )
     current_branch = result.stdout.strip()
     print(f"   📍 Current branch: {current_branch}")
-    
+
     # Check if we're on a feature branch
     result = subprocess.run(
         ["git", "log", "--oneline", "-1"],
@@ -183,7 +183,7 @@ try:
     )
     last_commit = result.stdout.strip()
     print(f"   📝 Last commit: {last_commit[:60]}")
-    
+
 except Exception as e:
     print(f"   ⚠️  Could not check git status: {e}")
 

@@ -76,11 +76,11 @@ if [ $? -eq 0 ]; then
     echo ""
     echo "✅ Files synced successfully!"
     echo ""
-    
+
     # Make scripts executable
     echo "  Setting permissions..."
     ssh "$VPS_USER@$VPS_IP" "cd $VPS_DIR && chmod +x *.sh 2>/dev/null || true"
-    
+
     echo ""
     echo "╔═══════════════════════════════════════════════════════════╗"
     echo "║                 DEPLOYMENT SUCCESSFUL!                    ║"
@@ -101,10 +101,10 @@ if [ $? -eq 0 ]; then
     echo "4. Monitor signals:"
     echo "   tail -f bot.log | grep '✅'"
     echo ""
-    
+
     # Cleanup
     rm -rf "$DEPLOY_DIR"
-    
+
 else
     echo ""
     echo "❌ Deployment failed!"
@@ -114,7 +114,7 @@ else
     echo "  2. Check VPS directory exists: $VPS_DIR"
     echo "  3. Check SSH key is configured"
     echo ""
-    
+
     # Cleanup
     rm -rf "$DEPLOY_DIR"
     exit 1

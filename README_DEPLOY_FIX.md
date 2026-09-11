@@ -164,11 +164,11 @@ This just means DEX trading (optional feature) is disabled. Your main CEX tradin
 
 ## Quick Reference
 
-**VPS:** root@vmi2817884  
-**Bot Directory:** /root/trading_bot  
-**Service:** trading-bot  
-**Branch:** cursor/check-and-update-trading-bot-service-0f23  
-**Main File:** RUN_BOT.py  
+**VPS:** root@vmi2817884
+**Bot Directory:** /root/trading_bot
+**Service:** trading-bot
+**Branch:** cursor/check-and-update-trading-bot-service-0f23
+**Main File:** RUN_BOT.py
 
 **Commands:**
 ```bash
@@ -233,14 +233,14 @@ All these files are now available in your repo after you pull:
 
 ## Bottom Line
 
-**Problem:** Bot crashes every 25 seconds, can't trade  
-**Fix:** Already in code, ready to deploy  
-**Action:** Run the deployment command at the top of this file  
-**Time:** 30 seconds to deploy, 60 seconds to stabilize  
-**Result:** Bot runs 24/7, executes trades  
+**Problem:** Bot crashes every 25 seconds, can't trade
+**Fix:** Already in code, ready to deploy
+**Action:** Run the deployment command at the top of this file
+**Time:** 30 seconds to deploy, 60 seconds to stabilize
+**Result:** Bot runs 24/7, executes trades
 
 ---
 
-**Last Updated:** 2025-10-15  
-**Status:** ✅ Ready to deploy  
+**Last Updated:** 2025-10-15
+**Status:** ✅ Ready to deploy
 **Priority:** 🚨 HIGH - Bot currently non-functional

@@ -185,7 +185,7 @@ class GATE_PROFIT_BOT:
 
 <b>💰 POSITION SIZES:</b>
 • BTC: 0.001 (~$43)
-• ETH: 0.01 (~$25) 
+• ETH: 0.01 (~$25)
 • BNB: 0.1 (~$15)
 • SOL: 1.0 (~$10)
 • ADA: 50 (~$12)

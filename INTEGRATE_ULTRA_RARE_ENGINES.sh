@@ -65,7 +65,7 @@ else:
 
 # Add to __init__
 init_addition = """
-        
+
         # Ultra Rare Engines
         self.ultra_rare_engines = get_ultra_rare_engines()
         logger.info("🔮 Ultra Rare Engines initialized (10 engines)")
@@ -83,7 +83,7 @@ else:
 # Save
 with open('COMPLETE_ULTIMATE_ORCHESTRATOR.py.ultra_backup', 'w') as f:
     f.write(open('COMPLETE_ULTIMATE_ORCHESTRATOR.py').read())
-    
+
 with open('COMPLETE_ULTIMATE_ORCHESTRATOR.py', 'w') as f:
     f.write(content)
 

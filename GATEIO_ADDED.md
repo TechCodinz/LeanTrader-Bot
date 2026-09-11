@@ -1,6 +1,6 @@
 # ✅ GATE.IO TESTNET ADDED!
 
-**Date**: 2025-10-14  
+**Date**: 2025-10-14
 **Status**: DUAL-EXCHANGE TRAINING READY! 🚀
 
 ---
@@ -247,7 +247,7 @@ Bybit Testnet (2):
   ✅ Secret
 
 Gate.io Testnet (2):
-  ✅ API key  
+  ✅ API key
   ✅ Secret
 
 Data APIs (6):

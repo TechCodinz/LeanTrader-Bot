@@ -24,13 +24,13 @@ class DevOpsAuditor:
         self.incomplete = []
         self.import_errors = []
         self.missing_error_handling = []
-        
+
     def scan_file(self, filepath: Path):
         """Scan a single file for issues"""
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 content = f.read()
-            
+
             # Check for placeholders
             placeholder_patterns = [
                 r'# TODO',
@@ -43,7 +43,7 @@ class DevOpsAuditor:
                 r'raise NotImplemented',
                 r'\.\.\..*#.*implement',
             ]
-            
+
             for pattern in placeholder_patterns:
                 matches = re.finditer(pattern, content, re.IGNORECASE)
                 for match in matches:
@@ -53,14 +53,14 @@ class DevOpsAuditor:
                         'line': line_num,
                         'issue': match.group()
                     })
-            
+
             # Check for incomplete try-except
             incomplete_patterns = [
                 r'except.*:\s*pass\s*$',
                 r'except.*:\s*\.\.\.s*$',
                 r'except Exception as e:\s*$',
             ]
-            
+
             for pattern in incomplete_patterns:
                 matches = re.finditer(pattern, content, re.MULTILINE)
                 for match in matches:
@@ -70,7 +70,7 @@ class DevOpsAuditor:
                         'line': line_num,
                         'issue': 'Incomplete exception handling'
                     })
-            
+
             # Try to parse as AST
             try:
                 tree = ast.parse(content, filename=str(filepath))
@@ -80,26 +80,26 @@ class DevOpsAuditor:
                     'line': e.lineno,
                     'issue': f'Syntax error: {e.msg}'
                 })
-                
+
         except Exception as e:
             self.issues.append({
                 'file': str(filepath),
                 'line': 0,
                 'issue': f'File read error: {e}'
             })
-    
+
     def scan_all_files(self):
         """Scan all Python files"""
         python_files = list(self.workspace.glob('*.py'))
         python_files.extend(self.workspace.glob('**/*.py'))
-        
+
         print(f"Scanning {len(python_files)} Python files...")
-        
+
         for filepath in python_files:
             if 'venv' in str(filepath) or '__pycache__' in str(filepath):
                 continue
             self.scan_file(filepath)
-    
+
     def test_imports(self):
         """Test critical imports"""
         critical_files = [
@@ -111,7 +111,7 @@ class DevOpsAuditor:
             'IBM_QUANTUM_ENGINE.py',
             'SMART_SCALPING_ENGINE.py',
         ]
-        
+
         print("\nTesting critical imports...")
         for filename in critical_files:
             filepath = self.workspace / filename
@@ -133,36 +133,36 @@ class DevOpsAuditor:
                     })
                     print(f"  ❌ {filename}: {e}")
                     importlib = None
-    
+
     def generate_report(self):
         """Generate audit report"""
         print("\n" + "="*80)
         print("DEVOPS AUDIT REPORT")
         print("="*80)
-        
+
         print(f"\n📊 Summary:")
         print(f"  Issues: {len(self.issues)}")
         print(f"  Placeholders: {len(self.placeholders)}")
         print(f"  Incomplete logic: {len(self.incomplete)}")
         print(f"  Import errors: {len(self.import_errors)}")
-        
+
         if self.placeholders:
             print(f"\n⚠️  PLACEHOLDERS FOUND ({len(self.placeholders)}):")
             for item in self.placeholders[:10]:
                 print(f"  {item['file']}:{item['line']} - {item['issue']}")
             if len(self.placeholders) > 10:
                 print(f"  ... and {len(self.placeholders) - 10} more")
-        
+
         if self.incomplete:
             print(f"\n⚠️  INCOMPLETE LOGIC ({len(self.incomplete)}):")
             for item in self.incomplete[:10]:
                 print(f"  {item['file']}:{item['line']} - {item['issue']}")
-        
+
         if self.import_errors:
             print(f"\n❌ IMPORT ERRORS ({len(self.import_errors)}):")
             for item in self.import_errors:
                 print(f"  {item['file']}: {item['error']}")
-        
+
         if self.issues:
             print(f"\n❌ ISSUES ({len(self.issues)}):")
             for item in self.issues[:10]:

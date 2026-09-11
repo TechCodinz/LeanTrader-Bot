@@ -21,12 +21,12 @@ if 'ULTRA_ARBITRAGE_AVAILABLE' in content:
 else:
     # Find where to insert (after DIVINE_FEATURES_AVAILABLE section)
     # Look for the warning section and add before imports
-    
+
     insertion_point = content.find('# Import complete unified orchestrator')
-    
+
     if insertion_point == -1:
         insertion_point = content.find('from ULTIMATE_ORCHESTRATOR import')
-    
+
     if insertion_point > 0:
         # Define all the missing availability flags
         new_vars = '''
@@ -96,10 +96,10 @@ except:
 
 '''
         content = content[:insertion_point] + new_vars + '\n' + content[insertion_point:]
-        
+
         with open('COMPLETE_ULTIMATE_ORCHESTRATOR.py', 'w', encoding='utf-8') as f:
             f.write(content)
-        
+
         print("✅ Added system availability flags")
     else:
         print("❌ Could not find insertion point")

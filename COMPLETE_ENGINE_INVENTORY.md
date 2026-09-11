@@ -33,7 +33,7 @@
 
 #### CRITICAL - ALPHA ENGINES (12 strategies!)
 **File:** alpha_engines.py
-**Classes:** 
+**Classes:**
 - AlphaRouter (main orchestrator)
 - OscillatorConfluence
 - NakedPriceAction
@@ -122,7 +122,7 @@
 ### 💰 ESTIMATED PROFIT IMPACT
 
 **Current Setup (24 engines):** Good
-**With Missing Engines (80-100+ engines):** 
+**With Missing Engines (80-100+ engines):**
 - +500-1000% more trading opportunities
 - +300-500% better timing (session awareness)
 - +200-400% risk-adjusted returns (Nobel systems)

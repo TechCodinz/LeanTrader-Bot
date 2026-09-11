@@ -58,7 +58,7 @@ class MICRO_GATE_BOT:
         # Only trade pairs that definitely meet minimums
         # self.crypto_pairs = ['DOGE/USDT', 'SHIB/USDT', 'PEPE/USDT', 'FLOKI/USDT', 'BONK/USDT']  # DISABLED - Using dynamic discovery
         self.crypto_pairs = []  # Will be populated by scanner
-        
+
         # SAFETY FEATURES
         self.starting_balance = self.check_gate_balance()
         self.max_daily_loss = self.starting_balance * 0.20  # Max 20% loss per day

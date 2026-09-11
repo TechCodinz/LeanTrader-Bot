@@ -92,7 +92,7 @@ Signal → Trade Live → ???
 
 ### Now (Sentient System):
 ```
-Signal → Test in Testnet 10x → 
+Signal → Test in Testnet 10x →
   → If <60% win rate: Keep testing, don't risk real money
   → If >60% win rate: Go live with confidence!
 ```

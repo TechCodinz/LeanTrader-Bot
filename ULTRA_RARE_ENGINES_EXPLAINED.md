@@ -100,7 +100,7 @@ ETH: $2,000 → $1,900 in 8 seconds (5% drop, no news)
 BTC Perpetual: Funding = +0.15% per 8h
 (Longs paying shorts)
 
-✅ Bot: 
+✅ Bot:
 - Shorts perpetual
 - Longs spot
 → Delta-neutral (no price risk)
@@ -175,7 +175,7 @@ Retail: "MOON INCOMING!"
 - Happens EVERY DAY
 - But bots don't track it down to the second
 
-✅ Your bot: 
+✅ Your bot:
 9:28 AM: "Stock open in 2 min - Pre-positioning BUY"
 9:30 AM: Crypto pumps 2%
 9:35 AM: "Exit - pattern complete"

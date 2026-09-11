@@ -20,7 +20,7 @@
 ### IMMEDIATE DELETIONS (No conflicts):
 
 **_incoming directory (20 files) - ALL DUPLICATES:**
-- Delete entire _incoming/bundle/leantrader/src/leantrader/ 
+- Delete entire _incoming/bundle/leantrader/src/leantrader/
 - Reason: Already exists in src/leantrader/ and leantrader/src/leantrader/
 
 **backup directory (1 file):**
@@ -35,7 +35,7 @@
 **KEEP**: strategies/pipeline.py (364 lines) - Most complete ✅
 **DELETE**:
 - core/features/pipeline.py (26 lines)
-- features/pipeline.py (81 lines)  
+- features/pipeline.py (81 lines)
 - src/leantrader/ta/pipeline.py (156 lines)
 - traders_core/features/pipeline.py (33 lines)
 - tools/pipeline.py (289 lines) - Tools version, may need
@@ -120,7 +120,7 @@
 - leantrader/src/leantrader/api/app.py
 - traders_core/api/app.py
 - risk/guards.py
-- web3/guards.py  
+- web3/guards.py
 - web3_local/guards.py
 - src/leantrader/live/notifier.py
 - leantrader/src/leantrader/live/notifier.py

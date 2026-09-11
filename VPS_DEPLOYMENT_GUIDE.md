@@ -6,8 +6,8 @@
 
 ## ✅ CURRENT SITUATION
 
-**Branch**: `cursor/integrate-and-unify-existing-trading-bot-components-c04c`  
-**Status**: Working tree clean  
+**Branch**: `cursor/integrate-and-unify-existing-trading-bot-components-c04c`
+**Status**: Working tree clean
 **Ready**: YES - Clone this branch directly to VPS ✅
 
 ---
@@ -341,9 +341,9 @@ bash START_BOT_NOW.sh
 3. ✅ Run bot
 4. ✅ Test on testnet
 
-**Git merge:** Not needed  
-**Current branch:** Works fine  
-**Transfer method:** Your choice (git/tar/rsync)  
+**Git merge:** Not needed
+**Current branch:** Works fine
+**Transfer method:** Your choice (git/tar/rsync)
 
 **Just get it on VPS and run!** 🚀
 

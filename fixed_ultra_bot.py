@@ -232,7 +232,7 @@ class FixedUltraTradingSystem:
                 cursor = self.db.cursor()
                 cursor.execute(
                     '''
-                    INSERT INTO telegram_messages 
+                    INSERT INTO telegram_messages
                     (message_type, message_text, sent)
                     VALUES (?, ?, ?)
                 ''',
@@ -252,7 +252,7 @@ class FixedUltraTradingSystem:
                 cursor = self.db.cursor()
                 cursor.execute(
                     '''
-                    INSERT INTO telegram_messages 
+                    INSERT INTO telegram_messages
                     (message_type, message_text, sent)
                     VALUES (?, ?, ?)
                 ''',
@@ -291,7 +291,7 @@ class FixedUltraTradingSystem:
             cursor = self.db.cursor()
             cursor.execute(
                 '''
-                INSERT INTO arbitrage_opportunities 
+                INSERT INTO arbitrage_opportunities
                 (symbol, buy_exchange, sell_exchange, buy_price, sell_price, profit_pct)
                 VALUES (?, ?, ?, ?, ?, ?)
             ''',
@@ -351,7 +351,7 @@ class FixedUltraTradingSystem:
             cursor = self.db.cursor()
             cursor.execute(
                 '''
-                INSERT INTO telegram_messages 
+                INSERT INTO telegram_messages
                 (message_type, message_text, sent)
                 VALUES (?, ?, ?)
             ''',

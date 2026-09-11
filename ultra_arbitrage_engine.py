@@ -125,6 +125,12 @@ class UltraArbitrageEngine:
 
     async def start_arbitrage_scanning(self) -> None:
         """Start continuous arbitrage scanning and execution"""
+
+        # PASS4_START_ONCE__leantrader_arbitrage_started
+        if getattr(self, "_leantrader_arbitrage_started", False):
+            self.logger.info("♻️ UltraArbitrageEngine already running - reusing canonical instance")
+            return
+        self._leantrader_arbitrage_started = True
         self.logger.info("🚀 Starting Ultra Arbitrage Engine...")
 
         # Start scanning tasks for different priority levels
@@ -132,7 +138,7 @@ class UltraArbitrageEngine:
 
         # Divide universe into priority groups
         all_symbols = self.universe
-        
+
         # High priority: First third of symbols
         high_priority_symbols = all_symbols[:len(all_symbols)//3] if all_symbols else ['BTC/USDT', 'ETH/USDT']
         tasks.append(

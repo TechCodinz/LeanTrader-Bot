@@ -32,7 +32,7 @@ FULL_MARKET_UNIVERSE = [
     'ICP/USDT',    # Internet Computer
     'FIL/USDT',    # Filecoin
     'VET/USDT',    # VeChain
-    
+
     # ===== DEFI ECOSYSTEM (15 pairs) =====
     'AAVE/USDT',   # Lending
     'MKR/USDT',    # Maker DAO
@@ -49,7 +49,7 @@ FULL_MARKET_UNIVERSE = [
     'FTM/USDT',    # Fantom
     'ONE/USDT',    # Harmony
     'CELO/USDT',   # Celo
-    
+
     # ===== LAYER 1/2 & INFRA (10 pairs) =====
     'ARB/USDT',    # Arbitrum - L2
     'OP/USDT',     # Optimism - L2
@@ -61,7 +61,7 @@ FULL_MARKET_UNIVERSE = [
     'TIA/USDT',    # Celestia
     'ALGO/USDT',   # Algorand
     'EGLD/USDT',   # MultiversX
-    
+
     # ===== MEME COINS (10 pairs) =====
     'PEPE/USDT',   # Pepe - Top meme 2023-2024
     'FLOKI/USDT',  # Floki Inu
@@ -73,14 +73,14 @@ FULL_MARKET_UNIVERSE = [
     'BABYDOGE/USDT', # Baby Doge
     'ELON/USDT',   # Dogelon Mars
     'AKITA/USDT',  # Akita Inu
-    
+
     # ===== AI & GAMING (5 pairs) =====
     'FET/USDT',    # Fetch.ai
     'AGIX/USDT',   # SingularityNET
     'RNDR/USDT',   # Render
     'GRT/USDT',    # The Graph
     'SAND/USDT',   # Sandbox
-    
+
     # ===== HIGH VOLATILITY / TRENDING (5 pairs) =====
     'GMT/USDT',    # STEPN
     'APE/USDT',    # ApeCoin

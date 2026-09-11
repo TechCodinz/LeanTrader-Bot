@@ -42,7 +42,7 @@ I added **5 REVOLUTIONARY features** using ADVANCED PHYSICS & MATHEMATICS that l
 
 These aren't just "trading strategies" - these are concepts from:
 - Quantum Mechanics
-- Chaos Theory  
+- Chaos Theory
 - Information Theory
 - Game Theory
 - Fractal Geometry

@@ -40,15 +40,15 @@ typing_fixed = 0
 for filepath in files_to_fix:
     if not os.path.exists(filepath):
         continue
-    
+
     with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
-    
+
     # Check if needs typing
     if re.search(r'\b(Optional|Dict|List|Tuple|Any|Union)\[', content):
         lines = content.split('\n')
         has_typing = any('from typing import' in line for line in lines[:25])
-        
+
         if not has_typing:
             # Add after first import
             for i, line in enumerate(lines[:30]):
@@ -57,7 +57,7 @@ for filepath in files_to_fix:
                     print(f"   ✅ Added typing to {filepath}")
                     typing_fixed += 1
                     break
-            
+
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(lines))
         elif 'Optional' not in ''.join(lines[:25]) or 'Dict' not in ''.join(lines[:25]):
@@ -68,7 +68,7 @@ for filepath in files_to_fix:
                     print(f"   ✅ Updated typing in {filepath}")
                     typing_fixed += 1
                     break
-            
+
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(lines))
 
@@ -83,7 +83,7 @@ orchestrator_file = 'COMPLETE_ULTIMATE_ORCHESTRATOR.py'
 if os.path.exists(orchestrator_file):
     with open(orchestrator_file, 'r', encoding='utf-8') as f:
         content = f.read()
-    
+
     # Wrap ALL Ultra system initializations in try-except
     systems_to_wrap = [
         ('ultra_arbitrage', 'UltraArbitrageEngine', 'Ultra Arbitrage Engine'),
@@ -98,11 +98,11 @@ if os.path.exists(orchestrator_file):
         ('trader_core', 'TraderCore', 'Trader Core'),
         ('unified_trading', 'UnifiedTradingSystem', 'Unified Trading System'),
     ]
-    
+
     for var_name, class_name, display_name in systems_to_wrap:
         # Find initialization pattern
         pattern = rf"([ \t]+)self\.{var_name} = {class_name}\(\)"
-        
+
         def replace_init(match):
             indent = match.group(1)
             return f'''{indent}try:
@@ -116,12 +116,12 @@ if os.path.exists(orchestrator_file):
 {indent}except Exception as e:
 {indent}    logger.warning(f'⚠️  {display_name}: {{e}}')
 {indent}    self.{var_name} = None'''
-        
+
         content = re.sub(pattern, replace_init, content)
-    
+
     with open(orchestrator_file, 'w', encoding='utf-8') as f:
         f.write(content)
-    
+
     print(f"✅ Phase 2 Complete: Added error handling to all system initializations\n")
 
 # ==============================================================================

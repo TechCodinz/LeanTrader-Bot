@@ -46,7 +46,7 @@ discovery_engine.discover_all_markets()  # Scans ALL exchanges
 **STEP 1**: Scan ALL exchanges
 ```
 Bybit: 400+ pairs
-Binance: 600+ pairs  
+Binance: 600+ pairs
 OKX: 300+ pairs
 KuCoin: 500+ pairs
 ────────────────────
@@ -146,7 +146,7 @@ Week 1: Optimized to trade 150 consistently profitable pairs
 - Missing 95% of the market
 
 **After**: Bot dynamically trading 200-500+ profitable pairs
-- Unlimited opportunities  
+- Unlimited opportunities
 - Covers entire profitable crypto market
 - Auto-discovers new trends
 - Maximizes profit every second

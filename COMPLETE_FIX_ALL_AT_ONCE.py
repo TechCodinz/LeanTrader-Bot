@@ -31,54 +31,54 @@ def backup_file(filepath):
 def apply_complete_fix():
     """Apply ALL fixes at once"""
     filepath = "COMPLETE_ULTIMATE_ORCHESTRATOR.py"
-    
+
     print("🔍 STEP 1: Testing original...")
     valid, error = test_syntax(filepath)
     if not valid:
         print(f"❌ Original has errors: {error}")
         return False
     print("✅ Original is valid")
-    
+
     print("\n🔍 STEP 2: Backing up...")
     backup = backup_file(filepath)
     print(f"✅ Backup: {backup}")
-    
+
     print("\n🔍 STEP 3: Reading file...")
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     print("\n🔍 STEP 4: Finding MICRO wallet grower...")
-    
+
     # Find the MICRO wallet grower function
     if 'async def run_micro_wallet_growth():' not in content:
         print("❌ MICRO wallet grower not found")
         return False
-    
+
     print("✅ Found MICRO wallet grower")
-    
+
     print("\n🔍 STEP 5: Adding position closing code...")
-    
+
     # Find where to insert (after balance check, before trading loop)
     old_section = '''                    try:
                         # Check current balance
                         balance = self.micro_wallet_grower.check_gate_balance()
-                        
+
                         # Analyze and trade all configured pairs'''
-    
+
     new_section = '''                    try:
                         # Check current balance
                         balance = self.micro_wallet_grower.check_gate_balance()
-                        
+
                         # AUTO-CLOSE ALL positions to compound profit
                         try:
                             positions = self.micro_wallet_grower.gate.fetch_balance()
                             total_freed = 0.0
-                            
+
                             for coin, amt in positions['total'].items():
                                 if coin != 'USDT' and amt > 0:
                                     # Get available (not locked) amount
                                     available_amt = positions['free'].get(coin, 0)
-                                    
+
                                     if available_amt > 0:
                                         symbol = f"{coin}/USDT"
                                         if symbol in self.micro_wallet_grower.gate.markets:
@@ -86,42 +86,42 @@ def apply_complete_fix():
                                             ticker = self.micro_wallet_grower.gate.fetch_ticker(symbol)
                                             current_price = ticker['last']
                                             position_value = available_amt * current_price
-                                            
+
                                             # Close ANY position > $1
                                             if position_value >= 1.0:
                                                 logger.info(f"🔄 CLOSING FULL POSITION: {symbol}")
                                                 logger.info(f"   Amount: {available_amt:.8f} {coin}")
                                                 logger.info(f"   Value: ${position_value:.2f}")
-                                                
+
                                                 # Sell FULL available amount
                                                 order = self.micro_wallet_grower.gate.create_market_sell_order(
-                                                    symbol, 
+                                                    symbol,
                                                     available_amt
                                                 )
-                                                
+
                                                 logger.info(f"   ✅ CLOSED! Order: {order['id']}")
                                                 logger.info(f"   💰 Freed ${position_value:.2f}")
                                                 total_freed += position_value
-                            
+
                             if total_freed > 0:
                                 logger.info(f"💰 TOTAL FREED: ${total_freed:.2f}")
-                                
+
                         except Exception as e:
                             logger.debug(f"Position close: {e}")
-                        
+
                         # Analyze and trade all configured pairs'''
-    
+
     if old_section not in content:
         print("❌ Insertion point not found")
         return False
-    
+
     content = content.replace(old_section, new_section)
     print("✅ Added position closing code")
-    
+
     print("\n🔍 STEP 6: Writing modified file...")
     with open(filepath, 'w') as f:
         f.write(content)
-    
+
     print("\n🔍 STEP 7: Testing modified file...")
     valid, error = test_syntax(filepath)
     if not valid:
@@ -130,7 +130,7 @@ def apply_complete_fix():
         shutil.copy(backup, filepath)
         print("✅ Rolled back")
         return False
-    
+
     print("✅ Modified file is valid!")
     return True
 
@@ -149,7 +149,7 @@ def main():
     ║                                                           ║
     ╚═══════════════════════════════════════════════════════════╝
     """)
-    
+
     if apply_complete_fix():
         print("\n" + "="*70)
         print("✅ ALL FIXES APPLIED SUCCESSFULLY!")

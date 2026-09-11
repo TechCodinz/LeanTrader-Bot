@@ -28,27 +28,27 @@ def backup(filepath):
 def add_all_task_loops():
     """Add actual task loops for ALL engines"""
     print("\n🔧 Adding ACTUAL task loops for ALL engines...")
-    
+
     filepath = "COMPLETE_ULTIMATE_ORCHESTRATOR.py"
     backup(filepath)
-    
+
     with open(filepath, 'r') as f:
         content = f.read()
-    
+
     # Find where tasks are created (after "# Start all tasks")
     marker = "tasks.append(asyncio.create_task(run_auto_live_trigger()))"
-    
+
     if marker not in content:
         print("❌ Could not find task creation section")
         return False
-    
+
     # ALL THE TASK LOOPS - being completely honest about what each does
     all_loops = '''
 
         # =================================================================
         # PROPERLY WIRED TASK LOOPS - ALL ENGINES ACTUALLY RUNNING
         # =================================================================
-        
+
         # ULTRA RARE ENGINES - Actually analyze and publish signals
         if hasattr(self, 'ultra_rare_manager') and self.ultra_rare_manager:
             async def run_ultra_rare_active():
@@ -72,10 +72,10 @@ def add_all_task_loops():
                     except Exception as e:
                         logger.debug(f"Ultra rare engines: {e}")
                         await asyncio.sleep(30)
-            
+
             tasks.append(asyncio.create_task(run_ultra_rare_active()))
             logger.info("✅ 💎 ULTRA RARE ENGINES - Actually running!")
-        
+
         # ALPHA ROUTER - Actually route through 10 alpha strategies
         if hasattr(self, 'alpha_router') and self.alpha_router:
             async def run_alpha_active():
@@ -98,10 +98,10 @@ def add_all_task_loops():
                     except Exception as e:
                         logger.debug(f"Alpha router: {e}")
                         await asyncio.sleep(120)
-            
+
             tasks.append(asyncio.create_task(run_alpha_active()))
             logger.info("✅ 🎯 ALPHA ROUTER - Actually running with 10 strategies!")
-        
+
         # NOBEL HEDGE FUND - Actually run institutional-grade analysis
         if hasattr(self, 'nobel_hedge_fund') and self.nobel_hedge_fund:
             async def run_nobel_active():
@@ -124,10 +124,10 @@ def add_all_task_loops():
                     except Exception as e:
                         logger.debug(f"Nobel hedge fund: {e}")
                         await asyncio.sleep(60)
-            
+
             tasks.append(asyncio.create_task(run_nobel_active()))
             logger.info("✅ 🏆 NOBEL HEDGE FUND - Actually running!")
-        
+
         # SENTIENT BRAIN - Actually validate strategies
         if hasattr(self, 'sentient_brain') and self.sentient_brain:
             async def run_sentient_active():
@@ -150,10 +150,10 @@ def add_all_task_loops():
                     except Exception as e:
                         logger.debug(f"Sentient brain: {e}")
                         await asyncio.sleep(90)
-            
+
             tasks.append(asyncio.create_task(run_sentient_active()))
             logger.info("✅ 🧠 SENTIENT BRAIN - Actually running!")
-        
+
         # SESSION-AWARE TRADING - Actually boost signals based on session
         if hasattr(self, 'session_clock') and self.session_clock:
             async def run_session_aware_active():
@@ -178,10 +178,10 @@ def add_all_task_loops():
                     except Exception as e:
                         logger.debug(f"Session aware: {e}")
                         await asyncio.sleep(300)
-            
+
             tasks.append(asyncio.create_task(run_session_aware_active()))
             logger.info("✅ ⏰ SESSION-AWARE - Actually running!")
-        
+
         # OMNISCIENT EXECUTION - Actually optimize execution
         if hasattr(self, 'omniscient_execution') and self.omniscient_execution:
             async def run_omniscient_active():
@@ -205,10 +205,10 @@ def add_all_task_loops():
                     except Exception as e:
                         logger.debug(f"Omniscient execution: {e}")
                         await asyncio.sleep(45)
-            
+
             tasks.append(asyncio.create_task(run_omniscient_active()))
             logger.info("✅ 👁️  OMNISCIENT EXECUTION - Actually running!")
-        
+
         # DIVINE INTELLIGENCE - Actually run 6 god-tier engines
         if hasattr(self, 'divine_intelligence') and self.divine_intelligence:
             async def run_divine_active():
@@ -232,10 +232,10 @@ def add_all_task_loops():
                     except Exception as e:
                         logger.debug(f"Divine intelligence: {e}")
                         await asyncio.sleep(240)
-            
+
             tasks.append(asyncio.create_task(run_divine_active()))
             logger.info("✅ 👁️  DIVINE INTELLIGENCE - Actually running 6 engines!")
-        
+
         # COLLECTIVE INTELLIGENCE - Actually coordinate intelligence
         if hasattr(self, 'collective_intelligence') and self.collective_intelligence:
             async def run_collective_active():
@@ -258,10 +258,10 @@ def add_all_task_loops():
                     except Exception as e:
                         logger.debug(f"Collective intelligence: {e}")
                         await asyncio.sleep(180)
-            
+
             tasks.append(asyncio.create_task(run_collective_active()))
             logger.info("✅ 🌐 COLLECTIVE INTELLIGENCE - Actually running!")
-        
+
         # HIVEMIND - Actually coordinate decisions
         if hasattr(self, 'hive_coordinator') and self.hive_coordinator:
             async def run_hivemind_active():
@@ -284,10 +284,10 @@ def add_all_task_loops():
                     except Exception as e:
                         logger.debug(f"HiveMind: {e}")
                         await asyncio.sleep(120)
-            
+
             tasks.append(asyncio.create_task(run_hivemind_active()))
             logger.info("✅ 🐝 HIVEMIND - Actually running!")
-        
+
         # ULTRA SMART AI BOT - Actually run master AI
         if hasattr(self, 'ultra_smart_ai') and self.ultra_smart_ai:
             async def run_ultra_ai_active():
@@ -310,31 +310,31 @@ def add_all_task_loops():
                     except Exception as e:
                         logger.debug(f"Ultra smart AI: {e}")
                         await asyncio.sleep(150)
-            
+
             tasks.append(asyncio.create_task(run_ultra_ai_active()))
             logger.info("✅ 🤖 ULTRA SMART AI - Actually running!")
-        
+
         logger.info("=" * 80)
         logger.info("🔥 ALL ENGINES PROPERLY WIRED - ACTUALLY RUNNING!")
         logger.info("=" * 80)
 '''
-    
+
     # Insert after the marker
     content = content.replace(marker, marker + all_loops)
-    
+
     with open(filepath, 'w') as f:
         f.write(content)
-    
+
     print("✅ Added ACTUAL task loops for ALL engines!")
     return True
 
 def verify_loops():
     """Verify all loops are actually there"""
     print("\n🔍 Verifying all task loops...")
-    
+
     with open('COMPLETE_ULTIMATE_ORCHESTRATOR.py', 'r') as f:
         content = f.read()
-    
+
     loops_to_check = [
         ('run_ultra_rare_active', 'Ultra Rare Engines'),
         ('run_alpha_active', 'Alpha Router'),
@@ -347,7 +347,7 @@ def verify_loops():
         ('run_hivemind_active', 'HiveMind'),
         ('run_ultra_ai_active', 'ULTRA SMART AI'),
     ]
-    
+
     found = 0
     for loop_name, display_name in loops_to_check:
         if f'async def {loop_name}' in content:
@@ -355,7 +355,7 @@ def verify_loops():
             found += 1
         else:
             print(f"   ❌ {display_name} - NOT FOUND!")
-    
+
     print(f"\n📊 Found {found}/{len(loops_to_check)} task loops")
     return found == len(loops_to_check)
 
@@ -379,16 +379,16 @@ def main():
     ║                                                                   ║
     ╚═══════════════════════════════════════════════════════════════════╝
     """)
-    
+
     print("\n🔧 STEP 1: Adding actual task loops...")
     if not add_all_task_loops():
         print("❌ Failed to add task loops")
         return 1
-    
+
     print("\n🔍 STEP 2: Verifying loops...")
     if not verify_loops():
         print("⚠️  Some loops missing")
-    
+
     print("\n" + "="*80)
     print("✅ PROPERLY WIRED!")
     print("="*80)
@@ -401,7 +401,7 @@ def main():
     print("   - They will ACTUALLY run and publish signals")
     print("   - You'll see them in the logs when bot runs")
     print("\n🚀 Deploy with: bash DEPLOY_MASTER_INTEGRATION.sh")
-    
+
     return 0
 
 if __name__ == "__main__":

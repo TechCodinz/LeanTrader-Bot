@@ -37,7 +37,7 @@ fi
 # Check virtual environment
 if [ -d "$VENV_PATH" ]; then
     echo -e "${GREEN}✓ Virtual environment exists${NC}"
-    
+
     # Check packages
     PACKAGES=$($VENV_PATH/bin/pip list 2>/dev/null | wc -l)
     echo -e "${GREEN}✓ Packages installed: $PACKAGES${NC}"
@@ -63,11 +63,11 @@ DB_PATH="$BOT_DIR/ultra_plus.db"
 
 if [ -f "$DB_PATH" ]; then
     echo -e "${GREEN}✓ Database file exists${NC}"
-    
+
     # Check tables
     TABLES=$(sqlite3 "$DB_PATH" ".tables" 2>/dev/null | wc -w)
     echo -e "${GREEN}✓ Tables found: $TABLES${NC}"
-    
+
     # Check for required tables
     for table in signals trades moon_tokens risk_metrics ai_models; do
         if sqlite3 "$DB_PATH" ".tables" | grep -q "$table"; then
@@ -87,7 +87,7 @@ echo -e "\n${YELLOW}[TEST 3] Configuration Check${NC}"
 
 if [ -f "$BOT_DIR/.env" ]; then
     echo -e "${GREEN}✓ Configuration file exists${NC}"
-    
+
     # Check for required variables (without exposing values)
     for var in USE_TESTNET TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID; do
         if grep -q "^$var=" "$BOT_DIR/.env"; then
@@ -108,7 +108,7 @@ echo -e "\n${YELLOW}[TEST 4] Engine Verification${NC}"
 # Check if bot file has all engines
 if [ -f "$BOT_DIR/ultimate_ultra_plus.py" ]; then
     echo -e "${GREEN}✓ Bot file exists${NC}"
-    
+
     # Check for engine classes
     for engine in "MoonSpotterEngine" "CryptoScalperEngine" "ArbitrageEngine" \
                   "FXTrainerEngine" "WebCrawlerEngine" "DeepLearningEngine" "RiskManager"; do
@@ -171,7 +171,7 @@ if [ -f "$BOT_DIR/ultimate_ultra_plus.py" ]; then
     else
         echo -e "${RED}✗ Trade button callbacks missing${NC}"
     fi
-    
+
     if grep -q 'def button_callback' "$BOT_DIR/ultimate_ultra_plus.py"; then
         echo -e "${GREEN}✓ Callback handler implemented${NC}"
     else
@@ -186,14 +186,14 @@ echo -e "\n${YELLOW}[TEST 7] Systemd Service Check${NC}"
 
 if [ -f "/etc/systemd/system/$SERVICE_NAME.service" ]; then
     echo -e "${GREEN}✓ Service file installed${NC}"
-    
+
     # Check if enabled
     if systemctl is-enabled "$SERVICE_NAME" &>/dev/null; then
         echo -e "${GREEN}✓ Service enabled${NC}"
     else
         echo -e "${YELLOW}⚠ Service not enabled${NC}"
     fi
-    
+
     # Check status
     STATUS=$(systemctl is-active "$SERVICE_NAME" 2>/dev/null || echo "inactive")
     if [ "$STATUS" == "active" ]; then
@@ -216,7 +216,7 @@ if [ -f "$BOT_DIR/.env" ]; then
     else
         echo -e "${RED}⚠️ WARNING: TESTNET may be disabled!${NC}"
     fi
-    
+
     if grep -q "^FORCE_LIVE=1" "$BOT_DIR/.env"; then
         echo -e "${RED}⚠️ WARNING: FORCE_LIVE is enabled - REAL MONEY!${NC}"
     else
@@ -236,10 +236,10 @@ sys.path.append('/opt/leantraderbot')
 
 try:
     from ultimate_ultra_plus import DatabaseManager, SignalDeduplicator
-    
+
     db = DatabaseManager()
     dedup = SignalDeduplicator()
-    
+
     # Insert test signal
     result = db.insert_signal(
         engine='test',
@@ -249,13 +249,13 @@ try:
         price=50000,
         metadata={'test': True}
     )
-    
+
     print(f"✓ Test signal inserted: {result}")
-    
+
     # Check deduplication
     is_dup = dedup.is_duplicate('test', 'BTC/USDT', 'buy', 50000)
     print(f"✓ Deduplication check: {'Working' if not is_dup else 'Failed'}")
-    
+
 except Exception as e:
     print(f"✗ Error: {e}")
 EOF
@@ -278,7 +278,7 @@ LOG_FILE="$BOT_DIR/logs/ultra_plus.log"
 
 if [ -f "$LOG_FILE" ]; then
     echo -e "${GREEN}✓ Log file exists${NC}"
-    
+
     # Check recent logs
     if [ -s "$LOG_FILE" ]; then
         LINES=$(wc -l < "$LOG_FILE")

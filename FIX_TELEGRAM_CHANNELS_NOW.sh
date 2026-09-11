@@ -106,10 +106,10 @@ load_dotenv()
 
 async def test_channels():
     bot = Bot(token=os.getenv('TELEGRAM_BOT_TOKEN'))
-    
+
     free_id = "$free_id"
     vip_id = "$vip_id"
-    
+
     print('Testing FREE channel...')
     try:
         result = await bot.send_message(
@@ -120,7 +120,7 @@ async def test_channels():
     except Exception as e:
         print(f'❌ FREE channel failed: {e}')
         print('   Make sure bot is admin with Post Messages permission')
-    
+
     print('')
     print('Testing VIP channel...')
     try:
