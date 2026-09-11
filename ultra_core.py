@@ -213,6 +213,88 @@ class UltraCore:
 
         return results
 
+    def _venue_context(self):
+        """(venue, environment) this core's router actually talks to."""
+        venue = str(
+            getattr(self.router, "id", "") or "bybit"
+        ).strip().lower()
+        environment = "testnet" if getattr(self.router, "testnet", False) else "live"
+        return venue, environment
+
+    def _venue_may_serve(self, symbol):
+        """Ask the capability registry before touching the exchange."""
+        try:
+            from src.leantrader.universe.registry import normalize_symbol
+            from src.leantrader.universe.routing import may_call_venue
+        except Exception:
+            return True, "UNKNOWN", "capability registry unavailable"
+
+        canonical = normalize_symbol(symbol)
+        if not canonical:
+            return False, "SYMBOL_NOT_NORMALIZED", str(symbol)[:48]
+
+        venue, environment = self._venue_context()
+        return may_call_venue(venue, canonical, environment=environment)
+
+    def _venue_call_succeeded(self, symbol):
+        try:
+            from src.leantrader.universe.registry import normalize_symbol
+            from src.leantrader.universe.venues import capabilities
+
+            venue, environment = self._venue_context()
+            capabilities.clear_transient(
+                venue, normalize_symbol(symbol), environment=environment
+            )
+        except Exception:
+            pass
+
+    def _venue_call_failed(self, symbol, exc):
+        """Classify the failure. Transient conditions get backoff, not memory."""
+        try:
+            from src.leantrader.universe.registry import normalize_symbol
+            from src.leantrader.universe import venues
+
+            canonical = normalize_symbol(symbol)
+            if not canonical:
+                return
+
+            venue, environment = self._venue_context()
+            name = type(exc).__name__.lower()
+            text = str(exc).lower()
+
+            if "ratelimit" in name or "too many requests" in text:
+                state = venues.RATE_LIMIT
+            elif any(
+                token in name
+                for token in ("timeout", "network", "connection", "unavailable", "ddos")
+            ):
+                state = venues.NETWORK_ERROR
+            elif "authentication" in name or "permission" in name:
+                state = venues.AUTH_FAILURE
+            elif "badsymbol" in name or "does not have market symbol" in text:
+                # The venue itself said the symbol is not one of its markets.
+                # That is evidence about the market, so it is remembered.
+                venues.capabilities.record_absence(
+                    venue,
+                    canonical,
+                    state=venues.NOT_LISTED,
+                    environment=environment,
+                    evidence=f"venue rejected symbol ({type(exc).__name__})",
+                )
+                return
+            else:
+                state = venues.NETWORK_ERROR
+
+            venues.capabilities.record_transient(
+                venue,
+                canonical,
+                state=state,
+                environment=environment,
+                evidence=type(exc).__name__,
+            )
+        except Exception:
+            pass
+
     async def get_market_data(self, symbol=None, timeframe='1h'):
         """
         Get market data for Ultra engines - compatibility wrapper
@@ -226,10 +308,40 @@ class UltraCore:
         """
         try:
             if symbol:
-                # Fetch OHLCV data for specific symbol
+                # Resolve before calling.
+                #
+                # Every swarm agent studying a market reaches this method, and
+                # the intelligence universe spans every connected venue while
+                # self.router is bound to one. For a symbol that venue does not
+                # list -- BCH/USDT, FTM/USDT and FIL/USDT on Bybit among them --
+                # this used to go straight to the exchange, fail, and log an
+                # error, once per agent per cycle, indefinitely.
+                #
+                # A market absent from this venue is an expected routing
+                # decision. It resolves locally and the caller gets no data,
+                # which is the honest answer: this venue has nothing to say
+                # about that market.
+                allowed, classification, detail = self._venue_may_serve(symbol)
+
+                if not allowed:
+                    return {
+                        'symbol': symbol,
+                        'timeframe': timeframe,
+                        'ohlcv': [],
+                        'close': 0,
+                        'unavailable': True,
+                        'classification': classification,
+                        'detail': detail,
+                    }
+
                 try:
                     ohlcv = self.router.safe_fetch_ohlcv(symbol, timeframe=timeframe)
-                except:
+                    self._venue_call_succeeded(symbol)
+                except Exception as exc:
+                    # A failure here is about the connection, not the market.
+                    # Recording it as an absence would make LeanTrader
+                    # permanently wrong about a market it could not reach once.
+                    self._venue_call_failed(symbol, exc)
                     ohlcv = []
 
                 if ohlcv and len(ohlcv) > 0:

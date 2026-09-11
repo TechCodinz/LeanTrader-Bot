@@ -251,7 +251,7 @@ class ExecutionOrchestrator:
                 if not self.data_hub.alert_queue.empty():
                     decision = await self.data_hub.alert_queue.get()
 
-                    # Validate and execute
+                    preflight.record_event('decisions_consumed')
                     await self.process_decision(decision)
 
                 # Monitor open positions
@@ -365,6 +365,8 @@ class ExecutionOrchestrator:
 
             # EXECUTE THE TRADE!
             logger.info(f"⚡ EXECUTING: {action.upper()} {symbol} (confidence: {confidence:.1%})")
+
+            preflight.record_event('candidates_execution_eligible')
 
             result = await self.execute_trade(
                 symbol=symbol,
@@ -486,6 +488,7 @@ class ExecutionOrchestrator:
         preflight.record_event('acknowledged')
         if filled:
             preflight.record_event('fills')
+        preflight.record_event('positions_opened')
         preflight.invalidate_balance_cache()
 
         self.risk_manager.record_position(
@@ -544,6 +547,18 @@ class ExecutionOrchestrator:
 
         def _fetch() -> List[float]:
             broker = preflight.shared_broker()
+
+            # A venue that does not list the market has no history for it.
+            from src.leantrader.universe.routing import may_call_venue
+
+            allowed, _classification, _detail = may_call_venue(
+                broker.exchange_id,
+                normalized,
+                environment=broker.resolve_mode(),
+            )
+            if not allowed:
+                return []
+
             candles = broker.fetch_ohlcv(normalized, timeframe="1m", limit=limit)
             closes: List[float] = []
             for candle in candles or []:
@@ -695,6 +710,7 @@ class ExecutionOrchestrator:
             payload['exchange_id'] = override
 
         preflight.record_event('submitted')
+        preflight.record_event('close_orders_submitted')
         started = time.time()
         try:
             receipt = await asyncio.to_thread(route_order, payload)
@@ -748,6 +764,8 @@ class ExecutionOrchestrator:
         self.risk_manager.close_position(symbol, fill_price)
         preflight.record_event('acknowledged')
         preflight.record_event('closes')
+        preflight.record_event('close_orders_filled')
+        preflight.record_event('reconciled_cycles')
         preflight.invalidate_balance_cache()
 
         if net_pnl > 0:

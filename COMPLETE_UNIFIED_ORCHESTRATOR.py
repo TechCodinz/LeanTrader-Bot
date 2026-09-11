@@ -102,6 +102,16 @@ except ImportError:
     EmergencyStop = None
 
 
+def _record_pipeline(event: str, count: int = 1) -> None:
+    """Count one pipeline boundary. Never lets telemetry break the pipeline."""
+    try:
+        from src.leantrader.execution import preflight
+
+        preflight.record_event(event, count)
+    except Exception:
+        pass
+
+
 class CentralDataHub:
     """Central hub for ALL data flow"""
 
@@ -173,6 +183,9 @@ class CentralDataHub:
                     or ''
                 ).lower(),
             )
+            from src.leantrader.execution import preflight
+
+            preflight.record_event('signals_published')
         except Exception:
             # Telemetry must never block a signal.
             pass
@@ -369,6 +382,9 @@ class UnifiedDecisionEngine:
                         break
 
                 if signals:
+                    _record_pipeline('signals_consumed', len(signals))
+
+                if signals:
                     # Collective decision from all systems
                     for signal in signals:
                         # Get swarm consensus
@@ -405,6 +421,14 @@ class UnifiedDecisionEngine:
                         }
 
                         logger.info(f"🎯 Decision: {signal_side.upper()} {signal.get('symbol', 'UNKNOWN')} (conf: {signal_confidence:.1%})")
+
+                        if signal_side in ('buy', 'sell'):
+                            _record_pipeline('decisions_created')
+                        else:
+                            # A hold is a decision too, and counting it as a
+                            # rejection with its own reason is what makes a
+                            # quiet run explainable.
+                            _record_pipeline('decisions_rejected')
 
                         # Publish decision
                         await self.data_hub.publish_alert(decision)

@@ -297,6 +297,12 @@ def fetch_last_price_cached(broker: BrokerCCXT, symbol: str) -> Optional[float]:
         if cached and now - cached[0] < _ticker_ttl():
             return cached[1]
 
+    # A venue that does not list this market has no price for it. Asking
+    # produces an exchange error rather than an answer, so the question is
+    # settled locally.
+    if not _venue_may_serve(broker, symbol):
+        return None
+
     started = time.time()
     ticker = broker.fetch_ticker(symbol) or {}
     record_stage_latency("fetch_ticker", time.time() - started)
@@ -321,6 +327,87 @@ def fetch_last_price_cached(broker: BrokerCCXT, symbol: str) -> Optional[float]:
     return price
 
 
+_INFEASIBLE: Dict[str, Tuple[float, str]] = {}
+_INFEASIBLE_LOCK = threading.Lock()
+
+
+def _infeasible_ttl() -> float:
+    return float(os.getenv("EXECUTION_INFEASIBLE_TTL_SECONDS", "300"))
+
+
+def _capital_bucket(capital: float) -> int:
+    """Coarse buckets, so a cent of drift is not a new question."""
+    if capital <= 0:
+        return 0
+    return int(capital)
+
+
+def _infeasible_key(venue: str, symbol: str, capital: float) -> str:
+    return f"{venue}:{symbol}:{_capital_bucket(capital)}"
+
+
+def note_economically_infeasible(
+    venue: str, symbol: str, capital: float, reason: str
+) -> None:
+    """Remember that this balance cannot fund this market's minimum.
+
+    A candidate sized at 0.99 against a 1.00 minimum is not a transient
+    failure: it will produce the same impossible ticket every cycle until
+    either the balance or the venue minimum changes. Remembering it for a
+    bounded window stops the strategy layer re-proposing it, without
+    hardening into a permanent exclusion -- balances move and so do minimums.
+    """
+    with _INFEASIBLE_LOCK:
+        _INFEASIBLE[_infeasible_key(venue, symbol, capital)] = (
+            time.time() + _infeasible_ttl(),
+            reason,
+        )
+
+
+def economically_infeasible(
+    venue: str, symbol: str, capital: float
+) -> Optional[str]:
+    key = _infeasible_key(venue, symbol, capital)
+    with _INFEASIBLE_LOCK:
+        entry = _INFEASIBLE.get(key)
+        if entry is None:
+            return None
+        expires_at, reason = entry
+        if expires_at <= time.time():
+            del _INFEASIBLE[key]
+            return None
+        return reason
+
+
+def clear_infeasible_memory() -> None:
+    with _INFEASIBLE_LOCK:
+        _INFEASIBLE.clear()
+
+
+def _venue_may_serve(broker: BrokerCCXT, symbol: str) -> bool:
+    """Whether this broker's venue lists this market, answered from memory.
+
+    The capability registry is consulted before any per-symbol venue call.
+    An absent market resolves here instead of becoming an exchange error.
+    """
+    try:
+        from ..universe.routing import may_call_venue
+
+        allowed, classification, _detail = may_call_venue(
+            broker.exchange_id,
+            symbol,
+            environment=broker.resolve_mode(),
+        )
+    except Exception:
+        # The registry is an optimisation, not a gate. If it cannot answer,
+        # fall through to the venue rather than blocking execution.
+        return True
+
+    if not allowed:
+        record_blocker(MARKET_NOT_LISTED, f"{symbol}@{broker.exchange_id}")
+    return allowed
+
+
 def invalidate_balance_cache() -> None:
     """Call after a fill: the cached free balance is now wrong."""
     with _CACHE_LOCK:
@@ -332,6 +419,9 @@ def reset_caches() -> None:
         _MARKETS_CACHE.clear()
         _BALANCE_CACHE.clear()
         _TICKER_CACHE.clear()
+    # The infeasibility memory is process-global state of the same kind, so
+    # it resets with the caches rather than leaking between runs and tests.
+    clear_infeasible_memory()
 
 
 # ------------------------------------------------------------------- results
@@ -641,6 +731,21 @@ def prepare_order(
 
     market = markets.get(symbol)
     if not isinstance(market, dict):
+        # Remember it, so the next attempt resolves from memory rather than
+        # re-reading the venue's whole market list to learn the same thing.
+        try:
+            from ..universe.venues import NOT_LISTED, capabilities
+
+            capabilities.record_absence(
+                broker.exchange_id,
+                symbol,
+                state=NOT_LISTED,
+                environment=broker.resolve_mode(),
+                evidence="absent from venue market metadata (preflight)",
+            )
+        except Exception:
+            pass
+
         return blocked(
             MARKET_NOT_LISTED, f"{symbol}@{broker.exchange_id}", "market"
         )
@@ -717,6 +822,12 @@ def prepare_order(
                 INSUFFICIENT_FREE_BALANCE, f"{spend_currency}=0", "balance"
             )
 
+    remembered = economically_infeasible(
+        broker.exchange_id, symbol, free_quote
+    )
+    if remembered:
+        return blocked(BELOW_MIN_NOTIONAL, remembered, "sizing")
+
     min_notional = _limit(market, "cost", "min") or 0.0
     min_amount = _limit(market, "amount", "min") or 0.0
     try:
@@ -740,6 +851,10 @@ def prepare_order(
             if "minimum" in sizing_reason
             else INSUFFICIENT_FREE_BALANCE
         )
+        if blocker == BELOW_MIN_NOTIONAL:
+            note_economically_infeasible(
+                broker.exchange_id, symbol, free_quote, sizing_reason
+            )
         return blocked(blocker, sizing_reason, "sizing")
 
     amount = notional / price

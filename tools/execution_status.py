@@ -44,8 +44,9 @@ def _repo_root_on_path() -> None:
 _repo_root_on_path()
 
 from src.leantrader.execution import preflight  # noqa: E402
-from src.leantrader.execution.broker_ccxt import BrokerCCXT  # noqa: E402
 from src.leantrader.universe.registry import universe  # noqa: E402
+from src.leantrader.universe import routing  # noqa: E402
+from src.leantrader.universe import venues as venue_capabilities  # noqa: E402
 
 
 def _rule(title: str) -> None:
@@ -141,11 +142,39 @@ def report_environment():
     return broker
 
 
+def load_runtime_snapshot() -> Dict[str, Any]:
+    """Read what the running process discovered.
+
+    Both registries are in-process singletons, so this command saw an empty
+    universe no matter how much the runtime had found. The runtime writes a
+    snapshot; this reads it. Nothing is fabricated when the file is absent --
+    the report says the runtime has not written one.
+    """
+    payload = venue_capabilities.read_snapshot()
+    if not payload:
+        return {}
+    try:
+        venue_capabilities.capabilities.load_snapshot(payload)
+    except Exception:
+        pass
+    return payload
+
+
 def report_universe(capital: float = 0.0) -> Dict[str, Any]:
     _rule("UNIVERSE")
 
-    telemetry = universe.telemetry(capital_quote=capital)
-    markets = telemetry["markets_discovered_by_venue"]
+    snapshot = load_runtime_snapshot()
+    if snapshot:
+        age = time.time() - float(snapshot.get("written_at") or 0)
+        print(f"  runtime snapshot   {_age(snapshot.get('written_at', 0))}")
+        if age > 900:
+            print("  !! snapshot is stale; the runtime may not be writing it")
+        print()
+
+    telemetry = snapshot.get("universe") or universe.telemetry(
+        capital_quote=capital
+    )
+    markets = telemetry.get("markets_discovered_by_venue") or {}
 
     if not markets:
         print("  No markets discovered yet.")
@@ -158,6 +187,7 @@ def report_universe(capital: float = 0.0) -> Dict[str, Any]:
     print("  discovered by venue:")
     for venue, count in sorted(markets.items(), key=lambda kv: -kv[1]):
         print(f"    {venue:<14} {count:>6}")
+    print(f"    {'GLOBAL':<14} {telemetry.get('normalized_unique_symbols', 0):>6}")
 
     print()
     for label, key in (
@@ -206,6 +236,58 @@ def report_universe(capital: float = 0.0) -> Dict[str, Any]:
             f"  >> Studying {studied}/{total} discovered markets "
             f"({studied / total * 100:.1f}%)."
         )
+
+    return telemetry
+
+
+def report_venue_capabilities(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    _rule("VENUE CAPABILITIES")
+
+    telemetry = (
+        snapshot.get("capabilities")
+        or venue_capabilities.capabilities.telemetry()
+    )
+
+    listed = telemetry.get("listed_by_venue_environment") or {}
+    if listed:
+        print("  markets listed, by venue and environment:")
+        width = max(len(k) for k in listed)
+        for label, count in listed.items():
+            print(f"    {label:<{width}}  {count:>6}")
+    else:
+        print("  No venue capability metadata recorded yet.")
+
+    not_listed = telemetry.get("known_not_listed_by_venue") or {}
+    if not_listed:
+        print()
+        print("  known NOT listed (resolved locally, never called):")
+        width = max(len(k) for k in not_listed)
+        for venue, count in not_listed.items():
+            print(f"    {venue:<{width}}  {count:>6}")
+
+    suppressed = telemetry.get("suppressed_calls_by_reason") or {}
+    total = telemetry.get("suppressed_calls_total", 0)
+    print()
+    print(f"  venue calls avoided     {total}")
+    if suppressed:
+        width = max(len(k) for k in suppressed)
+        for reason, count in suppressed.items():
+            print(f"    {reason:<{width}}  {count:>6}")
+
+    by_state = telemetry.get("by_state") or {}
+    if by_state:
+        print()
+        print("  capability states:")
+        width = max(len(k) for k in by_state)
+        for state, count in by_state.items():
+            print(f"    {state:<{width}}  {count:>6}")
+
+    if total:
+        print()
+        print(
+            f"  >> {total} exchange calls were answered from capability memory"
+        )
+        print("     instead of becoming errors. That is the routing working.")
 
     return telemetry
 
@@ -357,13 +439,64 @@ def main() -> int:
     except Exception:
         capital = 0.0
 
+    snapshot = load_runtime_snapshot()
     report_universe(capital)
+    report_venue_capabilities(snapshot)
     report_counters()
 
     if args.explain:
         _rule(f"WHY {args.explain}")
+
+        from src.leantrader.universe.registry import normalize_symbol
+
+        canonical = normalize_symbol(args.explain) or args.explain
+        print(f"  canonical symbol       {canonical}")
+
         for key, value in universe.explain(args.explain).items():
-            print(f"  {key:<22} {value}")
+            if key != "canonical_symbol":
+                print(f"  {key:<22} {value}")
+
+        capability = venue_capabilities.capabilities.explain(canonical)
+        observed = capability.get("venues") or {}
+
+        print()
+        print(f"  observed on venues     {sorted(observed) or '(none recorded)'}")
+        for venue, environments in observed.items():
+            for environment, detail in environments.items():
+                print(
+                    f"    {venue}:{environment:<8} {detail['state']:<24} "
+                    f"{detail['venue_symbol'] or '-'}"
+                )
+                print(
+                    f"      evidence={detail['evidence']} "
+                    f"verified={detail['verification_count']}x "
+                    f"refresh_in={detail['next_refresh_in_seconds']}s"
+                )
+
+        try:
+            broker = preflight.shared_broker()
+            environment = broker.resolve_mode()
+        except Exception:
+            environment = "unknown"
+
+        print()
+        print(f"  execution environment  {environment}")
+
+        if environment in {"paper", "testnet", "live"}:
+            decision = routing.select_venue(canonical, environment)
+            print(f"  chosen venue           {decision.chosen_venue or '(none)'}")
+            print(f"  classification         {decision.classification}")
+            print(f"  reason                 {decision.reason}")
+            if decision.considered:
+                print("  venues considered:")
+                width = max(len(v) for v in decision.considered)
+                for venue, verdict in decision.considered.items():
+                    print(f"    {venue:<{width}}  {verdict}")
+            print(f"  research venues        {decision.research_venues or '(none)'}")
+            print(
+                f"  attention lane         "
+                f"{routing.attention_lane(canonical, environment)}"
+            )
 
     if not args.symbol:
         print()

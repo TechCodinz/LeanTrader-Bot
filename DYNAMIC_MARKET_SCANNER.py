@@ -19,6 +19,7 @@ from collections import deque
 import logging
 
 from src.leantrader.universe.registry import configured_quotes, universe
+from src.leantrader.universe.venues import capabilities
 
 logger = logging.getLogger(__name__)
 
@@ -130,8 +131,22 @@ class DynamicMarketScanner:
                         markets=markets,
                         quote_filter=configured_quotes(),
                     )
+
+                    # The capability matrix records what this venue lists, in
+                    # its own notation, with its own precision and limits --
+                    # separately from the intelligence universe above. That
+                    # is what lets the router know a market is absent here
+                    # before calling and finding out the expensive way.
+                    capability_count = capabilities.record_venue_markets(
+                        exchange_name,
+                        markets,
+                        environment='live',
+                        exchange_has=getattr(exchange, 'has', {}) or {},
+                    )
+
                     logger.info(
-                        f"   Registry: {recorded} markets recorded from {exchange_name}"
+                        f"   Registry: {recorded} markets recorded from "
+                        f"{exchange_name} ({capability_count} capabilities)"
                     )
                 except Exception as e:
                     logger.warning(

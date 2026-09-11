@@ -486,6 +486,16 @@ class MarketUniverse:
 
         scored.sort(key=lambda pair: pair[0], reverse=True)
         ordered = [market for _, market in scored]
+
+        # Candidates that survived feasibility, and what was handed on.
+        try:
+            from ..execution import preflight
+
+            preflight.record_event("candidates_created", len(markets))
+            preflight.record_event("candidates_ranked", len(ordered))
+        except Exception:
+            pass
+
         return ordered[:limit] if limit else ordered
 
     def _feasibility_score(self, market: Market, capital_quote: float) -> float:

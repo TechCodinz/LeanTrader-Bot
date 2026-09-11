@@ -3255,6 +3255,7 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         """
         from src.leantrader.execution import preflight
         from src.leantrader.universe.registry import universe
+        from src.leantrader.universe import venues as venue_capabilities
 
         logger.info("🌍 UNIVERSE MAINTENANCE ACTIVE")
 
@@ -3280,6 +3281,17 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
 
                 markets = await asyncio.to_thread(_execution_markets)
                 eligible = universe.apply_execution_venue(venue, markets)
+
+                # Record what this venue lists under the environment we are
+                # actually authenticated for, so the router can answer
+                # "does Bybit Testnet list FTM/USDT?" locally instead of
+                # asking Bybit and logging the answer as an error.
+                environment = broker.resolve_mode()
+                venue_capabilities.capabilities.record_venue_markets(
+                    venue,
+                    markets,
+                    environment=environment,
+                )
 
                 agent_count = self._swarm_agent_count()
                 universe.assign_shards(agent_count)
@@ -3310,6 +3322,29 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     logger.info(
                         "🌍 not executable here: "
                         + ", ".join(f"{k}={v}" for k, v in top)
+                    )
+
+                # The registries are in-process singletons, so a separate
+                # observability process saw an empty universe no matter how
+                # much had been discovered. This is the bridge: real state,
+                # written where another process can read it.
+                capability_telemetry = (
+                    venue_capabilities.capabilities.telemetry()
+                )
+                venue_capabilities.write_snapshot(
+                    {
+                        "universe": telemetry,
+                        "capabilities": capability_telemetry,
+                    }
+                )
+
+                suppressed = capability_telemetry.get(
+                    "suppressed_calls_total", 0
+                )
+                if suppressed:
+                    logger.info(
+                        f"🌍 venue calls avoided by capability memory: "
+                        f"{suppressed}"
                     )
 
                 await asyncio.sleep(interval)
