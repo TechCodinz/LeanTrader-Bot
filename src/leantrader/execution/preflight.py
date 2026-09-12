@@ -18,6 +18,8 @@ Nothing here submits an order. Placement stays with route_order.
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import json
 import math
 import os
@@ -119,6 +121,39 @@ RECOVERED_KEYS = (
     "reconciled_external_orders",
 )
 
+# Counters written while answering an operator's question rather than while
+# trading. They are kept under their own prefix so that reading the runtime
+# funnel never picks them up.
+DIAGNOSTIC_PREFIX = "diagnostic_"
+
+_DIAGNOSTIC = contextvars.ContextVar(
+    "leantrader_execution_diagnostic", default=False
+)
+
+
+@contextlib.contextmanager
+def diagnostic_context():
+    """Run the real checks without writing runtime lifecycle evidence.
+
+    ``execution_status --explain`` answers "would this intent be submittable"
+    by running the same validation the trading loop runs -- there is no second,
+    parallel copy of the rules to drift out of sync. What must not happen is
+    the question counting as an answer: an operator asking must never make the
+    trading system appear to have attempted an autonomous trade. Inside this
+    context every counter write is redirected to the ``diagnostic_*``
+    namespace, and the economic-infeasibility memory is left alone.
+    """
+    token = _DIAGNOSTIC.set(True)
+    try:
+        yield
+    finally:
+        _DIAGNOSTIC.reset(token)
+
+
+def is_diagnostic() -> bool:
+    """True while the current context is answering a question, not trading."""
+    return bool(_DIAGNOSTIC.get())
+
 
 def _blank_state() -> Dict[str, Any]:
     return {
@@ -134,6 +169,10 @@ def _blank_state() -> Dict[str, Any]:
         "blockers": {},
         "stages": {},
         "runs": {},
+        "diagnostic_attempts": 0,
+        "diagnostic_prepared": 0,
+        "diagnostic_blockers": {},
+        "diagnostic_stages": {},
         "started_at": time.time(),
         "updated_at": time.time(),
     }
@@ -148,7 +187,7 @@ def _load_state() -> Dict[str, Any]:
         return _blank_state()
     blank = _blank_state()
     blank.update(state)
-    for key in ("blockers", "stages"):
+    for key in ("blockers", "stages", "diagnostic_blockers", "diagnostic_stages"):
         if not isinstance(blank.get(key), dict):
             blank[key] = {}
     return blank
@@ -166,29 +205,39 @@ def _store_state(state: Dict[str, Any]) -> None:
         pass
 
 
-def record_blocker(blocker: str, detail: str = "") -> None:
+def record_blocker(
+    blocker: str, detail: str = "", *, diagnostic: Optional[bool] = None
+) -> None:
     """Count one blocked attempt.
 
     ``detail`` is a short, non-secret description (a symbol, a venue, an
     exchange error class). Credentials never reach this path because callers
     pass exchange error type names rather than raw responses.
+
+    A blocker raised while answering a diagnostic question is recorded under
+    ``diagnostic_blockers`` so the runtime blocker histogram keeps describing
+    only what the trading loop actually hit.
     """
     blocker = str(blocker or "").strip().upper() or "UNCLASSIFIED"
+    diag = is_diagnostic() if diagnostic is None else bool(diagnostic)
+    bucket = "diagnostic_blockers" if diag else "blockers"
     with _COUNTER_LOCK:
         state = _load_state()
-        entry = state["blockers"].get(blocker)
+        entry = state[bucket].get(blocker)
         if not isinstance(entry, dict):
             entry = {"count": 0}
         entry["count"] = int(entry.get("count", 0)) + 1
         entry["last_seen"] = time.time()
         if detail:
             entry["last_detail"] = str(detail)[:200]
-        state["blockers"][blocker] = entry
+        state[bucket][blocker] = entry
         state["updated_at"] = time.time()
         _store_state(state)
 
 
-def record_event(name: str, count: int = 1) -> None:
+def record_event(
+    name: str, count: int = 1, *, diagnostic: Optional[bool] = None
+) -> None:
     """Increment one lifecycle counter, for all time and for this run.
 
     The persisted totals survive restarts, which is what makes them evidence.
@@ -196,7 +245,21 @@ def record_event(name: str, count: int = 1) -> None:
     cumulative totals still carry last run's acknowledgements, and reading
     those as this run's activity is how a funnel comes to show more
     acknowledgements than submissions.
+
+    In a diagnostic context the increment lands on ``diagnostic_<name>`` and
+    touches neither the lifecycle totals nor the per-run funnel: a question
+    asked about the system is not an action taken by it.
     """
+    diag = is_diagnostic() if diagnostic is None else bool(diagnostic)
+    if diag:
+        key = DIAGNOSTIC_PREFIX + name
+        with _COUNTER_LOCK:
+            state = _load_state()
+            state[key] = int(state.get(key, 0)) + int(count)
+            state["diagnostic_updated_at"] = time.time()
+            _store_state(state)
+        return
+
     with _COUNTER_LOCK:
         state = _load_state()
         state[name] = int(state.get(name, 0)) + int(count)
@@ -224,6 +287,35 @@ def current_run_counters() -> Dict[str, int]:
         return dict((state.get("runs") or {}).get(RUN_ID, {}))
 
 
+def runtime_counters() -> Dict[str, int]:
+    """The lifecycle evidence produced by trading, and only by trading."""
+    state = telemetry_snapshot()
+    return {
+        name: int(state.get(name, 0) or 0)
+        for name in LIFECYCLE_ORDER + RECOVERED_KEYS
+    }
+
+
+def diagnostic_counters() -> Dict[str, int]:
+    """What operator questions have cost, kept apart from the funnel.
+
+    Useful on its own -- it says how often somebody asked -- but it carries no
+    trading authority and never appears in the lifecycle totals.
+    """
+    state = telemetry_snapshot()
+    out: Dict[str, int] = {}
+    for key, value in state.items():
+        if not key.startswith(DIAGNOSTIC_PREFIX) or isinstance(value, dict):
+            continue
+        if key == "diagnostic_updated_at":
+            continue
+        try:
+            out[key[len(DIAGNOSTIC_PREFIX):]] = int(value)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
 def lifecycle_violations(counters: Dict[str, Any]) -> List[str]:
     """Where the funnel widens when it should only narrow.
 
@@ -245,17 +337,21 @@ def lifecycle_violations(counters: Dict[str, Any]) -> List[str]:
     return violations
 
 
-def record_stage_latency(stage: str, seconds: float) -> None:
+def record_stage_latency(
+    stage: str, seconds: float, *, diagnostic: Optional[bool] = None
+) -> None:
     """Accumulate wall time for one pipeline stage."""
+    diag = is_diagnostic() if diagnostic is None else bool(diagnostic)
+    bucket = "diagnostic_stages" if diag else "stages"
     with _COUNTER_LOCK:
         state = _load_state()
-        entry = state["stages"].get(stage)
+        entry = state[bucket].get(stage)
         if not isinstance(entry, dict):
             entry = {"count": 0, "total_seconds": 0.0, "max_seconds": 0.0}
         entry["count"] = int(entry.get("count", 0)) + 1
         entry["total_seconds"] = float(entry.get("total_seconds", 0.0)) + float(seconds)
         entry["max_seconds"] = max(float(entry.get("max_seconds", 0.0)), float(seconds))
-        state["stages"][stage] = entry
+        state[bucket][stage] = entry
         state["updated_at"] = time.time()
         _store_state(state)
 
@@ -627,6 +723,11 @@ def note_economically_infeasible(
     bounded window stops the strategy layer re-proposing it, without
     hardening into a permanent exclusion -- balances move and so do minimums.
     """
+    if is_diagnostic():
+        # A question must not create a cooldown that then suppresses real
+        # candidates. Reading the memory below is still allowed, so the
+        # diagnostic reaches the same verdict the trading loop would.
+        return
     key = _infeasible_key(
         venue, symbol, capital, price, min_notional, min_amount, risk_budget
     )
@@ -952,13 +1053,22 @@ def prepare_order(
     *,
     broker: Optional[BrokerCCXT] = None,
     policy: Optional[SizingPolicy] = None,
+    record_telemetry: bool = True,
 ) -> Tuple[Optional[PreparedOrder], Optional[Blocked]]:
     """Run the intent through every venue check, in pipeline order.
 
     Returns exactly one of (PreparedOrder, None) or (None, Blocked). Every
     Blocked is counted, so a quiet run is explainable from the persisted
     telemetry rather than from log archaeology.
+
+    ``record_telemetry=False`` runs the identical checks -- no shortcut, no
+    second implementation -- but books the resulting counters as diagnostic.
+    Callers that are explaining rather than trading must pass it.
     """
+    if not record_telemetry and not is_diagnostic():
+        with diagnostic_context():
+            return prepare_order(intent, broker=broker, policy=policy)
+
     record_event("attempts")
     started = time.time()
 
@@ -1151,7 +1261,42 @@ def prepare_order(
     if risk_budget > 0:
         spendable = min(spendable, risk_budget)
 
-    if ticket.total_cost > 0 and ticket.total_cost > spendable:
+    requested_amount = 0.0
+    for key in ("amount", "close_amount", "qty", "quantity"):
+        value = intent.get(key)
+        if value is None:
+            continue
+        try:
+            candidate = float(value)
+        except (TypeError, ValueError):
+            continue
+        if candidate > 0.0:
+            requested_amount = candidate
+            break
+
+    if requested_amount > 0.0:
+        # An explicit amount closes something that already exists. That
+        # capital is committed, so it is not sized as a fraction of a balance
+        # and it is not measured against the minimum ticket for opening a new
+        # position -- a holding worth 4 USDT is not "unaffordable", it is
+        # simply what is there. Everything else still applies: the venue's
+        # minimum amount, its minimum notional, its amount precision, and the
+        # balance of the currency actually leaving the account are all checked
+        # below exactly as they are for a sized order.
+        notional = requested_amount * price
+        sizing_reason = (
+            f"explicit amount {requested_amount} at {price} "
+            f"(closing committed inventory, not sizing new risk)"
+        )
+        floor = max(float(min_notional or 0.0), float(min_amount or 0.0) * price)
+        if floor > 0.0 and notional + 1e-12 < floor:
+            return blocked(
+                CAPITAL_BELOW_EXECUTABLE_MINIMUM,
+                f"{symbol} requested {requested_amount} is worth "
+                f"{notional:.8f} {quote}, below the venue floor {floor:.8f}",
+                "minimum_ticket",
+            )
+    elif ticket.total_cost > 0 and ticket.total_cost > spendable:
         reason = (
             f"smallest executable ticket costs {ticket.total_cost:.8f} "
             f"{quote} (min notional {ticket.min_notional}, min amount "
@@ -1177,18 +1322,19 @@ def prepare_order(
             CAPITAL_BELOW_EXECUTABLE_MINIMUM, reason, "minimum_ticket"
         )
 
-    # Size against the risk budget when one is set, not merely check the
-    # minimum against it. A budget that gates the floor but not the size
-    # would pass a 0.50 budget and then place a 12.46 order.
-    notional, sizing_reason = size_order(
-        free_quote=spendable,
-        price=price,
-        min_notional=min_notional,
-        min_amount=min_amount,
-        fee_rate=fee_rate,
-        confidence=confidence,
-        policy=policy,
-    )
+    if requested_amount <= 0.0:
+        # Size against the risk budget when one is set, not merely check the
+        # minimum against it. A budget that gates the floor but not the size
+        # would pass a 0.50 budget and then place a 12.46 order.
+        notional, sizing_reason = size_order(
+            free_quote=spendable,
+            price=price,
+            min_notional=min_notional,
+            min_amount=min_amount,
+            fee_rate=fee_rate,
+            confidence=confidence,
+            policy=policy,
+        )
 
     if notional <= 0.0:
         blocker = (

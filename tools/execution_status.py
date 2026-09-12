@@ -48,6 +48,9 @@ from src.leantrader.universe.registry import universe  # noqa: E402
 from src.leantrader.universe import routing  # noqa: E402
 from src.leantrader.universe import venues as venue_capabilities  # noqa: E402
 from src.leantrader.execution import intent as execution_intent  # noqa: E402
+from src.leantrader.execution import lineage as execution_lineage  # noqa: E402
+from src.leantrader.execution import idle as execution_idle  # noqa: E402
+from src.leantrader.execution import recovery as inventory_recovery  # noqa: E402
 from src.leantrader.execution import inventory as inventory_reconciler  # noqa: E402
 
 
@@ -331,13 +334,35 @@ def report_inventory() -> Dict[str, Any]:
     ):
         print(f"  {label:<20} {summary[key]}")
 
+    # Three different questions, three different numbers. They were one field
+    # called "value", which is how trapped capital came to be reported as
+    # though it were spendable.
     print()
-    print(f"  free quote           {capital['free_quote']}")
-    print(f"  spendable            {capital['spendable_quote']}")
-    print(f"  inventory value      {capital['inventory_value']}")
-    print(f"  reclaimable capital  {capital['reclaimable_capital']}")
-    print(f"  portfolio value      {capital['portfolio_value']}")
-    print(f"  cash fraction        {capital['cash_fraction']}")
+    print("  valuation (all totals reconcile against the rows below):")
+    print(f"    TOTAL_MARK_TO_MARKET_VALUE       {summary['total_mark_to_market_value']}")
+    print(f"    TOTAL_EXECUTABLE_INVENTORY_VALUE {summary['total_executable_inventory_value']}")
+    print(f"    TOTAL_DUST_MARK_TO_MARKET_VALUE  {summary['total_dust_mark_to_market_value']}")
+    print(f"    TOTAL_RECLAIMABLE_CAPITAL        {summary['total_reclaimable_capital']}")
+    print(f"    FREE_QUOTE_BALANCE               {capital['free_quote_balance']}")
+    print(f"    PORTFOLIO_VALUE                  {capital['portfolio_value']}")
+
+    print()
+    print("  capital states (reclaimable is NOT cash until an exit fills):")
+    for label in (
+        "cash_spendable_now",
+        "capital_committed",
+        "capital_exit_eligible",
+        "capital_exit_pending",
+        "capital_recovered",
+    ):
+        print(f"    {label:<24} {capital[label]}")
+
+    problems = report.get("valuation_problems") or []
+    if problems:
+        print()
+        print("  !! VALUATION INVARIANT VIOLATED:")
+        for problem in problems:
+            print(f"     {problem}")
 
     items = report.get("items") or []
     if items:
@@ -347,27 +372,121 @@ def report_inventory() -> Dict[str, Any]:
         for item in items:
             print(
                 f"    {item['asset']:<{width}}  {item['classification']:<24} "
-                f"value={item['liquidation_value']:.6f} "
+                f"qty={item['total']:.8f} mark={item['mark_price']:.8f}"
+            )
+            print(
+                f"    {'':<{width}}  mark_to_market={item['raw_quote_value']:.6f} "
+                f"executable={item['executable_quote_value']:.6f} "
+                f"sellable={item['sellable']} "
                 f"exit={item['exit_state'] or '-'} "
                 f"owner={item['owner'] or 'unknown'}"
             )
+            if item["dust_reason"]:
+                print(f"    {'':<{width}}  └─ dust: {item['dust_reason']}")
             if item["exit_blocked_reason"]:
                 print(f"    {'':<{width}}  └─ {item['exit_blocked_reason']}")
 
-    if summary["orphaned_positions"]:
-        print()
-        print("  >> Orphaned inventory has no live owner and no exit logic.")
-        print("     Capital stays committed until something adopts it.")
+    report_recovery(report)
 
     return report
+
+
+def report_recovery(report: Dict[str, Any]) -> Dict[str, Any]:
+    """What the recovery coordinator has adopted, and what it has not sold.
+
+    Understanding first: this section exists to make unmanaged capital visible
+    and accounted for. Nothing here places an order, and the coordinator does
+    not liquidate anything without an explicit per-asset authorization.
+    """
+    _rule("INVENTORY RECOVERY")
+
+    items = report.get("objects") or []
+    if not items:
+        persisted = inventory_recovery.read_snapshot()
+        if not persisted:
+            print("  No inventory to adopt and no persisted recovery state.")
+            return {}
+        print(f"  from {inventory_recovery.snapshot_path()}")
+        print(f"  written {_age(persisted.get('generated_at', 0))} "
+              f"by run {persisted.get('source_run_id', '?')}")
+        summary = persisted.get("summary") or {}
+    else:
+        coordinator = inventory_recovery.InventoryRecoveryCoordinator(
+            venue=report.get("venue", ""),
+            environment=report.get("environment", ""),
+        )
+        for record in coordinator.discover(items):
+            coordinator.assess_executability(record)
+            coordinator.adopt(record)
+        summary = coordinator.summary()
+
+        for record in coordinator.records():
+            print(
+                f"    {record.asset:<6} {record.state:<32} "
+                f"executable={record.executable_exit_value:.6f} "
+                f"cost_basis={record.provenance}"
+            )
+            if record.exit_blocked_reason:
+                print(f"           └─ {record.exit_blocked_reason}")
+        print()
+
+    if not summary:
+        return {}
+
+    print(f"  adopted                       {summary.get('adopted', 0)}")
+    print(f"  exitable executable value     {summary.get('exitable_executable_value', 0)}")
+    print(f"  stranded mark-to-market       {summary.get('stranded_mark_to_market_value', 0)}")
+    print(f"  recovered so far              {summary.get('recovered_quote', 0)}")
+    print(f"  unknown cost basis            {summary.get('holdings_with_unknown_cost_basis', 0)}")
+    print(f"  awaiting authorization        {summary.get('awaiting_authorization', 0)}")
+    print(f"  exit allowlist                {summary.get('exit_allowlist') or '(empty)'}")
+
+    if summary.get("awaiting_authorization"):
+        print()
+        print("  >> Adopted, understood, and deliberately not sold. A recovery")
+        print("     exit needs explicit per-asset authorization and then goes")
+        print("     through preflight and route_order like any other order.")
+
+    return summary
 
 
 def report_intents() -> Dict[str, Any]:
     _rule("EXECUTION INTENTS")
 
+    # The journal first: it is the only part of this that survives a restart
+    # or crosses a process boundary, so it is what can actually answer
+    # "where did intents stop?" for the process that is doing the trading.
+    journal = execution_lineage.journal_summary()
+    print(f"  lineage journal      {journal['path']}")
+    print(f"  transitions          {journal['transitions']}")
+    print(f"  distinct intents     {journal['distinct_intents']}")
+    if journal["transitions"]:
+        print(f"  furthest stage       {journal['furthest_stage_reached']}")
+        print(f"  last transition      {_age(journal['last_transition_at'])}")
+        for label, key in (
+            ("intents by last stage", "intents_last_stage"),
+            ("terminal outcomes", "terminal_outcomes"),
+            ("by source engine", "by_source_engine"),
+        ):
+            breakdown = journal.get(key) or {}
+            if not breakdown:
+                continue
+            print()
+            print(f"  {label}:")
+            width = max(len(k) for k in breakdown)
+            for name, count in breakdown.items():
+                print(f"    {name:<{width}}  {count:>6}")
+    else:
+        print("  No persisted transitions. Either nothing has formed an intent")
+        print("  since this journal was created, or the producers are not")
+        print("  routing through ExecutionIntent.")
+
+    print()
     summary = execution_intent.outcome_summary()
+    summary["journal"] = journal
     if not summary["traced_intents"]:
-        print("  No traced intents in this process.")
+        print("  No traced intents in this process (expected: status runs in a")
+        print("  different process from the trading loop).")
         return summary
 
     print(f"  traced intents       {summary['traced_intents']}")
@@ -437,10 +556,24 @@ def report_counters() -> Dict[str, Any]:
         print("     Cumulative totals span restarts; compare the per-run block")
         print("     above, or look for a counter incremented at the wrong place.")
 
-    if attempts == 0:
+    verdict = execution_idle.classify_idle_reason(counters=snapshot)
+    print()
+    print(f"  EXECUTION_IDLE_REASON={verdict['reason']}")
+    print(f"    {verdict['detail']}")
+
+    diagnostic = {
+        name: count
+        for name, count in preflight.diagnostic_counters().items()
+        if count
+    }
+    diagnostic_blockers = snapshot.get("diagnostic_blockers") or {}
+    if diagnostic or diagnostic_blockers:
         print()
-        print("  >> No execution attempts recorded at all. Nothing is reaching")
-        print("     the execution stage; the break is upstream of preflight.")
+        print("  diagnostic counters (operator questions, NOT trading activity):")
+        for name, count in sorted(diagnostic.items()):
+            print(f"    {name:<15} {count}")
+        for name, entry in sorted(diagnostic_blockers.items()):
+            print(f"    blocker {name:<24} {int(entry.get('count', 0))}")
 
     blockers = snapshot.get("blockers") or {}
     if blockers:
@@ -482,6 +615,8 @@ def report_preflight(args) -> int:
     _rule(f"PREFLIGHT DRY RUN  {args.symbol} {args.side}")
     print("  No order is submitted. This walks the same checks a real order")
     print("  would and reports the first stage that refuses.")
+    print("  Counters from this walk are booked as diagnostic: asking the")
+    print("  question must not make the runtime look like it tried to trade.")
     print()
 
     intent = {
@@ -494,7 +629,7 @@ def report_preflight(args) -> int:
         intent["price"] = args.price
 
     started = time.time()
-    prepared, blocked = preflight.prepare_order(intent)
+    prepared, blocked = preflight.prepare_order(intent, record_telemetry=False)
     elapsed = time.time() - started
 
     if prepared is None:
@@ -546,6 +681,16 @@ def main() -> int:
         help="say why this particular market has or has not reached execution",
     )
     args = parser.parse_args()
+
+    # Everything below answers a question about the system. None of it
+    # is a trading action, so none of it may land on the runtime
+    # lifecycle counters -- an operator running this must never make the
+    # funnel report an autonomous attempt that never happened.
+    with preflight.diagnostic_context():
+        return _report(args)
+
+
+def _report(args) -> int:
 
     report_environment()
 

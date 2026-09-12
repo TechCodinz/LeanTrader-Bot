@@ -55,6 +55,11 @@ AUTH_REQUIRED = "AUTH_REQUIRED"
 PRECISION_METADATA_MISSING = "PRECISION_METADATA_MISSING"
 VENUE_METADATA_UNAVAILABLE = "VENUE_METADATA_UNAVAILABLE"
 
+# Nothing has been learned about this venue yet -- no metadata read, no
+# snapshot loaded. Absence of evidence, which must never be reported as
+# evidence of absence.
+UNKNOWN_NO_RUNTIME_SNAPSHOT = "UNKNOWN_NO_RUNTIME_SNAPSHOT"
+
 # Transient conditions. These describe the connection, not the market, and
 # are held separately so they can never harden into an absence.
 NETWORK_ERROR = "NETWORK_ERROR"
@@ -261,6 +266,18 @@ class CapabilityRegistry:
         self._venue_metadata_at: Dict[Tuple[str, str], float] = {}
         self._venue_market_counts: Dict[Tuple[str, str], int] = {}
         self._suppressed_calls: Dict[str, int] = {}
+        # Observational evidence about routing, persisted so another process
+        # can see it. Never a source of trading authority.
+        self._routing_counters: Dict[str, int] = {
+            "market_calls_considered": 0,
+            "market_calls_allowed": 0,
+            "market_calls_suppressed_not_listed": 0,
+            "market_calls_suppressed_asset_class": 0,
+            "market_calls_suppressed_timeframe": 0,
+            "market_calls_suppressed_cached_negative": 0,
+            "capability_refreshes": 0,
+            "capability_revalidations": 0,
+        }
         self._alias: Dict[Tuple[str, str], str] = {}
 
     # ------------------------------------------------------------- ingest
@@ -372,6 +389,9 @@ class CapabilityRegistry:
                     record.last_verified = now
                     record.next_refresh_at = now + DEFAULT_TTL_SECONDS[DELISTED]
 
+            self._routing_counters["capability_refreshes"] = (
+                self._routing_counters.get("capability_refreshes", 0) + 1
+            )
             self._venue_metadata_at[(venue, environment)] = now
             self._venue_market_counts[(venue, environment)] = len(seen)
             self._records.pop((venue, "*", SPOT, environment), None)
@@ -394,6 +414,16 @@ class CapabilityRegistry:
         self._records[record.key] = record
 
     # ------------------------------------------------------------ observe
+
+    def count_routing(self, name: str, amount: int = 1) -> None:
+        with self._lock:
+            self._routing_counters[name] = (
+                self._routing_counters.get(name, 0) + amount
+            )
+
+    def routing_counters(self) -> Dict[str, int]:
+        with self._lock:
+            return dict(self._routing_counters)
 
     def record_absence(
         self,
@@ -514,6 +544,9 @@ class CapabilityRegistry:
         key = (venue, canonical_symbol, market_type, environment)
 
         with self._lock:
+            self._routing_counters["market_calls_considered"] = (
+                self._routing_counters.get("market_calls_considered", 0) + 1
+            )
             record = self._records.get(key)
             venue_known = (venue, environment) in self._venue_metadata_at
 
@@ -522,6 +555,14 @@ class CapabilityRegistry:
                 if backoff.next_refresh_at > _now():
                     self._suppressed_calls[backoff.state] = (
                         self._suppressed_calls.get(backoff.state, 0) + 1
+                    )
+                    self._routing_counters[
+                        "market_calls_suppressed_cached_negative"
+                    ] = (
+                        self._routing_counters.get(
+                            "market_calls_suppressed_cached_negative", 0
+                        )
+                        + 1
                     )
                     return Resolution(
                         venue=venue,
@@ -542,6 +583,14 @@ class CapabilityRegistry:
                 self._suppressed_calls[record.state] = (
                     self._suppressed_calls.get(record.state, 0) + 1
                 )
+                self._routing_counters[
+                    "market_calls_suppressed_not_listed"
+                ] = (
+                    self._routing_counters.get(
+                        "market_calls_suppressed_not_listed", 0
+                    )
+                    + 1
+                )
                 return Resolution(
                     venue=venue,
                     canonical_symbol=canonical_symbol,
@@ -555,6 +604,9 @@ class CapabilityRegistry:
                 )
 
             if record is not None and record.state == LISTED:
+                self._routing_counters["market_calls_allowed"] = (
+                    self._routing_counters.get("market_calls_allowed", 0) + 1
+                )
                 return Resolution(
                     venue=venue,
                     canonical_symbol=canonical_symbol,
@@ -582,6 +634,14 @@ class CapabilityRegistry:
                 self._remember(remembered)
                 self._suppressed_calls[NOT_LISTED] = (
                     self._suppressed_calls.get(NOT_LISTED, 0) + 1
+                )
+                self._routing_counters[
+                    "market_calls_suppressed_not_listed"
+                ] = (
+                    self._routing_counters.get(
+                        "market_calls_suppressed_not_listed", 0
+                    )
+                    + 1
                 )
                 return Resolution(
                     venue=venue,
@@ -612,6 +672,20 @@ class CapabilityRegistry:
             ),
             record=record,
         )
+
+    def venue_metadata_known(self, venue: str, environment: str) -> bool:
+        """Has this venue's market metadata ever been read or loaded?
+
+        The difference between "this venue does not list the market" and "we
+        have never looked" is the whole of the unknown-vs-absent distinction.
+        Callers that have no metadata for a venue must report UNKNOWN, because
+        absence of evidence is not evidence of absence.
+        """
+        with self._lock:
+            return (
+                str(venue or "").strip().lower(),
+                str(environment or "").strip().lower(),
+            ) in self._venue_metadata_at
 
     def venue_symbol(self, venue: str, canonical_symbol: str) -> str:
         """The venue's own notation for a canonical pair, if known."""
@@ -707,6 +781,7 @@ class CapabilityRegistry:
                     )
                 ),
                 "suppressed_calls_total": sum(self._suppressed_calls.values()),
+                "routing_counters": dict(self._routing_counters),
                 "venue_metadata_read": {
                     f"{venue}:{environment}": count
                     for (venue, environment), count
@@ -760,6 +835,7 @@ class CapabilityRegistry:
                     in self._venue_market_counts.items()
                 },
                 "suppressed_calls_by_reason": dict(self._suppressed_calls),
+                "routing_counters": dict(self._routing_counters),
             }
 
     def load_snapshot(self, payload: Dict[str, Any]) -> int:
@@ -788,6 +864,8 @@ class CapabilityRegistry:
                 payload.get("suppressed_calls_by_reason") or {}
             ).items():
                 self._suppressed_calls[reason] = int(count)
+            for name, count in (payload.get("routing_counters") or {}).items():
+                self._routing_counters[name] = int(count)
         return restored
 
     def reset(self) -> None:
@@ -797,6 +875,7 @@ class CapabilityRegistry:
             self._venue_metadata_at.clear()
             self._venue_market_counts.clear()
             self._suppressed_calls.clear()
+            self._routing_counters = {k: 0 for k in self._routing_counters}
             self._alias.clear()
 
 
@@ -821,6 +900,9 @@ def _optional_float(value: Any) -> Optional[float]:
 capabilities = CapabilityRegistry()
 
 
+RUN_ID = f"{int(time.time())}-{os.getpid()}"
+
+
 def snapshot_path() -> Path:
     """Where the canonical snapshot lives.
 
@@ -833,11 +915,44 @@ def snapshot_path() -> Path:
     if explicit:
         return Path(explicit)
 
+    # One authoritative contract: <data dir>/runtime/universe_snapshot.json.
+    # The runtime subdirectory is created if the mount exists, so the
+    # location does not depend on the image having pre-made it.
     shared = Path(os.getenv("LEANTRADER_DATA_DIR", "/app/data"))
     if shared.is_dir() and os.access(shared, os.W_OK):
-        return shared / "universe_snapshot.json"
+        runtime_dir = shared / "runtime"
+        try:
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            return runtime_dir / "universe_snapshot.json"
+        except OSError:
+            return shared / "universe_snapshot.json"
 
     return Path("runtime/universe_snapshot.json")
+
+
+def persist_discovery_state(extra: Optional[Dict[str, Any]] = None) -> bool:
+    """Write the canonical snapshot. Call this after every discovery refresh.
+
+    This is the integration point the discovery lifecycle uses, named so it
+    is obvious at the call site what it is for. Persistence had existed only
+    as a helper the maintenance loop called -- so when that loop could not
+    resolve a broker, discovery succeeded and nothing was ever written, and a
+    separate process saw an empty universe.
+    """
+    from .registry import universe as market_universe
+
+    # Two layers, deliberately. write_snapshot puts the authoritative state at
+    # the top level -- the full per-market records that load_persisted_state
+    # restores from -- and these keys are the readable summaries a status
+    # report prints without having to re-aggregate anything.
+    payload: Dict[str, Any] = {
+        "universe": market_universe.telemetry(),
+        "capabilities": capabilities.telemetry(),
+        "routing_counters": capabilities.routing_counters(),
+    }
+    if extra:
+        payload.update(extra)
+    return write_snapshot(payload)
 
 
 def snapshot_age_seconds(payload: Optional[Dict[str, Any]]) -> Optional[float]:
@@ -939,7 +1054,10 @@ def write_snapshot(extra: Optional[Dict[str, Any]] = None) -> bool:
     """
     path = snapshot_path()
     payload = capabilities.snapshot()
-    payload["schema_version"] = 2
+    payload["schema_version"] = 3
+    payload["generated_at"] = _now()
+    payload["source_run_id"] = RUN_ID
+    payload["source_pid"] = os.getpid()
     payload["snapshot_path"] = str(path)
     try:
         payload["markets"] = canonical_market_rows()
@@ -964,3 +1082,19 @@ def read_snapshot() -> Optional[Dict[str, Any]]:
         return json.loads(snapshot_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+
+
+def load_persisted_state(
+    payload: Optional[Dict[str, Any]] = None,
+) -> int:
+    """Restore capability state written by another process. Returns rows read.
+
+    The symmetric half of persist_discovery_state. Without it, restoring meant
+    knowing that the authoritative records sit at the top level of the
+    snapshot rather than under its readable "capabilities" summary -- which is
+    exactly the kind of thing a caller gets wrong once and then carries.
+    """
+    payload = read_snapshot() if payload is None else payload
+    if not isinstance(payload, dict):
+        return 0
+    return capabilities.load_snapshot(payload)

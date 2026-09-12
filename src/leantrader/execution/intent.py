@@ -22,6 +22,8 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List
 
+from . import lineage
+
 # Stages, in the order an intent passes through them.
 SIGNAL = "signal"
 DECISION = "decision"
@@ -64,6 +66,19 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:12]}"
 
 
+def _journal(intent: "ExecutionIntent", stage: str, **kwargs: Any) -> None:
+    """Persist one transition, and never let doing so break the pipeline.
+
+    The in-memory trail above is what this process can see. The journal is
+    what survives the process, which is the only thing that can answer "where
+    did intents stop?" after a restart or from another container.
+    """
+    try:
+        lineage.record_transition(intent, stage, **kwargs)
+    except Exception:
+        pass
+
+
 @dataclass
 class ExecutionIntent:
     """One attempt to trade, with the lineage that produced it."""
@@ -100,6 +115,7 @@ class ExecutionIntent:
         self.trail.append(
             {"stage": stage, "at": time.time(), "detail": detail, "ok": True}
         )
+        _journal(self, stage, ok=True, detail=detail)
         return self
 
     def stop(self, stage: str, outcome: str, reason: str = "") -> "ExecutionIntent":
@@ -115,6 +131,15 @@ class ExecutionIntent:
         self.trail.append(
             {"stage": stage, "at": time.time(), "detail": reason, "ok": False}
         )
+        _journal(
+            self,
+            stage,
+            ok=False,
+            detail=reason,
+            outcome=outcome,
+            reason=reason,
+            terminal=True,
+        )
         record_outcome(self)
         return self
 
@@ -123,6 +148,10 @@ class ExecutionIntent:
         if stage in (FILL, RECONCILIATION, EVOLUTION):
             self.outcome = "COMPLETED"
         return self
+
+    def journal_stage(self) -> str:
+        """The canonical external name of the stage this intent is at."""
+        return lineage.journal_stage(self.stage)
 
     def as_dict(self) -> Dict[str, Any]:
         return asdict(self)

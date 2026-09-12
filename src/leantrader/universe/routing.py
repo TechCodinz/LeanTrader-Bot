@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .venues import (
     AUTH_REQUIRED,
+    UNKNOWN_NO_RUNTIME_SNAPSHOT,
     DELISTED,
     LISTED,
     NOT_LISTED,
@@ -41,6 +42,7 @@ TESTNET_NOT_AVAILABLE = "TESTNET_NOT_AVAILABLE"
 VENUE_AVAILABLE_NOT_AUTHENTICATED = "VENUE_AVAILABLE_NOT_AUTHENTICATED"
 EXECUTABLE = "EXECUTABLE"
 NO_ELIGIBLE_VENUE = "NO_ELIGIBLE_VENUE"
+VENUE_STATE_UNKNOWN = UNKNOWN_NO_RUNTIME_SNAPSHOT
 
 # Attention lanes. Research stays broad; execution follows what can actually
 # be traded from here. Both run at once -- narrowing research to the
@@ -151,6 +153,11 @@ def may_call_venue(
     return False, classification, resolution.detail
 
 
+def venue_state_known(venue: str, environment: str) -> bool:
+    """Whether anything at all has been learned about this venue."""
+    return capabilities.venue_metadata_known(venue, environment)
+
+
 def select_venue(
     canonical_symbol: str,
     environment: str,
@@ -199,7 +206,16 @@ def select_venue(
         )
 
         if record is None:
-            decision.considered[venue] = MARKET_NOT_LISTED_ON_VENUE
+            # Absence of evidence is not evidence of absence. If this venue's
+            # metadata has never been read -- no discovery in this process and
+            # no snapshot loaded -- the honest answer is that the state is
+            # unknown. Reporting NOT_LISTED here is how genuinely listed
+            # markets came to be explained as missing.
+            decision.considered[venue] = (
+                MARKET_NOT_LISTED_ON_VENUE
+                if capabilities.venue_metadata_known(venue, environment)
+                else VENUE_STATE_UNKNOWN
+            )
             continue
         if record.state == TEMPORARILY_SUSPENDED:
             decision.considered[venue] = TEMPORARILY_SUSPENDED
@@ -228,7 +244,15 @@ def select_venue(
     # Nothing executable. Say which kind of nothing, because the answers
     # differ: a market nobody lists is not the same as one we simply cannot
     # authenticate against, and the second is a configuration decision.
-    if any(
+    if all(
+        state == VENUE_STATE_UNKNOWN for state in decision.considered.values()
+    ) and decision.considered:
+        decision.classification = VENUE_STATE_UNKNOWN
+        decision.reason = (
+            "no venue metadata has been read and no runtime snapshot was "
+            "found; this is unknown, not absent"
+        )
+    elif any(
         state == VENUE_AVAILABLE_NOT_AUTHENTICATED
         for state in decision.considered.values()
     ):

@@ -274,7 +274,10 @@ def test_the_snapshot_is_readable_by_another_process(tmp_path, monkeypatch):
     assert venues.write_snapshot() is True
 
     payload = venues.read_snapshot()
-    assert payload["schema_version"] == 2
+    # 3 added source_run_id/source_pid, so a reader can tell which
+    # process and which run wrote the state it is looking at.
+    assert payload["schema_version"] >= 3
+    assert payload["source_run_id"] and payload["source_pid"] > 0
     assert len(payload["markets"]) == len(ON_BYBIT)
 
     fresh = CapabilityRegistry()
@@ -548,7 +551,10 @@ def test_dust_is_classified_separately_and_not_counted_as_a_position():
 
     assert summary["dust_assets"] == 1
     assert summary["managed_positions"] + summary["orphaned_positions"] == 2
-    assert summary["reclaimable_capital"] > 0
+    # "reclaimable_capital" was renamed: one field called "value" could not
+    # carry the difference between what a holding is worth and what an exit
+    # would actually return, and dust is the case where those differ most.
+    assert summary["total_reclaimable_capital"] > 0
 
 
 def test_inventory_in_a_delisted_market_is_not_counted_as_reclaimable():

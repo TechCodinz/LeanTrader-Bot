@@ -13,6 +13,7 @@ import time
 
 from src.leantrader.execution import intent as execution_intent
 from src.leantrader.execution import inventory as inventory_reconciler
+from src.leantrader.execution import recovery as inventory_recovery
 from src.leantrader.execution import preflight
 from src.leantrader.execution.router import route_order
 
@@ -638,7 +639,24 @@ class ExecutionOrchestrator:
                 )
                 if not report.get("available"):
                     return 0.0
-                return float(report["capital"]["spendable_quote"])
+
+                # Adopt anything unmanaged while the account is already read.
+                # This understands and records orphaned capital; it does not
+                # sell it. A recovery exit needs explicit authorization.
+                try:
+                    inventory_recovery.coordinate(
+                        report.get("objects") or [],
+                        venue=report.get("venue", ""),
+                        environment=report.get("environment", ""),
+                    )
+                except Exception as exc:
+                    logger.debug(
+                        f"Recovery coordination skipped: {type(exc).__name__}"
+                    )
+
+                # cash_spendable_now, explicitly: reclaimable capital is what
+                # an exit would return, not money a new buy may spend.
+                return float(report["capital"]["cash_spendable_now"])
 
             return await asyncio.to_thread(_read)
         except Exception as exc:

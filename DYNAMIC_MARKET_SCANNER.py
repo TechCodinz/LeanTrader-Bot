@@ -19,6 +19,7 @@ from collections import deque
 import logging
 
 from src.leantrader.universe.registry import configured_quotes, universe
+from src.leantrader.universe import venues as venue_capabilities
 from src.leantrader.universe.venues import capabilities
 
 logger = logging.getLogger(__name__)
@@ -212,6 +213,24 @@ class DynamicMarketScanner:
         if new_count > old_count:
             logger.info(f"✅ Added {new_count - old_count} new pairs to universe")
             logger.info(f"   Total active pairs: {new_count}")
+
+        # Persist from the process that actually discovered. This used to
+        # happen only in the orchestrator's maintenance loop, so a scan could
+        # succeed while nothing was ever written and another process saw an
+        # empty universe.
+        try:
+            written = venue_capabilities.persist_discovery_state(
+                {"discovered_active_pairs": new_count}
+            )
+            logger.info(
+                "🌍 Canonical snapshot %s: %s",
+                "written" if written else "NOT written",
+                venue_capabilities.snapshot_path(),
+            )
+        except Exception as e:
+            logger.warning(
+                f"Canonical snapshot write failed: {type(e).__name__}: {e}"
+            )
 
     def get_active_universe(self) -> List[str]:
         """Get current active trading universe"""

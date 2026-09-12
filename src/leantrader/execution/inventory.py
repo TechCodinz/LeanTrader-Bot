@@ -54,7 +54,20 @@ class InventoryItem:
     used: float = 0.0
     total: float = 0.0
 
+    # Valuation, kept as distinct concepts rather than one overloaded
+    # "value". The aggregate and the rows could not be reconciled while dust
+    # and executable holdings shared a field whose meaning differed by row.
     mark_price: float = 0.0
+    raw_quote_value: float = 0.0          # quantity x mark, always
+    rounded_sell_amount: float = 0.0      # what the venue would accept
+    executable_quote_value: float = 0.0   # rounded amount x mark, or 0
+    included_in_inventory_total: bool = False
+    included_in_reclaimable_capital: bool = False
+    dust_reason: str = ""
+    sellable: bool = False
+
+    # Retained for callers that predate the split; always equal to
+    # raw_quote_value so nothing silently changes meaning.
     liquidation_value: float = 0.0
 
     acquisition_price: Optional[float] = None
@@ -73,10 +86,29 @@ class InventoryItem:
     market_executable: bool = False
     min_sell_amount: float = 0.0
     min_sell_notional: float = 0.0
+    amount_precision: Optional[float] = None
     can_close_now: bool = False
 
     def as_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
+
+def _round_down(amount: float, decimals: Optional[float]) -> float:
+    """Truncate to the venue's amount step.
+
+    Rounding up would claim we can sell more than we hold; the venue
+    truncates, so recoverable value is computed from the truncated amount.
+    """
+    if decimals is None or amount <= 0:
+        return amount
+    try:
+        places = int(decimals)
+    except (TypeError, ValueError):
+        return amount
+    if places < 0:
+        return amount
+    factor = 10.0 ** places
+    return int(amount * factor) / factor
 
 
 def _f(value: Any, default: float = 0.0) -> float:
@@ -149,6 +181,7 @@ def reconcile(
         ticker = tickers.get(symbol) or {}
 
         mark = _f(ticker.get("last") or ticker.get("close"))
+        raw_value = total * mark if mark > 0 else 0.0
         item = InventoryItem(
             asset=asset,
             symbol=symbol,
@@ -156,7 +189,8 @@ def reconcile(
             used=used,
             total=total,
             mark_price=mark,
-            liquidation_value=total * mark if mark > 0 else 0.0,
+            raw_quote_value=raw_value,
+            liquidation_value=raw_value,
         )
 
         record = known_positions.get(symbol)
@@ -186,28 +220,56 @@ def reconcile(
 
         item.market_executable = True
         limits = market.get("limits") or {}
+        precision = market.get("precision") or {}
         item.min_sell_amount = _f((limits.get("amount") or {}).get("min"))
         item.min_sell_notional = _f((limits.get("cost") or {}).get("min"))
+        item.amount_precision = (
+            _f(precision.get("amount")) if precision.get("amount") is not None
+            else None
+        )
 
-        below_amount = item.min_sell_amount > 0 and total < item.min_sell_amount
+        # What the venue would actually accept, which is not the same as what
+        # is held: an amount is truncated to the venue's step before it can be
+        # sold, and the value of that truncated amount is the only figure that
+        # represents recoverable capital.
+        item.rounded_sell_amount = _round_down(total, item.amount_precision)
+        item.executable_quote_value = (
+            item.rounded_sell_amount * mark if mark > 0 else 0.0
+        )
+
+        below_amount = (
+            item.min_sell_amount > 0
+            and item.rounded_sell_amount < item.min_sell_amount
+        )
         below_notional = (
             item.min_sell_notional > 0
-            and item.liquidation_value > 0
-            and item.liquidation_value < item.min_sell_notional
+            and item.executable_quote_value < item.min_sell_notional
         )
         below_dust = (
-            item.liquidation_value > 0
-            and item.liquidation_value < dust_threshold_quote()
+            item.raw_quote_value > 0
+            and item.raw_quote_value < dust_threshold_quote()
         )
 
         if below_amount or below_notional or below_dust:
             item.classification = DUST
             item.exit_blocked_reason = DUST_BELOW_SELL_MINIMUM
+            item.dust_reason = (
+                "below venue minimum amount"
+                if below_amount
+                else "below venue minimum notional"
+                if below_notional
+                else f"below dust threshold {dust_threshold_quote()}"
+            )
             item.can_close_now = False
+            item.sellable = False
+            item.executable_quote_value = 0.0
             items.append(item)
             continue
 
         item.can_close_now = True
+        item.sellable = True
+        item.included_in_inventory_total = True
+        item.included_in_reclaimable_capital = True
 
         if symbol in pending_symbols:
             item.exit_state = EXIT_PENDING
@@ -228,17 +290,42 @@ def reconcile(
 
 
 def summarize(items: List[InventoryItem]) -> Dict[str, Any]:
-    """Counts and reclaimable capital, with dust kept out of both."""
+    """Totals that reconcile exactly against their component rows.
+
+    The inclusion rules are explicit, because one field called "value" could
+    not carry them: mark-to-market is every row; executable inventory is only
+    rows the venue would accept a sell for; dust is the remainder. An
+    invariant test checks these add up rather than trusting that they do.
+    """
     by_class: Dict[str, int] = {}
+
+    total_mark_to_market = 0.0
+    total_executable = 0.0
+    total_dust = 0.0
     reclaimable = 0.0
-    dust_value = 0.0
 
     for item in items:
         by_class[item.classification] = by_class.get(item.classification, 0) + 1
+        total_mark_to_market += item.raw_quote_value
+
         if item.classification == DUST:
-            dust_value += item.liquidation_value
-        elif item.classification in RECLAIMABLE and item.can_close_now:
-            reclaimable += item.liquidation_value
+            total_dust += item.raw_quote_value
+            continue
+
+        if item.included_in_inventory_total:
+            total_executable += item.executable_quote_value
+        if (
+            item.included_in_reclaimable_capital
+            and item.classification in RECLAIMABLE
+            and item.can_close_now
+        ):
+            reclaimable += item.executable_quote_value
+
+    non_executable = sum(
+        item.raw_quote_value
+        for item in items
+        if item.classification == NON_EXECUTABLE_INVENTORY
+    )
 
     return {
         "nonzero_assets": len(items),
@@ -252,9 +339,73 @@ def summarize(items: List[InventoryItem]) -> Dict[str, Any]:
             1 for item in items if item.exit_state == EXIT_ELIGIBLE
         ),
         "exit_pending": sum(1 for item in items if item.exit_state == EXIT_PENDING),
-        "reclaimable_capital": round(reclaimable, 8),
-        "dust_value": round(dust_value, 8),
+        "total_mark_to_market_value": round(total_mark_to_market, 8),
+        "total_executable_inventory_value": round(total_executable, 8),
+        "total_dust_mark_to_market_value": round(total_dust, 8),
+        "total_non_executable_value": round(non_executable, 8),
+        "total_reclaimable_capital": round(reclaimable, 8),
     }
+
+
+def valuation_invariants(
+    items: List[InventoryItem], summary: Dict[str, Any], tolerance: float = 1e-6
+) -> List[str]:
+    """Where the printed rows and the printed totals disagree.
+
+    Returns a description per discrepancy; empty means the report is
+    internally consistent. This is what makes the aggregate safe to act on.
+    """
+    problems: List[str] = []
+
+    row_mark = sum(item.raw_quote_value for item in items)
+    if abs(row_mark - summary["total_mark_to_market_value"]) > tolerance:
+        problems.append(
+            f"mark-to-market rows sum to {row_mark:.8f} but the total says "
+            f"{summary['total_mark_to_market_value']:.8f}"
+        )
+
+    row_dust = sum(
+        item.raw_quote_value for item in items if item.classification == DUST
+    )
+    if abs(row_dust - summary["total_dust_mark_to_market_value"]) > tolerance:
+        problems.append(
+            f"dust rows sum to {row_dust:.8f} but the total says "
+            f"{summary['total_dust_mark_to_market_value']:.8f}"
+        )
+
+    row_executable = sum(
+        item.executable_quote_value
+        for item in items
+        if item.included_in_inventory_total
+    )
+    if abs(row_executable - summary["total_executable_inventory_value"]) > tolerance:
+        problems.append(
+            f"executable rows sum to {row_executable:.8f} but the total says "
+            f"{summary['total_executable_inventory_value']:.8f}"
+        )
+
+    row_reclaimable = sum(
+        item.executable_quote_value
+        for item in items
+        if item.included_in_reclaimable_capital
+        and item.classification in RECLAIMABLE
+        and item.can_close_now
+    )
+    if abs(row_reclaimable - summary["total_reclaimable_capital"]) > tolerance:
+        problems.append(
+            f"reclaimable rows sum to {row_reclaimable:.8f} but the total says "
+            f"{summary['total_reclaimable_capital']:.8f}"
+        )
+
+    for item in items:
+        if item.classification == DUST and item.included_in_reclaimable_capital:
+            problems.append(f"{item.asset}: dust counted as reclaimable")
+        if item.executable_quote_value > item.raw_quote_value + tolerance:
+            problems.append(
+                f"{item.asset}: executable value exceeds mark-to-market"
+            )
+
+    return problems
 
 
 def spendable_capital(
@@ -262,25 +413,15 @@ def spendable_capital(
     items: Optional[List[InventoryItem]] = None,
     reserve_fraction: float = 0.0,
 ) -> Dict[str, float]:
-    """What a new buy may actually spend, given what is already held.
+    """Cash, and everything that is not cash, kept apart.
 
-    Free cash is the only thing a new buy can spend. Inventory is reported
-    alongside it so the caller can see that capital is committed rather than
-    missing -- repeatedly proposing orders as though the original balance
-    were still cash is what produced dozens of identical sub-minimum
-    attempts.
+    Reclaimable capital is what an exit *would* return if one filled. It is
+    not spendable, and a new buy must never be sized against it. The fields
+    are named so that using the wrong one is a visible mistake rather than an
+    easy one.
     """
     items = items or []
-    inventory_value = sum(
-        item.liquidation_value
-        for item in items
-        if item.classification != DUST
-    )
-    reclaimable = sum(
-        item.liquidation_value
-        for item in items
-        if item.classification in RECLAIMABLE and item.can_close_now
-    )
+    summary = summarize(items)
 
     if reserve_fraction <= 0:
         try:
@@ -288,19 +429,39 @@ def spendable_capital(
         except (TypeError, ValueError):
             reserve_fraction = 0.0
 
-    spendable = max(0.0, free_quote * (1.0 - max(0.0, min(reserve_fraction, 1.0))))
+    cash_spendable_now = max(
+        0.0, free_quote * (1.0 - max(0.0, min(reserve_fraction, 1.0)))
+    )
+
+    committed = summary["total_mark_to_market_value"]
+    exit_eligible = sum(
+        item.executable_quote_value
+        for item in items
+        if item.exit_state == EXIT_ELIGIBLE and item.can_close_now
+    )
+    exit_pending = sum(
+        item.executable_quote_value
+        for item in items
+        if item.exit_state == EXIT_PENDING
+    )
 
     return {
-        "free_quote": round(free_quote, 8),
-        "spendable_quote": round(spendable, 8),
-        "inventory_value": round(inventory_value, 8),
-        "reclaimable_capital": round(reclaimable, 8),
-        "portfolio_value": round(free_quote + inventory_value, 8),
-        "cash_fraction": round(
-            free_quote / (free_quote + inventory_value), 6
-        )
-        if (free_quote + inventory_value) > 0
+        "free_quote_balance": round(free_quote, 8),
+        "cash_spendable_now": round(cash_spendable_now, 8),
+        "capital_committed": round(committed, 8),
+        "capital_exit_eligible": round(exit_eligible, 8),
+        "capital_exit_pending": round(exit_pending, 8),
+        "capital_recovered": 0.0,
+        "reclaimable_capital": summary["total_reclaimable_capital"],
+        "portfolio_value": round(free_quote + committed, 8),
+        "cash_fraction": round(free_quote / (free_quote + committed), 6)
+        if (free_quote + committed) > 0
         else 0.0,
+        # Retained for callers that predate the split. Deliberately equal to
+        # cash_spendable_now, never to reclaimable capital.
+        "spendable_quote": round(cash_spendable_now, 8),
+        "free_quote": round(free_quote, 8),
+        "inventory_value": round(committed, 8),
     }
 
 
@@ -361,4 +522,9 @@ def reconcile_from_broker(
         "items": [item.as_dict() for item in items],
         "summary": summarize(items),
         "capital": spendable_capital(free_quote, items),
+        # Checked here rather than only in tests: if the totals ever stop
+        # reconciling against their rows, the report says so instead of
+        # printing a number nobody can derive.
+        "valuation_problems": valuation_invariants(items, summarize(items)),
+        "objects": items,
     }

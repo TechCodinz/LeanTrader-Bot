@@ -23,6 +23,10 @@ def _isolated(tmp_path, monkeypatch):
     monkeypatch.setenv(
         "EXECUTION_TELEMETRY_PATH", str(tmp_path / "telemetry.json")
     )
+    # The reporter now reads the lineage journal too, so that has to be
+    # isolated as well or a journal left by the host leaks into the verdict.
+    monkeypatch.setenv("EXECUTION_LINEAGE_PATH", str(tmp_path / "lineage.jsonl"))
+    monkeypatch.setenv("INVENTORY_RECOVERY_PATH", str(tmp_path / "recovery.json"))
     from src.leantrader.execution import preflight
 
     preflight.reset_caches()
@@ -61,10 +65,19 @@ def test_environment_report_names_a_missing_secret_file(monkeypatch, tmp_path):
     assert "MISSING FILE" in output
 
 
-def test_counters_report_says_when_nothing_reached_execution():
+def test_counters_report_says_why_nothing_reached_execution():
+    """A quiet run is classified, not blamed on an assumed upstream break.
+
+    This used to print "the break is upstream of preflight" whenever attempts
+    were zero. With no counters and no lineage that claim is unsupported: the
+    honest report of an empty evidence store is that it is empty.
+    """
     output = _capture(execution_status.report_counters)
+
     assert "attempts        0" in output
-    assert "break is upstream of preflight" in output
+    assert "EXECUTION_IDLE_REASON=" in output
+    assert "NO_EVIDENCE_RECORDED" in output
+    assert "break is upstream of preflight" not in output
 
 
 def test_counters_report_ranks_blockers_by_frequency():

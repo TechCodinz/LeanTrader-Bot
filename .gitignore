@@ -51,4 +51,10 @@ runtime/vault_kv.json
 runtime/risk_guard.json
 runtime/execution_telemetry.json
 runtime/execution_telemetry.json.tmp
+runtime/universe_snapshot.json
+runtime/universe_snapshot.json.tmp*
+runtime/intent_lineage.jsonl
+runtime/intent_lineage.jsonl.1
+runtime/inventory_recovery.json
+runtime/inventory_recovery.json.tmp
 .state/
