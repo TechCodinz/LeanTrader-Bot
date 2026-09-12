@@ -222,19 +222,50 @@ class UltraCore:
         return venue, environment
 
     def _venue_may_serve(self, symbol):
-        """Ask the capability registry before touching the exchange."""
+        """Two questions, both answered before the exchange is contacted.
+
+        Can this venue quote this *kind* of instrument at all -- a crypto
+        exchange is not an FX data provider, however the router happens to
+        execute -- and does it list this particular market.
+        """
         try:
+            from src.leantrader.universe.instruments import may_use_venue_for_data
             from src.leantrader.universe.registry import normalize_symbol
             from src.leantrader.universe.routing import may_call_venue
         except Exception:
             return True, "UNKNOWN", "capability registry unavailable"
 
-        canonical = normalize_symbol(symbol)
+        canonical = normalize_symbol(symbol) or str(symbol or "").strip().upper()
         if not canonical:
             return False, "SYMBOL_NOT_NORMALIZED", str(symbol)[:48]
 
         venue, environment = self._venue_context()
+
+        compatible, classification, detail = may_use_venue_for_data(
+            venue, canonical
+        )
+        if not compatible:
+            return False, classification, detail
+
         return may_call_venue(venue, canonical, environment=environment)
+
+    def _plan_timeframe(self, timeframe):
+        """Translate an internal interval label into one the venue accepts.
+
+        Strategy code speaks M1/M5/M15/M30; exchanges do not. Passing those
+        through unchanged is what produced a steady stream of "Invalid
+        period!" for otherwise perfectly valid symbols.
+        """
+        try:
+            from src.leantrader.universe.timeframes import (
+                plan_timeframe,
+                venue_timeframes,
+            )
+        except Exception:
+            return None
+
+        exchange = getattr(getattr(self, "router", None), "ex", None)
+        return plan_timeframe(timeframe, venue_timeframes(exchange))
 
     def _venue_call_succeeded(self, symbol):
         try:
@@ -334,8 +365,35 @@ class UltraCore:
                         'detail': detail,
                     }
 
+                plan = self._plan_timeframe(timeframe)
+
+                if plan is not None and not plan.supported:
+                    return {
+                        'symbol': symbol,
+                        'timeframe': timeframe,
+                        'ohlcv': [],
+                        'close': 0,
+                        'unavailable': True,
+                        'classification': plan.classification,
+                        'detail': plan.detail,
+                    }
+
+                venue_timeframe = (
+                    plan.venue_timeframe if plan is not None else timeframe
+                )
+
                 try:
-                    ohlcv = self.router.safe_fetch_ohlcv(symbol, timeframe=timeframe)
+                    ohlcv = self.router.safe_fetch_ohlcv(
+                        symbol, timeframe=venue_timeframe
+                    )
+
+                    if plan is not None and plan.aggregate_factor > 1:
+                        from src.leantrader.universe.timeframes import (
+                            aggregate_ohlcv,
+                        )
+
+                        ohlcv = aggregate_ohlcv(ohlcv, plan.aggregate_factor)
+
                     self._venue_call_succeeded(symbol)
                 except Exception as exc:
                     # A failure here is about the connection, not the market.

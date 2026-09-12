@@ -379,19 +379,35 @@ def test_an_empty_free_balance_blocks():
     assert blocked.blocker == preflight.INSUFFICIENT_FREE_BALANCE
 
 
-def test_a_balance_under_the_venue_minimum_blocks_on_min_notional():
+def test_a_balance_under_the_venue_minimum_blocks_before_sizing():
+    """Classified at the minimum-ticket stage, not rediscovered in sizing.
+
+    The blocker is CAPITAL_BELOW_EXECUTABLE_MINIMUM rather than the blunter
+    BELOW_MIN_NOTIONAL: the market is fine and the size is fine, the balance
+    simply cannot fund the smallest order this venue will accept.
+    """
     broker = StubBroker(balance={"free": {"USDT": 2.0}})
     prepared, blocked = prepare_order(intent(), broker=broker)
+
     assert prepared is None
-    assert blocked.blocker == preflight.BELOW_MIN_NOTIONAL
+    assert blocked.blocker == preflight.CAPITAL_BELOW_EXECUTABLE_MINIMUM
+    assert blocked.stage == "minimum_ticket"
+    assert "spendable" in blocked.detail
 
 
-def test_a_coarse_amount_step_that_rounds_the_order_away_blocks():
-    # Whole-unit amount precision on a $64k asset: 0.0001 BTC rounds to 0.
+def test_coarse_amount_precision_makes_the_minimum_unaffordable():
+    """Whole-unit precision on a $64k asset means the smallest order is 1 BTC.
+
+    That is an affordability fact, not a rounding bug: the venue simply
+    cannot express an order this balance could pay for, and the detail says
+    precision is why.
+    """
     broker = StubBroker(exchange=StubExchange(amount_step=0))
     prepared, blocked = prepare_order(intent(), broker=broker)
+
     assert prepared is None
-    assert blocked.blocker == preflight.PRECISION_COLLAPSED_TO_ZERO
+    assert blocked.blocker == preflight.CAPITAL_BELOW_EXECUTABLE_MINIMUM
+    assert "precision" in blocked.detail
 
 
 def test_rounding_below_the_venue_min_amount_blocks():
@@ -406,11 +422,10 @@ def test_rounding_below_the_venue_min_amount_blocks():
     )
     prepared, blocked = prepare_order(intent(), broker=broker)
     assert prepared is None
-    # $13.95 cannot buy 0.01 BTC, so this is refused on funding, not rounding.
-    assert blocked.blocker in {
-        preflight.BELOW_MIN_NOTIONAL,
-        preflight.BELOW_MIN_AMOUNT,
-    }
+    # $13.95 cannot buy 0.01 BTC, so this is refused on funding, not rounding,
+    # and it is refused before sizing rather than after.
+    assert blocked.blocker == preflight.CAPITAL_BELOW_EXECUTABLE_MINIMUM
+    assert blocked.stage == "minimum_ticket"
 
 
 def test_a_sell_is_checked_against_the_base_balance_not_the_quote():

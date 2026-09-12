@@ -457,7 +457,10 @@ def test_preflight_blocks_an_unfundable_live_order():
     )
 
     assert prepared is None
-    assert blocked.blocker == preflight.BELOW_MIN_NOTIONAL
+    # Refused at the minimum-ticket stage: the venue's 500 minimum is more
+    # than 13.95 can fund, and live is not exempt from that.
+    assert blocked.blocker == preflight.CAPITAL_BELOW_EXECUTABLE_MINIMUM
+    assert blocked.stage == "minimum_ticket"
 
 
 # ------------------------- 12-13. tracked defaults vs operator configuration

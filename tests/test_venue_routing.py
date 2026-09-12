@@ -577,15 +577,24 @@ def test_a_repeatedly_unfundable_ticket_is_remembered_not_regenerated():
         {"symbol": "TINY/USDT", "side": "buy", "price": 1.0}, broker=broker
     )
     assert first[0] is None
-    assert first[1].blocker == preflight.BELOW_MIN_NOTIONAL
+    assert first[1].blocker == preflight.CAPITAL_BELOW_EXECUTABLE_MINIMUM
+    assert first[1].stage == "minimum_ticket"
 
-    assert preflight.economically_infeasible("bybit", "TINY/USDT", 3.0)
+    # The answer is remembered against the exact question that produced it:
+    # this balance, this price, these venue minimums.
+    assert preflight.economically_infeasible(
+        "bybit",
+        "TINY/USDT",
+        3.0,
+        price=1.0,
+        min_notional=50.0,
+        min_amount=0.0001,
+    )
 
     second = preflight.prepare_order(
         {"symbol": "TINY/USDT", "side": "buy", "price": 1.0}, broker=broker
     )
-    assert second[1].blocker == preflight.BELOW_MIN_NOTIONAL
-    assert second[1].stage == "sizing"
+    assert second[1].blocker == preflight.CAPITAL_BELOW_EXECUTABLE_MINIMUM
 
 
 def test_the_infeasibility_memory_expires(monkeypatch):

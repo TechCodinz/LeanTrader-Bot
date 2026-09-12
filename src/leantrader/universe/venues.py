@@ -822,9 +822,111 @@ capabilities = CapabilityRegistry()
 
 
 def snapshot_path() -> Path:
-    return Path(
-        os.getenv("UNIVERSE_SNAPSHOT_PATH", "runtime/universe_snapshot.json")
-    )
+    """Where the canonical snapshot lives.
+
+    Defaults to the shared runtime data directory mounted into the
+    container, so a separate process can read it. Falls back to the local
+    runtime directory when that mount is not present, which is what happens
+    outside the container.
+    """
+    explicit = os.getenv("UNIVERSE_SNAPSHOT_PATH", "").strip()
+    if explicit:
+        return Path(explicit)
+
+    shared = Path(os.getenv("LEANTRADER_DATA_DIR", "/app/data"))
+    if shared.is_dir() and os.access(shared, os.W_OK):
+        return shared / "universe_snapshot.json"
+
+    return Path("runtime/universe_snapshot.json")
+
+
+def snapshot_age_seconds(payload: Optional[Dict[str, Any]]) -> Optional[float]:
+    """How old a snapshot is, or None when it carries no timestamp.
+
+    Stale state may be displayed as stale. It must never be presented as
+    fresh truth.
+    """
+    if not payload:
+        return None
+    written = payload.get("written_at")
+    try:
+        return max(0.0, time.time() - float(written))
+    except (TypeError, ValueError):
+        return None
+
+
+def canonical_market_rows() -> List[Dict[str, Any]]:
+    """One row per (venue, symbol, market type, environment), for persistence.
+
+    Deliberately flat and self-describing: another process reads this without
+    importing anything from here.
+    """
+    from .instruments import classify_asset
+    from .registry import universe as market_universe
+
+    rows: List[Dict[str, Any]] = []
+    with capabilities._lock:  # noqa: SLF001 - same module
+        records = list(capabilities._records.values())  # noqa: SLF001
+        transient = dict(capabilities._transient)  # noqa: SLF001
+
+    for record in records:
+        if record.canonical_symbol == "*":
+            continue
+
+        market = market_universe.get(record.canonical_symbol)
+        backoff = transient.get(record.key)
+
+        rows.append(
+            {
+                "canonical_symbol": record.canonical_symbol,
+                "asset_class": classify_asset(record.canonical_symbol),
+                "market_type": record.market_type,
+                "venue": record.venue,
+                "environment": record.environment,
+                "venue_symbol": record.venue_symbol,
+                "listed": record.state == LISTED,
+                "active": record.active,
+                "state": record.state,
+                "public_data": record.state == LISTED,
+                # Paper never needs a venue listing; testnet and live do, in
+                # the environment they were recorded for.
+                "paper_capable": True,
+                "testnet_capable": (
+                    record.state == LISTED and record.environment == "testnet"
+                ),
+                "live_capable": (
+                    record.state == LISTED and record.environment == "live"
+                ),
+                "amount_precision": record.amount_precision,
+                "price_precision": record.price_precision,
+                "tick_size": record.tick_size,
+                "amount_step": record.amount_step,
+                "min_amount": record.min_amount,
+                "min_notional": record.min_notional,
+                "taker_fee": record.taker_fee,
+                "maker_fee": record.maker_fee,
+                "order_types": list(record.order_types),
+                "negative_state": (backoff.state if backoff else ""),
+                "negative_expires_in": (
+                    round(max(0.0, backoff.next_refresh_at - _now()), 1)
+                    if backoff
+                    else None
+                ),
+                "next_refresh_in": round(
+                    max(0.0, record.next_refresh_at - _now()), 1
+                ),
+                "evidence": record.evidence,
+                "verification_count": record.verification_count,
+                "first_observed": record.first_observed,
+                "last_verified": record.last_verified,
+                "execution_eligible": (
+                    market.execution_eligible if market else None
+                ),
+                "research_eligible": True,
+            }
+        )
+
+    return rows
 
 
 def write_snapshot(extra: Optional[Dict[str, Any]] = None) -> bool:
@@ -837,13 +939,21 @@ def write_snapshot(extra: Optional[Dict[str, Any]] = None) -> bool:
     """
     path = snapshot_path()
     payload = capabilities.snapshot()
+    payload["schema_version"] = 2
+    payload["snapshot_path"] = str(path)
+    try:
+        payload["markets"] = canonical_market_rows()
+    except Exception:
+        payload["markets"] = []
     if extra:
         payload.update(extra)
+
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(path.suffix + ".tmp")
+        # Atomic: a reader in another process never sees a partial file.
+        tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
         tmp.write_text(json.dumps(payload, default=str), encoding="utf-8")
-        tmp.replace(path)
+        os.replace(tmp, path)
         return True
     except OSError:
         return False

@@ -11,6 +11,8 @@ from datetime import datetime
 from collections import deque
 import time
 
+from src.leantrader.execution import intent as execution_intent
+from src.leantrader.execution import inventory as inventory_reconciler
 from src.leantrader.execution import preflight
 from src.leantrader.execution.router import route_order
 
@@ -273,8 +275,28 @@ class ExecutionOrchestrator:
             confidence = decision.get('confidence', 0.0)
 
             symbol = signal.get('symbol') or signal.get('data', {}).get('symbol')
+
+            # One identity for this attempt, carried to wherever it stops.
+            # Without it the funnel could say how many attempts happened but
+            # not which engine produced them or where they died.
+            intent = execution_intent.intent_from_decision(
+                decision,
+                source_engine=str(
+                    signal.get('source')
+                    or signal.get('data', {}).get('source')
+                    or 'execution_orchestrator'
+                ),
+                environment=self.mode,
+            )
+            intent.advance(execution_intent.DECISION)
+
             if not symbol:
                 preflight.record_blocker(preflight.INVALID_INTENT, 'no_symbol')
+                intent.stop(
+                    execution_intent.DECISION,
+                    preflight.INVALID_INTENT,
+                    'decision carried no symbol',
+                )
                 logger.debug("No symbol in decision")
                 return
 
@@ -282,9 +304,19 @@ class ExecutionOrchestrator:
             # activity; attempts that fail it are counted so a quiet run can
             # be attributed rather than guessed at.
             if confidence < self.min_confidence:
+                # A structured rejection, not a silent end. Most live
+                # decisions sit below the threshold, and that is an
+                # acceptable answer -- but it has to be distinguishable from
+                # a broken handoff.
                 preflight.record_blocker(
                     preflight.CONFIDENCE_BELOW_THRESHOLD,
                     f"{symbol} {confidence:.4f}<{self.min_confidence:.4f}",
+                )
+                intent.stop(
+                    execution_intent.THRESHOLD,
+                    execution_intent.DECISION_REJECTED_CONFIDENCE,
+                    f"confidence {confidence:.4f} < threshold "
+                    f"{self.min_confidence:.4f}",
                 )
                 logger.debug(f"Low confidence: {confidence:.2%} < {self.min_confidence:.2%}")
                 return
@@ -335,6 +367,9 @@ class ExecutionOrchestrator:
                     preflight.record_blocker(
                         preflight.STRATEGY_REJECT, f"{symbol}:{action}"
                     )
+                    intent.stop(
+                        execution_intent.CANDIDATE, preflight.STRATEGY_REJECT, f"decider chose {action}"
+                    )
                     logger.info(f"   ⏸️  No action taken")
                     return
 
@@ -360,6 +395,9 @@ class ExecutionOrchestrator:
                 preflight.record_blocker(
                     preflight.RISK_REJECT, f"{symbol}:{reason}"
                 )
+                intent.stop(
+                    execution_intent.CANDIDATE, preflight.RISK_REJECT, reason
+                )
                 logger.info(f"⚠️ Trade blocked: {reason}")
                 return
 
@@ -367,12 +405,15 @@ class ExecutionOrchestrator:
             logger.info(f"⚡ EXECUTING: {action.upper()} {symbol} (confidence: {confidence:.1%})")
 
             preflight.record_event('candidates_execution_eligible')
+            intent.candidate_id = execution_intent.new_candidate_id()
+            intent.advance(execution_intent.CANDIDATE)
 
             result = await self.execute_trade(
                 symbol=symbol,
                 side=action,
                 confidence=confidence,
-                signal=signal
+                signal=signal,
+                intent=intent,
             )
 
             # execute_trade returns a receipt on acknowledgement and a
@@ -399,7 +440,8 @@ class ExecutionOrchestrator:
                            symbol: str,
                            side: str,
                            confidence: float,
-                           signal: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+                           signal: Dict[str, Any],
+                           intent=None) -> Optional[Dict[str, Any]]:
         """Submit one order through the universal execution router.
 
         This used to size from a fixed $1000 assumption, hand the order to
@@ -418,36 +460,60 @@ class ExecutionOrchestrator:
         """
         start_time = time.time()
 
-        intent = {
+        if intent is None:
+            intent = execution_intent.ExecutionIntent(
+                symbol=symbol,
+                side=side,
+                confidence=confidence,
+                environment=self.mode,
+                source_engine='execution_orchestrator',
+            )
+
+        order_intent = {
             'symbol': symbol,
             'side': side,
             'confidence': confidence,
             'order_type': 'market',
         }
 
+        # What a new buy may actually spend: free cash, not the balance the
+        # account had before it bought anything. Capital already in inventory
+        # is committed, and proposing orders as though it were still cash is
+        # what produced dozens of identical sub-minimum attempts.
+        order_intent['risk_budget'] = await self._spendable_budget()
+
         price = signal.get('data', {}).get('price') or signal.get('price')
         if price:
-            intent['price'] = price
+            order_intent['price'] = price
         else:
             fetched = await self.get_current_price(symbol)
             if fetched:
-                intent['price'] = fetched
+                order_intent['price'] = fetched
 
         override = os.getenv('EXECUTION_EXCHANGE_OVERRIDE', '').strip().lower()
         if override:
-            intent['exchange_id'] = override
+            order_intent['exchange_id'] = override
 
         # Preflight touches the network (markets, balance, ticker) and
         # route_order blocks on the exchange call, so both run off the event
         # loop. Holding the loop here stalls every other engine.
-        prepared, blocked = await asyncio.to_thread(preflight.prepare_order, intent)
+        intent.advance(execution_intent.PREFLIGHT)
+        prepared, blocked = await asyncio.to_thread(
+            preflight.prepare_order, order_intent
+        )
 
         if prepared is None:
+            intent.stop(
+                execution_intent.PREFLIGHT, blocked.blocker, blocked.detail
+            )
             logger.info(
                 f"⛔ {symbol} {side.upper()} not submitted: "
                 f"{blocked.blocker} ({blocked.detail})"
             )
-            return blocked.as_dict()
+            payload = blocked.as_dict()
+            payload['intent_id'] = intent.intent_id
+            payload['correlation_id'] = intent.correlation_id
+            return payload
 
         logger.info(
             f"⚡ SUBMITTING {side.upper()} {prepared.symbol} "
@@ -458,7 +524,14 @@ class ExecutionOrchestrator:
         )
 
         preflight.record_event('submitted')
-        receipt = await asyncio.to_thread(route_order, prepared.to_payload())
+        intent.advance(execution_intent.ROUTE_ORDER)
+
+        # Identity travels with the order, so the receipt can be tied back to
+        # the signal that produced it.
+        payload = prepared.to_payload()
+        payload.setdefault('params', {}).update(intent.to_payload())
+
+        receipt = await asyncio.to_thread(route_order, payload)
 
         blocker = preflight.classify_receipt(receipt)
         execution_time = time.time() - start_time
@@ -468,6 +541,7 @@ class ExecutionOrchestrator:
         if blocker is not None:
             detail = str((receipt or {}).get('error', ''))[:200]
             preflight.record_blocker(blocker, f"{symbol}:{detail}")
+            intent.stop(execution_intent.EXCHANGE_ORDER, blocker, detail)
             logger.warning(
                 f"❌ {symbol} {side.upper()} not acknowledged: {blocker} {detail}"
             )
@@ -477,6 +551,8 @@ class ExecutionOrchestrator:
                 'blocker': blocker,
                 'detail': detail,
                 'receipt': receipt,
+                'intent_id': intent.intent_id,
+                'correlation_id': intent.correlation_id,
             }
 
         order = receipt.get('order') or {}
@@ -486,9 +562,12 @@ class ExecutionOrchestrator:
         status = order.get('status')
 
         preflight.record_event('acknowledged')
+        intent.advance(execution_intent.EXCHANGE_ORDER, str(order_id))
         if filled:
             preflight.record_event('fills')
+            intent.succeed(execution_intent.FILL, str(filled))
         preflight.record_event('positions_opened')
+        intent.succeed(execution_intent.POSITION)
         preflight.invalidate_balance_cache()
 
         self.risk_manager.record_position(
@@ -517,6 +596,9 @@ class ExecutionOrchestrator:
             'timestamp': datetime.now(),
             'status': 'open',
             'realized_pnl': None,
+            'intent_id': intent.intent_id,
+            'correlation_id': intent.correlation_id,
+            'source_engine': intent.source_engine,
         }
 
         await self.data_hub.publish_trade(trade_record)
@@ -536,6 +618,32 @@ class ExecutionOrchestrator:
         logger.info(f"   Latency: {execution_time:.2f}s")
 
         return receipt
+
+    async def _spendable_budget(self) -> float:
+        """Free cash, after reconciling what is already held.
+
+        Returns 0.0 when the account cannot be read, which preflight treats
+        as no budget rather than as unlimited.
+        """
+        try:
+            def _read():
+                broker = preflight.shared_broker()
+                report = inventory_reconciler.reconcile_from_broker(
+                    broker,
+                    known_positions={
+                        symbol: {**position, "owner_alive": True}
+                        for symbol, position
+                        in self.risk_manager.open_positions.items()
+                    },
+                )
+                if not report.get("available"):
+                    return 0.0
+                return float(report["capital"]["spendable_quote"])
+
+            return await asyncio.to_thread(_read)
+        except Exception as exc:
+            logger.debug(f"Spendable budget unavailable: {type(exc).__name__}")
+            return 0.0
 
     async def _recent_closes(self, symbol: str, limit: int = 50) -> List[float]:
         """Real recent closes for ``symbol``, or [] if they cannot be read.

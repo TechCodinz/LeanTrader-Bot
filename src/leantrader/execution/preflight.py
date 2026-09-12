@@ -25,7 +25,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .broker_ccxt import BrokerCCXT
 
@@ -54,6 +54,7 @@ PRECISION_COLLAPSED_TO_ZERO = "PRECISION_COLLAPSED_TO_ZERO"
 ROUTER_REFUSED = "ROUTER_REFUSED"
 EXCHANGE_REJECT = "EXCHANGE_REJECT"
 NO_ORDER_ID = "NO_ORDER_ID"
+CAPITAL_BELOW_EXECUTABLE_MINIMUM = "CAPITAL_BELOW_EXECUTABLE_MINIMUM"
 
 BLOCKER_CLASSES: Tuple[str, ...] = (
     STRATEGY_REJECT,
@@ -77,6 +78,7 @@ BLOCKER_CLASSES: Tuple[str, ...] = (
     ROUTER_REFUSED,
     EXCHANGE_REJECT,
     NO_ORDER_ID,
+    CAPITAL_BELOW_EXECUTABLE_MINIMUM,
 )
 
 
@@ -85,6 +87,10 @@ BLOCKER_CLASSES: Tuple[str, ...] = (
 
 _COUNTER_LOCK = threading.Lock()
 
+# Identifies this process's counters, so a restart does not make last run's
+# submissions look like this one's.
+RUN_ID = f"{int(time.time())}-{os.getpid()}"
+
 
 def _counter_path() -> Path:
     return Path(
@@ -92,14 +98,42 @@ def _counter_path() -> Path:
     )
 
 
+# One order lifecycle narrows monotonically: every acknowledgement had a
+# submission, every fill had an acknowledgement. A violation means either a
+# counter is being incremented at the wrong place or two different
+# populations are being added together -- both worth knowing about.
+LIFECYCLE_ORDER = (
+    "attempts",
+    "prepared",
+    "submitted",
+    "acknowledged",
+    "fills",
+    "closes",
+)
+
+# Orders that belong to a previous process. They are real evidence and must
+# not be discarded, but adding them to this run's submissions would make the
+# funnel describe something that never happened.
+RECOVERED_KEYS = (
+    "recovered_orders",
+    "reconciled_external_orders",
+)
+
+
 def _blank_state() -> Dict[str, Any]:
     return {
+        "run_id": RUN_ID,
         "attempts": 0,
         "prepared": 0,
         "submitted": 0,
         "acknowledged": 0,
+        "fills": 0,
+        "closes": 0,
+        "recovered_orders": 0,
+        "reconciled_external_orders": 0,
         "blockers": {},
         "stages": {},
+        "runs": {},
         "started_at": time.time(),
         "updated_at": time.time(),
     }
@@ -155,12 +189,60 @@ def record_blocker(blocker: str, detail: str = "") -> None:
 
 
 def record_event(name: str, count: int = 1) -> None:
-    """Increment one lifecycle counter (attempts, prepared, submitted, ...)."""
+    """Increment one lifecycle counter, for all time and for this run.
+
+    The persisted totals survive restarts, which is what makes them evidence.
+    The per-run block is what makes the funnel honest: after a restart the
+    cumulative totals still carry last run's acknowledgements, and reading
+    those as this run's activity is how a funnel comes to show more
+    acknowledgements than submissions.
+    """
     with _COUNTER_LOCK:
         state = _load_state()
         state[name] = int(state.get(name, 0)) + int(count)
+
+        runs = state.setdefault("runs", {})
+        current = runs.setdefault(RUN_ID, {"started_at": time.time()})
+        current[name] = int(current.get(name, 0)) + int(count)
+        current["updated_at"] = time.time()
+
+        # Keep the last few runs only; this is a counter file, not a log.
+        if len(runs) > 5:
+            for stale in sorted(
+                runs, key=lambda r: runs[r].get("started_at", 0)
+            )[:-5]:
+                del runs[stale]
+
         state["updated_at"] = time.time()
         _store_state(state)
+
+
+def current_run_counters() -> Dict[str, int]:
+    """This process's counters, separate from anything inherited."""
+    with _COUNTER_LOCK:
+        state = _load_state()
+        return dict((state.get("runs") or {}).get(RUN_ID, {}))
+
+
+def lifecycle_violations(counters: Dict[str, Any]) -> List[str]:
+    """Where the funnel widens when it should only narrow.
+
+    Returns a description per violation. An empty list means the counters
+    describe a lifecycle that could actually have happened.
+    """
+    violations: List[str] = []
+    previous_name = None
+    previous_value = None
+
+    for name in LIFECYCLE_ORDER:
+        value = int(counters.get(name, 0) or 0)
+        if previous_value is not None and value > previous_value:
+            violations.append(
+                f"{name}={value} exceeds {previous_name}={previous_value}"
+            )
+        previous_name, previous_value = name, value
+
+    return violations
 
 
 def record_stage_latency(stage: str, seconds: float) -> None:
@@ -182,6 +264,18 @@ def telemetry_snapshot() -> Dict[str, Any]:
     """Read the persisted counters. Used by status reporting."""
     with _COUNTER_LOCK:
         return _load_state()
+
+
+def record_recovered_order(external: bool = False) -> None:
+    """An order found on the exchange that this run did not submit.
+
+    Counted apart from the run's own submissions. Discarding it would throw
+    away real exchange evidence; adding it to submitted would describe a
+    submission that never happened here.
+    """
+    record_event(
+        "reconciled_external_orders" if external else "recovered_orders"
+    )
 
 
 # ------------------------------------------------------------ shared clients
@@ -335,19 +429,195 @@ def _infeasible_ttl() -> float:
     return float(os.getenv("EXECUTION_INFEASIBLE_TTL_SECONDS", "300"))
 
 
-def _capital_bucket(capital: float) -> int:
-    """Coarse buckets, so a cent of drift is not a new question."""
-    if capital <= 0:
+def _bucket(value: float, step: float) -> int:
+    """Coarse buckets, so drift within the noise is not a new question."""
+    if value <= 0 or step <= 0:
         return 0
-    return int(capital)
+    return int(value / step)
 
 
-def _infeasible_key(venue: str, symbol: str, capital: float) -> str:
-    return f"{venue}:{symbol}:{_capital_bucket(capital)}"
+def _infeasible_key(
+    venue: str,
+    symbol: str,
+    capital: float,
+    price: float = 0.0,
+    min_notional: float = 0.0,
+    min_amount: float = 0.0,
+    risk_budget: float = 0.0,
+) -> str:
+    """Identify the exact question that was answered "not fundable".
+
+    The cooldown must lift when anything that could change the answer
+    changes: the balance, the price, the venue's minimums, or the risk
+    budget. Keying on capital alone would keep refusing a market whose
+    minimum had since dropped, or whose price had halved.
+    """
+    return ":".join(
+        (
+            venue,
+            symbol,
+            str(_bucket(capital, 0.5)),
+            str(_bucket(price, max(price * 0.02, 1e-12))),
+            str(min_notional),
+            str(min_amount),
+            str(_bucket(risk_budget, 0.5)),
+        )
+    )
+
+
+@dataclass
+class MinimumTicket:
+    """The smallest spend this venue will actually accept for this market."""
+
+    symbol: str
+    venue: str
+    price: float
+    min_notional: float
+    min_amount: float
+    fee_rate: float
+    amount: float = 0.0
+    notional: float = 0.0
+    total_cost: float = 0.0
+    fee_allowance: float = 0.0
+    slippage_allowance: float = 0.0
+    detail: str = ""
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "symbol": self.symbol,
+            "venue": self.venue,
+            "amount": self.amount,
+            "notional": self.notional,
+            "total_cost": self.total_cost,
+            "fee_allowance": self.fee_allowance,
+            "slippage_allowance": self.slippage_allowance,
+            "min_notional": self.min_notional,
+            "min_amount": self.min_amount,
+            "detail": self.detail,
+        }
+
+
+def minimum_executable_ticket(
+    symbol: str,
+    venue: str,
+    price: float,
+    min_notional: float,
+    min_amount: float,
+    fee_rate: float = 0.001,
+    exchange: Any = None,
+    slippage_bps: float = 0.0,
+) -> MinimumTicket:
+    """What it would actually cost to place the smallest legal order here.
+
+    Computed before a candidate is produced, not discovered in preflight
+    dozens of times. A proposal of 0.919 USDT against a 1.00 minimum is not a
+    near miss to be retried -- it is a question with a known answer, and the
+    answer is the number this returns.
+
+    Includes both fee legs and a price-movement buffer, because an order
+    sized at exactly the minimum with no headroom fails the moment the price
+    ticks.
+    """
+    price = float(price or 0.0)
+    if price <= 0:
+        return MinimumTicket(
+            symbol=symbol,
+            venue=venue,
+            price=price,
+            min_notional=min_notional,
+            min_amount=min_amount,
+            fee_rate=fee_rate,
+            detail="no reference price",
+        )
+
+    if slippage_bps <= 0:
+        try:
+            slippage_bps = float(os.getenv("EXECUTION_SLIPPAGE_BPS", "10"))
+        except (TypeError, ValueError):
+            slippage_bps = 10.0
+
+    # The larger of the two floors the venue publishes.
+    floor_notional = max(
+        float(min_notional or 0.0), float(min_amount or 0.0) * price
+    )
+    amount = floor_notional / price if floor_notional > 0 else float(min_amount or 0.0)
+
+    # Venues truncate to their amount step, so the rounded amount is almost
+    # always slightly below what was asked for. That only matters when it
+    # drops the order back under the venue's own floor -- so bump by exactly
+    # one step in that case, and leave it alone otherwise. Bumping
+    # unconditionally turned a 5 USDT minimum into a 642 USDT order.
+    if exchange is not None and amount > 0:
+        rounded = _amount_to_precision(exchange, symbol, amount)
+
+        if rounded > 0 and rounded * price + 1e-12 < floor_notional:
+            step = _infer_amount_step(exchange, symbol, rounded)
+            if step > 0:
+                bumped = _amount_to_precision(exchange, symbol, rounded + step)
+                if bumped > rounded:
+                    rounded = bumped
+
+        if rounded > 0:
+            amount = rounded
+        elif floor_notional > 0:
+            # Precision collapsed the minimum to zero: the smallest amount
+            # this venue can express is one step.
+            step = _infer_amount_step(exchange, symbol, 0.0)
+            if step > 0:
+                amount = step
+
+    notional = amount * price
+    fee_allowance = notional * max(0.0, fee_rate) * 2.0
+    slippage_allowance = notional * (max(0.0, slippage_bps) / 10_000.0)
+
+    return MinimumTicket(
+        symbol=symbol,
+        venue=venue,
+        price=price,
+        min_notional=min_notional,
+        min_amount=min_amount,
+        fee_rate=fee_rate,
+        amount=amount,
+        notional=notional,
+        total_cost=notional + fee_allowance + slippage_allowance,
+        fee_allowance=fee_allowance,
+        slippage_allowance=slippage_allowance,
+        detail=(
+            f"{amount} @ {price} = {notional:.8f} "
+            f"(+{fee_allowance:.8f} fees, +{slippage_allowance:.8f} buffer)"
+            + (
+                "; venue amount precision forces this size"
+                if floor_notional > 0 and notional > floor_notional * 1.5
+                else ""
+            )
+        ),
+    )
+
+
+def _infer_amount_step(exchange: Any, symbol: str, amount: float) -> float:
+    """Smallest increment that actually changes the venue-rounded amount.
+
+    Probed rather than assumed: precision is expressed as decimals on some
+    venues and as a tick size on others, and the only portable question is
+    "what is the smallest thing that moves this".
+    """
+    base = _amount_to_precision(exchange, symbol, amount)
+    for magnitude in range(12, -3, -1):
+        step = 10.0 ** -magnitude
+        if _amount_to_precision(exchange, symbol, amount + step) > base:
+            return step
+    return 0.0
 
 
 def note_economically_infeasible(
-    venue: str, symbol: str, capital: float, reason: str
+    venue: str,
+    symbol: str,
+    capital: float,
+    reason: str,
+    price: float = 0.0,
+    min_notional: float = 0.0,
+    min_amount: float = 0.0,
+    risk_budget: float = 0.0,
 ) -> None:
     """Remember that this balance cannot fund this market's minimum.
 
@@ -357,17 +627,25 @@ def note_economically_infeasible(
     bounded window stops the strategy layer re-proposing it, without
     hardening into a permanent exclusion -- balances move and so do minimums.
     """
+    key = _infeasible_key(
+        venue, symbol, capital, price, min_notional, min_amount, risk_budget
+    )
     with _INFEASIBLE_LOCK:
-        _INFEASIBLE[_infeasible_key(venue, symbol, capital)] = (
-            time.time() + _infeasible_ttl(),
-            reason,
-        )
+        _INFEASIBLE[key] = (time.time() + _infeasible_ttl(), reason)
 
 
 def economically_infeasible(
-    venue: str, symbol: str, capital: float
+    venue: str,
+    symbol: str,
+    capital: float,
+    price: float = 0.0,
+    min_notional: float = 0.0,
+    min_amount: float = 0.0,
+    risk_budget: float = 0.0,
 ) -> Optional[str]:
-    key = _infeasible_key(venue, symbol, capital)
+    key = _infeasible_key(
+        venue, symbol, capital, price, min_notional, min_amount, risk_budget
+    )
     with _INFEASIBLE_LOCK:
         entry = _INFEASIBLE.get(key)
         if entry is None:
@@ -822,12 +1100,6 @@ def prepare_order(
                 INSUFFICIENT_FREE_BALANCE, f"{spend_currency}=0", "balance"
             )
 
-    remembered = economically_infeasible(
-        broker.exchange_id, symbol, free_quote
-    )
-    if remembered:
-        return blocked(BELOW_MIN_NOTIONAL, remembered, "sizing")
-
     min_notional = _limit(market, "cost", "min") or 0.0
     min_amount = _limit(market, "amount", "min") or 0.0
     try:
@@ -835,8 +1107,81 @@ def prepare_order(
     except Exception:
         fee_rate = 0.001
 
+    try:
+        risk_budget = float(intent.get("risk_budget") or 0.0)
+    except (TypeError, ValueError):
+        risk_budget = 0.0
+
+    remembered = economically_infeasible(
+        broker.exchange_id,
+        symbol,
+        free_quote,
+        price=price,
+        min_notional=min_notional,
+        min_amount=min_amount,
+        risk_budget=risk_budget,
+    )
+    if remembered:
+        return blocked(
+            CAPITAL_BELOW_EXECUTABLE_MINIMUM, remembered, "minimum_ticket"
+        )
+
+    precision_client = None
+    try:
+        precision_client = broker._make_exchange(  # noqa: SLF001
+            broker.resolve_mode(), authenticated=False
+        )
+    except Exception:
+        precision_client = None
+
+    # What the smallest legal order here would actually cost, decided once
+    # rather than rediscovered by proposing 0.919 against a 1.00 minimum
+    # every cycle.
+    ticket = minimum_executable_ticket(
+        symbol=symbol,
+        venue=broker.exchange_id,
+        price=price,
+        min_notional=min_notional,
+        min_amount=min_amount,
+        fee_rate=fee_rate,
+        exchange=precision_client,
+    )
+
+    spendable = free_quote
+    if risk_budget > 0:
+        spendable = min(spendable, risk_budget)
+
+    if ticket.total_cost > 0 and ticket.total_cost > spendable:
+        reason = (
+            f"smallest executable ticket costs {ticket.total_cost:.8f} "
+            f"{quote} (min notional {ticket.min_notional}, min amount "
+            f"{ticket.min_amount}); spendable {spendable:.8f}"
+            + (" within risk budget" if risk_budget > 0 else "")
+            + (
+                "; venue amount precision forces this size"
+                if "precision forces" in ticket.detail
+                else ""
+            )
+        )
+        note_economically_infeasible(
+            broker.exchange_id,
+            symbol,
+            free_quote,
+            reason,
+            price=price,
+            min_notional=min_notional,
+            min_amount=min_amount,
+            risk_budget=risk_budget,
+        )
+        return blocked(
+            CAPITAL_BELOW_EXECUTABLE_MINIMUM, reason, "minimum_ticket"
+        )
+
+    # Size against the risk budget when one is set, not merely check the
+    # minimum against it. A budget that gates the floor but not the size
+    # would pass a 0.50 budget and then place a 12.46 order.
     notional, sizing_reason = size_order(
-        free_quote=free_quote,
+        free_quote=spendable,
         price=price,
         min_notional=min_notional,
         min_amount=min_amount,
@@ -853,19 +1198,21 @@ def prepare_order(
         )
         if blocker == BELOW_MIN_NOTIONAL:
             note_economically_infeasible(
-                broker.exchange_id, symbol, free_quote, sizing_reason
+                broker.exchange_id,
+                symbol,
+                free_quote,
+                sizing_reason,
+                price=price,
+                min_notional=min_notional,
+                min_amount=min_amount,
+                risk_budget=risk_budget,
             )
+            blocker = CAPITAL_BELOW_EXECUTABLE_MINIMUM
         return blocked(blocker, sizing_reason, "sizing")
 
     amount = notional / price
 
-    exchange = None
-    try:
-        exchange = broker._make_exchange(  # noqa: SLF001 - same package
-            broker.resolve_mode(), authenticated=False
-        )
-    except Exception:
-        exchange = None
+    exchange = precision_client
 
     if exchange is not None:
         amount = _amount_to_precision(exchange, symbol, amount)
@@ -893,10 +1240,10 @@ def prepare_order(
             "precision",
         )
 
-    if final_notional > free_quote:
+    if final_notional > spendable + 1e-12:
         return blocked(
             INSUFFICIENT_FREE_BALANCE,
-            f"{symbol} needs={final_notional:.8f} free={free_quote:.8f}",
+            f"{symbol} needs={final_notional:.8f} spendable={spendable:.8f}",
             "precision",
         )
 

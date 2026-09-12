@@ -47,6 +47,8 @@ from src.leantrader.execution import preflight  # noqa: E402
 from src.leantrader.universe.registry import universe  # noqa: E402
 from src.leantrader.universe import routing  # noqa: E402
 from src.leantrader.universe import venues as venue_capabilities  # noqa: E402
+from src.leantrader.execution import intent as execution_intent  # noqa: E402
+from src.leantrader.execution import inventory as inventory_reconciler  # noqa: E402
 
 
 def _rule(title: str) -> None:
@@ -165,10 +167,17 @@ def report_universe(capital: float = 0.0) -> Dict[str, Any]:
 
     snapshot = load_runtime_snapshot()
     if snapshot:
-        age = time.time() - float(snapshot.get("written_at") or 0)
-        print(f"  runtime snapshot   {_age(snapshot.get('written_at', 0))}")
-        if age > 900:
-            print("  !! snapshot is stale; the runtime may not be writing it")
+        age = venue_capabilities.snapshot_age_seconds(snapshot)
+        print(f"  snapshot source    {snapshot.get('snapshot_path', '?')}")
+        print(f"  snapshot written   {_age(snapshot.get('written_at', 0))}")
+        print(f"  markets persisted  {len(snapshot.get('markets') or [])}")
+        if age is not None and age > 300:
+            print()
+            print("  !! STALE. This is the last state the runtime wrote, not")
+            print("     current truth. Everything below is as of that moment.")
+        print()
+    else:
+        print("  No runtime snapshot found; showing this process only.")
         print()
 
     telemetry = snapshot.get("universe") or universe.telemetry(
@@ -292,6 +301,94 @@ def report_venue_capabilities(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     return telemetry
 
 
+def report_inventory() -> Dict[str, Any]:
+    _rule("INVENTORY")
+
+    try:
+        broker = preflight.shared_broker()
+    except Exception as exc:
+        print(f"  cannot read the account: {type(exc).__name__}")
+        return {}
+
+    report = inventory_reconciler.reconcile_from_broker(broker)
+
+    if not report.get("available"):
+        print(f"  {report.get('reason', 'unavailable')}")
+        return report
+
+    summary = report["summary"]
+    capital = report["capital"]
+
+    print(f"  venue / environment  {report['venue']} / {report['environment']}")
+    print(f"  non-zero assets      {summary['nonzero_assets']}")
+    for label, key in (
+        ("managed positions", "managed_positions"),
+        ("orphaned positions", "orphaned_positions"),
+        ("dust assets", "dust_assets"),
+        ("non-executable", "non_executable"),
+        ("exit eligible", "exit_eligible"),
+        ("exit pending", "exit_pending"),
+    ):
+        print(f"  {label:<20} {summary[key]}")
+
+    print()
+    print(f"  free quote           {capital['free_quote']}")
+    print(f"  spendable            {capital['spendable_quote']}")
+    print(f"  inventory value      {capital['inventory_value']}")
+    print(f"  reclaimable capital  {capital['reclaimable_capital']}")
+    print(f"  portfolio value      {capital['portfolio_value']}")
+    print(f"  cash fraction        {capital['cash_fraction']}")
+
+    items = report.get("items") or []
+    if items:
+        print()
+        print("  holdings:")
+        width = max(len(i["asset"]) for i in items)
+        for item in items:
+            print(
+                f"    {item['asset']:<{width}}  {item['classification']:<24} "
+                f"value={item['liquidation_value']:.6f} "
+                f"exit={item['exit_state'] or '-'} "
+                f"owner={item['owner'] or 'unknown'}"
+            )
+            if item["exit_blocked_reason"]:
+                print(f"    {'':<{width}}  └─ {item['exit_blocked_reason']}")
+
+    if summary["orphaned_positions"]:
+        print()
+        print("  >> Orphaned inventory has no live owner and no exit logic.")
+        print("     Capital stays committed until something adopts it.")
+
+    return report
+
+
+def report_intents() -> Dict[str, Any]:
+    _rule("EXECUTION INTENTS")
+
+    summary = execution_intent.outcome_summary()
+    if not summary["traced_intents"]:
+        print("  No traced intents in this process.")
+        return summary
+
+    print(f"  traced intents       {summary['traced_intents']}")
+
+    for label, key in (
+        ("stopped at stage", "stopped_by_stage"),
+        ("stopped with outcome", "stopped_by_outcome"),
+        ("by source engine", "by_source_engine"),
+    ):
+        breakdown = summary[key]
+        if not breakdown:
+            continue
+        print()
+        print(f"  {label}:")
+        width = max(len(k) for k in breakdown)
+        for name, count in breakdown.items():
+            print(f"    {name:<{width}}  {count:>6}")
+
+    return summary
+
+
 def report_counters() -> Dict[str, Any]:
     _rule("COUNTERS")
 
@@ -315,6 +412,30 @@ def report_counters() -> Dict[str, Any]:
     print(f"    acknowledged    {acknowledged}")
     print(f"    fills           {int(snapshot.get('fills', 0))}")
     print(f"    closes          {int(snapshot.get('closes', 0))}")
+
+    recovered = int(snapshot.get("recovered_orders", 0))
+    external = int(snapshot.get("reconciled_external_orders", 0))
+    if recovered or external:
+        print()
+        print("  recovered from previous runs (not this run's submissions):")
+        print(f"    recovered_orders            {recovered}")
+        print(f"    reconciled_external_orders  {external}")
+
+    current = preflight.current_run_counters()
+    if current:
+        print()
+        print(f"  this run ({preflight.RUN_ID}):")
+        for name in preflight.LIFECYCLE_ORDER:
+            print(f"    {name:<15} {int(current.get(name, 0))}")
+
+    violations = preflight.lifecycle_violations(snapshot)
+    if violations:
+        print()
+        print("  !! LIFECYCLE INVARIANT VIOLATED:")
+        for violation in violations:
+            print(f"     {violation}")
+        print("     Cumulative totals span restarts; compare the per-run block")
+        print("     above, or look for a counter incremented at the wrong place.")
 
     if attempts == 0:
         print()
@@ -442,7 +563,9 @@ def main() -> int:
     snapshot = load_runtime_snapshot()
     report_universe(capital)
     report_venue_capabilities(snapshot)
+    report_inventory()
     report_counters()
+    report_intents()
 
     if args.explain:
         _rule(f"WHY {args.explain}")

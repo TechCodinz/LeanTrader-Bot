@@ -343,6 +343,14 @@ class REAL_PROFIT_BOT:
         if prepared is None:
             return blocked.as_dict()
 
+        # Counted before the call, so an acknowledgement can never exist
+        # without the submission that produced it. Recording only the
+        # acknowledgement is how the funnel came to read submitted=0,
+        # acknowledged=1.
+        preflight.record_event(
+            "submitted"
+        )
+
         receipt = route_order(
             prepared.to_payload()
         )
