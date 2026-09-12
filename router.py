@@ -366,8 +366,153 @@ class ExchangeRouter:
                 continue
         return sorted(set(out))
 
+
+    def _market_data_allowed(self, symbol: str) -> bool:
+        """
+        Fail closed before a venue-specific market-data request.
+
+        Execution venue is not automatically a valid data venue.
+        This guard first checks asset-class compatibility and then
+        the venue's actually loaded market metadata.
+        """
+        if getattr(self, "id", "") == "paper":
+            return True
+
+        venue = str(getattr(self, "id", "") or "").strip().lower()
+
+        markets = getattr(self, "markets", {}) or {}
+
+        market = (
+            markets.get(symbol)
+            if isinstance(markets, dict)
+            else None
+        )
+
+        try:
+            from src.leantrader.universe.instruments import (
+                may_use_venue_for_data,
+            )
+
+            allowed, classification, detail = may_use_venue_for_data(
+                venue,
+                symbol,
+                market,
+            )
+
+            if not allowed:
+                seen = getattr(
+                    self,
+                    "_market_data_suppression_seen",
+                    set(),
+                )
+
+                key = (
+                    str(symbol),
+                    str(classification),
+                )
+
+                if key not in seen:
+                    logger.info(
+                        "[router] market-data suppressed "
+                        "%s venue=%s classification=%s detail=%s",
+                        symbol,
+                        venue,
+                        classification,
+                        detail,
+                    )
+                    seen.add(key)
+                    self._market_data_suppression_seen = seen
+
+                return False
+
+        except Exception as exc:
+            logger.warning(
+                "[router] market-data guard unavailable for "
+                "%s on %s: %s; failing closed",
+                symbol,
+                venue,
+                type(exc).__name__,
+            )
+            return False
+
+        # A crypto venue may serve crypto as an asset class while
+        # still not listing this specific market. Its own loaded
+        # market metadata is authoritative for this client.
+        if isinstance(markets, dict) and markets:
+            if not isinstance(market, dict):
+                seen = getattr(
+                    self,
+                    "_market_data_suppression_seen",
+                    set(),
+                )
+
+                key = (
+                    str(symbol),
+                    "MARKET_NOT_LISTED_ON_BOUND_VENUE",
+                )
+
+                if key not in seen:
+                    logger.info(
+                        "[router] market-data suppressed %s "
+                        "venue=%s classification="
+                        "MARKET_NOT_LISTED_ON_BOUND_VENUE",
+                        symbol,
+                        venue,
+                    )
+                    seen.add(key)
+                    self._market_data_suppression_seen = seen
+
+                return False
+
+            if market.get("active") is False:
+                return False
+
+        # Consult the canonical capability layer when it has
+        # evidence. UNKNOWN is not treated as NOT_LISTED; the
+        # directly-loaded market table above remains authoritative.
+        try:
+            from src.leantrader.universe.routing import (
+                may_call_venue,
+            )
+
+            environment = (
+                "testnet"
+                if getattr(self, "testnet", False)
+                else "live"
+            )
+
+            ok, classification, detail = may_call_venue(
+                venue,
+                symbol,
+                market_type=(
+                    getattr(self, "mode", "spot")
+                    or "spot"
+                ),
+                environment=environment,
+            )
+
+            if (
+                not ok
+                and classification
+                not in {
+                    "UNKNOWN_NO_RUNTIME_SNAPSHOT",
+                }
+            ):
+                return False
+
+        except Exception:
+            # Loaded venue metadata already passed above. Do not
+            # convert lack of cross-process capability state into
+            # a false NOT_LISTED result.
+            pass
+
+        return True
+
     # ---------- data ----------
     def fetch_ticker(self, symbol: str) -> Dict[str, Any]:
+        if not self._market_data_allowed(symbol):
+            return {}
+
         # If exchange failed to load markets previously, avoid calling into it
         if getattr(self, "_exchange_malformed", False):
             return {"last": 0.0}
@@ -390,6 +535,9 @@ class ExchangeRouter:
     def fetch_ohlcv(
         self, symbol: str, timeframe: str = "1m", limit: int = 200
     ) -> List[List[float]]:
+        if not self._market_data_allowed(symbol):
+            return []
+
         # When the exchange never loaded its markets, this used to synthesize
         # `limit` flat bars at the last ticker price -- or at 0.0 when even that
         # was unavailable. Callers cannot tell those apart from real candles, so

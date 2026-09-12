@@ -2883,40 +2883,78 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 # ============================================================
                 if getattr(self, 'emergency_stop', None):
                     try:
-                        # Real free balance, or None when it cannot be read.
-                        balance = await self._get_account_balance()
+                        # Authenticated total account equity, not free USDT.
 
-                        if balance is None:
-                            # Without a balance the loss check is meaningless.
-                            # Say so once per cycle rather than comparing two
-                            # placeholders and concluding all is well.
+                        equity = await self._get_account_equity()
+
+
+                        if equity is None:
+
                             logger.warning(
-                                "⚠️  Emergency stop: account balance "
+
+                                "⚠️  Emergency stop: authenticated total equity "
+
                                 "unavailable; loss limit NOT evaluated"
-                            )
-                            should_stop = False
-                        else:
-                            initial_balance = (
-                                self.compound_engine.initial_capital
-                                if self.compound_engine
-                                else None
+
                             )
 
-                            if not initial_balance:
-                                logger.warning(
-                                    "⚠️  Emergency stop: no initial capital "
-                                    "recorded; loss limit NOT evaluated"
+
+                            # The trade-frequency guard remains active if genuine
+
+                            # filled-trade timestamps have been supplied to it.
+
+                            should_stop = self.emergency_stop.check_conditions(
+
+                                account_balance=0.0,
+
+                                initial_balance=0.0,
+
+                                balance_is_total_equity=False,
+
+                            )
+
+                        else:
+
+                            baseline = getattr(
+
+                                self,
+
+                                "_emergency_equity_baseline",
+
+                                None,
+
+                            )
+
+
+                            if not baseline or baseline <= 0:
+
+                                baseline = float(equity)
+
+                                self._emergency_equity_baseline = baseline
+
+
+                                logger.info(
+
+                                    "🛡️ Emergency equity baseline established: "
+
+                                    f"{baseline:.8f}"
+
                                 )
-                                should_stop = False
-                            else:
-                                should_stop = self.emergency_stop.check_conditions(
-                                    account_balance=balance,
-                                    initial_balance=initial_balance
-                                )
+
+
+                            should_stop = self.emergency_stop.check_conditions(
+
+                                account_balance=float(equity),
+
+                                initial_balance=float(baseline),
+
+                                balance_is_total_equity=True,
+
+                            )
 
                         if should_stop:
                             logger.error("🚨 EMERGENCY STOP TRIGGERED!")
-                            logger.error("   Reason: Max loss or too many trades")
+                            logger.error("   Reason: emergency risk guard condition met")
                             logger.error("   CLOSING ALL POSITIONS AND STOPPING BOT...")
 
                             # Close all positions
@@ -3430,6 +3468,44 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             f"{', '.join(updated) if updated else 'no engines wired'}"
         )
         return len(updated)
+
+    async def _get_account_equity(self) -> Optional[float]:
+        """Read authenticated exchange total account equity.
+
+        This deliberately does not reconstruct equity from free USDT.
+        The exchange's authenticated totalEquity field is the risk
+        authority when available.
+        """
+        try:
+            def _read() -> Optional[float]:
+                from critical_features_addon import (
+                    authenticated_total_equity,
+                )
+
+                broker = preflight.shared_broker()
+
+                if broker.authority not in {
+                    "testnet",
+                    "live",
+                }:
+                    return None
+
+                balance = preflight.fetch_balance_cached(
+                    broker
+                )
+
+                return authenticated_total_equity(
+                    balance
+                )
+
+            return await asyncio.to_thread(_read)
+
+        except Exception as e:
+            logger.debug(
+                "Account equity fetch error: "
+                f"{type(e).__name__}"
+            )
+            return None
 
     async def _get_account_balance(self) -> Optional[float]:
         """Free quote balance on the authenticated account, or None.

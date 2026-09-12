@@ -74,6 +74,21 @@ class DeFiYieldOpportunity:
     confidence: float
     timestamp: float
 
+class _SyntheticOpportunityGuard:
+    """Shared fail-closed guard for generated scanner data."""
+
+    def _synthetic_opportunities_enabled(self) -> bool:
+        return (
+            os.getenv(
+                "LEANTRADER_SYNTHETIC_SCANNER",
+                "",
+            )
+            .strip()
+            .lower()
+            in ("1", "true", "yes")
+        )
+
+
 class DEXScanner:
     """Scanner for Decentralized Exchanges"""
 
@@ -210,7 +225,7 @@ class DEXScanner:
             self.logger.error(f"Error scanning liquidity pools for {symbol}: {e}")
             return []
 
-class CEXScanner:
+class CEXScanner(_SyntheticOpportunityGuard):
     """Scanner for Centralized Exchanges"""
 
     def __init__(self, ultra_core: UltraCore):
@@ -358,7 +373,7 @@ class CEXScanner:
             self.logger.error(f"Error scanning arbitrage opportunities: {e}")
             return []
 
-class DeFiScanner:
+class DeFiScanner(_SyntheticOpportunityGuard):
     """Scanner for DeFi protocols"""
 
     def __init__(self, ultra_core: UltraCore):
@@ -485,7 +500,7 @@ class DeFiScanner:
             self.logger.error(f"Error scanning yield opportunities: {e}")
             return []
 
-class OtherPlatformScanner:
+class OtherPlatformScanner(_SyntheticOpportunityGuard):
     """Scanner for other platforms (NFT, Bridges, etc.)"""
 
     def __init__(self, ultra_core: UltraCore):

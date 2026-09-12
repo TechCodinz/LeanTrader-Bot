@@ -25,6 +25,7 @@ closing order.
 from __future__ import annotations
 
 import os
+from decimal import Decimal, ROUND_DOWN
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
@@ -93,22 +94,69 @@ class InventoryItem:
         return asdict(self)
 
 
-def _round_down(amount: float, decimals: Optional[float]) -> float:
-    """Truncate to the venue's amount step.
+def _round_down(
+    amount: float,
+    precision: Optional[float],
+) -> float:
+    """Round an amount down using canonical CCXT amount precision.
 
-    Rounding up would claim we can sell more than we hold; the venue
-    truncates, so recoverable value is computed from the truncated amount.
+    LeanTrader's authenticated Bybit adapter runs with CCXT TICK_SIZE
+    precision mode. Values such as 1e-05 and 0.001 are therefore amount
+    steps, not counts of decimal places.
+
+    Exit quantities are always rounded DOWN so the system can never claim
+    it owns more base asset than the exchange balance actually contains.
+
+    Integer precision values greater than one retain compatibility with
+    older decimal-place metadata.
     """
-    if decimals is None or amount <= 0:
+    if precision is None or amount <= 0:
         return amount
+
     try:
-        places = int(decimals)
-    except (TypeError, ValueError):
+        value = Decimal(str(amount))
+        p = Decimal(str(precision))
+    except Exception:
         return amount
-    if places < 0:
+
+    if p <= 0:
         return amount
-    factor = 10.0 ** places
-    return int(amount * factor) / factor
+
+    # CCXT TICK_SIZE form:
+    # ETH amount precision 0.00001
+    # SOL amount precision 0.001
+    # A step of 1 is also valid TICK_SIZE metadata.
+    if p <= Decimal("1"):
+        units = (
+            value / p
+        ).to_integral_value(
+            rounding=ROUND_DOWN
+        )
+
+        return float(
+            units * p
+        )
+
+    # Compatibility for historical metadata that represented
+    # precision as an integer decimal-place count.
+    try:
+        places = int(p)
+    except Exception:
+        return amount
+
+    if p != Decimal(places) or places < 0:
+        return amount
+
+    quantum = Decimal("1").scaleb(
+        -places
+    )
+
+    return float(
+        value.quantize(
+            quantum,
+            rounding=ROUND_DOWN,
+        )
+    )
 
 
 def _f(value: Any, default: float = 0.0) -> float:

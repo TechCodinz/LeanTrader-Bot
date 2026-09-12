@@ -383,6 +383,50 @@ class VolumeProfileAnalyzer:
             'current_price_vs_poc': (df['close'].iloc[-1] - poc) / poc * 100,
         }
 
+def authenticated_total_equity(balance):
+    """Return authenticated exchange total-equity evidence.
+
+    Never substitute free quote balance, wallet cash, configured capital,
+    or a synthetic estimate. Missing exchange equity remains unknown.
+    """
+    if not isinstance(balance, dict):
+        return None
+
+    info = balance.get("info")
+
+    if not isinstance(info, dict):
+        return None
+
+    result = info.get("result")
+
+    if not isinstance(result, dict):
+        return None
+
+    rows = result.get("list")
+
+    if (
+        not isinstance(rows, list)
+        or not rows
+        or not isinstance(rows[0], dict)
+    ):
+        return None
+
+    raw = rows[0].get("totalEquity")
+
+    if raw in (None, ""):
+        return None
+
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+
+    if value <= 0 or value != value:
+        return None
+
+    return value
+
+
 # ===============================
 # 6. EMERGENCY STOP SYSTEM
 # ===============================
@@ -396,15 +440,37 @@ class EmergencyStop:
         self.trade_timestamps = []
         self.emergency_active = False
 
-    def check_conditions(self, account_balance: float, initial_balance: float) -> bool:
-        """Check if emergency stop should trigger."""
+    def check_conditions(
+        self,
+        account_balance: float,
+        initial_balance: float,
+        *,
+        balance_is_total_equity: bool = True,
+    ) -> bool:
+        """Check if emergency stop should trigger.
 
-        # Check max loss
-        current_loss = (initial_balance - account_balance) / initial_balance
-        if current_loss >= self.max_loss:
-            self.emergency_active = True
-            print(f"🚨 EMERGENCY STOP: Max loss reached ({current_loss:.1%})")
-            return True
+        A free quote-currency balance is not portfolio equity.
+        The drawdown rule is evaluated only when the caller has
+        supplied a genuine total-equity figure.
+        """
+
+        # Check max loss only from genuine total account equity.
+        if (
+            balance_is_total_equity
+            and initial_balance is not None
+            and float(initial_balance) > 0
+        ):
+            current_loss = (
+                float(initial_balance) - float(account_balance)
+            ) / float(initial_balance)
+
+            if current_loss >= self.max_loss:
+                self.emergency_active = True
+                print(
+                    "🚨 EMERGENCY STOP: Max loss reached "
+                    f"({current_loss:.1%})"
+                )
+                return True
 
         # Check trade frequency (possible error/loop)
         now = datetime.now()
