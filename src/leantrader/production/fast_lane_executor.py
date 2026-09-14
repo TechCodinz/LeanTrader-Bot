@@ -110,6 +110,7 @@ class CentralAuthorityExecutor:
             "open_orders": 0,
             "kill_switch_active": False,
             "free_quote": 0.0,
+            "portfolio_equity": 0.0,
             "environment": "",
             "risk_limits": {"max_order_usd": self.max_order_usd},
         }
@@ -134,8 +135,12 @@ class CentralAuthorityExecutor:
                     if item.get("sellable")
                 }
                 snapshot["positions"] = positions
+                capital = report.get("capital") or {}
                 snapshot["free_quote"] = _number(
-                    (report.get("capital") or {}).get("cash_spendable_now")
+                    capital.get("cash_spendable_now")
+                )
+                snapshot["portfolio_equity"] = _number(
+                    capital.get("portfolio_value")
                 )
                 snapshot["fresh"] = True
         except Exception:

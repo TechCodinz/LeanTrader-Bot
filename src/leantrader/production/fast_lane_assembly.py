@@ -274,8 +274,14 @@ class FastTradingLane:
         """
         snapshot = self.executor.safe_snapshot()
         free_quote = float(snapshot.get("free_quote") or 0.0)
+        portfolio_equity = float(snapshot.get("portfolio_equity") or 0.0)
+        equity = portfolio_equity if portfolio_equity > 0.0 else free_quote
+
         try:
-            verdict = self.governor.evaluate(equity=free_quote, open_notional=0.0)
+            verdict = self.governor.evaluate(
+                equity=equity,
+                open_notional=0.0,
+            )
         except Exception:
             return {}
         return {"capital": verdict}
