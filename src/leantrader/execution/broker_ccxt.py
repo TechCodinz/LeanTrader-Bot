@@ -1373,9 +1373,31 @@ class BrokerCCXT:
                     except Exception:
                         break
 
+            order_payload = (
+                order
+                if isinstance(order, dict)
+                else {}
+            )
+
+            try:
+                filled_quantity = float(
+                    order_payload.get("filled") or 0.0
+                )
+            except (TypeError, ValueError):
+                filled_quantity = 0.0
+
+            # Testnet restoration invariant:
+            # acknowledgement/order-id is not proof of execution.
+            # Preserve existing Live behavior unchanged.
+            executed = (
+                filled_quantity > 0.0
+                if mode == "testnet"
+                else True
+            )
+
             return {
                 "ok": True,
-                "executed": True,
+                "executed": executed,
                 "simulated": False,
                 "authority": mode,
                 "execution_mode": mode,
@@ -1385,7 +1407,12 @@ class BrokerCCXT:
                 "order_type": (
                     order_type
                 ),
-                "order": order,
+                "order": order_payload,
+                "error": (
+                    "testnet_order_acknowledged_without_fill"
+                    if mode == "testnet" and not executed
+                    else None
+                ),
             }
 
         except Exception as exc:

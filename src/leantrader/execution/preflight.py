@@ -1450,4 +1450,16 @@ def classify_receipt(receipt: Optional[Dict[str, Any]]) -> Optional[str]:
     if not order_id:
         return NO_ORDER_ID
 
+    # Defence in depth for Testnet only.
+    # A legacy/malformed caller cannot turn an ACK-only
+    # zero-fill receipt into an authenticated position.
+    if str(receipt.get("execution_mode") or "").lower() == "testnet":
+        try:
+            filled = float(order.get("filled") or 0.0)
+        except (TypeError, ValueError):
+            filled = 0.0
+
+        if filled <= 0.0:
+            return ROUTER_REFUSED
+
     return None
