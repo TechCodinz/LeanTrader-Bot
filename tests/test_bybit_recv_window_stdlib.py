@@ -16,7 +16,7 @@ class BybitRecvWindowTests(unittest.TestCase):
         else:
             os.environ["CCXT_OPTIONS_JSON"] = self.original
 
-    def test_bybit_defaults_to_10_second_recv_window(self):
+    def test_bybit_defaults_to_20_second_recv_window(self):
         broker = BrokerCCXT(
             execution_mode="paper",
             exchange_id="bybit",
@@ -26,7 +26,7 @@ class BybitRecvWindowTests(unittest.TestCase):
 
         self.assertEqual(
             options.get("recvWindow"),
-            10000,
+            20000,
         )
 
     def test_operator_can_override_bybit_recv_window(self):

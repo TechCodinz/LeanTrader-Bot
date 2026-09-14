@@ -545,7 +545,7 @@ class BrokerCCXT:
             # it applies equally to sandbox and live endpoints.
             options[
                 "recvWindow"
-            ] = 10000
+            ] = 20000
 
             options[
                 "defaultType"
