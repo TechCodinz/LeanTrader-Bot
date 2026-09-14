@@ -16,6 +16,7 @@ loosened here to make trades happen.
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -284,7 +285,30 @@ class FastTradingLane:
             )
         except Exception:
             return {}
-        return {"capital": verdict}
+
+        healthy = bool(snapshot.get("fresh"))
+
+        return {
+            "timestamp": time.time(),
+            "healthy": healthy,
+            "halt_reason": (
+                None
+                if healthy
+                else "fast_executor_account_unreadable"
+            ),
+            "required_failures": (
+                []
+                if healthy
+                else ["fast_executor_account_unreadable"]
+            ),
+            "symbols": {},
+            "canonical_open_positions": sorted(
+                (snapshot.get("positions") or {}).keys()
+            ),
+            "capital_growth": verdict,
+            "capital": verdict,
+            "environment": snapshot.get("environment"),
+        }
 
     def start(self) -> None:
         """Start market intelligence, then the lane that consumes it.

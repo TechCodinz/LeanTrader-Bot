@@ -3463,84 +3463,93 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                 await asyncio.sleep(60)
 
     async def run_fast_trading_lane(self):
-        """Keep the mature fast lane alive and report what it is actually doing.
-
-        Starting is synchronous and cheap -- the swarm service and the velocity
-        lane each start their own thread. This coroutine exists to do two
-        things the threads cannot do for themselves: bring them back up if a
-        thread dies, and periodically say, at INFO, whether the lane is running
-        and why it is or is not trading.
-
-        That last part matters. The failure this restores from was silent: the
-        lane existed, nothing started it, and the runtime looked busy because
-        other loops were attempting orders. A lane that is up but blocked must
-        say which blocker, and a lane that is down must say so loudly.
-        """
-        lane = getattr(self, 'fast_trading_lane', None)
+        """Keep the restored mature fast lane alive and observable."""
+        lane = getattr(self, "fast_trading_lane", None)
         if lane is None:
             return
 
-        await asyncio.to_thread(lane.start)
+        # Both components already create their own daemon worker threads.
+        # Calling start() directly is therefore non-blocking and avoids
+        # queuing startup behind unrelated long-lived to_thread work.
+        lane.start()
 
-        health = await asyncio.to_thread(lane.health)
-        executor = health.get('executor') or {}
-        logger.info(
-            "⚡ FAST LANE UP | environment=%s account_readable=%s free_quote=%s",
-            executor.get('environment') or 'unknown',
-            executor.get('account_readable'),
-            executor.get('free_quote'),
+        lane_thread = getattr(
+            getattr(lane, "lane", None), "_thread", None
+        )
+        service_thread = getattr(
+            getattr(lane, "service", None), "_thread", None
         )
 
-        if not executor.get('account_readable'):
-            logger.warning(
-                "⚡ FAST LANE: the account could not be read. The lane will "
-                "scan and qualify but cannot size an order until it can."
+        lane_alive = bool(
+            lane_thread is not None and lane_thread.is_alive()
+        )
+        service_alive = bool(
+            service_thread is not None and service_thread.is_alive()
+        )
+
+        if not lane_alive or not service_alive:
+            raise RuntimeError(
+                "fast lane worker startup failed: "
+                f"lane_alive={lane_alive} "
+                f"service_alive={service_alive}"
             )
 
-        report_seconds = float(os.getenv('FAST_LANE_REPORT_SECONDS', '60') or 60)
+        logger.info(
+            "⚡ FAST LANE UP | lane_alive=%s service_alive=%s",
+            lane_alive,
+            service_alive,
+        )
+
+        report_seconds = float(
+            os.getenv("FAST_LANE_REPORT_SECONDS", "30") or 30
+        )
 
         while True:
             await asyncio.sleep(report_seconds)
 
-            if not await asyncio.to_thread(lane.running):
-                # Returning hands control to _supervise, which restarts this
-                # coroutine after its delay rather than leaving a dead thread
-                # behind a healthy-looking log line.
-                logger.error("⚡ FAST LANE thread is not alive; restarting")
-                await asyncio.to_thread(lane.stop)
-                return
-
-            try:
-                health = await asyncio.to_thread(lane.health)
-            except Exception as e:
-                logger.warning(f"⚡ FAST LANE health unavailable: {type(e).__name__}: {e}")
-                continue
-
-            executor = health.get('executor') or {}
-            logger.info(
-                "⚡ FAST LANE | positions=%s free_quote=%s submitted=%s "
-                "filled=%s skipped=%s",
-                executor.get('positions'),
-                executor.get('free_quote'),
-                executor.get('orders_submitted'),
-                executor.get('orders_filled'),
-                executor.get('orders_skipped'),
+            lane_thread = getattr(
+                getattr(lane, "lane", None), "_thread", None
+            )
+            service_thread = getattr(
+                getattr(lane, "service", None), "_thread", None
             )
 
-            # When nothing is being submitted, say why from the evidence
-            # rather than leaving it to be guessed at.
-            if not executor.get('orders_submitted'):
-                try:
-                    from src.leantrader.execution import idle as execution_idle
+            lane_alive = bool(
+                lane_thread is not None and lane_thread.is_alive()
+            )
+            service_alive = bool(
+                service_thread is not None
+                and service_thread.is_alive()
+            )
 
-                    verdict = execution_idle.classify_idle_reason()
-                    logger.info(
-                        "⚡ FAST LANE idle reason: %s -- %s",
-                        verdict['reason'],
-                        verdict['detail'],
-                    )
-                except Exception:
-                    pass
+            if not lane_alive or not service_alive:
+                logger.error(
+                    "⚡ FAST LANE worker died | "
+                    "lane_alive=%s service_alive=%s",
+                    lane_alive,
+                    service_alive,
+                )
+                lane.stop()
+                return
+
+            state = (
+                lane.lane.health()
+                if getattr(lane, "lane", None) is not None
+                else {}
+            )
+
+            decision = state.get("last_decision") or {}
+
+            logger.info(
+                "⚡ FAST LANE | entries=%s exits=%s active=%s "
+                "pending=%s last_reason=%s last_error=%s",
+                state.get("entries_today"),
+                state.get("exits_today"),
+                len(state.get("active_positions") or {}),
+                state.get("pending_event"),
+                decision.get("reason"),
+                state.get("last_error"),
+            )
 
     def _swarm_agent_count(self) -> int:
         """How many shards the universe should be split into."""
