@@ -1811,7 +1811,10 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         # holds order authority is the one it trades in.
         logger.info("⚡ Wiring mature fast trading lane...")
 
-        self.fast_trading_lane = None
+        # Reuse an early-bootstrapped lane rather than constructing another.
+        self.fast_trading_lane = getattr(
+            self, "fast_trading_lane", None
+        )
         if os.getenv("FAST_LANE_ENABLED", "1").strip().lower() not in {
             "0", "false", "no", "off"
         }:
@@ -1820,12 +1823,20 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
                     FastTradingLane,
                 )
 
-                self.fast_trading_lane = FastTradingLane(
-                    quote=os.getenv("MARKET_QUOTE", "USDT"),
-                    order_usd=float(os.getenv("FAST_ORDER_USD", "2.0") or 2.0),
-                    data_venue=os.getenv("MARKET_DATA_VENUE", ""),
-                ).build()
-                self.trading_engines['fast_lane'] = self.fast_trading_lane
+                if self.fast_trading_lane is None:
+                    self.fast_trading_lane = FastTradingLane(
+                        quote=os.getenv("MARKET_QUOTE", "USDT"),
+                        order_usd=float(
+                            os.getenv("FAST_ORDER_USD", "2.0") or 2.0
+                        ),
+                        data_venue=os.getenv(
+                            "MARKET_DATA_VENUE", ""
+                        ),
+                    ).build()
+
+                self.trading_engines["fast_lane"] = (
+                    self.fast_trading_lane
+                )
                 logger.info("✅ ⚡ FAST TRADING LANE WIRED")
                 logger.info(
                     "   velocity cadence %.2fs, max hold %.0fs, TP %.0f bps, SL %.0f bps",
@@ -2857,7 +2868,65 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
         logger.info("⚡ STARTING ALL ACTIVE ENGINES...")
         logger.info("="*80)
 
-        # Initialize and wire (from parent)
+        # Start the already-restored mature fast lane BEFORE the heavyweight
+        # legacy initialization phase.  The service and velocity lane own
+        # daemon worker threads, so start() returns immediately.  Normal
+        # start_all_orchestrators() later supervises this SAME instance.
+        if os.getenv("FAST_LANE_ENABLED", "1").strip().lower() not in {
+            "0", "false", "no", "off"
+        }:
+            try:
+                if getattr(self, "fast_trading_lane", None) is None:
+                    from src.leantrader.production.fast_lane_assembly import (
+                        FastTradingLane,
+                    )
+
+                    self.fast_trading_lane = FastTradingLane(
+                        quote=os.getenv("MARKET_QUOTE", "USDT"),
+                        order_usd=float(
+                            os.getenv("FAST_ORDER_USD", "2.0") or 2.0
+                        ),
+                        data_venue=os.getenv("MARKET_DATA_VENUE", ""),
+                    ).build()
+
+                    self.trading_engines["fast_lane"] = (
+                        self.fast_trading_lane
+                    )
+
+                self.fast_trading_lane.start()
+
+                lane_thread = getattr(
+                    self.fast_trading_lane.lane,
+                    "_thread",
+                    None,
+                )
+                service_thread = getattr(
+                    self.fast_trading_lane.service,
+                    "_thread",
+                    None,
+                )
+
+                logger.info(
+                    "✅ ⚡ FAST LANE EARLY BOOT | "
+                    "lane_alive=%s service_alive=%s",
+                    bool(
+                        lane_thread is not None
+                        and lane_thread.is_alive()
+                    ),
+                    bool(
+                        service_thread is not None
+                        and service_thread.is_alive()
+                    ),
+                )
+
+            except Exception as e:
+                logger.exception(
+                    "❌ FAST LANE EARLY BOOT FAILED: %s: %s",
+                    type(e).__name__,
+                    e,
+                )
+
+        # Heavy legacy initialization continues while the fast lane runs.
         await self.initialize_all_systems()
         await self.wire_all_systems()
 
