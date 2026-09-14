@@ -538,6 +538,15 @@ class BrokerCCXT:
         ] = {}
 
         if self.exchange_id == "bybit":
+            # Bybit authenticated requests use a 5s receive window by
+            # default. Cold/private requests on real network paths can
+            # legitimately exceed that even when host and exchange clocks
+            # are synchronized. Keep this venue-level and mode-neutral:
+            # it applies equally to sandbox and live endpoints.
+            options[
+                "recvWindow"
+            ] = 10000
+
             options[
                 "defaultType"
             ] = (
