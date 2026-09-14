@@ -1798,6 +1798,54 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             self.real_profit_bot = None
 
         # ========================================================================
+        # MATURE FAST TRADING LANE
+        # ========================================================================
+        # The velocity lane and its read-only market-intelligence service are
+        # the path that produced the profitable run. They existed on disk but
+        # nothing started them, so the runtime fell back to the minute-scale
+        # loops -- attempting trades, but not behaving like the system that
+        # traded. This is the missing connection.
+        #
+        # The lane is not a Testnet feature. Its executor seam routes through
+        # preflight -> route_order -> BrokerCCXT, so whichever environment
+        # holds order authority is the one it trades in.
+        logger.info("⚡ Wiring mature fast trading lane...")
+
+        self.fast_trading_lane = None
+        if os.getenv("FAST_LANE_ENABLED", "1").strip().lower() not in {
+            "0", "false", "no", "off"
+        }:
+            try:
+                from src.leantrader.production.fast_lane_assembly import (
+                    FastTradingLane,
+                )
+
+                self.fast_trading_lane = FastTradingLane(
+                    quote=os.getenv("MARKET_QUOTE", "USDT"),
+                    order_usd=float(os.getenv("FAST_ORDER_USD", "2.0") or 2.0),
+                    data_venue=os.getenv("MARKET_DATA_VENUE", ""),
+                ).build()
+                self.trading_engines['fast_lane'] = self.fast_trading_lane
+                logger.info("✅ ⚡ FAST TRADING LANE WIRED")
+                logger.info(
+                    "   velocity cadence %.2fs, max hold %.0fs, TP %.0f bps, SL %.0f bps",
+                    self.fast_trading_lane.lane.cadence_seconds,
+                    self.fast_trading_lane.lane.maximum_hold_seconds,
+                    self.fast_trading_lane.lane.take_profit_bps,
+                    self.fast_trading_lane.lane.stop_loss_bps,
+                )
+                logger.info(
+                    "   order authority: preflight -> route_order -> BrokerCCXT"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"⚠️ FAST TRADING LANE failed to wire: {type(e).__name__}: {e}"
+                )
+                self.fast_trading_lane = None
+        else:
+            logger.info("⏸️  FAST TRADING LANE disabled by FAST_LANE_ENABLED")
+
+        # ========================================================================
         # DYNAMIC MARKET SCANNER - Auto-discover trending pairs
         # ========================================================================
         logger.info("🔍 Wiring Dynamic Market Scanner...")
@@ -2079,6 +2127,27 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
 
             tasks.append(asyncio.create_task(run_real_profit_loop()))
             logger.info("✅ 💰 REAL PROFIT BOT STARTED - Trading 35 pairs!")
+
+        # ⚡ START THE MATURE FAST TRADING LANE ⚡
+        # The service and the lane each own a thread, so starting them is a
+        # blocking call that returns immediately; the supervised coroutine
+        # below only watches that they stay alive and reports what they are
+        # doing. It does not drive the cycle -- the lane drives itself at its
+        # own half-second cadence, which is the whole point of it.
+        if getattr(self, 'fast_trading_lane', None):
+            _t = self._schedule_once(
+                'fast_trading_lane.run',
+                lambda: self._supervise(
+                    'Fast Trading Lane',
+                    self.run_fast_trading_lane,
+                    restart_delay=60.0,
+                ),
+            )
+            if _t:
+                tasks.append(_t)
+                logger.info(
+                    "✅ ⚡ FAST TRADING LANE STARTED - velocity sniper + swarm service"
+                )
 
         # START DYNAMIC MARKET SCANNER - Auto-discover trending pairs!
         if getattr(self, 'market_scanner', None):
@@ -3392,6 +3461,86 @@ class CompleteUltimateOrchestrator(UltimateOrchestrator):
             except Exception as e:
                 logger.error(f"Universe maintenance error: {type(e).__name__}: {e}")
                 await asyncio.sleep(60)
+
+    async def run_fast_trading_lane(self):
+        """Keep the mature fast lane alive and report what it is actually doing.
+
+        Starting is synchronous and cheap -- the swarm service and the velocity
+        lane each start their own thread. This coroutine exists to do two
+        things the threads cannot do for themselves: bring them back up if a
+        thread dies, and periodically say, at INFO, whether the lane is running
+        and why it is or is not trading.
+
+        That last part matters. The failure this restores from was silent: the
+        lane existed, nothing started it, and the runtime looked busy because
+        other loops were attempting orders. A lane that is up but blocked must
+        say which blocker, and a lane that is down must say so loudly.
+        """
+        lane = getattr(self, 'fast_trading_lane', None)
+        if lane is None:
+            return
+
+        await asyncio.to_thread(lane.start)
+
+        health = await asyncio.to_thread(lane.health)
+        executor = health.get('executor') or {}
+        logger.info(
+            "⚡ FAST LANE UP | environment=%s account_readable=%s free_quote=%s",
+            executor.get('environment') or 'unknown',
+            executor.get('account_readable'),
+            executor.get('free_quote'),
+        )
+
+        if not executor.get('account_readable'):
+            logger.warning(
+                "⚡ FAST LANE: the account could not be read. The lane will "
+                "scan and qualify but cannot size an order until it can."
+            )
+
+        report_seconds = float(os.getenv('FAST_LANE_REPORT_SECONDS', '60') or 60)
+
+        while True:
+            await asyncio.sleep(report_seconds)
+
+            if not await asyncio.to_thread(lane.running):
+                # Returning hands control to _supervise, which restarts this
+                # coroutine after its delay rather than leaving a dead thread
+                # behind a healthy-looking log line.
+                logger.error("⚡ FAST LANE thread is not alive; restarting")
+                await asyncio.to_thread(lane.stop)
+                return
+
+            try:
+                health = await asyncio.to_thread(lane.health)
+            except Exception as e:
+                logger.warning(f"⚡ FAST LANE health unavailable: {type(e).__name__}: {e}")
+                continue
+
+            executor = health.get('executor') or {}
+            logger.info(
+                "⚡ FAST LANE | positions=%s free_quote=%s submitted=%s "
+                "filled=%s skipped=%s",
+                executor.get('positions'),
+                executor.get('free_quote'),
+                executor.get('orders_submitted'),
+                executor.get('orders_filled'),
+                executor.get('orders_skipped'),
+            )
+
+            # When nothing is being submitted, say why from the evidence
+            # rather than leaving it to be guessed at.
+            if not executor.get('orders_submitted'):
+                try:
+                    from src.leantrader.execution import idle as execution_idle
+
+                    verdict = execution_idle.classify_idle_reason()
+                    logger.info(
+                        "⚡ FAST LANE idle reason: %s -- %s",
+                        verdict['reason'],
+                        verdict['detail'],
+                    )
+                except Exception:
+                    pass
 
     def _swarm_agent_count(self) -> int:
         """How many shards the universe should be split into."""

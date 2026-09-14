@@ -1,0 +1,16 @@
+{
+  "active": {},
+  "closed": [],
+  "day": "2026-09-14",
+  "entries_today": 0,
+  "exits_today": 0,
+  "last_action": null,
+  "last_decision": null,
+  "last_error": null,
+  "last_error_at": null,
+  "last_exit_by_symbol": {},
+  "last_sizing": {},
+  "pending_event": null,
+  "schema_version": 1,
+  "sequence": 0
+}
