@@ -12,6 +12,7 @@ the runner stack -- the class body below is unchanged.
 
 from __future__ import annotations
 
+import math
 import time
 from typing import Any
 
@@ -80,7 +81,12 @@ class MarketFeed:
         self._load_markets()
         if not self.exchange.has.get("fetchTickers", False):
             raise RuntimeError("exchange does not support bulk ticker discovery")
-        tickers = self.exchange.fetch_tickers()
+        if str(getattr(self.exchange, "id", "")).lower() == "bybit":
+            tickers = self.exchange.fetch_tickers(
+                params={"category": "spot"}
+            )
+        else:
+            tickers = self.exchange.fetch_tickers()
         accepted: list[dict[str, Any]] = []
         rejected: dict[str, int] = {}
 
