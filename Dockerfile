@@ -20,7 +20,7 @@ COPY . /app
 
 RUN PYTHONPATH=/app:/app/src python tests/test_runtime_dependencies_stdlib.py \
  && PYTHONPATH=/app:/app/src python tests/test_integrated_runtime_dependencies_stdlib.py \
- && PYTHONPATH=/app:/app/src python tests/test_bybit_recv_window_stdlib.py \
+ && PYTHONPATH=/app:/app/src python tests/test_langchain_agent_wiring_stdlib.py  && PYTHONPATH=/app:/app/src python tests/test_bybit_recv_window_stdlib.py \
  && PYTHONPATH=/app:/app/src python tests/test_ack_is_not_fill_stdlib.py
 
 CMD ["python", "/app/ultra_launcher.py", "--mode", "paper", "--god-mode", "--moon-spotter", "--evolution", "--forex"]

@@ -97,18 +97,15 @@ def _leantrader_json_default(value):
     )
 
 
-# Claude 4.1 Opus Advanced Features Integration
+# LangChain agentic reasoning runtime
 try:
     from langchain_core.tools import Tool
+    from langchain.agents import create_agent
+    from langgraph.checkpoint.memory import InMemorySaver
 except ImportError:
-    try:
-        from langchain.tools import Tool
-    except Exception:  # optional dependency; engine reports CONFIG_REQUIRED
-        Tool = None
-try:
-    from langchain.memory import ConversationBufferMemory
-except ImportError:
-    ConversationBufferMemory = None
+    Tool = None
+    create_agent = None
+    InMemorySaver = None
 
 class ULTIMATE_EVOLUTION_ENGINE:
     def __init__(self, data_hub=None, universe=None):
@@ -402,40 +399,102 @@ class ULTIMATE_EVOLUTION_ENGINE:
             print(f"❌ Claude features initialization error: {e}")
 
     def initialize_langchain_agent(self):
-        """Initialize LangChain agent for agentic reasoning"""
+        """Initialize the real LangChain reasoning agent."""
+        self.langchain_agent = None
+        self.langchain_status = "UNINITIALIZED"
+        self.langchain_error = None
+
+        model = os.getenv("LEANTRADER_LANGCHAIN_MODEL", "").strip()
+
+        if not model:
+            self.langchain_status = "CONFIG_REQUIRED"
+            print(
+                "🤖 LangChain agent CONFIG_REQUIRED | "
+                "set LEANTRADER_LANGCHAIN_MODEL"
+            )
+            return
+
+        if Tool is None or create_agent is None or InMemorySaver is None:
+            self.langchain_status = "ERROR"
+            self.langchain_error = (
+                "LangChain runtime dependencies are unavailable"
+            )
+            print(
+                f"❌ LangChain agent error: {self.langchain_error}"
+            )
+            return
+
         try:
-            # Create trading tools for the agent
             trading_tools = [
                 Tool(
-                    name="Market Analysis",
-                    description="Analyze market conditions and trends",
+                    name="market_analysis",
+                    description=(
+                        "Analyze current market conditions and trends. "
+                        "This tool does not submit orders."
+                    ),
                     func=self.agent_market_analysis,
                 ),
                 Tool(
-                    name="Risk Assessment",
-                    description="Assess risk levels for trading decisions",
+                    name="risk_assessment",
+                    description=(
+                        "Assess portfolio and market risk. "
+                        "This tool does not submit orders."
+                    ),
                     func=self.agent_risk_assessment,
                 ),
                 Tool(
-                    name="Strategy Optimization",
-                    description="Optimize trading strategies",
+                    name="strategy_optimization",
+                    description=(
+                        "Analyze and optimize trading strategy parameters. "
+                        "Recommendations remain subject to LeanTrader's "
+                        "risk and execution authority."
+                    ),
                     func=self.agent_strategy_optimization,
                 ),
                 Tool(
-                    name="Portfolio Management",
-                    description="Manage portfolio allocation",
+                    name="portfolio_management",
+                    description=(
+                        "Analyze portfolio allocation and rebalancing needs. "
+                        "This tool does not directly execute trades."
+                    ),
                     func=self.agent_portfolio_management,
                 ),
             ]
 
-            # Create memory for conversation context
-            memory = ConversationBufferMemory(memory_key="chat_history")
+            checkpointer = InMemorySaver()
 
-            # Initialize the agent (placeholder - would need actual LLM)
-            print("🤖 LangChain agent initialized for agentic reasoning")
+            self.langchain_agent = create_agent(
+                model=model,
+                tools=trading_tools,
+                system_prompt=(
+                    "You are LeanTrader's agentic reasoning layer. "
+                    "Use authenticated market and portfolio evidence. "
+                    "Never fabricate fills, balances, profit, prices, "
+                    "positions, or execution results. "
+                    "Never bypass LeanTrader's universal execution "
+                    "authority, risk controls, ownership checks, or "
+                    "exchange capability rules. "
+                    "Your role is analysis, risk reasoning, strategy "
+                    "optimization, and portfolio reasoning."
+                ),
+                checkpointer=checkpointer,
+            )
+
+            self.langchain_status = "ACTIVE"
+            self.langchain_error = None
+            print(
+                f"🤖 LangChain agent ACTIVE | model={model}"
+            )
 
         except Exception as e:
-            print(f"❌ LangChain agent error: {e}")
+            self.langchain_agent = None
+            self.langchain_status = "ERROR"
+            self.langchain_error = (
+                f"{type(e).__name__}: {e}"
+            )
+            print(
+                f"❌ LangChain agent error: {self.langchain_error}"
+            )
 
     def initialize_ai_clients(self):
         """Initialize AI clients for advanced capabilities"""
