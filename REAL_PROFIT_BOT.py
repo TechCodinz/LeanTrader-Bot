@@ -89,6 +89,23 @@ class REAL_PROFIT_BOT:
             self.intelligence = None
             print(f"⚠️ Market intelligence unavailable: {type(exc).__name__}: {exc}")
 
+        # Scalping confluence and the micro-wallet growth ladder. Both engines
+        # already existed; neither was reachable from the bot that executes.
+        try:
+            from rpb_scalping import ScalpingConfluence
+
+            self.scalping = ScalpingConfluence()
+            if self.scalping.available:
+                print(
+                    f"⚡ SCALPING CONFLUENCE: connected "
+                    f"(session={self.scalping.current_session()})"
+                )
+            else:
+                print(f"⚠️ Scalping confluence inactive: {self.scalping.reason}")
+        except Exception as exc:
+            self.scalping = None
+            print(f"⚠️ Scalping confluence unavailable: {type(exc).__name__}: {exc}")
+
         # Owned-position lifecycle. This is what was missing: the bot executed
         # but never recorded what it bought, so nothing could monitor or exit a
         # position. REAL_PROFIT_BOT remains the execution owner -- the ledger
@@ -344,6 +361,21 @@ class REAL_PROFIT_BOT:
                     elif intel.get("reason"):
                         print(f"🧠 {symbol} intelligence abstained: {intel['reason']}")
 
+                # Multi-timeframe scalping confluence. Adjusts only; it never
+                # changes the direction and never vetoes.
+                if getattr(self, "scalping", None) is not None and signal != "HOLD":
+                    confidence, scalp = self.scalping.evaluate(
+                        self.gate, symbol, signal, confidence
+                    )
+                    if scalp.get("applied"):
+                        print(
+                            f"⚡ {symbol} confluence {scalp.get('direction')} "
+                            f"consensus={scalp.get('consensus')} "
+                            f"conf {scalp.get('confidence_before')}→"
+                            f"{scalp.get('confidence_after')} "
+                            f"[{scalp.get('session')}] {scalp.get('reason')}"
+                        )
+
                 return signal, confidence, price, change, volume
 
             return "HOLD", 50, price, change, volume
@@ -368,10 +400,20 @@ class REAL_PROFIT_BOT:
             #
             # LIVE: preserve the old historical limit unchanged.
             if self.mode == "testnet":
-                target_position_usd = max(
-                    3.50,
-                    balance * 0.25,
-                )
+                # The growth ladder from november_growth_strategy, driven by
+                # the authenticated wallet rather than an internal number: a
+                # larger fraction while the wallet is micro, tapering as it
+                # compounds. Falls back to the flat 25% if unavailable.
+                try:
+                    from rpb_scalping import target_position_usd as _ladder
+
+                    target_position_usd, _phase = _ladder(balance)
+                    print(
+                        f"🌱 GROWTH PHASE {_phase}: wallet ${balance:.4f} → "
+                        f"target ${target_position_usd:.4f}"
+                    )
+                except Exception:
+                    target_position_usd = max(3.50, balance * 0.25)
             else:
                 target_position_usd = max(
                     3.50,
@@ -745,6 +787,11 @@ class REAL_PROFIT_BOT:
                 f"NET=${net:.6f} | held={settled['hold_seconds']:.1f}s | "
                 f"wallet=${new_balance:.6f}"
             )
+
+            # Authenticated result feeds the session win-rate tracker, which is
+            # what makes the scalping engine's per-session learning real.
+            if getattr(self, "scalping", None) is not None:
+                self.scalping.record_result(symbol, net)
 
             self.send_telegram(
                 f"""{emoji} <b>POSITION CLOSED</b>
