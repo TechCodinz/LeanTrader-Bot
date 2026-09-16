@@ -13,10 +13,31 @@ the runner stack -- the class body below is unchanged.
 from __future__ import annotations
 
 import math
+import re
 import time
 from typing import Any
 
 import pandas as pd
+
+
+
+
+def timeframe_seconds(value: str) -> int:
+    """Convert a CCXT timeframe label to seconds without losing m/M semantics."""
+    match = re.fullmatch(r"([1-9][0-9]*)([smhdwMy])", value.strip())
+    if match is None:
+        raise ValueError(f"unsupported CCXT timeframe label: {value}")
+    amount = int(match.group(1))
+    multiplier = {
+        "s": 1,
+        "m": 60,
+        "h": 3_600,
+        "d": 86_400,
+        "w": 604_800,
+        "M": 2_592_000,
+        "y": 31_536_000,
+    }[match.group(2)]
+    return amount * multiplier
 
 
 class MarketFeed:
