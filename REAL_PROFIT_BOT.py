@@ -106,6 +106,30 @@ class REAL_PROFIT_BOT:
             self.scalping = None
             print(f"⚠️ Scalping confluence unavailable: {type(exc).__name__}: {exc}")
 
+        # Alpha ensemble (nine strategies) and risk governance. Both existed;
+        # risk_manager could not even be imported until its stripped import
+        # block was restored.
+        try:
+            from rpb_alpha_risk import AlphaEnsemble, RiskGovernor
+
+            self.alpha = AlphaEnsemble()
+            self.risk = RiskGovernor()
+            if self.alpha.available:
+                print(
+                    f"🎯 ALPHA ENSEMBLE: connected "
+                    f"({len(self.alpha.strategy_names())} strategies)"
+                )
+            else:
+                print(f"⚠️ Alpha ensemble inactive: {self.alpha.reason}")
+            if self.risk.available:
+                print("🛡️ RISK GOVERNOR: connected (Kelly sizing + exposure)")
+            else:
+                print(f"⚠️ Risk governor inactive: {self.risk.reason}")
+        except Exception as exc:
+            self.alpha = None
+            self.risk = None
+            print(f"⚠️ Alpha/risk unavailable: {type(exc).__name__}: {exc}")
+
         # Owned-position lifecycle. This is what was missing: the bot executed
         # but never recorded what it bought, so nothing could monitor or exit a
         # position. REAL_PROFIT_BOT remains the execution owner -- the ledger
@@ -376,6 +400,22 @@ class REAL_PROFIT_BOT:
                             f"[{scalp.get('session')}] {scalp.get('reason')}"
                         )
 
+                # Alpha ensemble. Long-only, so it speaks to BUY signals only,
+                # and it raises confidence or says nothing.
+                self._alpha_size_multiplier = 1.0
+                if getattr(self, "alpha", None) is not None and signal == "BUY":
+                    confidence, size_mult, alpha = self.alpha.evaluate(
+                        self.gate, symbol, signal, confidence
+                    )
+                    self._alpha_size_multiplier = size_mult
+                    if alpha.get("applied"):
+                        print(
+                            f"🎯 {symbol} alpha p={alpha.get('prob')} "
+                            f"conf {alpha.get('confidence_before')}→"
+                            f"{alpha.get('confidence_after')} "
+                            f"size×{alpha.get('size_mult')} | {alpha.get('notes')}"
+                        )
+
                 return signal, confidence, price, change, volume
 
             return "HOLD", 50, price, change, volume
@@ -412,6 +452,29 @@ class REAL_PROFIT_BOT:
                         f"🌱 GROWTH PHASE {_phase}: wallet ${balance:.4f} → "
                         f"target ${target_position_usd:.4f}"
                     )
+
+                    # The ladder proposes; risk caps. Never below the
+                    # executable floor -- sizing under it places no order at
+                    # all rather than a smaller one.
+                    if getattr(self, "risk", None) is not None:
+                        self.risk.sync_wallet(balance)
+                        target_position_usd, _rd = self.risk.cap_position(
+                            symbol,
+                            target_position_usd,
+                            confidence=95.0,
+                            size_multiplier=getattr(
+                                self, "_alpha_size_multiplier", 1.0
+                            ),
+                        )
+                        if _rd.get("applied"):
+                            print(
+                                f"🛡️ RISK {_rd.get('reason')}: "
+                                f"${_rd.get('after_alpha_usd')} → "
+                                f"${_rd.get('final_usd')} | "
+                                f"kelly=${_rd.get('kelly_usd')} "
+                                f"drawdown={_rd.get('drawdown')} "
+                                f"level={_rd.get('risk_level')}"
+                            )
                 except Exception:
                     target_position_usd = max(3.50, balance * 0.25)
             else:
@@ -680,6 +743,13 @@ class REAL_PROFIT_BOT:
                 strategy="momentum",
                 signal_price=signal_price,
             )
+            if record and getattr(self, "risk", None) is not None:
+                self.risk.sync_position(
+                    symbol,
+                    record["sellable_quantity"],
+                    record["average_entry"],
+                )
+
             if record:
                 print(
                     f"📒 POSITION OPENED: {symbol} | "
@@ -792,6 +862,10 @@ class REAL_PROFIT_BOT:
             # what makes the scalping engine's per-session learning real.
             if getattr(self, "scalping", None) is not None:
                 self.scalping.record_result(symbol, net)
+
+            if getattr(self, "risk", None) is not None:
+                self.risk.sync_position(symbol, 0.0, settled["exit_average"])
+                self.risk.sync_wallet(new_balance)
 
             self.send_telegram(
                 f"""{emoji} <b>POSITION CLOSED</b>
