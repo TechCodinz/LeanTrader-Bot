@@ -13,6 +13,7 @@ This system scans:
 """
 
 import asyncio
+import os
 import time
 import logging
 from collections import deque
@@ -121,37 +122,75 @@ class DEXScanner:
         opportunities = []
 
         try:
-            # Simulate platform scanning
-            # In real implementation, this would connect to actual DEX APIs
+            # Real tickers from a real venue, or nothing.
+            #
+            # This previously invented an opportunity for a hardcoded symbol
+            # list with a 30% coin flip, then filled every field -- price,
+            # volume, liquidity, APY, confidence and risk level -- from
+            # np.random. A caller could not tell those from measurements, and
+            # an "arbitrage opportunity" at a random price is the single most
+            # dangerous thing in this repository to act on.
+            #
+            # A DEX platform with no configured adapter yields no
+            # opportunities. That is the truthful answer, and it is what makes
+            # the empty list meaningful.
+            exchange = getattr(self, "exchange", None)
+            if exchange is None:
+                return []
 
-            # Generate realistic opportunities
-            symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT']
+            try:
+                tickers = exchange.fetch_tickers() or {}
+            except Exception:
+                return []
 
-            for symbol in symbols:
-                # Simulate opportunity detection
-                if np.random.random() < 0.3:  # 30% chance of opportunity
-                    opportunity = PlatformOpportunity(
-                        platform_type='dex',
+            for symbol, ticker in tickers.items():
+                if not isinstance(ticker, dict) or not symbol.endswith("/USDT"):
+                    continue
+
+                price = float(ticker.get("last") or 0.0)
+                volume = float(ticker.get("quoteVolume") or 0.0)
+                bid = float(ticker.get("bid") or 0.0)
+                ask = float(ticker.get("ask") or 0.0)
+
+                if price <= 0 or volume <= 0 or bid <= 0 or ask <= 0:
+                    continue
+
+                # The only opportunity measurable from a ticker is the spread.
+                mid = (bid + ask) / 2.0
+                spread_bps = ((ask - bid) / mid) * 10_000.0 if mid > 0 else 0.0
+                if spread_bps <= 0 or spread_bps > 500:
+                    continue
+
+                opportunities.append(
+                    PlatformOpportunity(
+                        platform_type='cex',
                         platform_name=platform,
-                        opportunity_type=np.random.choice(['arbitrage', 'liquidity', 'trading']),
+                        opportunity_type='spread',
                         symbol=symbol,
-                        price=np.random.uniform(100, 100000),
-                        volume_24h=np.random.uniform(1000000, 100000000),
-                        liquidity=np.random.uniform(1000000, 50000000),
-                        apy=np.random.uniform(5, 50),
-                        confidence=np.random.uniform(0.6, 0.95),
-                        risk_level=np.random.choice(['low', 'medium', 'high']),
+                        price=price,
+                        volume_24h=volume,
+                        liquidity=volume,
+                        apy=0.0,
+                        # Confidence from measured liquidity, not drawn.
+                        confidence=max(0.0, min(0.95, volume / 100_000_000.0)),
+                        risk_level=(
+                            'low' if spread_bps < 10
+                            else 'medium' if spread_bps < 50
+                            else 'high'
+                        ),
                         timestamp=time.time(),
                         metadata={
                             'blockchain': blockchain,
-                            'pool_address': f"0x{hashlib.md5(f'{platform}{symbol}'.encode()).hexdigest()[:40]}",
-                            'fee_tier': np.random.choice([0.01, 0.05, 0.3, 1.0]),
-                            'tick_spacing': np.random.choice([1, 10, 60, 200]),
+                            'spread_bps': spread_bps,
+                            'bid': bid,
+                            'ask': ask,
+                            'measured': True,
                         },
                     )
-                    opportunities.append(opportunity)
+                )
 
-            return opportunities
+            opportunities.sort(key=lambda o: o.volume_24h, reverse=True)
+            return opportunities[:25]
 
         except Exception as e:
             self.logger.error(f"Error scanning {platform}: {e}")
@@ -162,25 +201,14 @@ class DEXScanner:
         pools = []
 
         try:
-            # Simulate liquidity pool scanning
-            for blockchain, platforms in self.dex_platforms.items():
-                for platform in platforms:
-                    if np.random.random() < 0.4:  # 40% chance of finding pool
-                        pool = {
-                            'platform': platform,
-                            'blockchain': blockchain,
-                            'symbol': symbol,
-                            'liquidity': np.random.uniform(100000, 10000000),
-                            'apy': np.random.uniform(5, 100),
-                            'fee_tier': np.random.choice([0.01, 0.05, 0.3, 1.0]),
-                            'tvl': np.random.uniform(1000000, 50000000),
-                            'volume_24h': np.random.uniform(100000, 10000000),
-                            'price': np.random.uniform(100, 100000),
-                            'timestamp': time.time(),
-                        }
-                        pools.append(pool)
+            # Reading a liquidity pool needs a DEX subgraph or RPC endpoint.
+            # None is configured here, so there are no pools to report. This
+            # previously invented one per platform on a 40% coin flip, with
+            # random liquidity, APY, TVL, volume and price.
+            if not getattr(self, "dex_adapter", None):
+                return []
 
-            return pools
+            return self.dex_adapter.pools_for(symbol) or []
 
         except Exception as e:
             self.logger.error(f"Error scanning liquidity pools for {symbol}: {e}")
@@ -214,6 +242,42 @@ class CEXScanner:
         self.price_feeds = {}
         self.order_books = {}
 
+    def _public_ticker(self, platform: str, symbol: str):
+        """A real ticker from a public venue, or None.
+
+        Clients are built once per venue, public-only -- no credentials are
+        loaded, because reading a price never needs them. A venue that is
+        unreachable, does not list the symbol, or is not installed simply
+        yields None, and the caller reports nothing rather than inventing a
+        price.
+        """
+        cache = getattr(self, "_ticker_clients", None)
+        if cache is None:
+            cache = {}
+            self._ticker_clients = cache
+
+        client = cache.get(platform)
+        if client is None:
+            try:
+                import ccxt
+
+                builder = getattr(ccxt, str(platform).lower(), None)
+                if builder is None:
+                    cache[platform] = False
+                    return None
+                client = builder({"enableRateLimit": True, "timeout": 15000})
+                cache[platform] = client
+            except Exception:
+                cache[platform] = False
+                return None
+        if client is False:
+            return None
+
+        try:
+            return client.fetch_ticker(symbol)
+        except Exception:
+            return None
+
     async def scan_cex_opportunities(self) -> List[PlatformOpportunity]:
         """Scan all CEX platforms for opportunities"""
         opportunities = []
@@ -246,31 +310,35 @@ class CEXScanner:
             symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'ADA/USDT', 'SOL/USDT']
 
             for symbol in symbols:
-                # Simulate opportunity detection
-                if np.random.random() < 0.25:  # 25% chance of opportunity
-                    opportunity = PlatformOpportunity(
+                # Measured from the venue's own ticker and market metadata.
+                # Previously a 25% coin flip produced an opportunity whose
+                # price, volume, liquidity, confidence and every fee field
+                # were drawn from np.random.
+                ticker = self._public_ticker(platform, symbol)
+                if not ticker:
+                    continue
+
+                price = float(ticker.get("last") or 0.0)
+                volume = float(ticker.get("quoteVolume") or 0.0)
+                if price <= 0 or volume <= 0:
+                    continue
+
+                opportunities.append(
+                    PlatformOpportunity(
                         platform_type='cex',
                         platform_name=platform,
-                        opportunity_type=np.random.choice(
-                            ['arbitrage', 'trading', 'futures', 'options']
-                        ),
+                        opportunity_type='trading',
                         symbol=symbol,
-                        price=np.random.uniform(100, 100000),
-                        volume_24h=np.random.uniform(10000000, 1000000000),
-                        liquidity=np.random.uniform(10000000, 100000000),
-                        apy=0.0,  # CEX doesn't have APY
-                        confidence=np.random.uniform(0.7, 0.95),
-                        risk_level=np.random.choice(['low', 'medium']),
+                        price=price,
+                        volume_24h=volume,
+                        liquidity=volume,
+                        apy=0.0,
+                        confidence=max(0.0, min(0.95, volume / 100_000_000.0)),
+                        risk_level='low' if volume > 10_000_000 else 'medium',
                         timestamp=time.time(),
-                        metadata={
-                            'trading_fee': np.random.uniform(0.001, 0.01),
-                            'maker_fee': np.random.uniform(0.0005, 0.005),
-                            'taker_fee': np.random.uniform(0.001, 0.01),
-                            'min_trade_size': np.random.uniform(0.001, 0.1),
-                            'max_trade_size': np.random.uniform(1000, 100000),
-                        },
+                        metadata={'measured': True},
                     )
-                    opportunities.append(opportunity)
+                )
 
             return opportunities
 
@@ -283,40 +351,71 @@ class CEXScanner:
         arbitrage_opportunities = []
 
         try:
-            # Simulate arbitrage scanning
-            symbols = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT']
+            # Real prices from real venues, or no opportunities.
+            #
+            # This was the most dangerous function in the repository: it drew
+            # a random price per platform from np.random.uniform(100, 100000)
+            # and then computed "arbitrage" from the spread between those
+            # invented numbers. Acting on one of those would have bought and
+            # sold against prices that never existed on any exchange.
+            #
+            # Cross-venue arbitrage needs at least two reachable venues. With
+            # fewer, nothing is measurable and nothing is reported.
+            symbols = [
+                s.strip()
+                for s in os.getenv("ARB_SYMBOLS", "BTC/USDT,ETH/USDT").split(",")
+                if s.strip()
+            ]
 
             for symbol in symbols:
-                # Generate random prices for different platforms
                 platform_prices = {}
-                for platform in self.cex_platforms[:5]:  # Use first 5 platforms
-                    platform_prices[platform] = np.random.uniform(100, 100000)
+                for platform in self.cex_platforms[:5]:
+                    ticker = self._public_ticker(platform, symbol)
+                    if not ticker:
+                        continue
+                    bid = float(ticker.get("bid") or 0.0)
+                    ask = float(ticker.get("ask") or 0.0)
+                    if bid > 0 and ask > 0:
+                        platform_prices[platform] = {"bid": bid, "ask": ask}
 
-                # Find arbitrage opportunities
-                sorted_prices = sorted(platform_prices.items(), key=lambda x: x[1])
-                if len(sorted_prices) >= 2:
-                    lowest_price = sorted_prices[0]
-                    highest_price = sorted_prices[-1]
+                if len(platform_prices) < 2:
+                    continue
 
-                    profit_potential = highest_price[1] - lowest_price[1]
-                    profit_percentage = (profit_potential / lowest_price[1]) * 100
+                # Buy at the lowest ask, sell at the highest bid -- the prices
+                # actually executable, not mid prices.
+                cheapest = min(platform_prices.items(), key=lambda kv: kv[1]["ask"])
+                dearest = max(platform_prices.items(), key=lambda kv: kv[1]["bid"])
+                if cheapest[0] == dearest[0]:
+                    continue
 
-                    if profit_percentage > 0.1:  # Only consider opportunities > 0.1%
-                        arbitrage = CrossPlatformArbitrage(
-                            symbol=symbol,
-                            buy_platform=lowest_price[0],
-                            sell_platform=highest_price[0],
-                            buy_price=lowest_price[1],
-                            sell_price=highest_price[1],
-                            profit_potential=profit_potential,
-                            profit_percentage=profit_percentage,
-                            volume_available=np.random.uniform(1000, 100000),
-                            gas_cost=np.random.uniform(5, 50),
-                            net_profit=profit_potential - np.random.uniform(5, 50),
-                            confidence=np.random.uniform(0.6, 0.9),
-                            timestamp=time.time(),
-                        )
-                        arbitrage_opportunities.append(arbitrage)
+                buy_price = cheapest[1]["ask"]
+                sell_price = dearest[1]["bid"]
+                profit_potential = sell_price - buy_price
+                if buy_price <= 0 or profit_potential <= 0:
+                    continue
+
+                profit_percentage = (profit_potential / buy_price) * 100
+                if profit_percentage <= 0.1:
+                    continue
+
+                arbitrage_opportunities.append(
+                    CrossPlatformArbitrage(
+                        symbol=symbol,
+                        buy_platform=cheapest[0],
+                        sell_platform=dearest[0],
+                        buy_price=buy_price,
+                        sell_price=sell_price,
+                        profit_potential=profit_potential,
+                        profit_percentage=profit_percentage,
+                        # Unknown without a depth read; reported as unknown
+                        # rather than invented.
+                        volume_available=0.0,
+                        gas_cost=0.0,
+                        net_profit=profit_potential,
+                        confidence=min(0.9, profit_percentage / 10.0),
+                        timestamp=time.time(),
+                    )
+                )
 
             return arbitrage_opportunities
 
@@ -369,76 +468,34 @@ class DeFiScanner:
 
     async def _scan_defi_protocol(self, category: str, protocol: str) -> List[PlatformOpportunity]:
         """Scan a specific DeFi protocol"""
-        opportunities = []
-
+        # Reading this needs a DeFi protocol subgraph or RPC endpoint. None is configured,
+        # so there is nothing to report. Every field this method used to
+        # return -- price, volume, liquidity, APY, confidence, risk level --
+        # was drawn from np.random behind a percentage coin flip, and was
+        # indistinguishable from a measurement to any caller.
+        adapter = getattr(self, 'defi_adapter', None)
+        if adapter is None:
+            return []
         try:
-            # Simulate protocol scanning
-            symbols = ['BTC', 'ETH', 'USDC', 'USDT', 'DAI', 'WETH']
-
-            for symbol in symbols:
-                # Simulate opportunity detection
-                if np.random.random() < 0.2:  # 20% chance of opportunity
-                    opportunity = PlatformOpportunity(
-                        platform_type='defi',
-                        platform_name=protocol,
-                        opportunity_type=category,
-                        symbol=symbol,
-                        price=np.random.uniform(100, 100000),
-                        volume_24h=np.random.uniform(1000000, 100000000),
-                        liquidity=np.random.uniform(1000000, 100000000),
-                        apy=np.random.uniform(5, 200),
-                        confidence=np.random.uniform(0.5, 0.9),
-                        risk_level=np.random.choice(['low', 'medium', 'high']),
-                        timestamp=time.time(),
-                        metadata={
-                            'category': category,
-                            'protocol_address': f"0x{hashlib.md5(f'{protocol}{symbol}'.encode()).hexdigest()[:40]}",
-                            'tvl': np.random.uniform(1000000, 1000000000),
-                            'risk_score': np.random.uniform(0.1, 0.9),
-                            'impermanent_loss': np.random.uniform(0, 0.1),
-                        },
-                    )
-                    opportunities.append(opportunity)
-
-            return opportunities
-
-        except Exception as e:
-            self.logger.error(f"Error scanning {protocol}: {e}")
+            return list(adapter.scan() or [])
+        except Exception as exc:
+            self.logger.error(f"_scan_defi_protocol adapter failed: {exc}")
             return []
 
     async def scan_yield_opportunities(self) -> List[DeFiYieldOpportunity]:
         """Scan for yield farming opportunities"""
-        yield_opportunities = []
-
+        # Reading this needs a yield-aggregator API. None is configured,
+        # so there is nothing to report. Every field this method used to
+        # return -- price, volume, liquidity, APY, confidence, risk level --
+        # was drawn from np.random behind a percentage coin flip, and was
+        # indistinguishable from a measurement to any caller.
+        adapter = getattr(self, 'yield_adapter', None)
+        if adapter is None:
+            return []
         try:
-            # Simulate yield farming scanning
-            protocols = ['aave', 'compound', 'yearn', 'convex', 'curve']
-            token_pairs = ['ETH/USDC', 'BTC/USDT', 'USDC/USDT', 'ETH/BTC', 'DAI/USDC']
-
-            for protocol in protocols:
-                for token_pair in token_pairs:
-                    if np.random.random() < 0.3:  # 30% chance of yield opportunity
-                        yield_opp = DeFiYieldOpportunity(
-                            protocol=protocol,
-                            pool_name=f"{protocol}_{token_pair}",
-                            token_pair=token_pair,
-                            apy=np.random.uniform(5, 500),
-                            tvl=np.random.uniform(1000000, 100000000),
-                            risk_score=np.random.uniform(0.1, 0.9),
-                            impermanent_loss=np.random.uniform(0, 0.2),
-                            rewards_token=np.random.choice(['CRV', 'CVX', 'YFI', 'AAVE', 'COMP']),
-                            staking_period=np.random.choice(
-                                ['7d', '30d', '90d', '1y', 'unlimited']
-                            ),
-                            confidence=np.random.uniform(0.6, 0.95),
-                            timestamp=time.time(),
-                        )
-                        yield_opportunities.append(yield_opp)
-
-            return yield_opportunities
-
-        except Exception as e:
-            self.logger.error(f"Error scanning yield opportunities: {e}")
+            return list(adapter.scan() or [])
+        except Exception as exc:
+            self.logger.error(f"scan_yield_opportunities adapter failed: {exc}")
             return []
 
 class OtherPlatformScanner:
@@ -484,72 +541,18 @@ class OtherPlatformScanner:
 
     async def _scan_other_platform(self, category: str, platform: str) -> List[PlatformOpportunity]:
         """Scan a specific other platform"""
-        opportunities = []
-
+        # Reading this needs an adapter for this platform. None is configured,
+        # so there is nothing to report. Every field this method used to
+        # return -- price, volume, liquidity, APY, confidence, risk level --
+        # was drawn from np.random behind a percentage coin flip, and was
+        # indistinguishable from a measurement to any caller.
+        adapter = getattr(self, 'platform_adapter', None)
+        if adapter is None:
+            return []
         try:
-            # Simulate platform scanning
-            if category == 'nft':
-                # NFT opportunities
-                collections = ['Bored Ape', 'CryptoPunks', 'Azuki', 'CloneX', 'Doodles']
-                for collection in collections:
-                    if np.random.random() < 0.1:  # 10% chance of NFT opportunity
-                        opportunity = PlatformOpportunity(
-                            platform_type='nft',
-                            platform_name=platform,
-                            opportunity_type='trading',
-                            symbol=collection,
-                            price=np.random.uniform(0.1, 100),
-                            volume_24h=np.random.uniform(1000, 1000000),
-                            liquidity=0.0,  # NFTs don't have liquidity
-                            apy=0.0,
-                            confidence=np.random.uniform(0.5, 0.8),
-                            risk_level='high',
-                            timestamp=time.time(),
-                            metadata={
-                                'category': category,
-                                'collection_address': f"0x{hashlib.md5(f'{platform}{collection}'.encode()).hexdigest()[:40]}",
-                                'floor_price': np.random.uniform(0.1, 100),
-                                'total_supply': np.random.randint(1000, 10000),
-                                'trait_rarity': np.random.uniform(0.01, 1.0),
-                            },
-                        )
-                        opportunities.append(opportunity)
-
-            elif category == 'bridge':
-                # Bridge opportunities
-                tokens = ['ETH', 'USDC', 'USDT', 'BTC', 'AVAX']
-                for token in tokens:
-                    if np.random.random() < 0.15:  # 15% chance of bridge opportunity
-                        opportunity = PlatformOpportunity(
-                            platform_type='bridge',
-                            platform_name=platform,
-                            opportunity_type='arbitrage',
-                            symbol=token,
-                            price=np.random.uniform(100, 100000),
-                            volume_24h=np.random.uniform(1000000, 100000000),
-                            liquidity=np.random.uniform(1000000, 100000000),
-                            apy=np.random.uniform(0, 10),
-                            confidence=np.random.uniform(0.6, 0.9),
-                            risk_level='medium',
-                            timestamp=time.time(),
-                            metadata={
-                                'category': category,
-                                'source_chain': np.random.choice(
-                                    ['ethereum', 'bsc', 'polygon', 'avalanche']
-                                ),
-                                'destination_chain': np.random.choice(
-                                    ['ethereum', 'bsc', 'polygon', 'avalanche']
-                                ),
-                                'bridge_fee': np.random.uniform(0.001, 0.01),
-                                'bridge_time': np.random.uniform(1, 60),
-                            },
-                        )
-                        opportunities.append(opportunity)
-
-            return opportunities
-
-        except Exception as e:
-            self.logger.error(f"Error scanning {platform}: {e}")
+            return list(adapter.scan() or [])
+        except Exception as exc:
+            self.logger.error(f"_scan_other_platform adapter failed: {exc}")
             return []
 
 class UltraMultiPlatformScanner:

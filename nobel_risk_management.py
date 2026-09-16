@@ -1153,10 +1153,28 @@ class QuantumRiskManager:
     def get_portfolio_returns(self) -> np.ndarray:
         """Get portfolio returns for risk calculation"""
         try:
-            # This would get actual portfolio returns
-            # For now, return random returns
-            return np.random.normal(0.001, 0.02, 100)  # 0.1% mean, 2% std
-            
+            # Real returns from the recorded equity history.
+            #
+            # This returned np.random.normal(0.001, 0.02, 100) -- a synthetic
+            # series with a built-in positive drift. Every VaR, Sharpe and
+            # risk score computed from it described that invented series
+            # rather than the portfolio, and always flattered it.
+            history = [
+                float(v)
+                for v in (getattr(self, 'portfolio_history', None) or [])
+                if isinstance(v, (int, float)) and float(v) > 0
+            ]
+            if len(history) < 3:
+                return np.array([])
+
+            return np.array(
+                [
+                    (history[i] - history[i - 1]) / history[i - 1]
+                    for i in range(1, len(history))
+                    if history[i - 1] > 0
+                ]
+            )
+
         except Exception as e:
             logger.error(f"Portfolio returns retrieval error: {e}")
             return np.array([])

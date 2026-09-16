@@ -473,32 +473,31 @@ class SentinelBrillianceSystem:
         except Exception as e:
             self.logger.error(f"Error in brilliance cycle: {e}")
 
-    async def _get_market_data(self) -> pd.DataFrame:
-        """Get market data for analysis"""
-        # Simulate market data
-        # In real implementation, this would fetch from exchanges
-        data_points = 100
-        base_price = 50000
+    async def _get_market_data(self) -> Optional[pd.DataFrame]:
+        """Real candles for fluid-dynamics analysis, or None.
 
-        prices = []
-        current_price = base_price
-        for i in range(data_points):
-            change = np.random.normal(0, 0.02) * current_price
-            current_price += change
-            prices.append(current_price)
+        This previously built a random walk from a hardcoded $50,000 base --
+        the same synthetic series regardless of which market was being
+        analysed -- so every fluid state, sentinel alert and regime call
+        described invented price action. An empty frame is the honest answer
+        when no client is attached.
+        """
+        exchange = getattr(self, "exchange", None)
+        symbol = getattr(self, "symbol", None) or os.getenv("FLUID_SYMBOL", "BTC/USDT")
+        if exchange is None:
+            return None
 
-        df = pd.DataFrame(
-            {
-                'timestamp': [time.time() - (data_points - i) * 60 for i in range(data_points)],
-                'open': prices,
-                'high': [p * (1 + abs(np.random.normal(0, 0.01))) for p in prices],
-                'low': [p * (1 - abs(np.random.normal(0, 0.01))) for p in prices],
-                'close': prices,
-                'volume': [np.random.uniform(100, 1000) for _ in range(data_points)],
-            }
+        try:
+            rows = exchange.fetch_ohlcv(symbol, timeframe="1m", limit=100)
+        except Exception:
+            return None
+        if not rows or len(rows) < 30:
+            return None
+
+        return pd.DataFrame(
+            rows,
+            columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'],
         )
-
-        return df
 
     async def _update_brilliance_level(self, execution_result: Dict[str, Any]):
         """Update brilliance level based on execution results"""

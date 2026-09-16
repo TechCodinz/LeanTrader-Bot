@@ -109,29 +109,25 @@ class SwarmAgent:
     async def _get_market_data(self, symbol: str, timeframe: str) -> Optional[pd.DataFrame]:
         """Get market data for analysis"""
         try:
-            # Simulate market data fetching
-            # In real implementation, this would fetch from exchanges
-            data_points = 100
-            base_price = 50000 if 'BTC' in symbol else 3000 if 'ETH' in symbol else 500
+            # Real candles from the attached exchange client.
+            #
+            # This previously simulated a price series: a base price picked
+            # from the symbol name, then a random walk of np.random.normal
+            # steps with random highs, lows and volumes. Every downstream
+            # swarm conclusion was therefore drawn about a market that did
+            # not exist. Without a client there is nothing to analyse, and
+            # None says so rather than inventing one.
+            exchange = getattr(self, "exchange", None)
+            if exchange is None:
+                return None
 
-            prices = []
-            current_price = base_price
-            for i in range(data_points):
-                # Simulate price movement
-                change = np.random.normal(0, 0.02) * current_price
-                current_price += change
-                prices.append(current_price)
+            rows = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=100)
+            if not rows or len(rows) < 30:
+                return None
 
-            # Create OHLCV data
             df = pd.DataFrame(
-                {
-                    'timestamp': [time.time() - (data_points - i) * 60 for i in range(data_points)],
-                    'open': prices,
-                    'high': [p * (1 + abs(np.random.normal(0, 0.01))) for p in prices],
-                    'low': [p * (1 - abs(np.random.normal(0, 0.01))) for p in prices],
-                    'close': prices,
-                    'volume': [np.random.uniform(100, 1000) for _ in range(data_points)],
-                }
+                rows,
+                columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'],
             )
 
             return df
@@ -648,9 +644,19 @@ class SwarmConsciousness:
                 ]  # Last hour
 
                 if recent_trades:
-                    # Simulate performance calculation
-                    performance = np.random.normal(0.02, 0.05)  # 2% average, 5% std
-                    agent.performance_history[-1]['performance'] = performance
+                    # Performance measured from the agent's own recent trades.
+                    # This drew np.random.normal(0.02, 0.05) and wrote it into
+                    # performance_history, so every agent scored roughly +2%
+                    # regardless of what it actually did -- and that history is
+                    # what the swarm weights its agents by.
+                    realised = [
+                        float(t.get('pnl') or t.get('profit') or 0.0)
+                        for t in recent_trades
+                        if isinstance(t, dict)
+                    ]
+                    if realised:
+                        performance = sum(realised) / len(realised)
+                        agent.performance_history[-1]['performance'] = performance
 
         # Log swarm performance
         total_agents = len(self.agents)
