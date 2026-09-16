@@ -20,7 +20,16 @@ from bs4 import BeautifulSoup
 # NOTE: heavy / optional libraries are loaded lazily inside the class to avoid import-time failures.
 
 class UltraScout:
-    def __init__(self, max_threads: Optional[int] = None, user_agent: Optional[str] = None):
+    def __init__(
+        self,
+        max_threads: Optional[int] = None,
+        user_agent: Optional[str] = None,
+        exchange: Optional[Any] = None,
+    ):
+        # A ccxt client, when the caller has one. Everything that can be read
+        # from a real market is read through this; nothing is invented when it
+        # is absent. See _unavailable() for the contract.
+        self.exchange = exchange
         self.sources = [
             "https://www.investing.com/news/cryptocurrency-news",
             "https://cryptopanic.com/news",
@@ -113,6 +122,88 @@ class UltraScout:
     # -------------------------
     # On-chain, backtest, swarm
     # -------------------------
+    def _real_trends(self) -> List[Any]:
+        """Trends from real closes across the configured symbols, or []."""
+        if self.exchange is None:
+            return []
+        symbols = [
+            sym.strip()
+            for sym in os.getenv("SCOUT_TREND_SYMBOLS", "BTC/USDT,ETH/USDT").split(",")
+            if sym.strip()
+        ]
+        trends: List[Any] = []
+        for symbol in symbols:
+            try:
+                rows = self.exchange.fetch_ohlcv(symbol, timeframe="1h", limit=30)
+            except Exception:
+                continue
+            closes = [float(r[4]) for r in (rows or []) if r and len(r) > 4]
+            if len(closes) < 10:
+                continue
+            try:
+                trends.append(self.detect_trends(closes))
+            except Exception:
+                continue
+        return trends
+
+    @staticmethod
+    def _derive_votes(signal: Any, agents: int) -> List[str]:
+        """Votes from the signal's own strength, not from chance.
+
+        Each agent applies a progressively stricter threshold to the same
+        real value, so the spread of votes reflects how strong the signal
+        actually is. A signal with no readable strength abstains as hold
+        rather than voting arbitrarily.
+        """
+        value = 0.0
+        if isinstance(signal, dict):
+            for key in ("score", "strength", "confidence", "value", "change"):
+                if key in signal:
+                    try:
+                        value = float(signal[key])
+                        break
+                    except (TypeError, ValueError):
+                        continue
+        else:
+            try:
+                value = float(signal)
+            except (TypeError, ValueError):
+                value = 0.0
+
+        if value > 1.0:  # a 0-100 confidence rather than a -1..1 score
+            value = (value - 50.0) / 50.0
+
+        votes: List[str] = []
+        for index in range(max(1, int(agents))):
+            threshold = 0.1 + (index * 0.15)
+            if value >= threshold:
+                votes.append("buy")
+            elif value <= -threshold:
+                votes.append("sell")
+            else:
+                votes.append("hold")
+        return votes
+
+    @staticmethod
+    def _unavailable(reason: str) -> Dict[str, Any]:
+        """The honest answer when there is no source for a metric.
+
+        This module previously filled these gaps with random.uniform and
+        random.randint -- invented supply, holders, whale flows, depth and
+        balances that a caller could not distinguish from measurements. A
+        metric with no provider is reported as unavailable, with the reason,
+        so a consumer skips it instead of trading on a number nobody observed.
+        """
+        return {"available": False, "reason": reason}
+
+    def _onchain_provider(self) -> Optional[str]:
+        """The Etherscan-compatible API key, if one is configured."""
+        for name in ("ETHERSCAN_API_KEY", "ONCHAIN_API_KEY"):
+            key = os.getenv(name, "").strip()
+            if key:
+                return key
+        return None
+
     def fetch_onchain_analytics(self, token_address: str) -> Dict[str, Any]:
         """Fetch real on-chain analytics data."""
         analytics = {"token": token_address, "timestamp": time.time()}
@@ -134,72 +225,169 @@ class UltraScout:
 
         except Exception as e:
             analytics['error'] = str(e)
-            # Fallback to estimated metrics
             analytics['whale_moves'] = self._estimate_whale_activity()
-            analytics['volume'] = random.uniform(100000, 10000000)
+            # Real traded volume if a market client is available. Previously
+            # this was random.uniform(100000, 10000000) -- a fabricated volume
+            # presented beside real fields.
+            analytics['volume'] = self._real_quote_volume(token_address)
 
         return analytics
 
+    def _real_quote_volume(self, symbol: str) -> Optional[float]:
+        """24h quote volume from the exchange, or None if unknown."""
+        if self.exchange is None:
+            return None
+        try:
+            ticker = self.exchange.fetch_ticker(symbol) or {}
+            volume = ticker.get("quoteVolume")
+            return float(volume) if volume is not None else None
+        except Exception:
+            return None
+
     def _fetch_etherscan(self, token_address: str) -> Dict[str, Any]:
-        """Fetch data from Etherscan API."""
-        # In production, use actual API with key
-        return {
-            'total_supply': random.uniform(1000000, 100000000),
-            'holders': random.randint(1000, 100000),
-            'transfers_24h': random.randint(100, 10000),
-        }
+        """Token supply from Etherscan, or an explicit unavailable."""
+        key = self._onchain_provider()
+        if not key:
+            return self._unavailable("no_etherscan_api_key")
+        try:
+            import requests
+
+            response = requests.get(
+                "https://api.etherscan.io/api",
+                params={
+                    "module": "stats",
+                    "action": "tokensupply",
+                    "contractaddress": token_address,
+                    "apikey": key,
+                },
+                timeout=10,
+            )
+            payload = response.json()
+            if str(payload.get("status")) != "1":
+                return self._unavailable(
+                    f"etherscan_status_{payload.get('message', 'error')}"
+                )
+            return {"available": True, "total_supply": float(payload.get("result") or 0.0)}
+        except Exception as exc:
+            return self._unavailable(f"etherscan_error:{type(exc).__name__}")
 
     def _detect_whale_movements(self, token_address: str) -> List[Dict[str, Any]]:
         """Detect large transactions indicating whale activity."""
-        movements = []
-        # Simulate whale detection
-        if random.random() > 0.7:
-            movements.append(
-                {
-                    'type': 'accumulation' if random.random() > 0.5 else 'distribution',
-                    'amount': random.uniform(100000, 1000000),
-                    'impact': random.choice(['bullish', 'bearish', 'neutral']),
-                }
+        key = self._onchain_provider()
+        if not key:
+            # No provider: no whale evidence. Previously this invented an
+            # accumulation or distribution event 30% of the time, with a
+            # random amount and a random bullish/bearish label.
+            return []
+        try:
+            import requests
+
+            response = requests.get(
+                "https://api.etherscan.io/api",
+                params={
+                    "module": "account",
+                    "action": "tokentx",
+                    "contractaddress": token_address,
+                    "page": 1,
+                    "offset": 100,
+                    "sort": "desc",
+                    "apikey": key,
+                },
+                timeout=10,
             )
-        return movements
+            rows = (response.json() or {}).get("result") or []
+            if not isinstance(rows, list):
+                return []
+            values = [float(r.get("value") or 0.0) for r in rows if isinstance(r, dict)]
+            if len(values) < 10:
+                return []
+            values.sort()
+            # A whale transfer is one in the top percentile of what actually
+            # moved, measured -- not assumed.
+            threshold = values[int(len(values) * 0.95)]
+            return [
+                {
+                    "type": "transfer",
+                    "amount": float(r.get("value") or 0.0),
+                    "hash": str(r.get("hash", ""))[:66],
+                    "measured": True,
+                }
+                for r in rows
+                if isinstance(r, dict) and float(r.get("value") or 0.0) >= threshold
+            ][:10]
+        except Exception:
+            return []
 
     def _analyze_exchange_flows(self, token_address: str) -> Dict[str, float]:
         """Analyze token flows to/from exchanges."""
-        return {
-            'inflow': random.uniform(0, 1000000),
-            'outflow': random.uniform(0, 1000000),
-            'net_flow': random.uniform(-500000, 500000),
-            'exchange_balance_change': random.uniform(-0.1, 0.1),
-        }
+        # Exchange flow attribution needs labelled exchange wallets, which no
+        # configured provider supplies here. Reported unavailable rather than
+        # invented -- the previous four random values were indistinguishable
+        # from measurements to any caller.
+        return self._unavailable("no_exchange_flow_provider")
 
     def _get_holder_distribution(self, token_address: str) -> Dict[str, float]:
         """Get token holder distribution metrics."""
-        return {
-            'top_10_percent': random.uniform(0.3, 0.7),
-            'top_100_percent': random.uniform(0.5, 0.9),
-            'gini_coefficient': random.uniform(0.6, 0.95),
-            'unique_holders': random.randint(1000, 100000),
-        }
+        return self._unavailable("no_holder_distribution_provider")
 
-    def _get_defi_tvl(self, token_address: str) -> float:
-        """Get DeFi Total Value Locked."""
-        return random.uniform(1000000, 1000000000)
+    def _get_defi_tvl(self, token_address: str) -> Optional[float]:
+        """TVL from DefiLlama when reachable, else None."""
+        try:
+            import requests
 
-    def _get_liquidity_depth(self, token_address: str) -> Dict[str, float]:
-        """Get liquidity depth metrics."""
-        return {
-            'bid_depth': random.uniform(100000, 10000000),
-            'ask_depth': random.uniform(100000, 10000000),
-            'spread': random.uniform(0.0001, 0.01),
-        }
+            response = requests.get(
+                f"https://api.llama.fi/protocol/{token_address}", timeout=10
+            )
+            if response.status_code != 200:
+                return None
+            tvl = (response.json() or {}).get("tvl")
+            if isinstance(tvl, list) and tvl:
+                return float(tvl[-1].get("totalLiquidityUSD") or 0.0)
+            return float(tvl) if isinstance(tvl, (int, float)) else None
+        except Exception:
+            return None
 
-    def _estimate_whale_activity(self) -> int:
+    def _get_liquidity_depth(self, token_address: str) -> Dict[str, Any]:
+        """Real bid/ask depth and spread from the exchange order book.
+
+        This is the one on-chain-adjacent metric with a genuine source: the
+        venue's own book. Previously all three numbers were random.
+        """
+        if self.exchange is None:
+            return self._unavailable("no_market_client")
+        try:
+            book = self.exchange.fetch_order_book(token_address, limit=50) or {}
+            bids = book.get("bids") or []
+            asks = book.get("asks") or []
+            if not bids or not asks:
+                return self._unavailable("empty_order_book")
+
+            bid_depth = sum(float(p) * float(q) for p, q in bids[:25])
+            ask_depth = sum(float(p) * float(q) for p, q in asks[:25])
+            best_bid, best_ask = float(bids[0][0]), float(asks[0][0])
+            mid = (best_bid + best_ask) / 2.0
+
+            return {
+                "available": True,
+                "bid_depth": bid_depth,
+                "ask_depth": ask_depth,
+                "spread": (best_ask - best_bid) / mid if mid > 0 else 0.0,
+                "spread_bps": ((best_ask - best_bid) / mid * 10_000.0) if mid > 0 else 0.0,
+                "imbalance": (
+                    (bid_depth - ask_depth) / (bid_depth + ask_depth)
+                    if (bid_depth + ask_depth) > 0
+                    else 0.0
+                ),
+            }
+        except Exception as exc:
+            return self._unavailable(f"order_book_error:{type(exc).__name__}")
+
+    def _estimate_whale_activity(self) -> Optional[int]:
         """Estimate whale activity based on patterns."""
-        # Use time-based patterns
-        hour = datetime.now().hour
-        if hour in [9, 10, 14, 15]:  # Market open/close times
-            return random.randint(5, 15)
-        return random.randint(0, 5)
+        # There is no measurement behind this. The previous version returned
+        # a random count keyed off the hour of day, which is a guess wearing
+        # the shape of data. None means unknown.
+        return None
 
     def run_backtest(self, strategy: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """Run comprehensive backtest with walk-forward optimization."""
@@ -250,22 +438,63 @@ class UltraScout:
                 'strategy': strategy,
                 'params': params,
                 'error': str(e),
-                'score': random.uniform(-1, 2),  # Fallback
+                # A failed backtest has no score. The previous fallback
+                # invented one between -1 and 2, which could rank a strategy
+                # that never ran above one that did.
+                'score': None,
+                'available': False,
             }
 
         return results
 
     def _run_period_backtest(self, strategy, period: Dict[str, Any]) -> Dict[str, Any]:
         """Run backtest for a specific period."""
-        # Simplified backtest logic
-        returns = [random.gauss(0.001, 0.02) for _ in range(30)]
+        # Real period returns from real candles. Previously this drew 30
+        # samples from random.gauss, so every backtest scored a strategy
+        # against noise that had nothing to do with the market.
+        symbol = period.get('symbol') or getattr(self, 'backtest_symbol', None)
+        returns = self._real_period_returns(symbol, period)
+
+        if not returns:
+            return {
+                'returns': [],
+                'total_return': None,
+                'trades': 0,
+                'period': period.get('name'),
+                'available': False,
+                'reason': 'no_real_candles_for_period',
+            }
 
         return {
             'returns': returns,
-            'total_return': np.prod([1 + r for r in returns]) - 1,
+            'total_return': float(np.prod([1 + r for r in returns]) - 1),
             'trades': len(returns),
-            'period': period['name'],
+            'period': period.get('name'),
+            'available': True,
         }
+
+    def _real_period_returns(
+        self, symbol: Optional[str], period: Dict[str, Any]
+    ) -> List[float]:
+        """Bar-to-bar returns from real candles, or [] when unavailable."""
+        if self.exchange is None or not symbol:
+            return []
+        try:
+            rows = self.exchange.fetch_ohlcv(
+                symbol,
+                timeframe=str(period.get('timeframe') or '1h'),
+                limit=int(period.get('limit') or 200),
+            )
+        except Exception:
+            return []
+        closes = [float(r[4]) for r in (rows or []) if r and len(r) > 4]
+        if len(closes) < 3:
+            return []
+        return [
+            (closes[i] - closes[i - 1]) / closes[i - 1]
+            for i in range(1, len(closes))
+            if closes[i - 1] > 0
+        ]
 
     def _calculate_max_drawdown(self, returns: List[float]) -> float:
         """Calculate maximum drawdown from returns."""
@@ -480,21 +709,42 @@ class UltraScout:
 
     def _check_rate_limits(self, broker: str) -> Dict[str, Any]:
         """Check API rate limits."""
-        # Simulated rate limit check
-        return {
-            'remaining': random.randint(50, 1000),
-            'reset': random.randint(30, 300),
-            'weight': random.randint(1, 10),
-        }
+        # Real values from the ccxt client when one is attached.
+        if self.exchange is None:
+            return self._unavailable("no_market_client")
+        try:
+            return {
+                "available": True,
+                "rate_limit_ms": float(getattr(self.exchange, "rateLimit", 0) or 0),
+                "enable_rate_limit": bool(getattr(self.exchange, "enableRateLimit", False)),
+                "last_response_headers": {
+                    k: v
+                    for k, v in (getattr(self.exchange, "last_response_headers", {}) or {}).items()
+                    if "limit" in str(k).lower() or "remaining" in str(k).lower()
+                },
+            }
+        except Exception as exc:
+            return self._unavailable(f"rate_limit_error:{type(exc).__name__}")
 
     def _check_balance(self, broker: str) -> Dict[str, Any]:
         """Check account balance availability."""
-        # Simulated balance check
-        return {
-            'available': True,
-            'total_usd': random.uniform(1000, 100000),
-            'free_usd': random.uniform(500, 50000),
-        }
+        # The authenticated balance, or an explicit unavailable. Inventing a
+        # balance here could size a position against money that is not there.
+        if self.exchange is None:
+            return self._unavailable("no_market_client")
+        try:
+            balance = self.exchange.fetch_balance() or {}
+            quote = os.getenv("MARKET_QUOTE", "USDT").upper()
+            free = (balance.get("free") or {}).get(quote)
+            total = (balance.get("total") or {}).get(quote)
+            return {
+                "available": True,
+                "quote": quote,
+                "free_usd": float(free) if free is not None else None,
+                "total_usd": float(total) if total is not None else None,
+            }
+        except Exception as exc:
+            return self._unavailable(f"balance_error:{type(exc).__name__}")
 
     def reinforcement_learning_update(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Update reinforcement learning agent with new state and rewards."""
@@ -838,10 +1088,10 @@ class UltraScout:
         patterns = self.scrape_patterns()
         self.patterns = patterns
         self.sentiment = sentiment
-        # generate synthetic trend samples if no price data available
-        self.trends = list(
-            {self.detect_trends([random.uniform(0.9, 1.1) for _ in range(30)]) for _ in range(5)}
-        )
+        # Trends come from real closes or not at all. This previously built
+        # them from random.uniform(0.9, 1.1) samples and stored the result
+        # beside genuinely scraped sentiment.
+        self.trends = self._real_trends()
         self.last_update = time.time()
         # swarm & satellite placeholders
         patterns = self.swarm_ai_decision(patterns)
@@ -861,7 +1111,9 @@ class UltraScout:
             agents = 5
         out = []
         for s in signals:
-            votes = [random.choice(["buy", "sell", "hold"]) for _ in range(agents)]
+            # Votes derived from the signal's own strength rather than drawn
+            # at random, which produced a consensus that meant nothing.
+            votes = self._derive_votes(s, agents)
             try:
                 s_dict = s if isinstance(s, dict) else {"value": s}
                 s_dict["swarm_vote"] = max(set(votes), key=votes.count)
@@ -872,10 +1124,12 @@ class UltraScout:
 
     def satellite_data_fusion(self, symbol: str) -> Dict[str, Any]:
         try:
-            volatility_proxy = random.uniform(0, 1)
-            return {"satellite_volatility": volatility_proxy}
+            # No satellite feed is configured or reachable from here. The
+            # previous implementation returned random.uniform(0, 1) under the
+            # name "satellite_volatility".
+            return self._unavailable("no_satellite_provider")
         except Exception:
-            return {"satellite_volatility": 0.0}
+            return self._unavailable("no_satellite_provider")
 
     def describe_model(self) -> str:
         """Return a short human-readable summary of UltraScout capabilities and limits."""

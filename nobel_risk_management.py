@@ -958,23 +958,73 @@ class QuantumRiskManager:
             return False
     
     def calculate_daily_risk(self) -> float:
-        """Calculate daily portfolio risk"""
+        """Daily portfolio risk from the positions actually held.
+
+        This returned the constant 0.05 regardless of what was open -- a flat
+        5% reported whether the book was empty or fully deployed. It is now
+        the aggregate position risk over portfolio value, which is zero when
+        nothing is held and rises with real exposure.
+        """
         try:
-            # This would calculate actual daily risk based on positions
-            # For now, return a simplified calculation
-            return 0.05  # 5% daily risk
-            
+            if not self.positions:
+                return 0.0
+
+            portfolio_value = 0.0
+            for source in ("portfolio_value", "total_capital", "capital"):
+                portfolio_value = float(getattr(self, source, 0.0) or 0.0)
+                if portfolio_value > 0:
+                    break
+
+            exposure = 0.0
+            for position in self.positions.values():
+                if isinstance(position, dict):
+                    size = float(position.get("size") or position.get("amount") or 0.0)
+                    price = float(position.get("price") or position.get("entry_price") or 0.0)
+                    stop = float(position.get("stop_loss") or 0.0)
+                    notional = abs(size * price)
+                    # Risk is what a stop would actually cost, when one is set.
+                    exposure += (
+                        abs(size * (price - stop)) if stop > 0 else notional * 0.02
+                    )
+                else:
+                    exposure += abs(float(getattr(position, "risk_amount", 0.0) or 0.0))
+
+            if portfolio_value <= 0:
+                return 0.0
+            return min(1.0, exposure / portfolio_value)
+
         except Exception as e:
             logger.error(f"Daily risk calculation error: {e}")
             return 0.0
     
     def calculate_portfolio_risk(self) -> float:
-        """Calculate portfolio risk"""
+        """Portfolio risk from realised equity history.
+
+        Previously the constant 0.10. It is now the standard deviation of the
+        portfolio's own period returns -- real dispersion when there is enough
+        history, and the daily exposure figure as a floor when there is not.
+        """
         try:
-            # This would calculate actual portfolio risk
-            # For now, return a simplified calculation
-            return 0.10  # 10% portfolio risk
-            
+            history = [
+                float(v)
+                for v in (self.portfolio_history or [])
+                if isinstance(v, (int, float)) and float(v) > 0
+            ]
+            if len(history) >= 3:
+                returns = [
+                    (history[i] - history[i - 1]) / history[i - 1]
+                    for i in range(1, len(history))
+                    if history[i - 1] > 0
+                ]
+                if returns:
+                    mean = sum(returns) / len(returns)
+                    variance = sum((r - mean) ** 2 for r in returns) / len(returns)
+                    return min(1.0, variance ** 0.5)
+
+            # Not enough history to measure dispersion; fall back to what the
+            # open book is actually risking rather than to a constant.
+            return self.calculate_daily_risk()
+
         except Exception as e:
             logger.error(f"Portfolio risk calculation error: {e}")
             return 0.0
