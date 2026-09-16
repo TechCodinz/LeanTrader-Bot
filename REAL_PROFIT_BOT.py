@@ -205,7 +205,13 @@ class REAL_PROFIT_BOT:
         ]
 
         print("🚀 REAL PROFIT BOT INITIALIZED!")
-        print("💰 TRADING EXCHANGE: Gate.io (REAL INCOME GENERATION)")
+        # Was unconditional: a testnet run printed "Gate.io (REAL INCOME
+        # GENERATION)" in its own startup banner, which is the one line an
+        # operator reads to know which venue holds authority.
+        if self.mode == "testnet":
+            print("🧪 TRADING EXCHANGE: Bybit TESTNET (no real funds at risk)")
+        else:
+            print("💰 TRADING EXCHANGE: Gate.io (REAL INCOME GENERATION)")
         print(f"📊 {len(self.crypto_pairs)} Crypto Pairs")
         print("🎯 TARGET: $50-200 DAILY PROFITS FOR BILLS!")
 
@@ -479,8 +485,16 @@ class REAL_PROFIT_BOT:
             print(f"❌ Market analysis error for {symbol}: {e}")
             return "HOLD", 0, 0, 0, 0
 
-    def execute_trade(self, symbol, signal, price):
-        """Execute trade with SMART AUTO-SCALED position sizing"""
+    def execute_trade(self, symbol, signal, price, amount=None):
+        """Execute trade with SMART AUTO-SCALED position sizing.
+
+        ``amount`` closes a known position in full. Without it a SELL is sized
+        from the current USDT target, which is not the size that was bought --
+        after an entry consumes capital the target shrinks, so the exit sold
+        less than it held and left a residue behind every single cycle. Those
+        residues are where the dust and orphaned inventory came from, and they
+        are why capital stopped compounding.
+        """
         try:
             # SMART AUTO-SCALING: Adjust position to current balance
             balance = self.check_gate_balance()
@@ -661,7 +675,14 @@ class REAL_PROFIT_BOT:
                         (balances.get(base) or {}).get("free") or 0.0
                     )
 
-                    sell_amount = min(float(position_size), base_free)
+                    # An explicit close sells the whole position; otherwise
+                    # fall back to the historical target-derived size. Both
+                    # are capped by inventory actually held.
+                    requested = (
+                        float(amount) if amount and float(amount) > 0
+                        else float(position_size)
+                    )
+                    sell_amount = min(requested, base_free)
 
                     if sell_amount <= 0:
                         print(
@@ -888,7 +909,13 @@ class REAL_PROFIT_BOT:
 
                 # The bot's own execution path -- same owned-inventory sizing,
                 # dust skipping, precision and minimum checks that already work.
-                exit_order = self.execute_trade(symbol, "SELL", price)
+                exit_order = self.execute_trade(
+                    symbol,
+                    "SELL",
+                    price,
+                    amount=record.get("remaining_quantity")
+                    or record.get("sellable_quantity"),
+                )
                 if not exit_order:
                     continue
 
