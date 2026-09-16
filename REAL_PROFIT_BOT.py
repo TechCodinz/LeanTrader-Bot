@@ -233,9 +233,80 @@ class REAL_PROFIT_BOT:
                     order = self.gate.create_market_buy_order(symbol, cost_usd)
                     print(f"✅ REAL PROFIT BUY: {symbol} @ ${price:.4f} | Cost: ${cost_usd:.2f}")
             elif signal == "SELL":
-                # Both Gate.io and Bybit: Pass amount in base currency for sells
-                order = self.gate.create_market_sell_order(symbol, position_size)
-                print(f"✅ REAL PROFIT SELL: {symbol} @ ${price:.4f} | Size: {position_size}")
+                # SPOT SELL must use inventory actually owned.
+                # The historical code incorrectly sized SELL from the USDT
+                # target, which attempted to short coins that were not held.
+                if self.mode == "testnet":
+                    base = symbol.split("/")[0]
+
+                    balances = self.gate.fetch_balance(
+                        params={
+                            "accountType": "UNIFIED",
+                            "recvWindow": 20000,
+                        }
+                    )
+
+                    base_free = float(
+                        (balances.get(base) or {}).get("free") or 0.0
+                    )
+
+                    sell_amount = min(float(position_size), base_free)
+
+                    if sell_amount <= 0:
+                        print(
+                            f"⏭️ SKIP SELL: {symbol} | "
+                            f"No {base} inventory available"
+                        )
+                        return None
+
+                    # Respect exchange precision.
+                    sell_amount = float(
+                        self.gate.amount_to_precision(symbol, sell_amount)
+                    )
+
+                    if sell_amount <= 0:
+                        print(
+                            f"⏭️ SKIP SELL: {symbol} | "
+                            f"Inventory below amount precision"
+                        )
+                        return None
+
+                    market = self.gate.market(symbol)
+                    limits = market.get("limits") or {}
+                    cost_limits = limits.get("cost") or {}
+                    min_cost = float(cost_limits.get("min") or 0.0)
+
+                    sell_value = sell_amount * float(price)
+
+                    if min_cost > 0 and sell_value < min_cost:
+                        print(
+                            f"⏭️ SKIP SELL: {symbol} | "
+                            f"Value ${sell_value:.6f} below "
+                            f"exchange minimum ${min_cost:.6f}"
+                        )
+                        return None
+
+                    order = self.gate.create_market_sell_order(
+                        symbol,
+                        sell_amount
+                    )
+
+                    print(
+                        f"✅ REAL PROFIT SELL: {symbol} @ ${price:.4f} | "
+                        f"Size: {sell_amount} | "
+                        f"Owned before sell: {base_free}"
+                    )
+
+                else:
+                    # Preserve historical Gate.io live behavior unchanged.
+                    order = self.gate.create_market_sell_order(
+                        symbol,
+                        position_size
+                    )
+                    print(
+                        f"✅ REAL PROFIT SELL: {symbol} @ ${price:.4f} | "
+                        f"Size: {position_size}"
+                    )
             else:
                 return None
 
