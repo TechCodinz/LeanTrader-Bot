@@ -69,7 +69,16 @@ class REAL_PROFIT_BOT:
         self.winning_trades = 0
         self.running = True
 
-        # ALL MAJOR PAIRS FOR MAXIMUM OPPORTUNITIES
+        # HISTORICAL_DYNAMIC_MARKET_RECOVERY
+        # Restore the historical dynamic-market behavior on TESTNET only.
+        self.blocked_pairs = set()
+        self.last_pair_refresh = 0.0
+        self.dynamic_pair_refresh_seconds = 60
+        self.dynamic_pair_min_volume_usd = 1_000_000
+
+        # Original historical pairs retained as STARTUP FALLBACK.
+        # TESTNET dynamically replaces this list with liquid Bybit
+        # USDT spot markets.
         self.crypto_pairs = [
             'BTC/USDT',
             'ETH/USDT',
@@ -117,6 +126,99 @@ class REAL_PROFIT_BOT:
         except Exception as e:
             print(f"❌ Balance check error: {e}")
             return 0.0
+
+    def refresh_dynamic_pairs(self):
+        """
+        Restore historical dynamic-market discovery.
+
+        TESTNET only:
+        - real Bybit markets
+        - spot markets only
+        - USDT quote only
+        - active markets only
+        - $1M+ 24h quote volume
+        - remove region-restricted pairs after rejection
+        """
+        if self.mode != "testnet":
+            return self.crypto_pairs
+
+        try:
+            self.gate.load_markets()
+            tickers = self.gate.fetch_tickers()
+
+            discovered = []
+
+            for symbol, ticker in tickers.items():
+                try:
+                    market = self.gate.markets.get(symbol)
+
+                    if not market:
+                        continue
+
+                    if not market.get("spot"):
+                        continue
+
+                    if market.get("quote") != "USDT":
+                        continue
+
+                    if ":" in symbol:
+                        continue
+
+                    if market.get("active") is False:
+                        continue
+
+                    if symbol in self.blocked_pairs:
+                        continue
+
+                    last = float(ticker.get("last") or 0.0)
+                    volume = float(ticker.get("quoteVolume") or 0.0)
+                    change = float(ticker.get("percentage") or 0.0)
+
+                    if last <= 0:
+                        continue
+
+                    if volume < self.dynamic_pair_min_volume_usd:
+                        continue
+
+                    discovered.append(
+                        (
+                            symbol,
+                            volume,
+                            abs(change),
+                        )
+                    )
+
+                except Exception:
+                    continue
+
+            # Highest movement first, then volume.
+            discovered.sort(
+                key=lambda row: (row[2], row[1]),
+                reverse=True,
+            )
+
+            pairs = [row[0] for row in discovered]
+
+            if pairs:
+                self.crypto_pairs = pairs
+                self.last_pair_refresh = time.time()
+
+                print(
+                    f"🔍 DYNAMIC PAIRS: {len(pairs)} "
+                    f"liquid Bybit USDT spot markets active"
+                )
+
+                print(
+                    "🔥 TOP MOVERS: "
+                    + ", ".join(pairs[:15])
+                )
+
+            return self.crypto_pairs
+
+        except Exception as e:
+            print(f"❌ Dynamic pair refresh failed: {e}")
+            return self.crypto_pairs
+
 
     def get_gate_ticker(self, symbol):
         """Get ticker data from Gate.io with proper error handling"""
@@ -195,8 +297,26 @@ class REAL_PROFIT_BOT:
         try:
             # SMART AUTO-SCALING: Adjust position to current balance
             balance = self.check_gate_balance()
-            # Gate.io minimum is $3 USDT - ensure we meet it
-            target_position_usd = max(3.50, min(balance * 0.25, 12.0))  # Min $3.50, 25% of balance, or $12 max
+            # Balance-scaled TESTNET compounding.
+            #
+            # The recovered historical snapshot had a $12 ceiling,
+            # which prevented position size from increasing once
+            # balance became larger.
+            #
+            # TESTNET: use ~25% of CURRENT FREE USDT so position size
+            # grows and contracts with actual wallet balance.
+            #
+            # LIVE: preserve the old historical limit unchanged.
+            if self.mode == "testnet":
+                target_position_usd = max(
+                    3.50,
+                    balance * 0.25,
+                )
+            else:
+                target_position_usd = max(
+                    3.50,
+                    min(balance * 0.25, 12.0),
+                )
             
             # Get base size and scale it to target USD value
             base_size = self.base_position_sizes.get(symbol, 0.01)
@@ -223,10 +343,77 @@ class REAL_PROFIT_BOT:
                 # - Bybit: Pass AMOUNT in base currency (BTC, ETH, etc.)
                 
                 if self.mode == "testnet":
-                    # Bybit: Calculate amount in base currency
-                    amount = target_position_usd / price  # e.g., $7.50 / $67000 = 0.000112 BTC
-                    order = self.gate.create_market_buy_order(symbol, amount)
-                    print(f"✅ REAL PROFIT BUY: {symbol} @ ${price:.4f} | Amount: {amount:.8f} | Cost: ${target_position_usd:.2f}")
+                    # Bybit: amount must satisfy market minimums
+                    # and exchange precision before submission.
+                    market = self.gate.market(symbol)
+
+                    raw_amount = (
+                        target_position_usd / price
+                        if price > 0
+                        else 0.0
+                    )
+
+                    limits = market.get("limits") or {}
+                    amount_limits = limits.get("amount") or {}
+                    cost_limits = limits.get("cost") or {}
+
+                    min_amount = float(
+                        amount_limits.get("min") or 0.0
+                    )
+                    min_cost = float(
+                        cost_limits.get("min") or 0.0
+                    )
+
+                    if (
+                        min_amount > 0
+                        and raw_amount < min_amount
+                    ):
+                        print(
+                            f"⏭️ SKIP BUY: {symbol} | "
+                            f"Amount {raw_amount:.12f} below "
+                            f"minimum {min_amount:.12f}"
+                        )
+                        return None
+
+                    try:
+                        amount = float(
+                            self.gate.amount_to_precision(
+                                symbol,
+                                raw_amount,
+                            )
+                        )
+                    except Exception as exc:
+                        print(
+                            f"⏭️ SKIP BUY: {symbol} | "
+                            f"Non-executable amount: {exc}"
+                        )
+                        return None
+
+                    estimated_cost = amount * float(price)
+
+                    if (
+                        min_cost > 0
+                        and estimated_cost < min_cost
+                    ):
+                        print(
+                            f"⏭️ SKIP BUY: {symbol} | "
+                            f"Cost ${estimated_cost:.6f} below "
+                            f"minimum ${min_cost:.6f}"
+                        )
+                        return None
+
+                    order = self.gate.create_market_buy_order(
+                        symbol,
+                        amount,
+                    )
+
+                    print(
+                        f"✅ REAL PROFIT BUY: {symbol} "
+                        f"@ ${price:.6f} | "
+                        f"Amount: {amount} | "
+                        f"Cost≈${estimated_cost:.4f} | "
+                        f"Wallet target=${target_position_usd:.4f}"
+                    )
                 else:
                     # Gate.io: Pass cost directly
                     cost_usd = target_position_usd
@@ -341,7 +528,20 @@ class REAL_PROFIT_BOT:
             return order
 
         except Exception as e:
-            print(f"❌ Trade execution failed: {e}")
+            err = str(e)
+
+            if self.mode == "testnet" and "170209" in err:
+                self.blocked_pairs.add(symbol)
+                print(
+                    f"🚫 QUARANTINED PAIR: {symbol} | "
+                    f"Bybit account/region restriction"
+                )
+                return None
+
+            print(
+                f"❌ Trade execution failed: "
+                f"{symbol} {signal} | {err}"
+            )
             return None
 
     def run_real_profit_trading(self):
@@ -377,7 +577,19 @@ class REAL_PROFIT_BOT:
 
         while self.running:
             try:
-                for symbol in self.crypto_pairs:
+                if (
+                    self.mode == "testnet"
+                    and (
+                        not self.last_pair_refresh
+                        or time.time() - self.last_pair_refresh
+                        >= self.dynamic_pair_refresh_seconds
+                    )
+                ):
+                    self.refresh_dynamic_pairs()
+
+                for symbol in list(self.crypto_pairs):
+                    if symbol in self.blocked_pairs:
+                        continue
                     signal, confidence, price, change, volume = self.analyze_market(symbol)
 
                     if confidence >= 85 and signal != "HOLD":
@@ -418,7 +630,7 @@ class REAL_PROFIT_BOT:
                                 f"🚀 REAL PROFIT {symbol}: {signal} @ ${price:.4f} | Profit: ${profit:.2f}"
                             )
 
-                            time.sleep(45)  # Wait between trades
+                            time.sleep(2)  # Fast recycle without freezing the scanner
 
                 # Send summary every 5 trades
                 if trade_count % 5 == 0 and trade_count > 0:
@@ -443,7 +655,7 @@ class REAL_PROFIT_BOT:
                 print(
                     f"🔄 Real profit cycle completed - Trades: {trade_count}, Profit: ${self.total_profit:.2f}"
                 )
-                time.sleep(15)  # 15 second cycles for more opportunities
+                time.sleep(3)  # Fast Testnet rescan / compound cycle
 
             except Exception as e:
                 print(f"❌ Error in real profit cycle: {e}")
