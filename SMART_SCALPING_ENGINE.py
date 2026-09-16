@@ -112,6 +112,57 @@ class MultiTimeframeAnalyzer:
         self.signals_cache: Dict[str, Dict[str, TimeframeSignal]] = defaultdict(dict)
         self.min_confluence = 0.75  # 75% of timeframes must agree
         
+    @staticmethod
+    def _compute_indicators(ohlcv: List) -> Dict[str, float]:
+        """Real EMA, RSI and volume ratio from candles.
+
+        Uses the project's existing indicator math (core/strategy_engine) so
+        there is one implementation, not two. If the candles are absent or too
+        short the neutral dict is returned -- which yields NEUTRAL rather than
+        a fabricated direction.
+        """
+        neutral = {
+            'ema_fast': 0.0,
+            'ema_slow': 0.0,
+            'rsi': 50.0,
+            'volume_ratio': 1.0,
+            'trend_strength': 0.5,
+            'real_data': False,
+        }
+        if not ohlcv or len(ohlcv) < 30:
+            return neutral
+
+        try:
+            import pandas as pd
+
+            from core.strategy_engine import RSIStrategy
+
+            closes = pd.Series([float(row[4]) for row in ohlcv])
+            volumes = pd.Series([float(row[5]) for row in ohlcv])
+
+            strategy = RSIStrategy()
+            rsi = float(strategy.calculate_rsi(closes).iloc[-1])
+            ema_fast = float(closes.ewm(span=9).mean().iloc[-1])
+            ema_slow = float(closes.ewm(span=21).mean().iloc[-1])
+            recent_volume = float(volumes.iloc[-5:].mean())
+            baseline_volume = float(volumes.mean())
+
+            if rsi != rsi:  # NaN: not enough history to be meaningful
+                return neutral
+
+            spread = abs(ema_fast - ema_slow) / ema_slow if ema_slow else 0.0
+
+            return {
+                'ema_fast': ema_fast,
+                'ema_slow': ema_slow,
+                'rsi': rsi,
+                'volume_ratio': (recent_volume / baseline_volume) if baseline_volume else 1.0,
+                'trend_strength': max(0.0, min(1.0, spread * 100.0)),
+                'real_data': True,
+            }
+        except Exception:
+            return neutral
+
     def analyze_timeframe(self, symbol: str, timeframe: str, ohlcv: List) -> TimeframeSignal:
         """
         Analyze a single timeframe for direction and strength
@@ -123,14 +174,15 @@ class MultiTimeframeAnalyzer:
         - Support/Resistance
         """
         
-        # Simplified analysis (would use real TA in production)
-        indicators = {
-            'ema_fast': 0.0,
-            'ema_slow': 0.0,
-            'rsi': 50.0,
-            'volume_ratio': 1.0,
-            'trend_strength': 0.5
-        }
+        # Real indicators computed from the ohlcv this method is handed.
+        #
+        # This block previously held a hardcoded dict -- ema_fast and ema_slow
+        # both 0.0, rsi 50.0, volume_ratio 1.0 -- and never touched `ohlcv` at
+        # all. Because 0.0 > 0.0 is False, every call fell through to
+        # sell_signals and returned SELL with strength 1.0, for every symbol
+        # and every timeframe, forever. The confluence, session-tracking and
+        # win-rate logic around it is real; only this boundary was missing.
+        indicators = self._compute_indicators(ohlcv)
         
         # Determine direction based on indicators
         buy_signals = 0
@@ -157,6 +209,19 @@ class MultiTimeframeAnalyzer:
             # Confirms the trend
             total_signals += 0.5
         
+        # Without real candles there is no direction to report. Returning a
+        # manufactured one is what made this engine unusable.
+        if not indicators.get('real_data'):
+            signal = TimeframeSignal(
+                timeframe=timeframe,
+                direction='NEUTRAL',
+                strength=0.0,
+                indicators=indicators,
+                timestamp=datetime.now()
+            )
+            self.signals_cache[symbol][timeframe] = signal
+            return signal
+
         # Determine final direction
         if buy_signals > sell_signals:
             direction = 'BUY'

@@ -4,7 +4,10 @@ Handles position sizing, risk limits, and safety checks
 """
 
 import logging
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 from .order_manager import OrderSide, OrderType
 

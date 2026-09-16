@@ -64,9 +64,90 @@ class REAL_PROFIT_BOT:
         self.position_sizes = {}  # Will be auto-calculated
 
         # Profit tracking
+        # Legacy signal-derived counters. Preserved because the existing
+        # Telegram messages and startup reporting read them. They are NOT
+        # authoritative profit -- see self.ledger for exchange-realized PnL.
         self.total_profit = 0.0
         self.total_trades = 0
         self.winning_trades = 0
+
+        # Market intelligence. Every indicator engine in this project sat
+        # unconnected beside the bot; core/strategy_engine.py could not even
+        # be imported. This connects the real RSI/MACD/Bollinger/ATR math and
+        # order-book microstructure to the bot's own signal. It adjusts
+        # confidence and can veto a genuinely bad setup -- it can never block
+        # the bot from trading, and it fails open.
+        try:
+            from rpb_intelligence import MarketIntelligence
+
+            self.intelligence = MarketIntelligence()
+            if self.intelligence.available:
+                print("🧠 MARKET INTELLIGENCE: connected (RSI/MACD/BB/ATR + order book)")
+            else:
+                print(f"⚠️ Market intelligence inactive: {self.intelligence.reason}")
+        except Exception as exc:
+            self.intelligence = None
+            print(f"⚠️ Market intelligence unavailable: {type(exc).__name__}: {exc}")
+
+        # Scalping confluence and the micro-wallet growth ladder. Both engines
+        # already existed; neither was reachable from the bot that executes.
+        try:
+            from rpb_scalping import ScalpingConfluence
+
+            self.scalping = ScalpingConfluence()
+            if self.scalping.available:
+                print(
+                    f"⚡ SCALPING CONFLUENCE: connected "
+                    f"(session={self.scalping.current_session()})"
+                )
+            else:
+                print(f"⚠️ Scalping confluence inactive: {self.scalping.reason}")
+        except Exception as exc:
+            self.scalping = None
+            print(f"⚠️ Scalping confluence unavailable: {type(exc).__name__}: {exc}")
+
+        # Alpha ensemble (nine strategies) and risk governance. Both existed;
+        # risk_manager could not even be imported until its stripped import
+        # block was restored.
+        try:
+            from rpb_alpha_risk import AlphaEnsemble, RiskGovernor
+
+            self.alpha = AlphaEnsemble()
+            self.risk = RiskGovernor()
+            if self.alpha.available:
+                print(
+                    f"🎯 ALPHA ENSEMBLE: connected "
+                    f"({len(self.alpha.strategy_names())} strategies)"
+                )
+            else:
+                print(f"⚠️ Alpha ensemble inactive: {self.alpha.reason}")
+            if self.risk.available:
+                print("🛡️ RISK GOVERNOR: connected (Kelly sizing + exposure)")
+            else:
+                print(f"⚠️ Risk governor inactive: {self.risk.reason}")
+        except Exception as exc:
+            self.alpha = None
+            self.risk = None
+            print(f"⚠️ Alpha/risk unavailable: {type(exc).__name__}: {exc}")
+
+        # Owned-position lifecycle. This is what was missing: the bot executed
+        # but never recorded what it bought, so nothing could monitor or exit a
+        # position. REAL_PROFIT_BOT remains the execution owner -- the ledger
+        # only records, and the evaluator only decides when to leave.
+        try:
+            from rpb_position_lifecycle import ExitEvaluator, PositionLedger
+
+            self.ledger = PositionLedger()
+            self.exit_evaluator = ExitEvaluator()
+            self.lifecycle_enabled = True
+            restored = len(self.ledger.open_symbols())
+            if restored:
+                print(f"📒 POSITION LEDGER: restored {restored} owned position(s)")
+        except Exception as exc:
+            self.ledger = None
+            self.exit_evaluator = None
+            self.lifecycle_enabled = False
+            print(f"⚠️ Position lifecycle unavailable: {type(exc).__name__}: {exc}")
         self.running = True
 
         # HISTORICAL_DYNAMIC_MARKET_RECOVERY
@@ -284,7 +365,58 @@ class REAL_PROFIT_BOT:
             # Get best signal
             if signals and confidences:
                 best_idx = confidences.index(max(confidences))
-                return signals[best_idx], max(confidences), price, change, volume
+                signal = signals[best_idx]
+                confidence = max(confidences)
+
+                # Score the bot's own signal against real market structure.
+                # This never manufactures a signal the bot did not produce.
+                if getattr(self, "intelligence", None) is not None:
+                    signal, confidence, intel = self.intelligence.evaluate(
+                        self.gate, symbol, signal, confidence, price
+                    )
+                    if intel.get("applied"):
+                        print(
+                            f"🧠 {symbol} {signal} | "
+                            f"conf {intel.get('confidence_before')}→{intel.get('confidence_after')} | "
+                            f"RSI {intel.get('rsi')} MACD {intel.get('macd_histogram')} "
+                            f"BB {intel.get('bb_position')} spread {intel.get('spread_bps')}bps "
+                            f"imb {intel.get('imbalance')} | {intel.get('reason')}"
+                        )
+                    elif intel.get("reason"):
+                        print(f"🧠 {symbol} intelligence abstained: {intel['reason']}")
+
+                # Multi-timeframe scalping confluence. Adjusts only; it never
+                # changes the direction and never vetoes.
+                if getattr(self, "scalping", None) is not None and signal != "HOLD":
+                    confidence, scalp = self.scalping.evaluate(
+                        self.gate, symbol, signal, confidence
+                    )
+                    if scalp.get("applied"):
+                        print(
+                            f"⚡ {symbol} confluence {scalp.get('direction')} "
+                            f"consensus={scalp.get('consensus')} "
+                            f"conf {scalp.get('confidence_before')}→"
+                            f"{scalp.get('confidence_after')} "
+                            f"[{scalp.get('session')}] {scalp.get('reason')}"
+                        )
+
+                # Alpha ensemble. Long-only, so it speaks to BUY signals only,
+                # and it raises confidence or says nothing.
+                self._alpha_size_multiplier = 1.0
+                if getattr(self, "alpha", None) is not None and signal == "BUY":
+                    confidence, size_mult, alpha = self.alpha.evaluate(
+                        self.gate, symbol, signal, confidence
+                    )
+                    self._alpha_size_multiplier = size_mult
+                    if alpha.get("applied"):
+                        print(
+                            f"🎯 {symbol} alpha p={alpha.get('prob')} "
+                            f"conf {alpha.get('confidence_before')}→"
+                            f"{alpha.get('confidence_after')} "
+                            f"size×{alpha.get('size_mult')} | {alpha.get('notes')}"
+                        )
+
+                return signal, confidence, price, change, volume
 
             return "HOLD", 50, price, change, volume
 
@@ -308,10 +440,43 @@ class REAL_PROFIT_BOT:
             #
             # LIVE: preserve the old historical limit unchanged.
             if self.mode == "testnet":
-                target_position_usd = max(
-                    3.50,
-                    balance * 0.25,
-                )
+                # The growth ladder from november_growth_strategy, driven by
+                # the authenticated wallet rather than an internal number: a
+                # larger fraction while the wallet is micro, tapering as it
+                # compounds. Falls back to the flat 25% if unavailable.
+                try:
+                    from rpb_scalping import target_position_usd as _ladder
+
+                    target_position_usd, _phase = _ladder(balance)
+                    print(
+                        f"🌱 GROWTH PHASE {_phase}: wallet ${balance:.4f} → "
+                        f"target ${target_position_usd:.4f}"
+                    )
+
+                    # The ladder proposes; risk caps. Never below the
+                    # executable floor -- sizing under it places no order at
+                    # all rather than a smaller one.
+                    if getattr(self, "risk", None) is not None:
+                        self.risk.sync_wallet(balance)
+                        target_position_usd, _rd = self.risk.cap_position(
+                            symbol,
+                            target_position_usd,
+                            confidence=95.0,
+                            size_multiplier=getattr(
+                                self, "_alpha_size_multiplier", 1.0
+                            ),
+                        )
+                        if _rd.get("applied"):
+                            print(
+                                f"🛡️ RISK {_rd.get('reason')}: "
+                                f"${_rd.get('after_alpha_usd')} → "
+                                f"${_rd.get('final_usd')} | "
+                                f"kelly=${_rd.get('kelly_usd')} "
+                                f"drawdown={_rd.get('drawdown')} "
+                                f"level={_rd.get('risk_level')}"
+                            )
+                except Exception:
+                    target_position_usd = max(3.50, balance * 0.25)
             else:
                 target_position_usd = max(
                     3.50,
@@ -414,6 +579,10 @@ class REAL_PROFIT_BOT:
                         f"Cost≈${estimated_cost:.4f} | "
                         f"Wallet target=${target_position_usd:.4f}"
                     )
+
+                    # An acknowledgement is not a fill. Re-read the order from
+                    # Bybit and only record ownership if base actually arrived.
+                    self._record_buy_fill(symbol, order, price)
                 else:
                     # Gate.io: Pass cost directly
                     cost_usd = target_position_usd
@@ -544,6 +713,180 @@ class REAL_PROFIT_BOT:
             )
             return None
 
+    # ------------------------------------------------------------------
+    # OWNED-POSITION LIFECYCLE
+    # Added so the bot can complete BUY -> own -> monitor -> exit -> recycle.
+    # Every order still goes out through execute_trade; nothing here places one.
+    # ------------------------------------------------------------------
+
+    def _record_buy_fill(self, symbol, order, signal_price):
+        """Reconcile a BUY against the exchange and record ownership."""
+        if not getattr(self, "lifecycle_enabled", False):
+            return None
+        try:
+            from rpb_position_lifecycle import reconcile_fill
+
+            fill = reconcile_fill(self.gate, symbol, order)
+
+            if fill["filled"] <= 0:
+                # Acknowledged with nothing filled. No position exists, so none
+                # is recorded. This is the ACK-is-not-a-fill rule.
+                print(
+                    f"⚠️ BUY ACK WITHOUT FILL: {symbol} | "
+                    f"status={fill['raw_status'] or 'unknown'} | no position recorded"
+                )
+                return None
+
+            record = self.ledger.open_position(
+                symbol,
+                fill,
+                strategy="momentum",
+                signal_price=signal_price,
+            )
+            if record and getattr(self, "risk", None) is not None:
+                self.risk.sync_position(
+                    symbol,
+                    record["sellable_quantity"],
+                    record["average_entry"],
+                )
+
+            if record:
+                print(
+                    f"📒 POSITION OPENED: {symbol} | "
+                    f"qty={record['sellable_quantity']:.10f} | "
+                    f"entry=${record['average_entry']:.6f} | "
+                    f"cost=${record['entry_cost']:.4f} | "
+                    f"order={record['order_id']}"
+                )
+                self.send_telegram(
+                    f"""📈 <b>POSITION OPENED</b>
+
+💰 <b>{symbol}</b>
+🎯 <b>Entry:</b> ${record['average_entry']:.6f}
+📦 <b>Quantity:</b> {record['sellable_quantity']:.10f}
+💵 <b>Cost:</b> ${record['entry_cost']:.4f}
+🧾 <b>Order:</b> {record['order_id']}"""
+                )
+            return record
+        except Exception as exc:
+            print(f"⚠️ Could not record BUY fill for {symbol}: {type(exc).__name__}: {exc}")
+            return None
+
+    def manage_owned_positions(self):
+        """Fast supervision of positions this bot actually owns.
+
+        Runs before every scan pass so an open position is never waiting on a
+        full universe sweep to be checked. Only symbols in the ledger are
+        touched, so unrelated balances and dust are never sold.
+        """
+        if not getattr(self, "lifecycle_enabled", False):
+            return 0
+        if not self.ledger.open_symbols():
+            return 0
+
+        closed = 0
+        for symbol in list(self.ledger.open_symbols()):
+            try:
+                record = self.ledger.positions.get(symbol)
+                if not record:
+                    continue
+
+                ticker_data = self.get_gate_ticker(symbol)
+                if not ticker_data:
+                    continue
+
+                price = float(ticker_data.get("price") or 0.0)
+                change = ticker_data.get("change")
+
+                should_exit, reason, detail = self.exit_evaluator.evaluate(
+                    record,
+                    price,
+                    change_pct=float(change) if change is not None else None,
+                )
+
+                if not should_exit:
+                    self.ledger.save()
+                    continue
+
+                print(
+                    f"🚪 EXIT SIGNAL: {symbol} | {reason} | "
+                    f"move={detail.get('move_bps')}bps held={detail.get('held_seconds')}s"
+                )
+
+                # The bot's own execution path -- same owned-inventory sizing,
+                # dust skipping, precision and minimum checks that already work.
+                exit_order = self.execute_trade(symbol, "SELL", price)
+                if not exit_order:
+                    continue
+
+                if self._settle_exit(symbol, exit_order, reason):
+                    closed += 1
+
+            except Exception as exc:
+                print(f"⚠️ Position management error {symbol}: {type(exc).__name__}: {exc}")
+
+        return closed
+
+    def _settle_exit(self, symbol, exit_order, reason):
+        """Reconcile the SELL and book authenticated realized net PnL."""
+        try:
+            from rpb_position_lifecycle import reconcile_fill
+
+            fill = reconcile_fill(self.gate, symbol, exit_order)
+
+            if fill["filled"] <= 0:
+                print(
+                    f"⚠️ SELL ACK WITHOUT FILL: {symbol} | "
+                    f"status={fill['raw_status'] or 'unknown'} | position still open"
+                )
+                return False
+
+            settled = self.ledger.close_position(symbol, fill, reason)
+            if not settled:
+                return False
+
+            # Authenticated wallet state, read after the exit settles, is what
+            # the next position is sized from.
+            new_balance = self.check_gate_balance()
+
+            net = settled["realized_net_pnl"]
+            emoji = "🟢" if net >= 0 else "🔴"
+            print(
+                f"{emoji} POSITION CLOSED: {symbol} | {reason} | "
+                f"gross=${settled['gross_pnl']:.6f} fees=${settled['total_fees']:.6f} "
+                f"NET=${net:.6f} | held={settled['hold_seconds']:.1f}s | "
+                f"wallet=${new_balance:.6f}"
+            )
+
+            # Authenticated result feeds the session win-rate tracker, which is
+            # what makes the scalping engine's per-session learning real.
+            if getattr(self, "scalping", None) is not None:
+                self.scalping.record_result(symbol, net)
+
+            if getattr(self, "risk", None) is not None:
+                self.risk.sync_position(symbol, 0.0, settled["exit_average"])
+                self.risk.sync_wallet(new_balance)
+
+            self.send_telegram(
+                f"""{emoji} <b>POSITION CLOSED</b>
+
+💰 <b>{symbol}</b>
+🚪 <b>Exit reason:</b> {reason}
+📥 <b>Entry:</b> ${settled['average_entry']:.6f}
+📤 <b>Exit:</b> ${settled['exit_average']:.6f}
+📦 <b>Quantity:</b> {settled['exit_quantity']:.10f}
+📊 <b>Gross PnL:</b> ${settled['gross_pnl']:.6f}
+🧾 <b>Fees:</b> ${settled['total_fees']:.6f}
+{emoji} <b>REALIZED NET PnL:</b> ${net:.6f}
+⏱️ <b>Held:</b> {settled['hold_seconds']:.1f}s
+👛 <b>Wallet:</b> ${new_balance:.6f}"""
+            )
+            return True
+
+        except Exception as exc:
+            print(f"⚠️ Could not settle exit for {symbol}: {type(exc).__name__}: {exc}")
+            return False
+
     def run_real_profit_trading(self):
         """Main REAL PROFIT trading cycle"""
         print("🚀 Starting REAL PROFIT BOT...")
@@ -587,9 +930,22 @@ class REAL_PROFIT_BOT:
                 ):
                     self.refresh_dynamic_pairs()
 
+                # Owned positions are checked before scanning, so an open
+                # position never waits for a full universe sweep to be exited.
+                # This is the recycle half of the compounding loop.
+                self.manage_owned_positions()
+
                 for symbol in list(self.crypto_pairs):
                     if symbol in self.blocked_pairs:
                         continue
+
+                    # Already holding this one; the exit loop owns it now.
+                    if (
+                        getattr(self, "lifecycle_enabled", False)
+                        and self.ledger.owns(symbol)
+                    ):
+                        continue
+
                     signal, confidence, price, change, volume = self.analyze_market(symbol)
 
                     if confidence >= 85 and signal != "HOLD":
@@ -599,14 +955,24 @@ class REAL_PROFIT_BOT:
 
                         if trade_result:
                             position_size = self.position_sizes.get(symbol, 0.01)
+                            # Legacy signal-derived estimate. Preserved because
+                            # existing messages read it, but it is NOT profit --
+                            # authoritative PnL comes from self.ledger, which is
+                            # computed from actual fills and actual fees.
                             profit = abs(
                                 price * position_size * (confidence / 100) * 0.05
                             )  # 5% profit factor
                             self.total_profit += profit
                             self.total_trades += 1
 
-                            if profit > 0:
-                                self.winning_trades += 1
+                            # Wins are counted from authenticated closes only.
+                            # abs() above is always positive, so the previous
+                            # `if profit > 0` pinned the reported win rate at
+                            # 100% no matter what the exchange actually did.
+                            if getattr(self, "lifecycle_enabled", False):
+                                self.winning_trades = self.ledger.stats()[
+                                    "authentic_wins"
+                                ]
 
                             signal_message = f"""🚀 <b>REAL PROFIT SIGNAL #{trade_count}</b>
 
