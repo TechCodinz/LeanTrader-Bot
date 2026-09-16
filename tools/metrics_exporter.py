@@ -2,6 +2,10 @@
 Writes runtime/metrics.json every N seconds with counts parsed from logs and paper state.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
+
 import json
 import time
 

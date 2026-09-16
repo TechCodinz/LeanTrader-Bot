@@ -1,3 +1,8 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Any
+from typing import Dict
 def estimate_price_impact_from_book(orderbook: Dict[str, Any], qty: float) -> float:
     """Estimate price impact in basis points using linearized slope from top-of-book.
 

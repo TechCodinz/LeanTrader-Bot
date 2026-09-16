@@ -13,6 +13,12 @@ This is intentionally conservative: you can configure `REQUIRED_TFS` via env var
 to control the TFs to require (comma-separated, e.g., '1m,5m,1h,4h').
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Dict
+from typing import List
+from pathlib import Path
+
 import json
 import os
 from datetime import datetime

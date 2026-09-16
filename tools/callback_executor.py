@@ -4,6 +4,12 @@ This is intentionally conservative: live execution only when `live=True` and
 ENABLE_LIVE env var is set. Otherwise it returns a simulated result.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Any
+from typing import Dict
+from pathlib import Path
+
 import json
 import os
 

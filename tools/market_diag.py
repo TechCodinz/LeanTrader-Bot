@@ -3,6 +3,10 @@
 Writes a small run log to runtime/logs/market_diag.txt so results are persistent.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import List
+
 import time
 
 from tools.market_data import fetch_ohlcv_multi

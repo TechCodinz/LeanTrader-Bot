@@ -4,6 +4,10 @@ This file lists safe, public RSS feeds and a conservative set of crawl seed URLs
 The pipeline uses these defaults unless overridden via environment variables.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import List
+
 # Public RSS feeds (finance, crypto, tech)
 NEWS_FEEDS: List[str] = [
     "https://news.ycombinator.com/rss",

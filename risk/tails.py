@@ -1,3 +1,10 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Any
+from typing import Dict
+from typing import Tuple
+import numpy as np
 def classical_var_cvar(pnl_series: np.ndarray, alpha: float = 0.95) -> Tuple[float, float]:
     """Compute one-sided VaR and CVaR (Expected Shortfall) from a PnL series.
 

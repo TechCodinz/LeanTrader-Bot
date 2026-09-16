@@ -7,6 +7,10 @@ flake8 until a human review.
 Run: python -m tools.auto_mark_f401
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
+
 import re
 
 ROOT = Path(__file__).resolve().parents[1]

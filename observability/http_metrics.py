@@ -4,6 +4,10 @@ Serves Prometheus metrics at /metrics. Run:
     python -m observability.http_metrics --host 0.0.0.0 --port 8000
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from fastapi import FastAPI
+
 import argparse
 
 try:

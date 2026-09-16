@@ -3,6 +3,10 @@ Report unused-import (F401) occurrences by running flake8 and saving output.
 Run: python -m tools.report_unused_imports
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
+
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -4,6 +4,10 @@ Writes `runtime/logs/exchanges_status.txt` with per-exchange results. Use
 `python -m tools.check_exchanges` to run (ensures package imports resolve).
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import List
+
 import time
 import traceback
 

@@ -4,6 +4,10 @@ in the except block body. This helps safely renaming unused exception variables 
 Usage: python tools/find_unused_exc_vars.py [root]
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
+
 import ast
 import sys
 

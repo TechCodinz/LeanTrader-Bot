@@ -3,6 +3,10 @@
 Set TELEGRAM_DEBUG=1 to enable. This avoids accidental posting to the real bot.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
+
 import os
 
 if os.getenv("TELEGRAM_DEBUG", "").strip().lower() not in ("1", "true", "yes"):

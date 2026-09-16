@@ -1,3 +1,14 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from fastapi import FastAPI
+from fastapi import Request
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Any
+from typing import Dict
+from pathlib import Path
 import json
 import os
 from datetime import datetime, timezone

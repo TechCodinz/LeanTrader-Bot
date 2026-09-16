@@ -5,6 +5,11 @@ recent items under `runtime/news/` for use by strategies. It is intentionally
 opt-in and conservative.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import List
+from pathlib import Path
+
 import time
 
 try:

@@ -1,5 +1,9 @@
 """Create synthetic OHLCV CSV and run trainer (no network required)."""
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
+
 import csv
 import random
 import time

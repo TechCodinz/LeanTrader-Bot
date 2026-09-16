@@ -1,3 +1,11 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Dict
+from typing import Tuple
+from dataclasses import dataclass
+from collections import defaultdict
+from dataclasses import field
 import random
 
 @dataclass

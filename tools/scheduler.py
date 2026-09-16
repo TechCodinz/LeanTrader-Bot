@@ -1,3 +1,7 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
 from apscheduler.schedulers.blocking import BlockingScheduler
 
 """Simple scheduler for LeanTrader: auto-runs focused crypto and forex pipelines.

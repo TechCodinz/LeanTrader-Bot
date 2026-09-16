@@ -1,3 +1,7 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+import pandas as pd
 from .ta import adx, fvg_score, rsi
 
 def engineer(df: pd.DataFrame) -> pd.DataFrame:

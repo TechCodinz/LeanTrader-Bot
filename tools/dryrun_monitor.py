@@ -5,6 +5,10 @@ Usage: python tools/dryrun_monitor.py --minutes 30
 Writes runtime/monitor_summary_<start_ts>.json
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
+
 import argparse
 import json
 import time

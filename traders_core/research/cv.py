@@ -1,3 +1,9 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Iterator
+from typing import Tuple
+import numpy as np
 class PurgedKFold:
     """
     Time-aware CV: no look-ahead, with 'embargo' bars after each test block.

@@ -1,3 +1,7 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+import pandas as pd
 from ..execution.tcost import expected_cost
 from ..risk.guardrails import position_size
 

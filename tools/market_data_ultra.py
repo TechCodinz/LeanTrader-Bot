@@ -1,3 +1,14 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Optional
+from pathlib import Path
+from typing import Tuple
+import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 from sklearn.ensemble import RandomForestClassifier
 
@@ -406,9 +417,9 @@ class UltraMarketData:
         try:
             # Placeholder for news sources
             sources = [
-                f"https://cryptopanic.com/api/v1/posts/?auth_token={
-                    self.api_keys.get(
-                        'cryptopanic', '')}&currencies={symbol}",
+                "https://cryptopanic.com/api/v1/posts/"
+                f"?auth_token={self.api_keys.get('cryptopanic', '')}"
+                f"&currencies={symbol}",
             ]
 
             for source in sources:

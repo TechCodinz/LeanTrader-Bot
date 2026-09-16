@@ -3,6 +3,11 @@ Configuration Validator for Trading Bot
 Validates all configuration settings for production readiness
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import List
+from dataclasses import dataclass
+
 import os
 import re
 

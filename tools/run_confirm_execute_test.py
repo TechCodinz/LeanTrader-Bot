@@ -6,6 +6,10 @@ posts /execute with the PIN. Prints responses and shows tail of persistent logs.
 This uses FastAPI TestClient so no external server is required.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
+
 import json
 import os
 import sys

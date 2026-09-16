@@ -1,3 +1,7 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+import numpy as np
 import pandas as pd
 """
 ULTRA FOREX & PRECIOUS METALS MASTER

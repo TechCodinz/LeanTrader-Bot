@@ -1,3 +1,9 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Dict
+from typing import Optional
+import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 from email.mime.text import MIMEText
 from sklearn.ensemble import RandomForestClassifier

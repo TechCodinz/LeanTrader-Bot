@@ -7,6 +7,10 @@ Environment:
 Outputs CSV to runtime/data/fx_<SYMBOL>_<TF>.csv with columns time,open,high,low,close,volume
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import List
+
 import os
 
 try:

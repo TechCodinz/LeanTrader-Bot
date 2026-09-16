@@ -6,6 +6,13 @@ by the online learner to produce BUY/SELL/HOLD decisions.
 All heavy deps are optional and gated; absence yields graceful defaults.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Dict
+from typing import List
+from typing import Tuple
+import pandas as pd
+
 import os
 
 try:

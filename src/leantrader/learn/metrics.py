@@ -1,3 +1,9 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import List
+from pathlib import Path
+from dataclasses import dataclass
 import csv
 import os
 

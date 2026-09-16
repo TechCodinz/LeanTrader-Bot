@@ -1,3 +1,7 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+import pandas as pd
 def render_signal_chart(df: pd.DataFrame, out_path: str, title: str):
     # Single-figure plot: price close and simple EMA50/EMA200 overlay
     plt.figure()

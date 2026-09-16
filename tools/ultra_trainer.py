@@ -1,3 +1,11 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Tuple
+import pandas as pd
 import random
 from sklearn.ensemble import RandomForestClassifier
 import numpy as np

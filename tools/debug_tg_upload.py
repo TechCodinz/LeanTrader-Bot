@@ -2,6 +2,10 @@
 and print the result. This writes runtime/logs/tg_send_debug.log when failures occur.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
+
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent

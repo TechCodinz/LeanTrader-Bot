@@ -9,6 +9,10 @@ Usage: .venv/Scripts/python tools/learner.py
 This does NOT enable live trading. Models are saved under runtime/models.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import List
+
 import json
 
 try:

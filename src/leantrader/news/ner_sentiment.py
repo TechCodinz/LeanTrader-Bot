@@ -1,3 +1,8 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Dict
+from typing import List
 def _simple_keywords() -> Dict[str, List[str]]:
     return {
         "XAUUSD": ["gold", "xau", "safe haven"],

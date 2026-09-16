@@ -1,3 +1,7 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
 import ast  # noqa: F401  # intentionally kept
 import json
 import re

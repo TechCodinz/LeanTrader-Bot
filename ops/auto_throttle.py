@@ -1,3 +1,7 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Optional
 from storage.kv import get_kv, set_kv
 
 KEY = "ensemble_lambda_cap"

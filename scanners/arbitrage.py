@@ -1,3 +1,7 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from contextlib import contextmanager
 from typing import Dict, List, Optional, Any, Tuple
 
 def get_ticker(exchange: str, symbol: str) -> Dict[str, float]:

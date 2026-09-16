@@ -1,3 +1,4 @@
+from typing import Callable
 from pathlib import Path
 # run_live_meme.py
 
@@ -512,7 +513,6 @@ def main():
 
     # load_config is only needed here at startup; import locally to avoid module-level side-effects
     from utils import load_config
-from typing import Callable
 
     cfg = load_config("config.yml")
 

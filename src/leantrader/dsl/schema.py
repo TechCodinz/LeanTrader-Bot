@@ -1,3 +1,14 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pydantic import BaseModel
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Dict
+from typing import List
+from typing import Literal
+from typing import Optional
 Timeframe = Literal["D1", "H4", "H1", "M15", "M5", "M1"]
 
 class Condition(BaseModel):

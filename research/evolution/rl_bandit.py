@@ -1,3 +1,8 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from dataclasses import dataclass
+import numpy as np
 from strategies.meta_selector import StratPath
 
 @dataclass

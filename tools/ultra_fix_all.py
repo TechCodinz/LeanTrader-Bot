@@ -1,3 +1,8 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Dict
+from typing import List
 from datetime import datetime
 from datetime import timedelta
 import torch

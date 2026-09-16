@@ -4,6 +4,12 @@ Reads a CSV produced by market_data.fetch_ohlcv and produces a feature matrix X 
 labels y (next-bar direction) suitable for quick testing with scikit-learn.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import List
+from typing import Tuple
+import pandas as pd
+
 def load_csv(path: str) -> pd.DataFrame:
     p = Path(path)
     if not p.exists():

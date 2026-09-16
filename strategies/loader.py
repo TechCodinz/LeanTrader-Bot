@@ -7,6 +7,14 @@ Usage:
     strat = create_from_env(broker, marketdata, logger, metrics)
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import Optional
+from dataclasses import dataclass
+
 import importlib
 import os
 import importlib.util

@@ -1,3 +1,7 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+import pandas as pd
 import matplotlib.pyplot as plt
 
 def _candlestick_mplfinance(df: pd.DataFrame, out_path: str, title: str):

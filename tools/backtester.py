@@ -4,6 +4,10 @@ This is intentionally simple: it executes at next-bar open and exits at next-bar
 uses fixed fraction position sizing, and writes a summary to logs.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Dict
+
 import pickle
 
 from tools.featurizer import featurize_basic, load_csv

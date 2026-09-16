@@ -1,5 +1,11 @@
 """Simple model registry helpers: list models and read metadata."""
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Dict
+from typing import List
+from pathlib import Path
+
 def list_models() -> List[Path]:
     p = Path("runtime") / "models"
     if not p.exists():

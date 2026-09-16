@@ -1,3 +1,7 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
 # Emulate test order: import ws first, then set env, then proceed
 import sys
 import os

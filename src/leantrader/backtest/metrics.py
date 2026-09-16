@@ -1,3 +1,7 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+import pandas as pd
 def sharpe(equity: pd.Series, rf: float = 0.0, period: int = 252):
     rets = equity.pct_change().fillna(0)
     if rets.std() == 0:

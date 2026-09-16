@@ -1,3 +1,7 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
 from sklearn.ensemble import RandomForestClassifier
 
 """Train and persist a simple RandomForest ensemble from feature CSVs."""

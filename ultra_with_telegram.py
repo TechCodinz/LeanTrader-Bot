@@ -1,3 +1,9 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+import logging
+logger = logging.getLogger(__name__)
+import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 from sklearn.ensemble import RandomForestClassifier
 

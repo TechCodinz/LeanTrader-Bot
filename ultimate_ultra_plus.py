@@ -4,6 +4,10 @@ ULTIMATE ULTRA+ BOT - Hedge Fund Grade Trading System
 Complete implementation with all engines and features
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+import pandas as pd
+
 from typing import Dict, List, Optional, Any, Tuple
 import os
 import asyncio

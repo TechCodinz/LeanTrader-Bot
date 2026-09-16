@@ -5,6 +5,10 @@ Always import these flags instead of importing the libraries at top-level
 in business logic.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Optional
+
 def _has(mod: str) -> bool:
     try:
         __import__(mod)

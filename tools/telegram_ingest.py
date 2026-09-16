@@ -11,6 +11,12 @@ and stores offset in runtime/logs/telegram_ingest_state.json
 Requires the bot to be a member of the target chats/channels with permission to read messages.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Dict
+from typing import List
+from pathlib import Path
+
 import json
 import os
 import time

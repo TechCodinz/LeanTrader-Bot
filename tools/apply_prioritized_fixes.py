@@ -6,6 +6,10 @@ Small script to apply two low-risk repo-wide fixes:
 Backs up files with a .bak extension before modifying.
 """
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
+
 import re
 
 ROOT = Path(__file__).resolve().parents[1]

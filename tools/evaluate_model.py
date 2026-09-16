@@ -1,5 +1,9 @@
 """Evaluate a saved model on a CSV of OHLCV or on synthetic data."""
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import List
+
 import csv
 import sys
 

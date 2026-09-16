@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import List
+from pathlib import Path
+
 import os
 import sys
 import json

@@ -1,3 +1,17 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from prometheus_client import Gauge
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Mapping
+from typing import Optional
+from typing import Sequence
+from dataclasses import dataclass
 import argparse
 import json
 import os

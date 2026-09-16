@@ -1,3 +1,8 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+import logging
+logger = logging.getLogger(__name__)
 from pathlib import Path
 from typing import Dict
 from concurrent.futures import ThreadPoolExecutor

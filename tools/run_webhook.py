@@ -1,5 +1,9 @@
 """Helper to start the webhook server with .env loaded."""
 
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from pathlib import Path
+
 import sys
 from dotenv import load_dotenv
 

@@ -1,3 +1,7 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from types import SimpleNamespace
 # lightweight runner to call signals_scanner.run_once under programmatic env
 import os
 import sys

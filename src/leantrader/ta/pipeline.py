@@ -1,3 +1,8 @@
+
+# Restored: these names were used below but never imported, so this
+# module raised NameError on import.
+from typing import Dict
+import pandas as pd
 import os
 
 def _ema(s: pd.Series, n: int) -> pd.Series:
