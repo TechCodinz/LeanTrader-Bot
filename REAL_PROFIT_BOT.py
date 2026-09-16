@@ -259,19 +259,47 @@ class REAL_PROFIT_BOT:
                         )
                         return None
 
-                    # Respect exchange precision.
-                    sell_amount = float(
-                        self.gate.amount_to_precision(symbol, sell_amount)
-                    )
+                    market = self.gate.market(symbol)
 
-                    if sell_amount <= 0:
+                    amount_limits = (
+                        (market.get("limits") or {}).get("amount") or {}
+                    )
+                    min_amount = float(amount_limits.get("min") or 0.0)
+
+                    # IMPORTANT: check raw inventory BEFORE asking CCXT
+                    # to quantize it. CCXT itself throws when dust is
+                    # below the exchange minimum.
+                    if min_amount > 0 and sell_amount < min_amount:
                         print(
                             f"⏭️ SKIP SELL: {symbol} | "
-                            f"Inventory below amount precision"
+                            f"Dust {sell_amount:.12f} {base} below "
+                            f"minimum {min_amount:.12f}"
                         )
                         return None
 
-                    market = self.gate.market(symbol)
+                    try:
+                        sell_amount = float(
+                            self.gate.amount_to_precision(
+                                symbol,
+                                sell_amount
+                            )
+                        )
+                    except Exception as exc:
+                        print(
+                            f"⏭️ SKIP SELL: {symbol} | "
+                            f"Non-executable dust: {exc}"
+                        )
+                        return None
+
+                    if sell_amount <= 0 or (
+                        min_amount > 0 and sell_amount < min_amount
+                    ):
+                        print(
+                            f"⏭️ SKIP SELL: {symbol} | "
+                            f"Inventory below executable precision"
+                        )
+                        return None
+
                     limits = market.get("limits") or {}
                     cost_limits = limits.get("cost") or {}
                     min_cost = float(cost_limits.get("min") or 0.0)
