@@ -69,27 +69,68 @@ class ExchangeManager:
             # Use default configuration
             self._create_default_config()
 
-    def _create_default_config(self):
-        """Create default configuration for paper trading"""
-        self.configs = {
-            'binance': ExchangeConfig(
-                name='binance',
-                enabled=True,
-                api_key='',
-                secret='',
-                sandbox=True,
-                markets=['BTC/USDT', 'ETH/USDT', 'BNB/USDT'],
-            ),
-            'coinbase': ExchangeConfig(
-                name='coinbase',
-                enabled=True,
-                api_key='',
-                secret='',
-                passphrase='',
-                sandbox=True,
-                markets=['BTC/USDT', 'ETH/USDT', 'ADA/USDT'],
-            ),
+    # Every venue this manager knows how to speak to. Adding credentials to
+    # the environment is the only step needed to bring one online -- there is
+    # no code change and no per-exchange special case, because they are all
+    # reached through ccxt.
+    SUPPORTED_EXCHANGES = (
+        'bybit',
+        'binance',
+        'okx',
+        'kucoin',
+        'gateio',
+        'mexc',
+        'bitget',
+        'coinbase',
+        'kraken',
+    )
+
+    @staticmethod
+    def _env_credentials(exchange_name: str):
+        """API credentials from the environment, or empty strings.
+
+        Reads <EXCHANGE>_API_KEY / _API_SECRET / _PASSWORD, plus the
+        _SECRET spelling this project already uses in places. Nothing is
+        logged and nothing is defaulted to a literal.
+        """
+        import os
+
+        upper = exchange_name.upper()
+        key = os.getenv(f"{upper}_API_KEY", "")
+        secret = os.getenv(f"{upper}_API_SECRET", "") or os.getenv(f"{upper}_SECRET", "")
+        password = (
+            os.getenv(f"{upper}_PASSWORD", "")
+            or os.getenv(f"{upper}_PASSPHRASE", "")
+        )
+        testnet = os.getenv(f"{upper}_TESTNET", "").strip().lower() in {
+            "1", "true", "yes", "on",
         }
+        return key, secret, password, testnet
+
+    def _create_default_config(self):
+        """Configure every supported venue from the environment.
+
+        A venue with no credentials is still configured and still usable for
+        public market data -- reading a price never needs a key. It is simply
+        not authenticated, and every authenticated call against it refuses
+        rather than returning invented data.
+        """
+        import os
+
+        self.configs = {}
+        for name in self.SUPPORTED_EXCHANGES:
+            key, secret, password, testnet = self._env_credentials(name)
+            self.configs[name] = ExchangeConfig(
+                name=name,
+                enabled=os.getenv(f"{name.upper()}_ENABLED", "1").strip().lower()
+                not in {"0", "false", "no", "off"},
+                api_key=key,
+                secret=secret,
+                passphrase=password,
+                sandbox=testnet,
+                testnet=testnet,
+                markets=[],
+            )
 
     def _initialize_exchanges(self):
         """Initialize exchange connections"""
@@ -166,8 +207,13 @@ class ExchangeManager:
                 self.logger.warning(f"Error fetching ticker from {ex_name}: {e}")
                 continue
 
-        # Return mock data if all exchanges fail
-        return self._get_mock_ticker(symbol)
+        # Every venue failed. A price is the single most dangerous thing to
+        # invent -- it sizes orders and decides entries -- so this returns
+        # nothing and the caller skips the symbol. It previously returned
+        # _get_mock_ticker: a random walk around a hardcoded base price,
+        # indistinguishable from a real quote.
+        self.logger.warning(f"No venue could quote {symbol}; reporting unavailable")
+        return {}
 
     async def fetch_orderbook(
         self, symbol: str, exchange_name: Optional[str] = None, limit: int = 20
@@ -197,7 +243,8 @@ class ExchangeManager:
                 continue
 
         # Return mock data if all exchanges fail
-        return self._get_mock_orderbook(symbol)
+        self.logger.warning(f"No venue could book {symbol}; reporting unavailable")
+        return {}
 
     async def fetch_ohlcv(
         self,
@@ -224,7 +271,10 @@ class ExchangeManager:
                 continue
 
         # Return mock data if all exchanges fail
-        return self._get_mock_ohlcv(symbol, timeframe, limit)
+        self.logger.warning(
+            f"No venue returned candles for {symbol} {timeframe}; reporting unavailable"
+        )
+        return []
 
     async def fetch_balance(self, exchange_name: str) -> Dict[str, Any]:
         """Fetch account balance"""
@@ -304,11 +354,29 @@ class ExchangeManager:
             return {"ok": False, "error": str(e)}
 
     def _has_live_credentials(self, exchange_name: str) -> bool:
-        """Check if exchange has live trading credentials"""
+        """Whether this venue is authenticated for REAL-MONEY trading.
+
+        Deliberately false for sandbox and testnet -- that is what makes it a
+        live-authority check. Use _is_authenticated for "can I read my own
+        account", which testnet keys can do perfectly well.
+        """
         config = self.configs.get(exchange_name)
         if not config:
             return False
         return bool(config.api_key and config.secret and not config.sandbox and not config.testnet)
+
+    def _is_authenticated(self, exchange_name: str) -> bool:
+        """Whether this venue has usable credentials at all.
+
+        A Testnet key is a real key against a real account. Gating account
+        reads on _has_live_credentials meant every Testnet deployment fell
+        through to mock trades and mock orders -- fabricated fills, on the
+        one environment this system is validated in.
+        """
+        config = self.configs.get(exchange_name)
+        if not config:
+            return False
+        return bool(config.api_key and config.secret)
 
     async def fetch_trades(
         self, symbol: str, exchange_name: str, limit: int = 100
@@ -321,9 +389,10 @@ class ExchangeManager:
             exchange = self.async_exchanges[exchange_name]
             normalized_symbol = self._normalize_symbol(symbol, exchange_name)
 
-            if not self._has_live_credentials(exchange_name):
-                # Return mock data for paper trading
-                return self._get_mock_trades(normalized_symbol, limit)
+            if not self._is_authenticated(exchange_name):
+                # No key means no fill history to read. Returning invented
+                # trades here fed fabricated fills into PnL and learning.
+                return []
 
             trades = await exchange.fetch_my_trades(normalized_symbol, limit=limit)
             return trades
@@ -345,7 +414,7 @@ class ExchangeManager:
 
             if not self._has_live_credentials(exchange_name):
                 # Return mock data for paper trading
-                return self._get_mock_orders(normalized_symbol, limit)
+                return []
 
             orders = await exchange.fetch_open_orders(normalized_symbol, limit=limit)
             return orders

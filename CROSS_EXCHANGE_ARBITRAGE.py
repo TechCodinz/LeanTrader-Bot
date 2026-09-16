@@ -237,40 +237,123 @@ class CrossExchangeArbitrage:
                     logger.info(f"   Sell {amount:.6f} {symbol} on {sell_exchange} @ ${opportunity['sell_price']:.4f}")
                     logger.info(f"   Expected profit: ${profit_usd:.2f} ({opportunity['profit_pct']:.2f}%)")
                     
-                    # Execute simultaneous buy/sell - ENABLED!
+                    # Execute buy then sell, with both legs proven first.
                     try:
-                        # Check balance on buy exchange first
+                        base = symbol.split('/')[0]
+
+                        # Leg 1 funding: quote on the buy venue.
                         buy_balance = await buy_ex.fetch_balance()
-                        usdt_available = buy_balance.get('USDT', {}).get('free', 0)
-                        
-                        if usdt_available >= position_usd:
-                            # Execute buy order (Gate.io requires price parameter)
+                        usdt_available = float(
+                            (buy_balance.get('USDT') or {}).get('free') or 0.0
+                        )
+
+                        # Leg 2 funding: base inventory on the SELL venue.
+                        #
+                        # This was never checked. Spot arbitrage sells an asset
+                        # on the second venue, so without inventory already
+                        # there the sell is rejected (Bybit 170131) while the
+                        # buy has already filled -- a one-legged trade that
+                        # strands the capital on the first exchange with open
+                        # price exposure. Both legs must be fundable before
+                        # either is sent.
+                        sell_balance = await sell_ex.fetch_balance()
+                        base_available = float(
+                            (sell_balance.get(base) or {}).get('free') or 0.0
+                        )
+
+                        if usdt_available < position_usd:
+                            logger.warning(
+                                f"⚠️ Insufficient quote on {buy_exchange}: "
+                                f"${usdt_available:.2f} < ${position_usd:.2f}"
+                            )
+                        elif base_available < amount:
+                            logger.warning(
+                                f"⚠️ Cannot sell leg: {sell_exchange} holds "
+                                f"{base_available:.8f} {base}, needs {amount:.8f}. "
+                                f"Skipping rather than opening a one-legged trade."
+                            )
+                        else:
                             logger.info(f"   📥 Placing BUY order on {buy_exchange}...")
                             buy_order = await buy_ex.create_market_buy_order(symbol, amount, buy_price)
-                            logger.info(f"   ✅ BUY executed: {buy_order.get('id', 'unknown')}")
-                            
-                            # Small delay to ensure order fills
+                            logger.info(f"   ✅ BUY submitted: {buy_order.get('id', 'unknown')}")
+
                             await asyncio.sleep(0.5)
-                            
-                            # Execute sell order
-                            logger.info(f"   📤 Placing SELL order on {sell_exchange}...")
-                            sell_order = await sell_ex.create_market_sell_order(symbol, amount)
-                            logger.info(f"   ✅ SELL executed: {sell_order.get('id', 'unknown')}")
-                            
-                            # Calculate actual profit
-                            buy_cost = buy_order.get('cost', position_usd)
-                            sell_revenue = sell_order.get('cost', position_usd * (1 + opportunity['profit_pct']/100))
-                            actual_profit = sell_revenue - buy_cost
-                            
-                            logger.info(f"💰 ARBITRAGE PROFIT: ${actual_profit:.2f} (Expected: ${profit_usd:.2f})")
-                            
-                            # Update profit tracking
-                            self.total_profit += actual_profit
-                            self.daily_profit += actual_profit
-                            self.daily_arb_count += 1
-                            
-                        else:
-                            logger.warning(f"⚠️ Insufficient balance: ${usdt_available:.2f} < ${position_usd:.2f}")
+
+                            # An acknowledgement is not a fill. Re-read the
+                            # order and sell only what actually filled.
+                            filled = float(buy_order.get('filled') or 0.0)
+                            try:
+                                if buy_order.get('id'):
+                                    confirmed = await buy_ex.fetch_order(
+                                        buy_order['id'], symbol
+                                    )
+                                    buy_order = confirmed or buy_order
+                                    filled = float(buy_order.get('filled') or 0.0)
+                            except Exception as reconcile_error:
+                                logger.warning(
+                                    f"   ⚠️ Could not reconcile buy: {reconcile_error}"
+                                )
+
+                            if filled <= 0:
+                                logger.warning(
+                                    f"   ⚠️ BUY acknowledged with no fill on "
+                                    f"{buy_exchange}; not selling, no profit booked."
+                                )
+                            else:
+                                logger.info(f"   📤 Placing SELL order on {sell_exchange}...")
+                                sell_order = await sell_ex.create_market_sell_order(
+                                    symbol, min(filled, base_available)
+                                )
+                                logger.info(f"   ✅ SELL submitted: {sell_order.get('id', 'unknown')}")
+
+                                try:
+                                    if sell_order.get('id'):
+                                        confirmed = await sell_ex.fetch_order(
+                                            sell_order['id'], symbol
+                                        )
+                                        sell_order = confirmed or sell_order
+                                except Exception as reconcile_error:
+                                    logger.warning(
+                                        f"   ⚠️ Could not reconcile sell: {reconcile_error}"
+                                    )
+
+                                # Both costs must come from the exchange. These
+                                # previously defaulted -- the sell revenue fell
+                                # back to position_usd * (1 + expected profit),
+                                # so an unfilled sell still booked the profit it
+                                # was hoping for.
+                                buy_cost = buy_order.get('cost')
+                                sell_revenue = sell_order.get('cost')
+                                sold = float(sell_order.get('filled') or 0.0)
+
+                                if buy_cost is None or sell_revenue is None or sold <= 0:
+                                    logger.warning(
+                                        f"   ⚠️ Arbitrage not reconcilable "
+                                        f"(buy_cost={buy_cost}, sell_revenue={sell_revenue}, "
+                                        f"sold={sold}). No profit booked."
+                                    )
+                                else:
+                                    buy_fee = float(
+                                        (buy_order.get('fee') or {}).get('cost') or 0.0
+                                    )
+                                    sell_fee = float(
+                                        (sell_order.get('fee') or {}).get('cost') or 0.0
+                                    )
+                                    actual_profit = (
+                                        float(sell_revenue) - float(buy_cost)
+                                        - buy_fee - sell_fee
+                                    )
+
+                                    logger.info(
+                                        f"💰 ARBITRAGE NET: ${actual_profit:.4f} "
+                                        f"(gross ${float(sell_revenue) - float(buy_cost):.4f}, "
+                                        f"fees ${buy_fee + sell_fee:.4f}, "
+                                        f"expected ${profit_usd:.2f})"
+                                    )
+
+                                    self.total_profit += actual_profit
+                                    self.daily_profit += actual_profit
+                                    self.daily_arb_count += 1
                     
                     except Exception as exec_error:
                         logger.error(f"❌ Arbitrage execution failed: {exec_error}")
