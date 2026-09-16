@@ -48,3 +48,14 @@ Thumbs.db
 # Git files
 *.orig
 *.rej
+
+# Runtime state written by the running bot. Never source, never committed.
+# vault_keys.json and vault_kv.json in particular hold generated key
+# material; the sibling Lean-Trader repository already excludes these for
+# the same reason.
+runtime/vault_keys.json
+runtime/vault_kv.json
+runtime/paper_state.json
+runtime/signals-*.ndjson
+runtime/execution_telemetry.json
+runtime/rpb_positions.json
