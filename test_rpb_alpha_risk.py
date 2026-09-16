@@ -204,14 +204,30 @@ def test_neither_module_places_orders():
 # ---------------------------------------------------------- rejected engines
 
 
-def test_the_synthetic_scout_was_not_connected():
-    """ultra_scout fabricates volume, holders and transfers with random."""
-    src = open("ultra_scout.py").read()
-    assert "random.uniform(100000, 10000000)" in src, "fixture check: still synthetic"
+def test_the_scout_was_repaired_before_being_connected():
+    """It is connected now -- but only because it stopped fabricating.
 
-    for connector in ("rpb_intelligence.py", "rpb_scalping.py", "rpb_alpha_risk.py"):
-        assert "ultra_scout" not in open(connector).read()
-    assert "ultra_scout" not in open("REAL_PROFIT_BOT.py").read()
+    This test previously asserted the scout was NOT wired in, because it
+    invented volume, holders and transfers with random. It is now connected,
+    so the invariant that matters is that it no longer fabricates: the
+    connection is conditional on the repair, not a reversal of it.
+    """
+    import ast
+
+    tree = ast.parse(open("ultra_scout.py").read())
+    fabricators = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr in {"uniform", "randint", "gauss", "choice"}
+        and isinstance(n.func.value, ast.Name)
+        and n.func.value.id in {"random", "np"}
+    ]
+    assert fabricators == [], "the scout must not be connected while it fabricates"
+
+    # And it is genuinely wired in, read-only.
+    assert "UltraScout(exchange=self.gate)" in open("REAL_PROFIT_BOT.py").read()
 
 
 # ------------------------------------------------------------- bot wiring

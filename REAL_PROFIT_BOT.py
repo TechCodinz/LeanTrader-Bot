@@ -130,6 +130,38 @@ class REAL_PROFIT_BOT:
             self.risk = None
             print(f"⚠️ Alpha/risk unavailable: {type(exc).__name__}: {exc}")
 
+        # Market scout. Repaired to read real order books and balances and to
+        # report unavailability instead of inventing metrics. Read-only: it
+        # ranks and annotates, and cannot gate or place anything.
+        try:
+            from ultra_scout import UltraScout
+
+            self.scout = UltraScout(exchange=self.gate)
+            print("🔭 MARKET SCOUT: connected (order-book depth, real volume)")
+        except Exception as exc:
+            self.scout = None
+            print(f"⚠️ Market scout unavailable: {type(exc).__name__}: {exc}")
+
+        # Signal distribution. The VIP and free channels were configured
+        # and every send_telegram call used the admin default, so neither had
+        # ever received a signal. Routed from real fills only.
+        try:
+            from rpb_telegram import SignalDistributor
+
+            self.signals = SignalDistributor(
+                self.send_telegram,
+                admin_chat_id=self.admin_chat_id,
+                vip_chat_id=self.vip_chat_id,
+                free_chat_id=self.free_chat_id,
+            )
+            print(
+                f"📡 SIGNAL DISTRIBUTION: premium={bool(self.vip_chat_id)} "
+                f"free={bool(self.free_chat_id)}"
+            )
+        except Exception as exc:
+            self.signals = None
+            print(f"⚠️ Signal distribution unavailable: {type(exc).__name__}: {exc}")
+
         # Owned-position lifecycle. This is what was missing: the bot executed
         # but never recorded what it bought, so nothing could monitor or exit a
         # position. REAL_PROFIT_BOT remains the execution owner -- the ledger
@@ -375,6 +407,13 @@ class REAL_PROFIT_BOT:
                         self.gate, symbol, signal, confidence, price
                     )
                     if intel.get("applied"):
+                        # Kept so the premium signal can say why, in the
+                        # engines' own terms rather than a restatement.
+                        self._last_reasoning = (
+                            f"RSI {intel.get('rsi')}, MACD {intel.get('macd_histogram')}, "
+                            f"BB {intel.get('bb_position')}, spread {intel.get('spread_bps')}bps, "
+                            f"book imbalance {intel.get('imbalance')}"
+                        )
                         print(
                             f"🧠 {symbol} {signal} | "
                             f"conf {intel.get('confidence_before')}→{intel.get('confidence_after')} | "
@@ -399,6 +438,22 @@ class REAL_PROFIT_BOT:
                             f"{scalp.get('confidence_after')} "
                             f"[{scalp.get('session')}] {scalp.get('reason')}"
                         )
+
+                # Scout depth: real book liquidity behind the candidate. This
+                # only annotates and enriches the premium reasoning -- it has
+                # no veto, because a scout that can block is a scout that can
+                # stop the bot.
+                if getattr(self, "scout", None) is not None and signal == "BUY":
+                    try:
+                        depth = self.scout._get_liquidity_depth(symbol)
+                        if depth.get("available"):
+                            self._last_reasoning = (
+                                getattr(self, "_last_reasoning", "")
+                                + f" | book depth ${depth['bid_depth']:.0f}/"
+                                f"${depth['ask_depth']:.0f}"
+                            )
+                    except Exception:
+                        pass
 
                 # Alpha ensemble. Long-only, so it speaks to BUY signals only,
                 # and it raises confidence or says nothing.
@@ -758,6 +813,24 @@ class REAL_PROFIT_BOT:
                     f"cost=${record['entry_cost']:.4f} | "
                     f"order={record['order_id']}"
                 )
+                # Premium and free channels, from the real fill.
+                if getattr(self, "signals", None) is not None:
+                    try:
+                        _ev = getattr(self, "exit_evaluator", None)
+                        self.signals.broadcast_entry(
+                            symbol,
+                            record["average_entry"],
+                            record["sellable_quantity"],
+                            record["entry_cost"],
+                            record.get("confidence") or 0.0,
+                            order_id=record.get("order_id", ""),
+                            reasoning=getattr(self, "_last_reasoning", ""),
+                            take_profit_bps=getattr(_ev, "take_profit_bps", 0.0),
+                            stop_loss_bps=getattr(_ev, "stop_loss_bps", 0.0),
+                        )
+                    except Exception as exc:
+                        print(f"⚠️ Entry broadcast failed: {type(exc).__name__}: {exc}")
+
                 self.send_telegram(
                     f"""📈 <b>POSITION OPENED</b>
 
@@ -866,6 +939,26 @@ class REAL_PROFIT_BOT:
             if getattr(self, "risk", None) is not None:
                 self.risk.sync_position(symbol, 0.0, settled["exit_average"])
                 self.risk.sync_wallet(new_balance)
+
+            if getattr(self, "signals", None) is not None:
+                try:
+                    self.signals.broadcast_exit(
+                        symbol,
+                        settled["average_entry"],
+                        settled["exit_average"],
+                        settled["exit_quantity"],
+                        settled["gross_pnl"],
+                        settled["total_fees"],
+                        net,
+                        settled["hold_seconds"],
+                        reason,
+                        new_balance,
+                    )
+                    self.signals.broadcast_performance(
+                        self.ledger.stats(), new_balance
+                    )
+                except Exception as exc:
+                    print(f"⚠️ Exit broadcast failed: {type(exc).__name__}: {exc}")
 
             self.send_telegram(
                 f"""{emoji} <b>POSITION CLOSED</b>
