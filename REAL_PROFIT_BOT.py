@@ -71,6 +71,24 @@ class REAL_PROFIT_BOT:
         self.total_trades = 0
         self.winning_trades = 0
 
+        # Market intelligence. Every indicator engine in this project sat
+        # unconnected beside the bot; core/strategy_engine.py could not even
+        # be imported. This connects the real RSI/MACD/Bollinger/ATR math and
+        # order-book microstructure to the bot's own signal. It adjusts
+        # confidence and can veto a genuinely bad setup -- it can never block
+        # the bot from trading, and it fails open.
+        try:
+            from rpb_intelligence import MarketIntelligence
+
+            self.intelligence = MarketIntelligence()
+            if self.intelligence.available:
+                print("🧠 MARKET INTELLIGENCE: connected (RSI/MACD/BB/ATR + order book)")
+            else:
+                print(f"⚠️ Market intelligence inactive: {self.intelligence.reason}")
+        except Exception as exc:
+            self.intelligence = None
+            print(f"⚠️ Market intelligence unavailable: {type(exc).__name__}: {exc}")
+
         # Owned-position lifecycle. This is what was missing: the bot executed
         # but never recorded what it bought, so nothing could monitor or exit a
         # position. REAL_PROFIT_BOT remains the execution owner -- the ledger
@@ -306,7 +324,27 @@ class REAL_PROFIT_BOT:
             # Get best signal
             if signals and confidences:
                 best_idx = confidences.index(max(confidences))
-                return signals[best_idx], max(confidences), price, change, volume
+                signal = signals[best_idx]
+                confidence = max(confidences)
+
+                # Score the bot's own signal against real market structure.
+                # This never manufactures a signal the bot did not produce.
+                if getattr(self, "intelligence", None) is not None:
+                    signal, confidence, intel = self.intelligence.evaluate(
+                        self.gate, symbol, signal, confidence, price
+                    )
+                    if intel.get("applied"):
+                        print(
+                            f"🧠 {symbol} {signal} | "
+                            f"conf {intel.get('confidence_before')}→{intel.get('confidence_after')} | "
+                            f"RSI {intel.get('rsi')} MACD {intel.get('macd_histogram')} "
+                            f"BB {intel.get('bb_position')} spread {intel.get('spread_bps')}bps "
+                            f"imb {intel.get('imbalance')} | {intel.get('reason')}"
+                        )
+                    elif intel.get("reason"):
+                        print(f"🧠 {symbol} intelligence abstained: {intel['reason']}")
+
+                return signal, confidence, price, change, volume
 
             return "HOLD", 50, price, change, volume
 
